@@ -10,6 +10,8 @@ pnpm install
 
 ```bash
 cast wallet new-mnemonic
+node scripts/generate-fhe-keys.js
+
 pnpm hardhat run scripts/deploy.ts --network sepolia
 pnpm hardhat run scripts/mint-mock-usdc-to-lp.ts --network sepolia
 pnpm hardhat run scripts/depositToVault.ts --network sepolia

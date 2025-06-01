@@ -29,3 +29,4 @@ res/
 running_node/
 
 docker-compose/docker-compose-full.yml
+fhe-keys.txt

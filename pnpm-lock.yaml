@@ -11,6 +11,9 @@ importers:
       '@openzeppelin/contracts':
         specifier: ^5.3.0
         version: 5.3.0
+      node-seal:
+        specifier: ^5.1.6
+        version: 5.1.6
     devDependencies:
       '@nomicfoundation/hardhat-toolbox':
         specifier: ^3.0.0
@@ -1400,6 +1403,9 @@ packages:
   node-gyp-build@4.8.4:
     resolution: {integrity: sha512-LA4ZjwlnUblHVgq0oBF3Jl/6h/Nvs5fzBLwdEF4nuxnFdsfajde4WfxtJr3CaiH+F6ewcIB/q4jQ4UzPyid+CQ==}
     hasBin: true
+
+  node-seal@5.1.6:
+    resolution: {integrity: sha512-LgJLhJZWYEDLjIN1eMzIgC8oQvUSrC5KPWvYNdryg/XEn7CZ6h2/X08COREy+DHMRTz0bsmiDtFxalzZSHt40w==}
 
   nofilter@3.1.0:
     resolution: {integrity: sha512-l2NNj07e9afPnhAhvgVrCD/oy2Ai1yfLpuo3EpiO1jFTsB4sFz6oIfAfSZyQzVpkZQ9xS8ZS5g1jCBgq4Hwo0g==}
@@ -3665,6 +3671,8 @@ snapshots:
       lodash: 4.17.21
 
   node-gyp-build@4.8.4: {}
+
+  node-seal@5.1.6: {}
 
   nofilter@3.1.0: {}
 
