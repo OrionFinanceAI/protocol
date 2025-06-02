@@ -17,8 +17,9 @@ def upload_and_get_url(file_path: str):
         raise
 
     url = f"https://gateway.lighthouse.storage/ipfs/{cid}"
-    return url
+    return url, cid
 
 if __name__ == "__main__":
-    url = upload_and_get_url("fhe-keys/fhePublicKeyHex.hex")
+    url, cid = upload_and_get_url("fhe-keys/fhePublicKeyHex.hex")
     print(url)
+    print(cid)
