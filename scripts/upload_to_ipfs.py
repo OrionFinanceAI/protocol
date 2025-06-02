@@ -20,5 +20,5 @@ def upload_and_get_url(file_path: str):
     return url
 
 if __name__ == "__main__":
-    url = upload_and_get_url("fhePublicKeyHex.hex")
+    url = upload_and_get_url("fhe-keys/fhePublicKeyHex.hex")
     print(url)

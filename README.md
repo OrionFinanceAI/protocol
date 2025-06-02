@@ -4,6 +4,10 @@
 
 ```bash
 pnpm install
+cargo install --path ./rust-fhe
+uv venv
+source .venv/bin/activate
+uv pip install lighthouseweb3 python-dotenv
 ```
 
 ## Scripts
@@ -17,7 +21,9 @@ cast wallet new-mnemonic
 Generate FHE key pair and upload public key to IPFS.
 
 ```bash
-node scripts/generate-fhe-keys.js
+cd rust-fhe
+cargo run --bin fhe keygen
+cd .. 
 python scripts/upload_to_ipfs.py
 ```
 

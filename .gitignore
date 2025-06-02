@@ -31,3 +31,5 @@ running_node/
 
 docker-compose/docker-compose-full.yml
 *.hex
+fhe-keys/
+rust-fhe/target/
