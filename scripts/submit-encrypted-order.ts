@@ -3,8 +3,8 @@ import * as dotenv from "dotenv";
 dotenv.config();
 
 async function main() {
-  const vaultAddress = process.env.VAULT_ADDRESS;
-  if (!vaultAddress) throw new Error("Please set VAULT_ADDRESS in your .env file");
+  const vaultAddress = process.env.CURATED_VAULT_ADDRESS;
+  if (!vaultAddress) throw new Error("Please set CURATED_VAULT_ADDRESS in your .env file");
 
   const encryptedValueHex = process.env.ENCRYPTED_VALUE_HEX;
   if (!encryptedValueHex) throw new Error("Please set ENCRYPTED_VALUE_HEX in your .env file");

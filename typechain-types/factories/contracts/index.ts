@@ -2,6 +2,6 @@
 /* tslint:disable */
 /* eslint-disable */
 export * as erc4626WhitelistSol from "./ERC4626Whitelist.sol";
-export { FHEIntentsERC4626Vault__factory } from "./FHEIntentsERC4626Vault__factory";
+export * as fheIntentsErc4626VaultSol from "./FHEIntentsERC4626Vault.sol";
 export { MockUSDC__factory } from "./MockUSDC__factory";
 export { UniverseERC4626Vault__factory } from "./UniverseERC4626Vault__factory";

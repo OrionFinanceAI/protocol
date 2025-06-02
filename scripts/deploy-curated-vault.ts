@@ -23,12 +23,17 @@ async function main() {
   }
   console.log("Using MockUSDC at:", mockUSDCAddress);
 
+  const whitelistAddress = process.env.WHITELIST_ADDRESS;
+  if (!whitelistAddress) {
+    throw new Error("Please set WHITELIST_ADDRESS in your .env file");
+  }
+  console.log("Using Whitelist at:", whitelistAddress);
+
   const Vault = await ethers.getContractFactory("FHEIntentsERC4626Vault");
-  const vault = await Vault.deploy(mockUSDCAddress, curatorAddress, fhePublicKeyCID);
+  const vault = await Vault.deploy(mockUSDCAddress, curatorAddress, fhePublicKeyCID, whitelistAddress);
   await vault.deployed();
 
   console.log("✅ ERC4626 Vault deployed to:", vault.address);
-  console.log("🔗 FHE Key IPFS CID stored in contract:", fhePublicKeyCID);
 }
 
 main().catch((error) => {

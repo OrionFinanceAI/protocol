@@ -3,6 +3,7 @@
 /* eslint-disable */
 import type * as erc4626WhitelistSol from "./ERC4626Whitelist.sol";
 export type { erc4626WhitelistSol };
-export type { FHEIntentsERC4626Vault } from "./FHEIntentsERC4626Vault";
+import type * as fheIntentsErc4626VaultSol from "./FHEIntentsERC4626Vault.sol";
+export type { fheIntentsErc4626VaultSol };
 export type { MockUSDC } from "./MockUSDC";
 export type { UniverseERC4626Vault } from "./UniverseERC4626Vault";

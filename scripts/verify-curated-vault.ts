@@ -3,18 +3,19 @@ import * as dotenv from "dotenv";
 dotenv.config();
 
 async function main() {
-  const vaultAddress = process.env.VAULT_ADDRESS;
+  const vaultAddress = process.env.CURATED_VAULT_ADDRESS;
   const mockUsdcAddress = process.env.MOCK_USDC_ADDRESS;
   const curatorAddress = process.env.CURATOR_ADDRESS;
   const fheCID = process.env.FHE_PUBLIC_KEY_CID;
+  const whitelistAddress = process.env.WHITELIST_ADDRESS;
 
-  if (!vaultAddress || !mockUsdcAddress || !curatorAddress || !fheCID) {
+  if (!vaultAddress || !mockUsdcAddress || !curatorAddress || !fheCID || !whitelistAddress) {
     throw new Error("Missing one or more env variables");
   }
 
   await run("verify:verify", {
     address: vaultAddress,
-    constructorArguments: [mockUsdcAddress, curatorAddress, fheCID],
+    constructorArguments: [mockUsdcAddress, curatorAddress, fheCID, whitelistAddress],
   });
 
   console.log("✅ Verification submitted.");

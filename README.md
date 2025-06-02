@@ -12,13 +12,13 @@ uv pip install lighthouseweb3 python-dotenv
 
 ## Scripts
 
-Generate addresses for Deployer, LP, Curator.
+### Generate addresses for Deployer, LP, Curator.
 
 ```bash
 cast wallet new-mnemonic
 ```
 
-Generate FHE key pair and upload public key to IPFS.
+### Generate FHE key pair and upload public key to IPFS.
 
 ```bash
 cd rust-fhe
@@ -27,60 +27,71 @@ cd ..
 python scripts/upload_to_ipfs.py
 ```
 
-Deploy MockUSDC contract.
+### Deploy MockUSDC contract.
 
 ```bash
 pnpm hardhat run scripts/deploy-mock-usdc.ts --network sepolia
 ```
 
-Mint MockUSDC to LP.
+### Mint MockUSDC to LP.
 
 ```bash
 pnpm hardhat run scripts/mint-mock-usdc-to-lp.ts --network sepolia
 ```
 
-Deploy Curated Vault contract.
+### Deploy Curated Vault contract.
 
 ```bash
 pnpm hardhat run scripts/deploy-curated-vault.ts --network sepolia
 ```
 
-Verify vault contract.
+Verify vault contract with
 
 ```bash
-pnpm hardhat run scripts/verify-vault.ts --network sepolia
+pnpm hardhat run scripts/verify-curated-vault.ts --network sepolia
 ```
 
-Deposit USDC to Vault for share token.
+### Deposit USDC to Vault for share token.
 
 ```bash
 pnpm hardhat run scripts/deposit-to-vault.ts --network sepolia
 ```
 
-Deploy Investment Universe.
+### Deploy Investment Universe.
 
 ```bash
 pnpm hardhat run scripts/deploy-investment-universe.ts --network sepolia
 ```
 
-Deploy Whitelist.
+### Deploy Whitelist.
 
 ```bash
 pnpm hardhat run scripts/deploy-whitelist.ts --network sepolia
 ```
 
-Add Universe Vaults to Whitelist.
+### Add Universe Vaults to Whitelist.
 
 ```bash
 cargo run --bin fhe add-to-whitelist <vault_address>
+```
 
-Using:
+Using the output of the investment universe deployment:
 
+```bash
 All vaults deployed: [
   '0x37D0d043caA1A0fBccf8DD097EEc50b09B95dF6f',
   '0xCCA69D92CB2c0d44Bb787332E8f233549252CB05'
 ]
 ```
+
+Verify whitelist contract with
+
+```bash
+pnpm hardhat run scripts/verify-whitelist.ts --network sepolia
+```
+
+
+
 
 <!-- Submit encrypted order to Vault.
 
