@@ -12,9 +12,9 @@ async function main() {
   }
   console.log("Curator address:", curatorAddress);
 
-  const fhePublicKeyCID = process.env.FHE_PUBLIC_KEY_CID;
-  if (!fhePublicKeyCID) {
-    throw new Error("Please set FHE_PUBLIC_KEY_CID in your .env file");
+  const fheClientKeyCID = process.env.FHE_CLIENT_KEY_CID;
+  if (!fheClientKeyCID) {
+    throw new Error("Please set FHE_CLIENT_KEY_CID in your .env file");
   }
 
   const mockUSDCAddress = process.env.MOCK_USDC_ADDRESS;
@@ -30,7 +30,7 @@ async function main() {
   console.log("Using Whitelist at:", whitelistAddress);
 
   const Vault = await ethers.getContractFactory("FHEIntentsERC4626Vault");
-  const vault = await Vault.deploy(mockUSDCAddress, curatorAddress, fhePublicKeyCID, whitelistAddress);
+  const vault = await Vault.deploy(mockUSDCAddress, curatorAddress, fheClientKeyCID, whitelistAddress);
   await vault.deployed();
 
   console.log("✅ ERC4626 Vault deployed to:", vault.address);

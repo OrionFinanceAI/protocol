@@ -16,10 +16,10 @@ pub fn generate_keypair() -> KeyPair {
     KeyPair { client_key, server_key }
 }
 
-pub fn write_key_to_hex_file(file_path: &str, key_data: Vec<u8>) {
-    let hex = hex::encode(key_data);
-    let mut file = File::create(file_path).unwrap();
-    file.write_all(hex.as_bytes()).unwrap();
+pub fn write_key_to_file(path: &str, key_bytes: &[u8]) -> std::io::Result<()> {
+    let mut file = File::create(path)?;
+    file.write_all(key_bytes)?;
+    Ok(())
 }
 
 pub fn read_key_from_hex_file(file_path: &str) -> Vec<u8> {

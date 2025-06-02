@@ -10,7 +10,7 @@ interface IWhitelist {
 
 contract FHEIntentsERC4626Vault is ERC4626 {
     address public curator;
-    address public deployer;
+    address public deployer; // Deployer is often the curator
     string public fhePublicKeyCID;
     IWhitelist public whitelist;
 

@@ -39,6 +39,32 @@ pnpm hardhat run scripts/deploy-mock-usdc.ts --network sepolia
 pnpm hardhat run scripts/mint-mock-usdc-to-lp.ts --network sepolia
 ```
 
+### Deploy Investment Universe.
+
+```bash
+pnpm hardhat run scripts/deploy-investment-universe.ts --network sepolia
+```
+
+### Deploy Whitelist.
+
+```bash
+pnpm hardhat run scripts/deploy-whitelist.ts --network sepolia
+```
+
+### Add Universe Vaults to Whitelist.
+
+TODO: weird error, chatgpt says it's because the vault is already in the whitelist, but I did it with a new whitelist contract...
+
+```bash
+cargo run --bin fhe add-to-whitelist
+```
+
+Verify whitelist contract with
+
+```bash
+pnpm hardhat run scripts/verify-whitelist.ts --network sepolia
+```
+
 ### Deploy Curated Vault contract.
 
 ```bash
@@ -57,48 +83,11 @@ pnpm hardhat run scripts/verify-curated-vault.ts --network sepolia
 pnpm hardhat run scripts/deposit-to-vault.ts --network sepolia
 ```
 
-### Deploy Investment Universe.
-
-```bash
-pnpm hardhat run scripts/deploy-investment-universe.ts --network sepolia
-```
-
-### Deploy Whitelist.
-
-```bash
-pnpm hardhat run scripts/deploy-whitelist.ts --network sepolia
-```
-
-### Add Universe Vaults to Whitelist.
-
-```bash
-cargo run --bin fhe add-to-whitelist <vault_address>
-```
-
-Using the output of the investment universe deployment:
-
-```bash
-All vaults deployed: [
-  '0x37D0d043caA1A0fBccf8DD097EEc50b09B95dF6f',
-  '0xCCA69D92CB2c0d44Bb787332E8f233549252CB05'
-]
-```
-
-Verify whitelist contract with
-
-```bash
-pnpm hardhat run scripts/verify-whitelist.ts --network sepolia
-```
-
-
-
-
-<!-- Submit encrypted order to Vault.
+### Submit encrypted order to Vault.
 
 ```bash
 cargo run --bin fhe encrypt-and-submit
-pnpm hardhat run scripts/submit-encrypted-order.ts --network sepolia
-``` -->
+```
 
 ## TODO
 

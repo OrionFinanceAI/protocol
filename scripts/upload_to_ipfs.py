@@ -20,6 +20,6 @@ def upload_and_get_url(file_path: str):
     return url, cid
 
 if __name__ == "__main__":
-    url, cid = upload_and_get_url("fhe-keys/fhePublicKeyHex.hex")
+    url, cid = upload_and_get_url("fhe-keys/fheClientKey.bin")
     print(url)
     print(cid)
