@@ -39,10 +39,10 @@ Mint MockUSDC to LP.
 pnpm hardhat run scripts/mint-mock-usdc-to-lp.ts --network sepolia
 ```
 
-Deploy Vault contract.
+Deploy Curated Vault contract.
 
 ```bash
-pnpm hardhat run scripts/deploy-vault.ts --network sepolia
+pnpm hardhat run scripts/deploy-curated-vault.ts --network sepolia
 ```
 
 Verify vault contract.
@@ -57,15 +57,41 @@ Deposit USDC to Vault for share token.
 pnpm hardhat run scripts/deposit-to-vault.ts --network sepolia
 ```
 
-Submit encrypted order to Vault.
+Deploy Investment Universe.
 
 ```bash
-pnpm hardhat run scripts/submit-encrypted-order.ts --network sepolia
+pnpm hardhat run scripts/deploy-investment-universe.ts --network sepolia
 ```
 
-## Overview
+Deploy Whitelist.
 
-LPs are able to deposit USDC (ERC20) tokens into a vault, and get share token in exchange. The curator, associated with the vault, is submitting FHE-encrypted rebalancing orders to a batcher, asynchronously performing sum of encrypted vectors using Zama coprocessor. The output of the batcher is decrypted by another module calling Zama coprocessor, that cannot decrypt individual batched states. such module behaves as the curator of a liquidity pool, collecting all the USDC liquidity associated with such orders. The pool is then dispaching the liquidity across an array of ERC4626 tokens and gets an array of share tokens. A chainlink oracle is responsible for measuring the profit and loss of the investment universe between two epochs. This PandL vector is passed to and FHE computer, performing a dot product between curators intents and plaintext returns. These returns are used to update the frontend vaults prices. USDC liqudity is backpropagate as little as possible and as much as necessary.
+```bash
+pnpm hardhat run scripts/deploy-whitelist.ts --network sepolia
+```
+
+Add Universe Vaults to Whitelist.
+
+```bash
+cargo run --bin fhe add-to-whitelist <vault_address>
+
+Using:
+
+All vaults deployed: [
+  '0x37D0d043caA1A0fBccf8DD097EEc50b09B95dF6f',
+  '0xCCA69D92CB2c0d44Bb787332E8f233549252CB05'
+]
+```
+
+<!-- Submit encrypted order to Vault.
+
+```bash
+cargo run --bin fhe encrypt-and-submit
+pnpm hardhat run scripts/submit-encrypted-order.ts --network sepolia
+``` -->
+
+## TODO
+
+The curator, associated with the vault, is submitting FHE-encrypted rebalancing orders to a batcher, asynchronously performing sum of encrypted vectors using Zama coprocessor. The output of the batcher is decrypted by another module calling Zama coprocessor, that cannot decrypt individual batched states. such module behaves as the curator of a liquidity pool, collecting all the USDC liquidity associated with such orders. The pool is then dispaching the liquidity across an array of ERC4626 tokens and gets an array of share tokens. A chainlink oracle is responsible for measuring the profit and loss of the investment universe between two epochs. This PandL vector is passed to and FHE computer, performing a dot product between curators intents and plaintext returns. These returns are used to update the frontend vaults prices. USDC liqudity is backpropagate as little as possible and as much as necessary.
 
 # Module-by-module Breakdown
 

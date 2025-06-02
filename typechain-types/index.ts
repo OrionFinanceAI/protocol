@@ -32,10 +32,14 @@ export type { IERC165 } from "./@openzeppelin/contracts/utils/introspection/IERC
 export { IERC165__factory } from "./factories/@openzeppelin/contracts/utils/introspection/IERC165__factory";
 export type { SafeCast } from "./@openzeppelin/contracts/utils/math/SafeCast";
 export { SafeCast__factory } from "./factories/@openzeppelin/contracts/utils/math/SafeCast__factory";
+export type { UniverseERC4626Whitelist } from "./contracts/ERC4626Whitelist.sol/UniverseERC4626Whitelist";
+export { UniverseERC4626Whitelist__factory } from "./factories/contracts/ERC4626Whitelist.sol/UniverseERC4626Whitelist__factory";
 export type { FHEIntentsERC4626Vault } from "./contracts/FHEIntentsERC4626Vault";
 export { FHEIntentsERC4626Vault__factory } from "./factories/contracts/FHEIntentsERC4626Vault__factory";
 export type { MockUSDC } from "./contracts/MockUSDC";
 export { MockUSDC__factory } from "./factories/contracts/MockUSDC__factory";
+export type { UniverseERC4626Vault } from "./contracts/UniverseERC4626Vault";
+export { UniverseERC4626Vault__factory } from "./factories/contracts/UniverseERC4626Vault__factory";
 export type { FHE } from "./lib/fhevm-solidity/lib/FHE.sol/FHE";
 export { FHE__factory } from "./factories/lib/fhevm-solidity/lib/FHE.sol/FHE__factory";
 export type { IDecryptionOracle } from "./lib/fhevm-solidity/lib/FHE.sol/IDecryptionOracle";

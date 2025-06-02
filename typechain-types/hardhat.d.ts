@@ -62,6 +62,10 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.SafeCast__factory>;
     getContractFactory(
+      name: "UniverseERC4626Whitelist",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.UniverseERC4626Whitelist__factory>;
+    getContractFactory(
       name: "FHEIntentsERC4626Vault",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.FHEIntentsERC4626Vault__factory>;
@@ -69,6 +73,10 @@ declare module "hardhat/types/runtime" {
       name: "MockUSDC",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.MockUSDC__factory>;
+    getContractFactory(
+      name: "UniverseERC4626Vault",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.UniverseERC4626Vault__factory>;
     getContractFactory(
       name: "FHE",
       signerOrOptions?: ethers.Signer | FactoryOptions
@@ -155,6 +163,11 @@ declare module "hardhat/types/runtime" {
       signer?: ethers.Signer
     ): Promise<Contracts.SafeCast>;
     getContractAt(
+      name: "UniverseERC4626Whitelist",
+      address: string | ethers.Addressable,
+      signer?: ethers.Signer
+    ): Promise<Contracts.UniverseERC4626Whitelist>;
+    getContractAt(
       name: "FHEIntentsERC4626Vault",
       address: string | ethers.Addressable,
       signer?: ethers.Signer
@@ -164,6 +177,11 @@ declare module "hardhat/types/runtime" {
       address: string | ethers.Addressable,
       signer?: ethers.Signer
     ): Promise<Contracts.MockUSDC>;
+    getContractAt(
+      name: "UniverseERC4626Vault",
+      address: string | ethers.Addressable,
+      signer?: ethers.Signer
+    ): Promise<Contracts.UniverseERC4626Vault>;
     getContractAt(
       name: "FHE",
       address: string | ethers.Addressable,
@@ -244,6 +262,10 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.SafeCast>;
     deployContract(
+      name: "UniverseERC4626Whitelist",
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.UniverseERC4626Whitelist>;
+    deployContract(
       name: "FHEIntentsERC4626Vault",
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.FHEIntentsERC4626Vault>;
@@ -251,6 +273,10 @@ declare module "hardhat/types/runtime" {
       name: "MockUSDC",
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.MockUSDC>;
+    deployContract(
+      name: "UniverseERC4626Vault",
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.UniverseERC4626Vault>;
     deployContract(
       name: "FHE",
       signerOrOptions?: ethers.Signer | DeployContractOptions
@@ -337,6 +363,11 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.SafeCast>;
     deployContract(
+      name: "UniverseERC4626Whitelist",
+      args: any[],
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.UniverseERC4626Whitelist>;
+    deployContract(
       name: "FHEIntentsERC4626Vault",
       args: any[],
       signerOrOptions?: ethers.Signer | DeployContractOptions
@@ -346,6 +377,11 @@ declare module "hardhat/types/runtime" {
       args: any[],
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.MockUSDC>;
+    deployContract(
+      name: "UniverseERC4626Vault",
+      args: any[],
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.UniverseERC4626Vault>;
     deployContract(
       name: "FHE",
       args: any[],
