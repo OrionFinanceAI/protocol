@@ -6,6 +6,10 @@ Orion Finance is a permissionless portfolio management protocol designed to opti
 
 At its core, Orion is building a next-generation permissionless infrastructure that democratizes access to advanced portfolio strategies and lowers the barrier to entry for managers to participate in a marketplace of indexes and actively managed DeFi products.
 
+## Licences
+
+The license for Orion is the Business Source License 1.1 (`BUSL-1.1`) given in [`LICENSE`](./LICENSE).
+
 ## Installation
 
 ```bash
@@ -15,10 +19,6 @@ uv venv
 source .venv/bin/activate
 uv pip install lighthouseweb3 python-dotenv
 ```
-
-## Licences
-
-The license for Orion is the Business Source License 1.1 (`BUSL-1.1`) given in [`LICENSE`](./LICENSE).
 
 ## Scripts
 
