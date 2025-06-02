@@ -8,18 +8,20 @@ contract FHEIntentsERC4626Vault is ERC4626 {
     address public curator;
     address public deployer;
 
-    enum Ticker { ETH, BTC }
-
-    struct Order {
-        Ticker ticker;
+    struct OrderStruct {
+        address token;
         euint32 value;
     }
 
-    Order[] public orders;
+    struct Order {
+        OrderStruct[] items;
+    }
 
-    bytes public fhePublicKey;
+    Order[] private orders;
 
-    event OrderSubmitted(address indexed curator, Ticker ticker, euint32 value);
+    string public fhePublicKeyCID;
+
+    event OrderSubmitted(address indexed curator, uint256 indexed orderId);
 
     modifier onlyCurator() {
         require(msg.sender == curator, "Not the curator");
@@ -29,7 +31,7 @@ contract FHEIntentsERC4626Vault is ERC4626 {
     constructor(
         IERC20 underlyingAsset,
         address _curator,
-        bytes memory _fhePublicKey
+        string memory _fhePublicKeyCID
     )
         ERC20("FHE Intents Vault Token", "fUSDC")
         ERC4626(underlyingAsset)
@@ -37,21 +39,33 @@ contract FHEIntentsERC4626Vault is ERC4626 {
         require(_curator != address(0), "Invalid curator address");
         deployer = msg.sender;
         curator = _curator;
-        fhePublicKey = _fhePublicKey;
+        fhePublicKeyCID = _fhePublicKeyCID;
     }
 
-    function submitEncryptedOrder(Ticker ticker, euint32 encryptedValue) external onlyCurator {
-        orders.push(Order(ticker, encryptedValue));
-        emit OrderSubmitted(msg.sender, ticker, encryptedValue);
+    function submitEncryptedOrder(OrderStruct[] calldata items) external onlyCurator {
+        Order storage newOrder = orders.push();
+        for (uint256 i = 0; i < items.length; i++) {
+            newOrder.items.push(items[i]);
+        }
+
+        emit OrderSubmitted(msg.sender, orders.length - 1);
     }
 
     function getOrderCount() external view returns (uint256) {
         return orders.length;
     }
 
-    function getOrder(uint256 index) external view returns (Ticker, euint32) {
-        require(index < orders.length, "Index out of bounds");
-        Order storage ord = orders[index];
-        return (ord.ticker, ord.value);
+    function getOrderLength(uint256 orderIndex) external view returns (uint256) {
+        require(orderIndex < orders.length, "Order index out of bounds");
+        return orders[orderIndex].items.length;
     }
+
+    function getOrderItem(uint256 orderIndex, uint256 itemIndex) external view returns (address, euint32) {
+        require(orderIndex < orders.length, "Order index out of bounds");
+        require(itemIndex < orders[orderIndex].items.length, "Item index out of bounds");
+
+        OrderStruct storage item = orders[orderIndex].items[itemIndex];
+        return (item.token, item.value);
+    }
+
 }

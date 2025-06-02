@@ -18,14 +18,8 @@ async function main() {
   // Connect to vault with curator wallet
   const vault = await ethers.getContractAt("FHEIntentsERC4626Vault", vaultAddress, curatorWallet);
 
-  // Enum for ticker (make sure this matches your contract's enum)
-  const Ticker = { ETH: 0, BTC: 1 };
-
-  // Example: using ETH ticker here
-  const ticker = Ticker.ETH;
-
   // Submit encrypted order
-  const tx = await vault.submitEncryptedOrder(ticker, encryptedValueHex);
+  const tx = await vault.submitEncryptedOrder(encryptedValueHex);
   await tx.wait();
 
   console.log("✅ Encrypted order submitted!");

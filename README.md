@@ -8,20 +8,54 @@ pnpm install
 
 ## Scripts
 
+Generate addresses for Deployer, LP, Curator.
+
 ```bash
 cast wallet new-mnemonic
-node scripts/generate-fhe-keys.js
-
-pnpm hardhat run scripts/deploy.ts --network sepolia
-pnpm hardhat run scripts/mint-mock-usdc-to-lp.ts --network sepolia
-pnpm hardhat run scripts/depositToVault.ts --network sepolia
-pnpm hardhat run scripts/submitEncryptedOrder.ts --network sepolia
 ```
+
+Generate FHE key pair and upload public key to IPFS.
 
 ```bash
-pnpm hardhat verify --network sepolia 0x98625125251CF3d4b6eBABC2C06ebBB37B2C957a 0xD4aCA3f915627611172F56D85bc1a1478aeC6427 0xde1F4FeE2886fF17294DCC3fE13033A4dB9B6545 0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+node scripts/generate-fhe-keys.js
+python scripts/upload_to_ipfs.py
 ```
 
+Deploy MockUSDC contract.
+
+```bash
+pnpm hardhat run scripts/deploy-mock-usdc.ts --network sepolia
+```
+
+Mint MockUSDC to LP.
+
+```bash
+pnpm hardhat run scripts/mint-mock-usdc-to-lp.ts --network sepolia
+```
+
+Deploy Vault contract.
+
+```bash
+pnpm hardhat run scripts/deploy-vault.ts --network sepolia
+```
+
+Verify vault contract.
+
+```bash
+pnpm hardhat run scripts/verify-vault.ts --network sepolia
+```
+
+Deposit USDC to Vault for share token.
+
+```bash
+pnpm hardhat run scripts/deposit-to-vault.ts --network sepolia
+```
+
+Submit encrypted order to Vault.
+
+```bash
+pnpm hardhat run scripts/submit-encrypted-order.ts --network sepolia
+```
 
 ## Overview
 

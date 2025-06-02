@@ -27,18 +27,13 @@ async function generateKeys() {
   const fhePublicKeyHex = Buffer.from(publicKeyData).toString('hex');
   const fhePrivateKeyHex = Buffer.from(secretKeyData).toString('hex');
 
-  const output = `
-FHE Public Key Hex:
-${fhePublicKeyHex}
+  // Write public key to file
+  fs.writeFileSync('fhePublicKeyHex.hex', fhePublicKeyHex);
 
-FHE Private Key Hex:
-${fhePrivateKeyHex}
-  `;
+  // Write private key to file
+  fs.writeFileSync('fhePrivateKeyHex.hex', fhePrivateKeyHex);
 
-  // Write output to file
-  fs.writeFileSync('fhe-keys.txt', output.trim());
-
-  console.log('✅ Keys generated and saved to fhe-keys.txt');
+  console.log('✅ Keys generated and saved to fhePublicKeyHex.hex, and fhePrivateKeyHex.hex');
 }
 
 generateKeys();
