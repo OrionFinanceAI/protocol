@@ -17,6 +17,7 @@ abi/
 .venv/
 *.egg-info/
 *.tenseal
+__pycache__/
 
 # files
 *.env
