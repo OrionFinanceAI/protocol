@@ -18,14 +18,6 @@ The license for Orion is the Business Source License 1.1 (`BUSL-1.1`) given in [
 pnpm install
 ```
 
-### Install Rust dependencies
-
-```bash
-cargo install --path ./rust-fhe
-```
-
-TODO: assess necessity of rust module. If so, consider having it as a python submodule.
-
 ### Install Python dependencies
 
 ```bash
@@ -69,27 +61,31 @@ pnpm hardhat run scripts/mint-mock-usdc-to-lp.ts --network sepolia
 pnpm hardhat run scripts/deploy-investment-universe.ts --network sepolia
 ```
 
-### Deploy Whitelist.
+### Deploy Config.
 
 ```bash
-pnpm hardhat run scripts/deploy-whitelist.ts --network sepolia
-```
+pnpm hardhat run scripts/deploy-config.ts --network sepolia
+``` 
 
-### Add Universe Vaults to Whitelist.
-
-TODO: Encountered error adding vault to whitelist. Verify vault address is not already whitelisted and contract deployment is correct.
+Verify config contract with:
 
 ```bash
-cargo run --bin fhe add-to-whitelist
+pnpm hardhat run scripts/verify-config.ts --network sepolia
 ```
 
-Verify whitelist contract with
+### Add Universe Vaults to Config Whitelist.
 
 ```bash
-pnpm hardhat run scripts/verify-whitelist.ts --network sepolia
+pnpm hardhat run scripts/add-to-config-whitelist.ts --network sepolia
 ```
 
-### Deploy Curated Vault contract.
+### Deploy Orion Vault Factory.
+
+```bash
+pnpm hardhat run scripts/deploy-orion-vault-factory.ts --network sepolia
+```
+
+### Deploy Orion Vault contract.
 
 ```bash
 pnpm hardhat run scripts/deploy-curated-vault.ts --network sepolia
@@ -107,8 +103,6 @@ pnpm hardhat run scripts/verify-curated-vault.ts --network sepolia
 pnpm hardhat run scripts/deposit-to-vault.ts --network sepolia
 ```
 
-### Submit encrypted order to Vault.
+### Submit encrypted order to Orion Vault.
 
-```bash
-cargo run --bin fhe encrypt-and-submit
-```
+TODO: Implement encrypted order submission.

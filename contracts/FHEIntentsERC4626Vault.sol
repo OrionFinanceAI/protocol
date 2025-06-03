@@ -4,15 +4,15 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import "../lib/fhevm-solidity/lib/FHE.sol";
 
-interface IWhitelist {
-    function check(address vault) external view returns (bool);
+interface IConfig {
+    function isWhitelisted(address vault) external view returns (bool);
+    function getFhePublicCID() external view returns (string memory);
 }
 
 contract FHEIntentsERC4626Vault is ERC4626 {
     address public curator;
-    address public deployer; // Deployer is often the curator
-    string public fhePublicKeyCID;
-    IWhitelist public whitelist;
+    address public deployer;
+    IConfig public config;
 
     struct OrderStruct {
         address token;
@@ -35,8 +35,7 @@ contract FHEIntentsERC4626Vault is ERC4626 {
     constructor(
         IERC20 underlyingAsset,
         address _curator,
-        string memory _fhePublicKeyCID,
-        address _whitelistAddress
+        address _config
     )
         ERC20("FHE Intents Vault Token", "fUSDC")
         ERC4626(underlyingAsset)
@@ -44,8 +43,7 @@ contract FHEIntentsERC4626Vault is ERC4626 {
         require(_curator != address(0), "Invalid curator address");
         deployer = msg.sender;
         curator = _curator;
-        fhePublicKeyCID = _fhePublicKeyCID;
-        whitelist = IWhitelist(_whitelistAddress);
+        config = IConfig(_config);
     }
 
     function submitEncryptedOrder(OrderStruct[] calldata items) external onlyCurator {
@@ -54,7 +52,7 @@ contract FHEIntentsERC4626Vault is ERC4626 {
         Order storage newOrder = orders.push();
 
         for (uint256 i = 0; i < items.length; i++) {
-            if (whitelist.check(items[i].token)) {
+            if (config.isWhitelisted(items[i].token)) {
                 newOrder.items.push(items[i]);
             }
         }
