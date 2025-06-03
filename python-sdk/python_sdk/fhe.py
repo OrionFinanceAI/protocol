@@ -1,6 +1,6 @@
 import tenseal as ts
 
-def generate_and_distribute_keys():
+def run_keygen():
     context = ts.context(
         ts.SCHEME_TYPE.CKKS,
         poly_modulus_degree=8192,
@@ -12,17 +12,17 @@ def generate_and_distribute_keys():
 
     public_context = context.copy()
     public_context.make_context_public()
-    with open("public_context.tenseal", "wb") as f:
+    with open("context.public.tenseal", "wb") as f:
         f.write(public_context.serialize())
 
-    with open("secret_context.tenseal", "wb") as f:
+    with open("context.secret.tenseal", "wb") as f:
         f.write(context.serialize(save_secret_key=True))
 
     print("✅ Keys generated and saved.")
 
 
 def client_encrypt():
-    with open("public_context.tenseal", "rb") as f:
+    with open("context.public.tenseal", "rb") as f:
         public_context = ts.context_from(f.read())
 
     plaintext_data = [1.0, 2.0, 3.0]
@@ -35,7 +35,7 @@ def client_encrypt():
 
 
 def compute_server_evaluation():
-    with open("public_context.tenseal", "rb") as f:
+    with open("context.public.tenseal", "rb") as f:
         public_context = ts.context_from(f.read())
 
     with open("encrypted_data.bin", "rb") as f:
@@ -50,7 +50,7 @@ def compute_server_evaluation():
 
 
 def decryptor_decrypt():
-    with open("secret_context.tenseal", "rb") as f:
+    with open("context.secret.tenseal", "rb") as f:
         secret_context = ts.context_from(f.read())
 
     with open("encrypted_result.bin", "rb") as f:
@@ -58,12 +58,3 @@ def decryptor_decrypt():
 
     result = enc_result.decrypt(secret_key=secret_context.secret_key())
     print("🔓 Decrypted result:", result)
-
-
-
-# ===== MAIN DEMO =====
-if __name__ == "__main__":
-    generate_and_distribute_keys()
-    client_encrypt()
-    compute_server_evaluation()
-    decryptor_decrypt()

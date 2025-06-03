@@ -1,10 +1,12 @@
 """Utils."""
 
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 from lighthouseweb3 import Lighthouse
 
-load_dotenv()
+env_path = Path(__file__).resolve().parent.parent / ".env"
+load_dotenv(dotenv_path=env_path)
 
 def upload_and_get_url(file_path: str):
     """Upload content to Lighthouse and retrieves the url with content identifier (CID)."""
@@ -18,8 +20,3 @@ def upload_and_get_url(file_path: str):
 
     url = f"https://gateway.lighthouse.storage/ipfs/{cid}"
     return url, cid
-
-if __name__ == "__main__":
-    url, cid = upload_and_get_url("fhe-keys/fheClientKey.bin")
-    print(url)
-    print(cid)

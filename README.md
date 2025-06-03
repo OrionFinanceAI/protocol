@@ -12,12 +12,27 @@ The license for Orion is the Business Source License 1.1 (`BUSL-1.1`) given in [
 
 ## Installation
 
+### Install Node dependencies
+
 ```bash
 pnpm install
+```
+
+### Install Rust dependencies
+
+```bash
 cargo install --path ./rust-fhe
+```
+
+TODO: assess necessity of rust module. If so, consider having it as a python submodule.
+
+### Install Python dependencies
+
+```bash
+cd python-sdk
 uv venv
 source .venv/bin/activate
-uv pip install lighthouseweb3 python-dotenv
+uv pip install -e .
 ```
 
 ## Scripts
@@ -31,10 +46,9 @@ cast wallet new-mnemonic
 ### Generate FHE key pair and upload public key to IPFS.
 
 ```bash
-cd rust-fhe
-cargo run --bin fhe keygen
-cd .. 
-python scripts/upload_to_ipfs.py
+cd python-sdk
+sdk keygen
+sdk upload context.public.tenseal
 ```
 
 ### Deploy MockUSDC contract.
@@ -63,7 +77,7 @@ pnpm hardhat run scripts/deploy-whitelist.ts --network sepolia
 
 ### Add Universe Vaults to Whitelist.
 
-TODO: weird error, chatgpt says it's because the vault is already in the whitelist, but I did it with a new whitelist contract...
+TODO: Encountered error adding vault to whitelist. Verify vault address is not already whitelisted and contract deployment is correct.
 
 ```bash
 cargo run --bin fhe add-to-whitelist
