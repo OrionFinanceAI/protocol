@@ -6,9 +6,9 @@ import "./FHEIntentsERC4626Vault.sol";
 contract OrionVaultFactory {
     address public deployer;
     address public config;
-    IERC20 public immutable underlyingAsset;
-    address public immutable internalStateOrchestrator;
-    address public immutable liquidityOrchestrator;
+    IERC20 public immutable underlyingAsset; // TODO: remove and add to global state context contract to make the protocol upgradable.
+    address public immutable internalStateOrchestrator; // TODO: remove and add to global state context contract.
+    address public immutable liquidityOrchestrator; // TODO: remove and add to global state context contract.
 
     address[] public allOrionVaults;
     mapping(address => bool) public isOrionVault;
@@ -44,7 +44,7 @@ contract OrionVaultFactory {
             config,
             internalStateOrchestrator,
             liquidityOrchestrator,
-            address(this)
+            address(this) // TODO: remove, redundant (only the factory adds the vault to the list) and can be faked.
         );
 
         vault = address(newVault);

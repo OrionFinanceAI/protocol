@@ -42,7 +42,7 @@ contract FHEIntentsERC4626Vault is ERC4626 {
         address _config,
         address _internalStateOrchestrator,
         address _liquidityOrchestrator,
-        address _factory
+        address _factory // TODO: remove, redundant (only the factory adds the vault to the list) and can be faked.
     )
         ERC20("FHE Intents Vault Token", "fUSDC")
         ERC4626(_underlyingAsset)
@@ -67,6 +67,7 @@ contract FHEIntentsERC4626Vault is ERC4626 {
 
         Order storage newOrder = orders.push();
 
+        // TODO: remove graceful filter. The intent is rejected if not compatible with investment universe
         for (uint256 i = 0; i < items.length; i++) {
             if (config.isWhitelisted(items[i].token)) {
                 newOrder.items.push(items[i]);
@@ -75,7 +76,7 @@ contract FHEIntentsERC4626Vault is ERC4626 {
 
         require(newOrder.items.length > 0, "No whitelisted tokens in order");
 
-        emit OrderSubmitted(msg.sender, orders.length - 1);
+        emit OrderSubmitted(msg.sender, orders.length - 1); // TODO: length -1 ? Not sure.
     }
     
 }

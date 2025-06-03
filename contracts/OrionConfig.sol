@@ -43,6 +43,7 @@ contract OrionConfig {
         return isWhitelisted[vault];
     }
 
+    // TODO: remove this function, all Vaults and all whitelisted vaults are the same variable.
     function getAllVaults() external view returns (address[] memory) {
         return allVaults;
     }
@@ -57,6 +58,8 @@ contract OrionConfig {
             }
         }
 
+        // TODO: better let consumer iterate (e.g. python sdk).
+        // TODO: add a function to get the length/size to use as a param of the loop in the consumer.
         // Second pass to collect
         address[] memory result = new address[](count);
         uint index = 0;
