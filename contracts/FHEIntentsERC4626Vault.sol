@@ -12,7 +12,11 @@ interface IConfig {
 contract FHEIntentsERC4626Vault is ERC4626 {
     address public curator;
     address public deployer;
-    IConfig public config;
+    IConfig public immutable config;
+    IERC20 public immutable underlyingAsset;
+    address public immutable internalStateOrchestrator;
+    address public immutable liquidityOrchestrator;
+    address public immutable factory;
 
     struct OrderStruct {
         address token;
@@ -33,17 +37,29 @@ contract FHEIntentsERC4626Vault is ERC4626 {
     }
 
     constructor(
-        IERC20 underlyingAsset,
+        IERC20 _underlyingAsset,
         address _curator,
-        address _config
+        address _config,
+        address _internalStateOrchestrator,
+        address _liquidityOrchestrator,
+        address _factory
     )
         ERC20("FHE Intents Vault Token", "fUSDC")
-        ERC4626(underlyingAsset)
+        ERC4626(_underlyingAsset)
     {
         require(_curator != address(0), "Invalid curator address");
+        require(_config != address(0), "Invalid config address");
+        require(_internalStateOrchestrator != address(0), "Invalid internalStateOrchestrator address");
+        require(_liquidityOrchestrator != address(0), "Invalid liquidityOrchestrator address");
+        require(msg.sender == _factory, "Unauthorized deployer");
+
         deployer = msg.sender;
         curator = _curator;
         config = IConfig(_config);
+        underlyingAsset = _underlyingAsset;
+        internalStateOrchestrator = _internalStateOrchestrator;
+        liquidityOrchestrator = _liquidityOrchestrator;
+        factory = _factory;
     }
 
     function submitEncryptedOrder(OrderStruct[] calldata items) external onlyCurator {
