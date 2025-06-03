@@ -1,0 +1,19 @@
+[project]
+name = "python-sdk"
+version = "0.1.0"
+requires-python = ">=3.11"
+readme = "README.md"
+authors = [
+    { name = "Matteo Manzi" },
+]
+
+dependencies = [
+    "lighthouseweb3>=0.1.4,<1.0.0",
+    "python-dotenv>=1.1.0,<2.0.0",
+    "tenseal>=0.3.16,<1.0.0",
+    "numpy>=1.26.0,<2.0.0",
+    "typer>=0.16.0,<1.0.0"
+]
+
+[project.scripts]
+sdk = "python_sdk.__main__:app"
