@@ -4,9 +4,9 @@ import * as dotenv from "dotenv";
 dotenv.config();
 
 async function main() {
-  const mockUSDCAddress = process.env.MOCK_USDC_ADDRESS;
+  const mockUSDCAddress = process.env.UNDERLYING_ASSET;
   if (!mockUSDCAddress) {
-    throw new Error("Please set MOCK_USDC_ADDRESS in your .env file");
+    throw new Error("Please set UNDERLYING_ASSET in your .env file");
   }
 
   const [deployer, lp] = await ethers.getSigners();

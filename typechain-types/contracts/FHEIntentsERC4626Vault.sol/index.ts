@@ -2,4 +2,5 @@
 /* tslint:disable */
 /* eslint-disable */
 export type { FHEIntentsERC4626Vault } from "./FHEIntentsERC4626Vault";
+export type { IConfig } from "./IConfig";
 export type { IWhitelist } from "./IWhitelist";

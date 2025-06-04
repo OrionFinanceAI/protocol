@@ -1,5 +1,3 @@
-// scripts/verifyWhitelist.ts
-
 import { run } from "hardhat";
 import * as dotenv from "dotenv";
 dotenv.config();

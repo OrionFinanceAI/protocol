@@ -43,8 +43,7 @@ contract OrionVaultFactory {
             curator,
             config,
             internalStateOrchestrator,
-            liquidityOrchestrator,
-            address(this) // TODO: remove, redundant (only the factory adds the vault to the list) and can be faked.
+            liquidityOrchestrator
         );
 
         vault = address(newVault);

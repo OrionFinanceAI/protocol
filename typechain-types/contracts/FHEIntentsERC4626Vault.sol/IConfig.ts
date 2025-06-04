@@ -20,19 +20,35 @@ import type {
   TypedContractMethod,
 } from "../../common";
 
-export interface IWhitelistInterface extends Interface {
-  getFunction(nameOrSignature: "check"): FunctionFragment;
+export interface IConfigInterface extends Interface {
+  getFunction(
+    nameOrSignature: "getFhePublicCID" | "isWhitelisted"
+  ): FunctionFragment;
 
-  encodeFunctionData(functionFragment: "check", values: [AddressLike]): string;
+  encodeFunctionData(
+    functionFragment: "getFhePublicCID",
+    values?: undefined
+  ): string;
+  encodeFunctionData(
+    functionFragment: "isWhitelisted",
+    values: [AddressLike]
+  ): string;
 
-  decodeFunctionResult(functionFragment: "check", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "getFhePublicCID",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "isWhitelisted",
+    data: BytesLike
+  ): Result;
 }
 
-export interface IWhitelist extends BaseContract {
-  connect(runner?: ContractRunner | null): IWhitelist;
+export interface IConfig extends BaseContract {
+  connect(runner?: ContractRunner | null): IConfig;
   waitForDeployment(): Promise<this>;
 
-  interface: IWhitelistInterface;
+  interface: IConfigInterface;
 
   queryFilter<TCEvent extends TypedContractEvent>(
     event: TCEvent,
@@ -71,14 +87,19 @@ export interface IWhitelist extends BaseContract {
     event?: TCEvent
   ): Promise<this>;
 
-  check: TypedContractMethod<[vault: AddressLike], [boolean], "view">;
+  getFhePublicCID: TypedContractMethod<[], [string], "view">;
+
+  isWhitelisted: TypedContractMethod<[vault: AddressLike], [boolean], "view">;
 
   getFunction<T extends ContractMethod = ContractMethod>(
     key: string | FunctionFragment
   ): T;
 
   getFunction(
-    nameOrSignature: "check"
+    nameOrSignature: "getFhePublicCID"
+  ): TypedContractMethod<[], [string], "view">;
+  getFunction(
+    nameOrSignature: "isWhitelisted"
   ): TypedContractMethod<[vault: AddressLike], [boolean], "view">;
 
   filters: {};

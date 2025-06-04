@@ -1,12 +1,15 @@
 import { ethers } from "hardhat";
+import * as dotenv from "dotenv";
 
-async function main() {
+dotenv.config();
+
+  async function main() {
     const [deployer] = await ethers.getSigners();
     console.log("Deploying Investment Universe with:", deployer.address);
 
-    const mockUSDCAddress = process.env.MOCK_USDC_ADDRESS;
+    const mockUSDCAddress = process.env.UNDERLYING_ASSET;
     if (!mockUSDCAddress) {
-        throw new Error("Please set MOCK_USDC_ADDRESS in your .env file");
+        throw new Error("Please set UNDERLYING_ASSET in your .env file");
       }
     console.log("Using MockUSDC at:", mockUSDCAddress);
 

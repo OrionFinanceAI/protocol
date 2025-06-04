@@ -39,13 +39,15 @@ export interface FHEIntentsERC4626VaultInterface extends Interface {
       | "approve"
       | "asset"
       | "balanceOf"
+      | "config"
       | "convertToAssets"
       | "convertToShares"
       | "curator"
       | "decimals"
       | "deployer"
       | "deposit"
-      | "fhePublicCID"
+      | "internalStateOrchestrator"
+      | "liquidityOrchestrator"
       | "maxDeposit"
       | "maxMint"
       | "maxRedeem"
@@ -63,7 +65,7 @@ export interface FHEIntentsERC4626VaultInterface extends Interface {
       | "totalSupply"
       | "transfer"
       | "transferFrom"
-      | "whitelist"
+      | "underlyingAsset"
       | "withdraw"
   ): FunctionFragment;
 
@@ -89,6 +91,7 @@ export interface FHEIntentsERC4626VaultInterface extends Interface {
     functionFragment: "balanceOf",
     values: [AddressLike]
   ): string;
+  encodeFunctionData(functionFragment: "config", values?: undefined): string;
   encodeFunctionData(
     functionFragment: "convertToAssets",
     values: [BigNumberish]
@@ -105,7 +108,11 @@ export interface FHEIntentsERC4626VaultInterface extends Interface {
     values: [BigNumberish, AddressLike]
   ): string;
   encodeFunctionData(
-    functionFragment: "fhePublicCID",
+    functionFragment: "internalStateOrchestrator",
+    values?: undefined
+  ): string;
+  encodeFunctionData(
+    functionFragment: "liquidityOrchestrator",
     values?: undefined
   ): string;
   encodeFunctionData(
@@ -170,7 +177,10 @@ export interface FHEIntentsERC4626VaultInterface extends Interface {
     functionFragment: "transferFrom",
     values: [AddressLike, AddressLike, BigNumberish]
   ): string;
-  encodeFunctionData(functionFragment: "whitelist", values?: undefined): string;
+  encodeFunctionData(
+    functionFragment: "underlyingAsset",
+    values?: undefined
+  ): string;
   encodeFunctionData(
     functionFragment: "withdraw",
     values: [BigNumberish, AddressLike, AddressLike]
@@ -180,6 +190,7 @@ export interface FHEIntentsERC4626VaultInterface extends Interface {
   decodeFunctionResult(functionFragment: "approve", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "asset", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "balanceOf", data: BytesLike): Result;
+  decodeFunctionResult(functionFragment: "config", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "convertToAssets",
     data: BytesLike
@@ -193,7 +204,11 @@ export interface FHEIntentsERC4626VaultInterface extends Interface {
   decodeFunctionResult(functionFragment: "deployer", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "deposit", data: BytesLike): Result;
   decodeFunctionResult(
-    functionFragment: "fhePublicCID",
+    functionFragment: "internalStateOrchestrator",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "liquidityOrchestrator",
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "maxDeposit", data: BytesLike): Result;
@@ -240,7 +255,10 @@ export interface FHEIntentsERC4626VaultInterface extends Interface {
     functionFragment: "transferFrom",
     data: BytesLike
   ): Result;
-  decodeFunctionResult(functionFragment: "whitelist", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "underlyingAsset",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(functionFragment: "withdraw", data: BytesLike): Result;
 }
 
@@ -405,6 +423,8 @@ export interface FHEIntentsERC4626Vault extends BaseContract {
 
   balanceOf: TypedContractMethod<[account: AddressLike], [bigint], "view">;
 
+  config: TypedContractMethod<[], [string], "view">;
+
   convertToAssets: TypedContractMethod<
     [shares: BigNumberish],
     [bigint],
@@ -429,7 +449,9 @@ export interface FHEIntentsERC4626Vault extends BaseContract {
     "nonpayable"
   >;
 
-  fhePublicCID: TypedContractMethod<[], [string], "view">;
+  internalStateOrchestrator: TypedContractMethod<[], [string], "view">;
+
+  liquidityOrchestrator: TypedContractMethod<[], [string], "view">;
 
   maxDeposit: TypedContractMethod<[arg0: AddressLike], [bigint], "view">;
 
@@ -489,7 +511,7 @@ export interface FHEIntentsERC4626Vault extends BaseContract {
     "nonpayable"
   >;
 
-  whitelist: TypedContractMethod<[], [string], "view">;
+  underlyingAsset: TypedContractMethod<[], [string], "view">;
 
   withdraw: TypedContractMethod<
     [assets: BigNumberish, receiver: AddressLike, owner: AddressLike],
@@ -522,6 +544,9 @@ export interface FHEIntentsERC4626Vault extends BaseContract {
     nameOrSignature: "balanceOf"
   ): TypedContractMethod<[account: AddressLike], [bigint], "view">;
   getFunction(
+    nameOrSignature: "config"
+  ): TypedContractMethod<[], [string], "view">;
+  getFunction(
     nameOrSignature: "convertToAssets"
   ): TypedContractMethod<[shares: BigNumberish], [bigint], "view">;
   getFunction(
@@ -544,7 +569,10 @@ export interface FHEIntentsERC4626Vault extends BaseContract {
     "nonpayable"
   >;
   getFunction(
-    nameOrSignature: "fhePublicCID"
+    nameOrSignature: "internalStateOrchestrator"
+  ): TypedContractMethod<[], [string], "view">;
+  getFunction(
+    nameOrSignature: "liquidityOrchestrator"
   ): TypedContractMethod<[], [string], "view">;
   getFunction(
     nameOrSignature: "maxDeposit"
@@ -618,7 +646,7 @@ export interface FHEIntentsERC4626Vault extends BaseContract {
     "nonpayable"
   >;
   getFunction(
-    nameOrSignature: "whitelist"
+    nameOrSignature: "underlyingAsset"
   ): TypedContractMethod<[], [string], "view">;
   getFunction(
     nameOrSignature: "withdraw"

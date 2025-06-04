@@ -27,13 +27,7 @@ source .venv/bin/activate
 uv pip install -e .
 ```
 
-## Scripts
-
-### Generate addresses for Deployer, LP, Curator.
-
-```bash
-cast wallet new-mnemonic
-```
+## Development Scripts
 
 ### Generate FHE key pair and upload public key to IPFS.
 
@@ -43,58 +37,10 @@ sdk keygen
 sdk upload context.public.tenseal
 ```
 
-### Deploy MockUSDC contract.
-
-```bash
-pnpm hardhat run scripts/deploy-mock-usdc.ts --network sepolia
-```
-
-### Mint MockUSDC to LP.
-
-```bash
-pnpm hardhat run scripts/mint-mock-usdc-to-lp.ts --network sepolia
-```
-
-### Deploy Investment Universe.
-
-```bash
-pnpm hardhat run scripts/deploy-investment-universe.ts --network sepolia
-```
-
-### Deploy Config.
-
-```bash
-pnpm hardhat run scripts/deploy-config.ts --network sepolia
-``` 
-
-Verify config contract with:
+### Verify Config
 
 ```bash
 pnpm hardhat run scripts/verify-config.ts --network sepolia
-```
-
-### Add Universe Vaults to Config Whitelist.
-
-```bash
-pnpm hardhat run scripts/add-to-config-whitelist.ts --network sepolia
-```
-
-### Deploy Orion Vault Factory.
-
-```bash
-pnpm hardhat run scripts/deploy-orion-vault-factory.ts --network sepolia
-```
-
-### Deploy Orion Vault contract.
-
-```bash
-pnpm hardhat run scripts/deploy-curated-vault.ts --network sepolia
-```
-
-Verify vault contract with
-
-```bash
-pnpm hardhat run scripts/verify-curated-vault.ts --network sepolia
 ```
 
 ### Deposit USDC to Vault for share token.
@@ -103,6 +49,6 @@ pnpm hardhat run scripts/verify-curated-vault.ts --network sepolia
 pnpm hardhat run scripts/deposit-to-vault.ts --network sepolia
 ```
 
-### Submit encrypted order to Orion Vault.
+### Submit order to Orion Vault.
 
-TODO: Implement encrypted order submission.
+TODO: Implement encrypted order submission. Note that this shall work both for encrypted and unencrypted order intents.

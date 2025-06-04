@@ -16,7 +16,6 @@ contract FHEIntentsERC4626Vault is ERC4626 {
     IERC20 public immutable underlyingAsset;
     address public immutable internalStateOrchestrator;
     address public immutable liquidityOrchestrator;
-    address public immutable factory;
 
     struct OrderStruct {
         address token;
@@ -41,8 +40,7 @@ contract FHEIntentsERC4626Vault is ERC4626 {
         address _curator,
         address _config,
         address _internalStateOrchestrator,
-        address _liquidityOrchestrator,
-        address _factory // TODO: remove, redundant (only the factory adds the vault to the list) and can be faked.
+        address _liquidityOrchestrator
     )
         ERC20("FHE Intents Vault Token", "fUSDC")
         ERC4626(_underlyingAsset)
@@ -51,7 +49,6 @@ contract FHEIntentsERC4626Vault is ERC4626 {
         require(_config != address(0), "Invalid config address");
         require(_internalStateOrchestrator != address(0), "Invalid internalStateOrchestrator address");
         require(_liquidityOrchestrator != address(0), "Invalid liquidityOrchestrator address");
-        require(msg.sender == _factory, "Unauthorized deployer");
 
         deployer = msg.sender;
         curator = _curator;
@@ -59,7 +56,6 @@ contract FHEIntentsERC4626Vault is ERC4626 {
         underlyingAsset = _underlyingAsset;
         internalStateOrchestrator = _internalStateOrchestrator;
         liquidityOrchestrator = _liquidityOrchestrator;
-        factory = _factory;
     }
 
     function submitEncryptedOrder(OrderStruct[] calldata items) external onlyCurator {

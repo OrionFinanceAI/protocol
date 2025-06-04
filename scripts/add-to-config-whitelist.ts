@@ -1,6 +1,16 @@
 import { ethers } from "hardhat";
 import * as dotenv from "dotenv";
+
 dotenv.config();
+
+function getUniverseList(): string[] {
+  const list = process.env.UNIVERSE_LIST;
+  if (!list) {
+    throw new Error("Please set UNIVERSE_LIST in your .env file");
+  }
+  return list.split(",").map(addr => addr.trim()).filter(addr => addr.length > 0);
+}
+
 
 async function main() {
   const [deployer] = await ethers.getSigners();
@@ -12,14 +22,11 @@ async function main() {
   }
   console.log("Using Config contract at:", configAddress);
 
-  const UNIVERSE_LIST = [
-    "0x37D0d043caA1A0fBccf8DD097EEc50b09B95dF6f",
-    "0xCCA69D92CB2c0d44Bb787332E8f233549252CB05"
-  ];
-
   const config = await ethers.getContractAt("OrionConfig", configAddress);
 
-  for (const vault of UNIVERSE_LIST) {
+  const universeList = getUniverseList();
+
+  for (const vault of universeList) {
     const isAlreadyWhitelisted = await config.isWhitelisted(vault);
     if (!isAlreadyWhitelisted) {
       console.log(`Adding ${vault} to config whitelist...`);

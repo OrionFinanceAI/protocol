@@ -66,13 +66,13 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.UniverseERC4626Vault__factory>;
     getContractFactory(
-      name: "UniverseERC4626Whitelist",
-      signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.UniverseERC4626Whitelist__factory>;
-    getContractFactory(
       name: "FHEIntentsERC4626Vault",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.FHEIntentsERC4626Vault__factory>;
+    getContractFactory(
+      name: "IConfig",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.IConfig__factory>;
     getContractFactory(
       name: "IWhitelist",
       signerOrOptions?: ethers.Signer | FactoryOptions
@@ -85,6 +85,10 @@ declare module "hardhat/types/runtime" {
       name: "OrionConfig",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.OrionConfig__factory>;
+    getContractFactory(
+      name: "OrionVaultFactory",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.OrionVaultFactory__factory>;
     getContractFactory(
       name: "FHE",
       signerOrOptions?: ethers.Signer | FactoryOptions
@@ -176,15 +180,15 @@ declare module "hardhat/types/runtime" {
       signer?: ethers.Signer
     ): Promise<Contracts.UniverseERC4626Vault>;
     getContractAt(
-      name: "UniverseERC4626Whitelist",
-      address: string | ethers.Addressable,
-      signer?: ethers.Signer
-    ): Promise<Contracts.UniverseERC4626Whitelist>;
-    getContractAt(
       name: "FHEIntentsERC4626Vault",
       address: string | ethers.Addressable,
       signer?: ethers.Signer
     ): Promise<Contracts.FHEIntentsERC4626Vault>;
+    getContractAt(
+      name: "IConfig",
+      address: string | ethers.Addressable,
+      signer?: ethers.Signer
+    ): Promise<Contracts.IConfig>;
     getContractAt(
       name: "IWhitelist",
       address: string | ethers.Addressable,
@@ -200,6 +204,11 @@ declare module "hardhat/types/runtime" {
       address: string | ethers.Addressable,
       signer?: ethers.Signer
     ): Promise<Contracts.OrionConfig>;
+    getContractAt(
+      name: "OrionVaultFactory",
+      address: string | ethers.Addressable,
+      signer?: ethers.Signer
+    ): Promise<Contracts.OrionVaultFactory>;
     getContractAt(
       name: "FHE",
       address: string | ethers.Addressable,
@@ -284,13 +293,13 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.UniverseERC4626Vault>;
     deployContract(
-      name: "UniverseERC4626Whitelist",
-      signerOrOptions?: ethers.Signer | DeployContractOptions
-    ): Promise<Contracts.UniverseERC4626Whitelist>;
-    deployContract(
       name: "FHEIntentsERC4626Vault",
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.FHEIntentsERC4626Vault>;
+    deployContract(
+      name: "IConfig",
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.IConfig>;
     deployContract(
       name: "IWhitelist",
       signerOrOptions?: ethers.Signer | DeployContractOptions
@@ -303,6 +312,10 @@ declare module "hardhat/types/runtime" {
       name: "OrionConfig",
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.OrionConfig>;
+    deployContract(
+      name: "OrionVaultFactory",
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.OrionVaultFactory>;
     deployContract(
       name: "FHE",
       signerOrOptions?: ethers.Signer | DeployContractOptions
@@ -394,15 +407,15 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.UniverseERC4626Vault>;
     deployContract(
-      name: "UniverseERC4626Whitelist",
-      args: any[],
-      signerOrOptions?: ethers.Signer | DeployContractOptions
-    ): Promise<Contracts.UniverseERC4626Whitelist>;
-    deployContract(
       name: "FHEIntentsERC4626Vault",
       args: any[],
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.FHEIntentsERC4626Vault>;
+    deployContract(
+      name: "IConfig",
+      args: any[],
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.IConfig>;
     deployContract(
       name: "IWhitelist",
       args: any[],
@@ -418,6 +431,11 @@ declare module "hardhat/types/runtime" {
       args: any[],
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.OrionConfig>;
+    deployContract(
+      name: "OrionVaultFactory",
+      args: any[],
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.OrionVaultFactory>;
     deployContract(
       name: "FHE",
       args: any[],
