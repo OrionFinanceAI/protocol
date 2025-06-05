@@ -28,7 +28,7 @@ contract FHEIntentsERC4626Vault is ERC4626 {
 
     Order[] private orders;
 
-    event OrderSubmitted(address indexed curator, uint256 indexed orderId);
+    event OrderSubmitted(address indexed curator);
 
     modifier onlyCurator() {
         require(msg.sender == curator, "Not the curator");
@@ -61,18 +61,18 @@ contract FHEIntentsERC4626Vault is ERC4626 {
     function submitEncryptedOrder(OrderStruct[] calldata items) external onlyCurator {
         require(items.length > 0, "Order cannot be empty");
 
-        Order storage newOrder = orders.push();
-
-        // TODO: remove graceful filter. The intent is rejected if not compatible with investment universe
+        // Reject entire order if any token is not whitelisted
         for (uint256 i = 0; i < items.length; i++) {
-            if (config.isWhitelisted(items[i].token)) {
-                newOrder.items.push(items[i]);
-            }
+            require(config.isWhitelisted(items[i].token), "Token not whitelisted");
         }
 
-        require(newOrder.items.length > 0, "No whitelisted tokens in order");
+        Order storage newOrder = orders.push();
 
-        emit OrderSubmitted(msg.sender, orders.length - 1); // TODO: length -1 ? Not sure.
+        for (uint256 i = 0; i < items.length; i++) {
+            newOrder.items.push(items[i]);
+        }
+
+        emit OrderSubmitted(msg.sender);
     }
     
 }

@@ -1,17 +1,32 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
 contract OrionConfig {
     address public owner;
+
+    // Protocol-wide configuration
+    IERC20 public underlyingAsset;
+    address public internalStateOrchestrator;
+    address public liquidityOrchestrator;
     string public fhePublicCID;
 
+    address[] public whitelistedVaults;
     mapping(address => bool) public isWhitelisted;
-    address[] public allVaults;
+    
+    uint256 public whitelistCount;
 
     // Events
     event VaultAdded(address indexed vault);
     event VaultRemoved(address indexed vault);
     event PublicCIDUpdated(string newCID);
+    event ProtocolParamsUpdated(
+        address underlyingAsset,
+        address internalStateOrchestrator,
+        address liquidityOrchestrator,
+        string fhePublicCID
+    );
 
     // Modifier
     modifier onlyOwner() {
@@ -20,60 +35,75 @@ contract OrionConfig {
     }
 
     // Constructor
-    constructor(string memory _fhePublicCID) {
+    constructor() {
         owner = msg.sender;
-        fhePublicCID = _fhePublicCID;
     }
 
-    // ERC4626 Vault Whitelist Functions
+    // === Protocol Configuration ===
+
+    function setProtocolParams(
+        IERC20 _underlyingAsset,
+        address _internalStateOrchestrator,
+        address _liquidityOrchestrator,
+        string calldata _fhePublicCID
+    ) external onlyOwner {
+        require(address(_underlyingAsset) != address(0), "Invalid asset");
+        require(_internalStateOrchestrator != address(0), "Invalid internal orchestrator");
+        require(_liquidityOrchestrator != address(0), "Invalid liquidity orchestrator");
+
+        underlyingAsset = _underlyingAsset;
+        internalStateOrchestrator = _internalStateOrchestrator;
+        liquidityOrchestrator = _liquidityOrchestrator;
+        fhePublicCID = _fhePublicCID;
+
+        emit ProtocolParamsUpdated(
+            address(_underlyingAsset),
+            _internalStateOrchestrator,
+            _liquidityOrchestrator,
+            _fhePublicCID
+        );
+    }
+
+    // === Whitelist Functions ===
+
     function addVault(address vault) external onlyOwner {
         require(!isWhitelisted[vault], "Already whitelisted");
+        whitelistedVaults.push(vault);
         isWhitelisted[vault] = true;
-        allVaults.push(vault);
+        whitelistCount += 1;
         emit VaultAdded(vault);
     }
 
     function removeVault(address vault) external onlyOwner {
         require(isWhitelisted[vault], "Not in whitelist");
+
+        uint256 index = _indexOf(vault);
+        // Swap and pop
+        whitelistedVaults[index] = whitelistedVaults[whitelistedVaults.length - 1];
+        whitelistedVaults.pop();
+    
         isWhitelisted[vault] = false;
+        whitelistCount -= 1;
+
         emit VaultRemoved(vault);
     }
 
-    function check(address vault) external view returns (bool) {
-        return isWhitelisted[vault];
+    function getWhitelistedVaultAt(uint256 index) external view returns (address) {
+        require(index < whitelistedVaults.length, "Index out of bounds");
+        return whitelistedVaults[index];
     }
 
-    // TODO: remove this function, all Vaults and all whitelisted vaults are the same variable.
-    function getAllVaults() external view returns (address[] memory) {
-        return allVaults;
-    }
-
-    function getWhitelistedVaults() external view returns (address[] memory) {
-        uint count = 0;
-
-        // First pass to count
-        for (uint i = 0; i < allVaults.length; i++) {
-            if (isWhitelisted[allVaults[i]]) {
-                count++;
+    function _indexOf(address vault) internal view returns (uint256) {
+        for (uint i = 0; i < whitelistedVaults.length; i++) {
+            if (whitelistedVaults[i] == vault) {
+                return i;
             }
         }
-
-        // TODO: better let consumer iterate (e.g. python sdk).
-        // TODO: add a function to get the length/size to use as a param of the loop in the consumer.
-        // Second pass to collect
-        address[] memory result = new address[](count);
-        uint index = 0;
-        for (uint i = 0; i < allVaults.length; i++) {
-            if (isWhitelisted[allVaults[i]]) {
-                result[index] = allVaults[i];
-                index++;
-            }
-        }
-
-        return result;
+        revert("Vault not found");
     }
 
-    // FHE Public CID Functions
+    // === FHE Public CID ===
+
     function getFhePublicCID() external view returns (string memory) {
         return fhePublicCID;
     }
@@ -83,7 +113,8 @@ contract OrionConfig {
         emit PublicCIDUpdated(newCID);
     }
 
-    // Ownership management
+    // === Ownership ===
+    
     function transferOwnership(address newOwner) external onlyOwner {
         require(newOwner != address(0), "Zero address");
         owner = newOwner;

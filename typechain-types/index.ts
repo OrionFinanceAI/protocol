@@ -38,12 +38,12 @@ export type { FHEIntentsERC4626Vault } from "./contracts/FHEIntentsERC4626Vault.
 export { FHEIntentsERC4626Vault__factory } from "./factories/contracts/FHEIntentsERC4626Vault.sol/FHEIntentsERC4626Vault__factory";
 export type { IConfig } from "./contracts/FHEIntentsERC4626Vault.sol/IConfig";
 export { IConfig__factory } from "./factories/contracts/FHEIntentsERC4626Vault.sol/IConfig__factory";
-export type { UnderlyingAsset } from "./contracts/MockUSDC.sol/UnderlyingAsset";
-export { UnderlyingAsset__factory } from "./factories/contracts/MockUSDC.sol/UnderlyingAsset__factory";
 export type { OrionConfig } from "./contracts/OrionConfig";
 export { OrionConfig__factory } from "./factories/contracts/OrionConfig__factory";
 export type { OrionVaultFactory } from "./contracts/OrionVaultFactory";
 export { OrionVaultFactory__factory } from "./factories/contracts/OrionVaultFactory__factory";
+export type { UnderlyingAsset } from "./contracts/UnderlyingAsset.sol/UnderlyingAsset";
+export { UnderlyingAsset__factory } from "./factories/contracts/UnderlyingAsset.sol/UnderlyingAsset__factory";
 export type { FHE } from "./lib/fhevm-solidity/lib/FHE.sol/FHE";
 export { FHE__factory } from "./factories/lib/fhevm-solidity/lib/FHE.sol/FHE__factory";
 export type { IDecryptionOracle } from "./lib/fhevm-solidity/lib/FHE.sol/IDecryptionOracle";

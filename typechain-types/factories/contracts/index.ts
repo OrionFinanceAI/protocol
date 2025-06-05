@@ -3,7 +3,6 @@
 /* eslint-disable */
 export * as erc4626VaultSol from "./ERC4626Vault.sol";
 export * as fheIntentsErc4626VaultSol from "./FHEIntentsERC4626Vault.sol";
-export * as mockUsdcSol from "./MockUSDC.sol";
 export * as underlyingAssetSol from "./UnderlyingAsset.sol";
 export { OrionConfig__factory } from "./OrionConfig__factory";
 export { OrionVaultFactory__factory } from "./OrionVaultFactory__factory";

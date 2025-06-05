@@ -74,10 +74,6 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.IConfig__factory>;
     getContractFactory(
-      name: "UnderlyingAsset",
-      signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.UnderlyingAsset__factory>;
-    getContractFactory(
       name: "OrionConfig",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.OrionConfig__factory>;
@@ -190,11 +186,6 @@ declare module "hardhat/types/runtime" {
       signer?: ethers.Signer
     ): Promise<Contracts.IConfig>;
     getContractAt(
-      name: "UnderlyingAsset",
-      address: string | ethers.Addressable,
-      signer?: ethers.Signer
-    ): Promise<Contracts.UnderlyingAsset>;
-    getContractAt(
       name: "OrionConfig",
       address: string | ethers.Addressable,
       signer?: ethers.Signer
@@ -300,10 +291,6 @@ declare module "hardhat/types/runtime" {
       name: "IConfig",
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.IConfig>;
-    deployContract(
-      name: "UnderlyingAsset",
-      signerOrOptions?: ethers.Signer | DeployContractOptions
-    ): Promise<Contracts.UnderlyingAsset>;
     deployContract(
       name: "OrionConfig",
       signerOrOptions?: ethers.Signer | DeployContractOptions
@@ -416,11 +403,6 @@ declare module "hardhat/types/runtime" {
       args: any[],
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.IConfig>;
-    deployContract(
-      name: "UnderlyingAsset",
-      args: any[],
-      signerOrOptions?: ethers.Signer | DeployContractOptions
-    ): Promise<Contracts.UnderlyingAsset>;
     deployContract(
       name: "OrionConfig",
       args: any[],

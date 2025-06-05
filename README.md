@@ -48,7 +48,3 @@ pnpm hardhat run scripts/verify-config.ts --network sepolia
 ```bash
 pnpm hardhat run scripts/deposit-to-vault.ts --network sepolia
 ```
-
-### Submit order to Orion Vault.
-
-TODO: Implement encrypted order submission. Note that this shall work both for encrypted and unencrypted order intents.

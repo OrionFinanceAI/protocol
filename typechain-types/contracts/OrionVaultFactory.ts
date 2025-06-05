@@ -30,11 +30,7 @@ export interface OrionVaultFactoryInterface extends Interface {
       | "config"
       | "createOrionVault"
       | "deployer"
-      | "getAllOrionVaults"
-      | "internalStateOrchestrator"
-      | "isOrionVault"
-      | "liquidityOrchestrator"
-      | "underlyingAsset"
+      | "getOrionVaultAt"
   ): FunctionFragment;
 
   getEvent(nameOrSignatureOrTopic: "OrionVaultCreated"): EventFragment;
@@ -50,24 +46,8 @@ export interface OrionVaultFactoryInterface extends Interface {
   ): string;
   encodeFunctionData(functionFragment: "deployer", values?: undefined): string;
   encodeFunctionData(
-    functionFragment: "getAllOrionVaults",
-    values?: undefined
-  ): string;
-  encodeFunctionData(
-    functionFragment: "internalStateOrchestrator",
-    values?: undefined
-  ): string;
-  encodeFunctionData(
-    functionFragment: "isOrionVault",
-    values: [AddressLike]
-  ): string;
-  encodeFunctionData(
-    functionFragment: "liquidityOrchestrator",
-    values?: undefined
-  ): string;
-  encodeFunctionData(
-    functionFragment: "underlyingAsset",
-    values?: undefined
+    functionFragment: "getOrionVaultAt",
+    values: [BigNumberish]
   ): string;
 
   decodeFunctionResult(
@@ -81,23 +61,7 @@ export interface OrionVaultFactoryInterface extends Interface {
   ): Result;
   decodeFunctionResult(functionFragment: "deployer", data: BytesLike): Result;
   decodeFunctionResult(
-    functionFragment: "getAllOrionVaults",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
-    functionFragment: "internalStateOrchestrator",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
-    functionFragment: "isOrionVault",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
-    functionFragment: "liquidityOrchestrator",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
-    functionFragment: "underlyingAsset",
+    functionFragment: "getOrionVaultAt",
     data: BytesLike
   ): Result;
 }
@@ -175,15 +139,7 @@ export interface OrionVaultFactory extends BaseContract {
 
   deployer: TypedContractMethod<[], [string], "view">;
 
-  getAllOrionVaults: TypedContractMethod<[], [string[]], "view">;
-
-  internalStateOrchestrator: TypedContractMethod<[], [string], "view">;
-
-  isOrionVault: TypedContractMethod<[arg0: AddressLike], [boolean], "view">;
-
-  liquidityOrchestrator: TypedContractMethod<[], [string], "view">;
-
-  underlyingAsset: TypedContractMethod<[], [string], "view">;
+  getOrionVaultAt: TypedContractMethod<[index: BigNumberish], [string], "view">;
 
   getFunction<T extends ContractMethod = ContractMethod>(
     key: string | FunctionFragment
@@ -202,20 +158,8 @@ export interface OrionVaultFactory extends BaseContract {
     nameOrSignature: "deployer"
   ): TypedContractMethod<[], [string], "view">;
   getFunction(
-    nameOrSignature: "getAllOrionVaults"
-  ): TypedContractMethod<[], [string[]], "view">;
-  getFunction(
-    nameOrSignature: "internalStateOrchestrator"
-  ): TypedContractMethod<[], [string], "view">;
-  getFunction(
-    nameOrSignature: "isOrionVault"
-  ): TypedContractMethod<[arg0: AddressLike], [boolean], "view">;
-  getFunction(
-    nameOrSignature: "liquidityOrchestrator"
-  ): TypedContractMethod<[], [string], "view">;
-  getFunction(
-    nameOrSignature: "underlyingAsset"
-  ): TypedContractMethod<[], [string], "view">;
+    nameOrSignature: "getOrionVaultAt"
+  ): TypedContractMethod<[index: BigNumberish], [string], "view">;
 
   getEvent(
     key: "OrionVaultCreated"

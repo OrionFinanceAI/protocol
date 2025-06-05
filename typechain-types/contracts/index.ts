@@ -5,8 +5,6 @@ import type * as erc4626VaultSol from "./ERC4626Vault.sol";
 export type { erc4626VaultSol };
 import type * as fheIntentsErc4626VaultSol from "./FHEIntentsERC4626Vault.sol";
 export type { fheIntentsErc4626VaultSol };
-import type * as mockUsdcSol from "./MockUSDC.sol";
-export type { mockUsdcSol };
 import type * as underlyingAssetSol from "./UnderlyingAsset.sol";
 export type { underlyingAssetSol };
 export type { OrionConfig } from "./OrionConfig";

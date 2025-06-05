@@ -27,21 +27,28 @@ export interface OrionConfigInterface extends Interface {
   getFunction(
     nameOrSignature:
       | "addVault"
-      | "allVaults"
-      | "check"
       | "fhePublicCID"
-      | "getAllVaults"
       | "getFhePublicCID"
-      | "getWhitelistedVaults"
+      | "getWhitelistedVaultAt"
+      | "internalStateOrchestrator"
       | "isWhitelisted"
+      | "liquidityOrchestrator"
       | "owner"
       | "removeVault"
+      | "setProtocolParams"
       | "transferOwnership"
+      | "underlyingAsset"
       | "updateFhePublicCID"
+      | "whitelistCount"
+      | "whitelistedVaults"
   ): FunctionFragment;
 
   getEvent(
-    nameOrSignatureOrTopic: "PublicCIDUpdated" | "VaultAdded" | "VaultRemoved"
+    nameOrSignatureOrTopic:
+      | "ProtocolParamsUpdated"
+      | "PublicCIDUpdated"
+      | "VaultAdded"
+      | "VaultRemoved"
   ): EventFragment;
 
   encodeFunctionData(
@@ -49,16 +56,7 @@ export interface OrionConfigInterface extends Interface {
     values: [AddressLike]
   ): string;
   encodeFunctionData(
-    functionFragment: "allVaults",
-    values: [BigNumberish]
-  ): string;
-  encodeFunctionData(functionFragment: "check", values: [AddressLike]): string;
-  encodeFunctionData(
     functionFragment: "fhePublicCID",
-    values?: undefined
-  ): string;
-  encodeFunctionData(
-    functionFragment: "getAllVaults",
     values?: undefined
   ): string;
   encodeFunctionData(
@@ -66,12 +64,20 @@ export interface OrionConfigInterface extends Interface {
     values?: undefined
   ): string;
   encodeFunctionData(
-    functionFragment: "getWhitelistedVaults",
+    functionFragment: "getWhitelistedVaultAt",
+    values: [BigNumberish]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "internalStateOrchestrator",
     values?: undefined
   ): string;
   encodeFunctionData(
     functionFragment: "isWhitelisted",
     values: [AddressLike]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "liquidityOrchestrator",
+    values?: undefined
   ): string;
   encodeFunctionData(functionFragment: "owner", values?: undefined): string;
   encodeFunctionData(
@@ -79,23 +85,33 @@ export interface OrionConfigInterface extends Interface {
     values: [AddressLike]
   ): string;
   encodeFunctionData(
+    functionFragment: "setProtocolParams",
+    values: [AddressLike, AddressLike, AddressLike, string]
+  ): string;
+  encodeFunctionData(
     functionFragment: "transferOwnership",
     values: [AddressLike]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "underlyingAsset",
+    values?: undefined
   ): string;
   encodeFunctionData(
     functionFragment: "updateFhePublicCID",
     values: [string]
   ): string;
+  encodeFunctionData(
+    functionFragment: "whitelistCount",
+    values?: undefined
+  ): string;
+  encodeFunctionData(
+    functionFragment: "whitelistedVaults",
+    values: [BigNumberish]
+  ): string;
 
   decodeFunctionResult(functionFragment: "addVault", data: BytesLike): Result;
-  decodeFunctionResult(functionFragment: "allVaults", data: BytesLike): Result;
-  decodeFunctionResult(functionFragment: "check", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "fhePublicCID",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
-    functionFragment: "getAllVaults",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -103,11 +119,19 @@ export interface OrionConfigInterface extends Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
-    functionFragment: "getWhitelistedVaults",
+    functionFragment: "getWhitelistedVaultAt",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "internalStateOrchestrator",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
     functionFragment: "isWhitelisted",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "liquidityOrchestrator",
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "owner", data: BytesLike): Result;
@@ -116,13 +140,54 @@ export interface OrionConfigInterface extends Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
+    functionFragment: "setProtocolParams",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
     functionFragment: "transferOwnership",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "underlyingAsset",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
     functionFragment: "updateFhePublicCID",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(
+    functionFragment: "whitelistCount",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "whitelistedVaults",
+    data: BytesLike
+  ): Result;
+}
+
+export namespace ProtocolParamsUpdatedEvent {
+  export type InputTuple = [
+    underlyingAsset: AddressLike,
+    internalStateOrchestrator: AddressLike,
+    liquidityOrchestrator: AddressLike,
+    fhePublicCID: string
+  ];
+  export type OutputTuple = [
+    underlyingAsset: string,
+    internalStateOrchestrator: string,
+    liquidityOrchestrator: string,
+    fhePublicCID: string
+  ];
+  export interface OutputObject {
+    underlyingAsset: string;
+    internalStateOrchestrator: string;
+    liquidityOrchestrator: string;
+    fhePublicCID: string;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
 }
 
 export namespace PublicCIDUpdatedEvent {
@@ -206,23 +271,36 @@ export interface OrionConfig extends BaseContract {
 
   addVault: TypedContractMethod<[vault: AddressLike], [void], "nonpayable">;
 
-  allVaults: TypedContractMethod<[arg0: BigNumberish], [string], "view">;
-
-  check: TypedContractMethod<[vault: AddressLike], [boolean], "view">;
-
   fhePublicCID: TypedContractMethod<[], [string], "view">;
-
-  getAllVaults: TypedContractMethod<[], [string[]], "view">;
 
   getFhePublicCID: TypedContractMethod<[], [string], "view">;
 
-  getWhitelistedVaults: TypedContractMethod<[], [string[]], "view">;
+  getWhitelistedVaultAt: TypedContractMethod<
+    [index: BigNumberish],
+    [string],
+    "view"
+  >;
+
+  internalStateOrchestrator: TypedContractMethod<[], [string], "view">;
 
   isWhitelisted: TypedContractMethod<[arg0: AddressLike], [boolean], "view">;
+
+  liquidityOrchestrator: TypedContractMethod<[], [string], "view">;
 
   owner: TypedContractMethod<[], [string], "view">;
 
   removeVault: TypedContractMethod<[vault: AddressLike], [void], "nonpayable">;
+
+  setProtocolParams: TypedContractMethod<
+    [
+      _underlyingAsset: AddressLike,
+      _internalStateOrchestrator: AddressLike,
+      _liquidityOrchestrator: AddressLike,
+      _fhePublicCID: string
+    ],
+    [void],
+    "nonpayable"
+  >;
 
   transferOwnership: TypedContractMethod<
     [newOwner: AddressLike],
@@ -230,10 +308,20 @@ export interface OrionConfig extends BaseContract {
     "nonpayable"
   >;
 
+  underlyingAsset: TypedContractMethod<[], [string], "view">;
+
   updateFhePublicCID: TypedContractMethod<
     [newCID: string],
     [void],
     "nonpayable"
+  >;
+
+  whitelistCount: TypedContractMethod<[], [bigint], "view">;
+
+  whitelistedVaults: TypedContractMethod<
+    [arg0: BigNumberish],
+    [string],
+    "view"
   >;
 
   getFunction<T extends ContractMethod = ContractMethod>(
@@ -244,26 +332,23 @@ export interface OrionConfig extends BaseContract {
     nameOrSignature: "addVault"
   ): TypedContractMethod<[vault: AddressLike], [void], "nonpayable">;
   getFunction(
-    nameOrSignature: "allVaults"
-  ): TypedContractMethod<[arg0: BigNumberish], [string], "view">;
-  getFunction(
-    nameOrSignature: "check"
-  ): TypedContractMethod<[vault: AddressLike], [boolean], "view">;
-  getFunction(
     nameOrSignature: "fhePublicCID"
   ): TypedContractMethod<[], [string], "view">;
-  getFunction(
-    nameOrSignature: "getAllVaults"
-  ): TypedContractMethod<[], [string[]], "view">;
   getFunction(
     nameOrSignature: "getFhePublicCID"
   ): TypedContractMethod<[], [string], "view">;
   getFunction(
-    nameOrSignature: "getWhitelistedVaults"
-  ): TypedContractMethod<[], [string[]], "view">;
+    nameOrSignature: "getWhitelistedVaultAt"
+  ): TypedContractMethod<[index: BigNumberish], [string], "view">;
+  getFunction(
+    nameOrSignature: "internalStateOrchestrator"
+  ): TypedContractMethod<[], [string], "view">;
   getFunction(
     nameOrSignature: "isWhitelisted"
   ): TypedContractMethod<[arg0: AddressLike], [boolean], "view">;
+  getFunction(
+    nameOrSignature: "liquidityOrchestrator"
+  ): TypedContractMethod<[], [string], "view">;
   getFunction(
     nameOrSignature: "owner"
   ): TypedContractMethod<[], [string], "view">;
@@ -271,12 +356,40 @@ export interface OrionConfig extends BaseContract {
     nameOrSignature: "removeVault"
   ): TypedContractMethod<[vault: AddressLike], [void], "nonpayable">;
   getFunction(
+    nameOrSignature: "setProtocolParams"
+  ): TypedContractMethod<
+    [
+      _underlyingAsset: AddressLike,
+      _internalStateOrchestrator: AddressLike,
+      _liquidityOrchestrator: AddressLike,
+      _fhePublicCID: string
+    ],
+    [void],
+    "nonpayable"
+  >;
+  getFunction(
     nameOrSignature: "transferOwnership"
   ): TypedContractMethod<[newOwner: AddressLike], [void], "nonpayable">;
   getFunction(
+    nameOrSignature: "underlyingAsset"
+  ): TypedContractMethod<[], [string], "view">;
+  getFunction(
     nameOrSignature: "updateFhePublicCID"
   ): TypedContractMethod<[newCID: string], [void], "nonpayable">;
+  getFunction(
+    nameOrSignature: "whitelistCount"
+  ): TypedContractMethod<[], [bigint], "view">;
+  getFunction(
+    nameOrSignature: "whitelistedVaults"
+  ): TypedContractMethod<[arg0: BigNumberish], [string], "view">;
 
+  getEvent(
+    key: "ProtocolParamsUpdated"
+  ): TypedContractEvent<
+    ProtocolParamsUpdatedEvent.InputTuple,
+    ProtocolParamsUpdatedEvent.OutputTuple,
+    ProtocolParamsUpdatedEvent.OutputObject
+  >;
   getEvent(
     key: "PublicCIDUpdated"
   ): TypedContractEvent<
@@ -300,6 +413,17 @@ export interface OrionConfig extends BaseContract {
   >;
 
   filters: {
+    "ProtocolParamsUpdated(address,address,address,string)": TypedContractEvent<
+      ProtocolParamsUpdatedEvent.InputTuple,
+      ProtocolParamsUpdatedEvent.OutputTuple,
+      ProtocolParamsUpdatedEvent.OutputObject
+    >;
+    ProtocolParamsUpdated: TypedContractEvent<
+      ProtocolParamsUpdatedEvent.InputTuple,
+      ProtocolParamsUpdatedEvent.OutputTuple,
+      ProtocolParamsUpdatedEvent.OutputObject
+    >;
+
     "PublicCIDUpdated(string)": TypedContractEvent<
       PublicCIDUpdatedEvent.InputTuple,
       PublicCIDUpdatedEvent.OutputTuple,

@@ -306,11 +306,10 @@ export namespace DepositEvent {
 }
 
 export namespace OrderSubmittedEvent {
-  export type InputTuple = [curator: AddressLike, orderId: BigNumberish];
-  export type OutputTuple = [curator: string, orderId: bigint];
+  export type InputTuple = [curator: AddressLike];
+  export type OutputTuple = [curator: string];
   export interface OutputObject {
     curator: string;
-    orderId: bigint;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -715,7 +714,7 @@ export interface FHEIntentsERC4626Vault extends BaseContract {
       DepositEvent.OutputObject
     >;
 
-    "OrderSubmitted(address,uint256)": TypedContractEvent<
+    "OrderSubmitted(address)": TypedContractEvent<
       OrderSubmittedEvent.InputTuple,
       OrderSubmittedEvent.OutputTuple,
       OrderSubmittedEvent.OutputObject
