@@ -21,33 +21,19 @@ import type {
   TypedLogDescription,
   TypedListener,
   TypedContractMethod,
-} from "../../common";
+} from "../../../common";
 
-export declare namespace FHEIntentsERC4626Vault {
-  export type OrderStructStruct = { token: AddressLike; value: BytesLike };
-
-  export type OrderStructStructOutput = [token: string, value: string] & {
-    token: string;
-    value: string;
-  };
-}
-
-export interface FHEIntentsERC4626VaultInterface extends Interface {
+export interface IERC4626Interface extends Interface {
   getFunction(
     nameOrSignature:
       | "allowance"
       | "approve"
       | "asset"
       | "balanceOf"
-      | "config"
       | "convertToAssets"
       | "convertToShares"
-      | "curator"
       | "decimals"
-      | "deployer"
       | "deposit"
-      | "internalStateOrchestrator"
-      | "liquidityOrchestrator"
       | "maxDeposit"
       | "maxMint"
       | "maxRedeem"
@@ -59,23 +45,16 @@ export interface FHEIntentsERC4626VaultInterface extends Interface {
       | "previewRedeem"
       | "previewWithdraw"
       | "redeem"
-      | "submitEncryptedOrder"
       | "symbol"
       | "totalAssets"
       | "totalSupply"
       | "transfer"
       | "transferFrom"
-      | "underlyingAsset"
       | "withdraw"
   ): FunctionFragment;
 
   getEvent(
-    nameOrSignatureOrTopic:
-      | "Approval"
-      | "Deposit"
-      | "OrderSubmitted"
-      | "Transfer"
-      | "Withdraw"
+    nameOrSignatureOrTopic: "Approval" | "Deposit" | "Transfer" | "Withdraw"
   ): EventFragment;
 
   encodeFunctionData(
@@ -91,7 +70,6 @@ export interface FHEIntentsERC4626VaultInterface extends Interface {
     functionFragment: "balanceOf",
     values: [AddressLike]
   ): string;
-  encodeFunctionData(functionFragment: "config", values?: undefined): string;
   encodeFunctionData(
     functionFragment: "convertToAssets",
     values: [BigNumberish]
@@ -100,20 +78,10 @@ export interface FHEIntentsERC4626VaultInterface extends Interface {
     functionFragment: "convertToShares",
     values: [BigNumberish]
   ): string;
-  encodeFunctionData(functionFragment: "curator", values?: undefined): string;
   encodeFunctionData(functionFragment: "decimals", values?: undefined): string;
-  encodeFunctionData(functionFragment: "deployer", values?: undefined): string;
   encodeFunctionData(
     functionFragment: "deposit",
     values: [BigNumberish, AddressLike]
-  ): string;
-  encodeFunctionData(
-    functionFragment: "internalStateOrchestrator",
-    values?: undefined
-  ): string;
-  encodeFunctionData(
-    functionFragment: "liquidityOrchestrator",
-    values?: undefined
   ): string;
   encodeFunctionData(
     functionFragment: "maxDeposit",
@@ -156,10 +124,6 @@ export interface FHEIntentsERC4626VaultInterface extends Interface {
     functionFragment: "redeem",
     values: [BigNumberish, AddressLike, AddressLike]
   ): string;
-  encodeFunctionData(
-    functionFragment: "submitEncryptedOrder",
-    values: [FHEIntentsERC4626Vault.OrderStructStruct[]]
-  ): string;
   encodeFunctionData(functionFragment: "symbol", values?: undefined): string;
   encodeFunctionData(
     functionFragment: "totalAssets",
@@ -178,10 +142,6 @@ export interface FHEIntentsERC4626VaultInterface extends Interface {
     values: [AddressLike, AddressLike, BigNumberish]
   ): string;
   encodeFunctionData(
-    functionFragment: "underlyingAsset",
-    values?: undefined
-  ): string;
-  encodeFunctionData(
     functionFragment: "withdraw",
     values: [BigNumberish, AddressLike, AddressLike]
   ): string;
@@ -190,7 +150,6 @@ export interface FHEIntentsERC4626VaultInterface extends Interface {
   decodeFunctionResult(functionFragment: "approve", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "asset", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "balanceOf", data: BytesLike): Result;
-  decodeFunctionResult(functionFragment: "config", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "convertToAssets",
     data: BytesLike
@@ -199,18 +158,8 @@ export interface FHEIntentsERC4626VaultInterface extends Interface {
     functionFragment: "convertToShares",
     data: BytesLike
   ): Result;
-  decodeFunctionResult(functionFragment: "curator", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "decimals", data: BytesLike): Result;
-  decodeFunctionResult(functionFragment: "deployer", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "deposit", data: BytesLike): Result;
-  decodeFunctionResult(
-    functionFragment: "internalStateOrchestrator",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
-    functionFragment: "liquidityOrchestrator",
-    data: BytesLike
-  ): Result;
   decodeFunctionResult(functionFragment: "maxDeposit", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "maxMint", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "maxRedeem", data: BytesLike): Result;
@@ -237,10 +186,6 @@ export interface FHEIntentsERC4626VaultInterface extends Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "redeem", data: BytesLike): Result;
-  decodeFunctionResult(
-    functionFragment: "submitEncryptedOrder",
-    data: BytesLike
-  ): Result;
   decodeFunctionResult(functionFragment: "symbol", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "totalAssets",
@@ -253,10 +198,6 @@ export interface FHEIntentsERC4626VaultInterface extends Interface {
   decodeFunctionResult(functionFragment: "transfer", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "transferFrom",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
-    functionFragment: "underlyingAsset",
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "withdraw", data: BytesLike): Result;
@@ -298,18 +239,6 @@ export namespace DepositEvent {
     owner: string;
     assets: bigint;
     shares: bigint;
-  }
-  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
-  export type Filter = TypedDeferredTopicFilter<Event>;
-  export type Log = TypedEventLog<Event>;
-  export type LogDescription = TypedLogDescription<Event>;
-}
-
-export namespace OrderSubmittedEvent {
-  export type InputTuple = [curator: AddressLike];
-  export type OutputTuple = [curator: string];
-  export interface OutputObject {
-    curator: string;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -363,11 +292,11 @@ export namespace WithdrawEvent {
   export type LogDescription = TypedLogDescription<Event>;
 }
 
-export interface FHEIntentsERC4626Vault extends BaseContract {
-  connect(runner?: ContractRunner | null): FHEIntentsERC4626Vault;
+export interface IERC4626 extends BaseContract {
+  connect(runner?: ContractRunner | null): IERC4626;
   waitForDeployment(): Promise<this>;
 
-  interface: FHEIntentsERC4626VaultInterface;
+  interface: IERC4626Interface;
 
   queryFilter<TCEvent extends TypedContractEvent>(
     event: TCEvent,
@@ -422,8 +351,6 @@ export interface FHEIntentsERC4626Vault extends BaseContract {
 
   balanceOf: TypedContractMethod<[account: AddressLike], [bigint], "view">;
 
-  config: TypedContractMethod<[], [string], "view">;
-
   convertToAssets: TypedContractMethod<
     [shares: BigNumberish],
     [bigint],
@@ -436,11 +363,7 @@ export interface FHEIntentsERC4626Vault extends BaseContract {
     "view"
   >;
 
-  curator: TypedContractMethod<[], [string], "view">;
-
   decimals: TypedContractMethod<[], [bigint], "view">;
-
-  deployer: TypedContractMethod<[], [string], "view">;
 
   deposit: TypedContractMethod<
     [assets: BigNumberish, receiver: AddressLike],
@@ -448,13 +371,9 @@ export interface FHEIntentsERC4626Vault extends BaseContract {
     "nonpayable"
   >;
 
-  internalStateOrchestrator: TypedContractMethod<[], [string], "view">;
+  maxDeposit: TypedContractMethod<[receiver: AddressLike], [bigint], "view">;
 
-  liquidityOrchestrator: TypedContractMethod<[], [string], "view">;
-
-  maxDeposit: TypedContractMethod<[arg0: AddressLike], [bigint], "view">;
-
-  maxMint: TypedContractMethod<[arg0: AddressLike], [bigint], "view">;
+  maxMint: TypedContractMethod<[receiver: AddressLike], [bigint], "view">;
 
   maxRedeem: TypedContractMethod<[owner: AddressLike], [bigint], "view">;
 
@@ -486,12 +405,6 @@ export interface FHEIntentsERC4626Vault extends BaseContract {
     "nonpayable"
   >;
 
-  submitEncryptedOrder: TypedContractMethod<
-    [items: FHEIntentsERC4626Vault.OrderStructStruct[]],
-    [void],
-    "nonpayable"
-  >;
-
   symbol: TypedContractMethod<[], [string], "view">;
 
   totalAssets: TypedContractMethod<[], [bigint], "view">;
@@ -509,8 +422,6 @@ export interface FHEIntentsERC4626Vault extends BaseContract {
     [boolean],
     "nonpayable"
   >;
-
-  underlyingAsset: TypedContractMethod<[], [string], "view">;
 
   withdraw: TypedContractMethod<
     [assets: BigNumberish, receiver: AddressLike, owner: AddressLike],
@@ -543,23 +454,14 @@ export interface FHEIntentsERC4626Vault extends BaseContract {
     nameOrSignature: "balanceOf"
   ): TypedContractMethod<[account: AddressLike], [bigint], "view">;
   getFunction(
-    nameOrSignature: "config"
-  ): TypedContractMethod<[], [string], "view">;
-  getFunction(
     nameOrSignature: "convertToAssets"
   ): TypedContractMethod<[shares: BigNumberish], [bigint], "view">;
   getFunction(
     nameOrSignature: "convertToShares"
   ): TypedContractMethod<[assets: BigNumberish], [bigint], "view">;
   getFunction(
-    nameOrSignature: "curator"
-  ): TypedContractMethod<[], [string], "view">;
-  getFunction(
     nameOrSignature: "decimals"
   ): TypedContractMethod<[], [bigint], "view">;
-  getFunction(
-    nameOrSignature: "deployer"
-  ): TypedContractMethod<[], [string], "view">;
   getFunction(
     nameOrSignature: "deposit"
   ): TypedContractMethod<
@@ -568,17 +470,11 @@ export interface FHEIntentsERC4626Vault extends BaseContract {
     "nonpayable"
   >;
   getFunction(
-    nameOrSignature: "internalStateOrchestrator"
-  ): TypedContractMethod<[], [string], "view">;
-  getFunction(
-    nameOrSignature: "liquidityOrchestrator"
-  ): TypedContractMethod<[], [string], "view">;
-  getFunction(
     nameOrSignature: "maxDeposit"
-  ): TypedContractMethod<[arg0: AddressLike], [bigint], "view">;
+  ): TypedContractMethod<[receiver: AddressLike], [bigint], "view">;
   getFunction(
     nameOrSignature: "maxMint"
-  ): TypedContractMethod<[arg0: AddressLike], [bigint], "view">;
+  ): TypedContractMethod<[receiver: AddressLike], [bigint], "view">;
   getFunction(
     nameOrSignature: "maxRedeem"
   ): TypedContractMethod<[owner: AddressLike], [bigint], "view">;
@@ -615,13 +511,6 @@ export interface FHEIntentsERC4626Vault extends BaseContract {
     "nonpayable"
   >;
   getFunction(
-    nameOrSignature: "submitEncryptedOrder"
-  ): TypedContractMethod<
-    [items: FHEIntentsERC4626Vault.OrderStructStruct[]],
-    [void],
-    "nonpayable"
-  >;
-  getFunction(
     nameOrSignature: "symbol"
   ): TypedContractMethod<[], [string], "view">;
   getFunction(
@@ -645,9 +534,6 @@ export interface FHEIntentsERC4626Vault extends BaseContract {
     "nonpayable"
   >;
   getFunction(
-    nameOrSignature: "underlyingAsset"
-  ): TypedContractMethod<[], [string], "view">;
-  getFunction(
     nameOrSignature: "withdraw"
   ): TypedContractMethod<
     [assets: BigNumberish, receiver: AddressLike, owner: AddressLike],
@@ -668,13 +554,6 @@ export interface FHEIntentsERC4626Vault extends BaseContract {
     DepositEvent.InputTuple,
     DepositEvent.OutputTuple,
     DepositEvent.OutputObject
-  >;
-  getEvent(
-    key: "OrderSubmitted"
-  ): TypedContractEvent<
-    OrderSubmittedEvent.InputTuple,
-    OrderSubmittedEvent.OutputTuple,
-    OrderSubmittedEvent.OutputObject
   >;
   getEvent(
     key: "Transfer"
@@ -712,17 +591,6 @@ export interface FHEIntentsERC4626Vault extends BaseContract {
       DepositEvent.InputTuple,
       DepositEvent.OutputTuple,
       DepositEvent.OutputObject
-    >;
-
-    "OrderSubmitted(address)": TypedContractEvent<
-      OrderSubmittedEvent.InputTuple,
-      OrderSubmittedEvent.OutputTuple,
-      OrderSubmittedEvent.OutputObject
-    >;
-    OrderSubmitted: TypedContractEvent<
-      OrderSubmittedEvent.InputTuple,
-      OrderSubmittedEvent.OutputTuple,
-      OrderSubmittedEvent.OutputObject
     >;
 
     "Transfer(address,address,uint256)": TypedContractEvent<

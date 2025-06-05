@@ -70,10 +70,6 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.FHEIntentsERC4626Vault__factory>;
     getContractFactory(
-      name: "IConfig",
-      signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.IConfig__factory>;
-    getContractFactory(
       name: "OrionConfig",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.OrionConfig__factory>;
@@ -181,11 +177,6 @@ declare module "hardhat/types/runtime" {
       signer?: ethers.Signer
     ): Promise<Contracts.FHEIntentsERC4626Vault>;
     getContractAt(
-      name: "IConfig",
-      address: string | ethers.Addressable,
-      signer?: ethers.Signer
-    ): Promise<Contracts.IConfig>;
-    getContractAt(
       name: "OrionConfig",
       address: string | ethers.Addressable,
       signer?: ethers.Signer
@@ -287,10 +278,6 @@ declare module "hardhat/types/runtime" {
       name: "FHEIntentsERC4626Vault",
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.FHEIntentsERC4626Vault>;
-    deployContract(
-      name: "IConfig",
-      signerOrOptions?: ethers.Signer | DeployContractOptions
-    ): Promise<Contracts.IConfig>;
     deployContract(
       name: "OrionConfig",
       signerOrOptions?: ethers.Signer | DeployContractOptions
@@ -398,11 +385,6 @@ declare module "hardhat/types/runtime" {
       args: any[],
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.FHEIntentsERC4626Vault>;
-    deployContract(
-      name: "IConfig",
-      args: any[],
-      signerOrOptions?: ethers.Signer | DeployContractOptions
-    ): Promise<Contracts.IConfig>;
     deployContract(
       name: "OrionConfig",
       args: any[],

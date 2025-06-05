@@ -22,18 +22,9 @@ contract OrionVaultFactory {
     function createOrionVault(address curator) external returns (address vault) {
         require(curator != address(0), "Curator cannot be zero address");
 
-        // Fetch protocol-wide parameters from config
-        IERC20 underlyingAsset = IERC20(config.underlyingAsset());
-        address internalStateOrchestrator = config.internalStateOrchestrator();
-        address liquidityOrchestrator = config.liquidityOrchestrator();
-
-        // Deploy new vault
         FHEIntentsERC4626Vault newVault = new FHEIntentsERC4626Vault(
-            underlyingAsset,
             curator,
-            address(config),
-            internalStateOrchestrator,
-            liquidityOrchestrator
+            address(config)
         );
 
         vault = address(newVault);

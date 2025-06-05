@@ -3,11 +3,8 @@
 /* eslint-disable */
 import type {
   BaseContract,
-  BytesLike,
   FunctionFragment,
-  Result,
   Interface,
-  AddressLike,
   ContractRunner,
   ContractMethod,
   Listener,
@@ -17,38 +14,15 @@ import type {
   TypedDeferredTopicFilter,
   TypedEventLog,
   TypedListener,
-  TypedContractMethod,
-} from "../../common";
+} from "../../../../common";
 
-export interface IConfigInterface extends Interface {
-  getFunction(
-    nameOrSignature: "getFhePublicCID" | "isWhitelisted"
-  ): FunctionFragment;
+export interface IERC20ErrorsInterface extends Interface {}
 
-  encodeFunctionData(
-    functionFragment: "getFhePublicCID",
-    values?: undefined
-  ): string;
-  encodeFunctionData(
-    functionFragment: "isWhitelisted",
-    values: [AddressLike]
-  ): string;
-
-  decodeFunctionResult(
-    functionFragment: "getFhePublicCID",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
-    functionFragment: "isWhitelisted",
-    data: BytesLike
-  ): Result;
-}
-
-export interface IConfig extends BaseContract {
-  connect(runner?: ContractRunner | null): IConfig;
+export interface IERC20Errors extends BaseContract {
+  connect(runner?: ContractRunner | null): IERC20Errors;
   waitForDeployment(): Promise<this>;
 
-  interface: IConfigInterface;
+  interface: IERC20ErrorsInterface;
 
   queryFilter<TCEvent extends TypedContractEvent>(
     event: TCEvent,
@@ -87,20 +61,9 @@ export interface IConfig extends BaseContract {
     event?: TCEvent
   ): Promise<this>;
 
-  getFhePublicCID: TypedContractMethod<[], [string], "view">;
-
-  isWhitelisted: TypedContractMethod<[vault: AddressLike], [boolean], "view">;
-
   getFunction<T extends ContractMethod = ContractMethod>(
     key: string | FunctionFragment
   ): T;
-
-  getFunction(
-    nameOrSignature: "getFhePublicCID"
-  ): TypedContractMethod<[], [string], "view">;
-  getFunction(
-    nameOrSignature: "isWhitelisted"
-  ): TypedContractMethod<[vault: AddressLike], [boolean], "view">;
 
   filters: {};
 }
