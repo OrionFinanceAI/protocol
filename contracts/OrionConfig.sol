@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-
 contract OrionConfig {
     address public owner;
 
     // Protocol-wide configuration
-    IERC20 public underlyingAsset;
+    address public underlyingAsset;
     address public internalStateOrchestrator;
     address public liquidityOrchestrator;
     address public priceAndPnLOracle;
@@ -44,13 +42,13 @@ contract OrionConfig {
     // === Protocol Configuration ===
 
     function setProtocolParams(
-        IERC20 _underlyingAsset,
+        address _underlyingAsset,
         address _internalStateOrchestrator,
         address _liquidityOrchestrator,
         address _priceAndPnLOracle,
         string calldata _fhePublicCID
     ) external onlyOwner {
-        require(address(_underlyingAsset) != address(0), "Invalid asset");
+        require(_underlyingAsset != address(0), "Invalid asset");
         require(_internalStateOrchestrator != address(0), "Invalid internal orchestrator");
         require(_liquidityOrchestrator != address(0), "Invalid liquidity orchestrator");
         require(_priceAndPnLOracle != address(0), "Invalid price and PnL oracle");
@@ -62,7 +60,7 @@ contract OrionConfig {
         fhePublicCID = _fhePublicCID;
 
         emit ProtocolParamsUpdated(
-            address(_underlyingAsset),
+            _underlyingAsset,
             _internalStateOrchestrator,
             _liquidityOrchestrator,
             _priceAndPnLOracle,

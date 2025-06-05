@@ -60,7 +60,7 @@ contract OrionVault is ERC4626 {
         address _config
     )
         ERC20("Orion Vault Token", "oUSDC")
-        ERC4626(IERC20(OrionConfig(_config).underlyingAsset()))
+        ERC4626(_getUnderlyingAsset(_config))
     {
         require(_curator != address(0), "Invalid curator address");
         require(_config != address(0), "Invalid config address");
@@ -89,6 +89,12 @@ contract OrionVault is ERC4626 {
         }
 
         emit OrderSubmitted(msg.sender);
+    }
+
+    function _getUnderlyingAsset(address _config) internal view returns (IERC20) {
+        address asset = OrionConfig(_config).underlyingAsset();
+        require(asset != address(0), "Underlying asset not set");
+        return IERC20(asset);
     }
     
 }
