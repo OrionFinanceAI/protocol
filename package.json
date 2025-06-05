@@ -3,18 +3,20 @@
     "scripts": {
         "build": "hardhat compile",
         "test": "hardhat test",
-        "deploy": "hardhat run scripts/deploy.ts --network localhost"
+        "deploy": "hardhat run scripts/deploy.ts --network localhost",
+        "typechain": "typechain --target=ethers-v5"
     },
     "devDependencies": {
         "@nomicfoundation/hardhat-toolbox": "^3.0.0",
         "@nomiclabs/hardhat-ethers": "^2.2.3",
         "@nomiclabs/hardhat-etherscan": "^3.1.8",
+        "@openzeppelin/contracts": "^5.3.0",
         "@typechain/ethers-v6": "^0.4.0",
         "@typechain/hardhat": "^9.1.0",
         "@types/node": "^22.15.29",
         "dotenv": "^16.5.0",
         "ethers": "^5.8.0",
-        "hardhat": "^2.22.0",
+        "hardhat": "^2.24.2",
         "ts-node": "^10.9.2",
         "typescript": "^5.4.0"
     },
@@ -25,7 +27,6 @@
     "author": "",
     "license": "ISC",
     "dependencies": {
-        "@openzeppelin/contracts": "^5.3.0",
         "node-seal": "^5.1.6"
     }
 }

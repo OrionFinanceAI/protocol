@@ -7,7 +7,9 @@ set -e
 export $(grep -v '^#' .env | xargs)
 
 # Update the typechain types and artifacts if needed
-# pnpm hardhat clean && pnpm typechain && pnpm hardhat compile
+# pnpm hardhat clean 
+# pnpm hardhat compile
+# pnpm typechain
 
 pnpm hardhat run scripts/fund-local-accounts.ts --network localhost
 pnpm hardhat run scripts/deploy-underlying-asset.ts --network localhost
@@ -21,5 +23,7 @@ pnpm hardhat run scripts/populate-config.ts --network localhost
 pnpm hardhat run scripts/deploy-orion-vault-factory.ts --network localhost
 pnpm hardhat run scripts/deploy-orion-vault.ts --network localhost
 
-# TODO: missing deposit to vault
-# pnpm hardhat run scripts/deposit-to-vault.ts --network localhost
+pnpm hardhat run scripts/request-deposit.ts --network localhost
+
+# pnpm hardhat run scripts/submit-vault-order.ts --network localhost
+# pnpm hardhat run scripts/request-vault-withdrawal.ts --network localhost

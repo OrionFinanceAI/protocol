@@ -14,7 +14,7 @@ async function main() {
   // Attach to the deployed underlyingAsset contract
   const underlyingAsset = await ethers.getContractAt("underlyingAsset", underlyingAssetAddress);
 
-  const amount = ethers.utils.parseUnits("1000", 6);
+  const amount = ethers.utils.parseUnits("100000", 6);
 
   // Mint USDC to LP address, only deployer can mint
   const tx = await underlyingAsset.connect(deployer).mint(await lp.getAddress(), amount);
