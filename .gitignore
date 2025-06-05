@@ -18,6 +18,7 @@ abi/
 *.egg-info/
 *.tenseal
 __pycache__/
+typechain-types/
 
 # files
 *.env
