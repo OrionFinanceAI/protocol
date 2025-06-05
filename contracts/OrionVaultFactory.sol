@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "./FHEIntentsERC4626Vault.sol";
+import "./OrionVault.sol";
 import "./OrionConfig.sol";
 
 contract OrionVaultFactory {
@@ -22,7 +22,7 @@ contract OrionVaultFactory {
     function createOrionVault(address curator) external returns (address vault) {
         require(curator != address(0), "Curator cannot be zero address");
 
-        FHEIntentsERC4626Vault newVault = new FHEIntentsERC4626Vault(
+        OrionVault newVault = new OrionVault(
             curator,
             address(config)
         );

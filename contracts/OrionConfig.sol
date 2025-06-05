@@ -10,6 +10,7 @@ contract OrionConfig {
     IERC20 public underlyingAsset;
     address public internalStateOrchestrator;
     address public liquidityOrchestrator;
+    address public priceAndPnLOracle;
     string public fhePublicCID;
 
     address[] public whitelistedVaults;
@@ -25,6 +26,7 @@ contract OrionConfig {
         address underlyingAsset,
         address internalStateOrchestrator,
         address liquidityOrchestrator,
+        address priceAndPnLOracle,
         string fhePublicCID
     );
 
@@ -45,21 +47,25 @@ contract OrionConfig {
         IERC20 _underlyingAsset,
         address _internalStateOrchestrator,
         address _liquidityOrchestrator,
+        address _priceAndPnLOracle,
         string calldata _fhePublicCID
     ) external onlyOwner {
         require(address(_underlyingAsset) != address(0), "Invalid asset");
         require(_internalStateOrchestrator != address(0), "Invalid internal orchestrator");
         require(_liquidityOrchestrator != address(0), "Invalid liquidity orchestrator");
+        require(_priceAndPnLOracle != address(0), "Invalid price and PnL oracle");
 
         underlyingAsset = _underlyingAsset;
         internalStateOrchestrator = _internalStateOrchestrator;
         liquidityOrchestrator = _liquidityOrchestrator;
+        priceAndPnLOracle = _priceAndPnLOracle;
         fhePublicCID = _fhePublicCID;
 
         emit ProtocolParamsUpdated(
             address(_underlyingAsset),
             _internalStateOrchestrator,
             _liquidityOrchestrator,
+            _priceAndPnLOracle,
             _fhePublicCID
         );
     }

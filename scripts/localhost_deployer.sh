@@ -13,8 +13,10 @@ pnpm hardhat run scripts/fund-local-accounts.ts --network localhost
 pnpm hardhat run scripts/deploy-underlying-asset.ts --network localhost
 pnpm hardhat run scripts/mint-underlying-asset-to-lp.ts --network localhost
 pnpm hardhat run scripts/deploy-investment-universe.ts --network localhost
+# TODO: missing deploy two orchestrators to be linked to config contract
 pnpm hardhat run scripts/deploy-config.ts --network localhost
 pnpm hardhat run scripts/add-to-config-whitelist.ts --network localhost
 pnpm hardhat run scripts/deploy-orion-vault-factory.ts --network localhost
 pnpm hardhat run scripts/deploy-orion-vault.ts --network localhost
+# TODO: missing deposit to vault
 # pnpm hardhat run scripts/deposit-to-vault.ts --network localhost

@@ -16,7 +16,7 @@ async function main() {
   const curatorWallet = new ethers.Wallet(curatorPrivateKey, ethers.provider);
 
   // Connect to vault with curator wallet
-  const vault = await ethers.getContractAt("FHEIntentsERC4626Vault", vaultAddress, curatorWallet);
+  const vault = await ethers.getContractAt("OrionVault", vaultAddress, curatorWallet);
 
   // Submit encrypted order
   const tx = await vault.submitEncryptedOrder(encryptedValueHex);
