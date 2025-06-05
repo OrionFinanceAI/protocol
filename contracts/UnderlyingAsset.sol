@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
-contract MockUSDC is ERC20 {
+contract underlyingAsset is ERC20 {
     address public minter;
 
     constructor() ERC20("USD Coin", "USDC") {

@@ -38,10 +38,8 @@ export type { FHEIntentsERC4626Vault } from "./contracts/FHEIntentsERC4626Vault.
 export { FHEIntentsERC4626Vault__factory } from "./factories/contracts/FHEIntentsERC4626Vault.sol/FHEIntentsERC4626Vault__factory";
 export type { IConfig } from "./contracts/FHEIntentsERC4626Vault.sol/IConfig";
 export { IConfig__factory } from "./factories/contracts/FHEIntentsERC4626Vault.sol/IConfig__factory";
-export type { IWhitelist } from "./contracts/FHEIntentsERC4626Vault.sol/IWhitelist";
-export { IWhitelist__factory } from "./factories/contracts/FHEIntentsERC4626Vault.sol/IWhitelist__factory";
-export type { MockUSDC } from "./contracts/MockUSDC";
-export { MockUSDC__factory } from "./factories/contracts/MockUSDC__factory";
+export type { UnderlyingAsset } from "./contracts/MockUSDC.sol/UnderlyingAsset";
+export { UnderlyingAsset__factory } from "./factories/contracts/MockUSDC.sol/UnderlyingAsset__factory";
 export type { OrionConfig } from "./contracts/OrionConfig";
 export { OrionConfig__factory } from "./factories/contracts/OrionConfig__factory";
 export type { OrionVaultFactory } from "./contracts/OrionVaultFactory";

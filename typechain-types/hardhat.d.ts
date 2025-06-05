@@ -74,13 +74,9 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.IConfig__factory>;
     getContractFactory(
-      name: "IWhitelist",
+      name: "UnderlyingAsset",
       signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.IWhitelist__factory>;
-    getContractFactory(
-      name: "MockUSDC",
-      signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.MockUSDC__factory>;
+    ): Promise<Contracts.UnderlyingAsset__factory>;
     getContractFactory(
       name: "OrionConfig",
       signerOrOptions?: ethers.Signer | FactoryOptions
@@ -89,6 +85,10 @@ declare module "hardhat/types/runtime" {
       name: "OrionVaultFactory",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.OrionVaultFactory__factory>;
+    getContractFactory(
+      name: "UnderlyingAsset",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.UnderlyingAsset__factory>;
     getContractFactory(
       name: "FHE",
       signerOrOptions?: ethers.Signer | FactoryOptions
@@ -190,15 +190,10 @@ declare module "hardhat/types/runtime" {
       signer?: ethers.Signer
     ): Promise<Contracts.IConfig>;
     getContractAt(
-      name: "IWhitelist",
+      name: "UnderlyingAsset",
       address: string | ethers.Addressable,
       signer?: ethers.Signer
-    ): Promise<Contracts.IWhitelist>;
-    getContractAt(
-      name: "MockUSDC",
-      address: string | ethers.Addressable,
-      signer?: ethers.Signer
-    ): Promise<Contracts.MockUSDC>;
+    ): Promise<Contracts.UnderlyingAsset>;
     getContractAt(
       name: "OrionConfig",
       address: string | ethers.Addressable,
@@ -209,6 +204,11 @@ declare module "hardhat/types/runtime" {
       address: string | ethers.Addressable,
       signer?: ethers.Signer
     ): Promise<Contracts.OrionVaultFactory>;
+    getContractAt(
+      name: "UnderlyingAsset",
+      address: string | ethers.Addressable,
+      signer?: ethers.Signer
+    ): Promise<Contracts.UnderlyingAsset>;
     getContractAt(
       name: "FHE",
       address: string | ethers.Addressable,
@@ -301,13 +301,9 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.IConfig>;
     deployContract(
-      name: "IWhitelist",
+      name: "UnderlyingAsset",
       signerOrOptions?: ethers.Signer | DeployContractOptions
-    ): Promise<Contracts.IWhitelist>;
-    deployContract(
-      name: "MockUSDC",
-      signerOrOptions?: ethers.Signer | DeployContractOptions
-    ): Promise<Contracts.MockUSDC>;
+    ): Promise<Contracts.UnderlyingAsset>;
     deployContract(
       name: "OrionConfig",
       signerOrOptions?: ethers.Signer | DeployContractOptions
@@ -316,6 +312,10 @@ declare module "hardhat/types/runtime" {
       name: "OrionVaultFactory",
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.OrionVaultFactory>;
+    deployContract(
+      name: "UnderlyingAsset",
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.UnderlyingAsset>;
     deployContract(
       name: "FHE",
       signerOrOptions?: ethers.Signer | DeployContractOptions
@@ -417,15 +417,10 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.IConfig>;
     deployContract(
-      name: "IWhitelist",
+      name: "UnderlyingAsset",
       args: any[],
       signerOrOptions?: ethers.Signer | DeployContractOptions
-    ): Promise<Contracts.IWhitelist>;
-    deployContract(
-      name: "MockUSDC",
-      args: any[],
-      signerOrOptions?: ethers.Signer | DeployContractOptions
-    ): Promise<Contracts.MockUSDC>;
+    ): Promise<Contracts.UnderlyingAsset>;
     deployContract(
       name: "OrionConfig",
       args: any[],
@@ -436,6 +431,11 @@ declare module "hardhat/types/runtime" {
       args: any[],
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.OrionVaultFactory>;
+    deployContract(
+      name: "UnderlyingAsset",
+      args: any[],
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.UnderlyingAsset>;
     deployContract(
       name: "FHE",
       args: any[],

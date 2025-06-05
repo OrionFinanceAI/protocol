@@ -7,11 +7,11 @@ dotenv.config();
     const [deployer] = await ethers.getSigners();
     console.log("Deploying Investment Universe with:", deployer.address);
 
-    const mockUSDCAddress = process.env.UNDERLYING_ASSET;
-    if (!mockUSDCAddress) {
+    const underlyingAssetAddress = process.env.UNDERLYING_ASSET;
+    if (!underlyingAssetAddress) {
         throw new Error("Please set UNDERLYING_ASSET in your .env file");
       }
-    console.log("Using MockUSDC at:", mockUSDCAddress);
+    console.log("Using underlyingAsset at:", underlyingAssetAddress);
 
     const VaultFactory = await ethers.getContractFactory("UniverseERC4626Vault");
 
@@ -21,7 +21,7 @@ dotenv.config();
         const name = `Vault Token ${i}`;
         const symbol = `VT${i}`;
 
-        const vault = await VaultFactory.deploy(mockUSDCAddress, name, symbol);
+        const vault = await VaultFactory.deploy(underlyingAssetAddress, name, symbol);
         await vault.deployed();
 
         console.log(`Vault ${i} deployed to: ${vault.address}`);

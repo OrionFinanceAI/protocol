@@ -7,8 +7,8 @@ set -e
 export $(grep -v '^#' .env | xargs)
 
 pnpm hardhat run scripts/fund-local-accounts.ts --network localhost
-pnpm hardhat run scripts/deploy-mock-usdc.ts --network localhost
-pnpm hardhat run scripts/mint-mock-usdc-to-lp.ts --network localhost
+pnpm hardhat run scripts/deploy-underlying-asset.ts --network localhost
+pnpm hardhat run scripts/mint-underlying-asset-to-lp.ts --network localhost
 pnpm hardhat run scripts/deploy-investment-universe.ts --network localhost
 pnpm hardhat run scripts/deploy-config.ts --network localhost
 pnpm hardhat run scripts/add-to-config-whitelist.ts --network localhost

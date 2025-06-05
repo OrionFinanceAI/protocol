@@ -3,4 +3,3 @@
 /* eslint-disable */
 export { FHEIntentsERC4626Vault__factory } from "./FHEIntentsERC4626Vault__factory";
 export { IConfig__factory } from "./IConfig__factory";
-export { IWhitelist__factory } from "./IWhitelist__factory";
