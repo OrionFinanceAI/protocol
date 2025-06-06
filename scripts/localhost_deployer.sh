@@ -1,9 +1,6 @@
 #!/bin/bash
 
-# Exit if any command fails
 set -e
-
-# Load environment variables from .env if needed
 export $(grep -v '^#' .env | xargs)
 
 # Update the typechain types and artifacts if needed
@@ -22,7 +19,9 @@ pnpm hardhat run scripts/deploy-oracle.ts --network localhost
 pnpm hardhat run scripts/deploy-orion-vault-factory.ts --network localhost
 pnpm hardhat run scripts/populate-config.ts --network localhost
 pnpm hardhat run scripts/deploy-orion-vault.ts --network localhost
-pnpm hardhat run scripts/request-deposit.ts --network localhost
+# cd python-sdk && sdk download && cd ..
+cd python-sdk && sdk order-intent && cd ..
 
-# pnpm hardhat run scripts/submit-vault-order.ts --network localhost
+# pnpm hardhat run scripts/request-deposit.ts --network localhost
+
 # pnpm hardhat run scripts/request-vault-withdrawal.ts --network localhost

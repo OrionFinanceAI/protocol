@@ -1,13 +1,9 @@
 """Utils."""
 
 import os
-from pathlib import Path
-from dotenv import load_dotenv
 from lighthouseweb3 import Lighthouse
 import requests
 
-env_path = Path(__file__).resolve().parent.parent / ".env"
-load_dotenv(dotenv_path=env_path)
 
 def upload_to_ipfs(file_path: str):
     """Upload content to Lighthouse and retrieves the url with content identifier (CID)."""

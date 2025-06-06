@@ -32,19 +32,15 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
     address public curator;
     address public deployer;
 
-    enum ValueEncoding { PLAINTEXT, ENCRYPTED }
-
-    struct OrderValue {
-        bytes value; // uint32 (PLAINTEXT) or euint32 (ENCRYPTED)
-    }
+    enum AmountEncoding { PLAINTEXT, ENCRYPTED }
 
     struct OrderStruct {
         address token;
-        OrderValue value;
+        bytes amount; // uint32 (PLAINTEXT) or euint32 (ENCRYPTED)
     }
 
     struct Order {
-        ValueEncoding encoding;
+        AmountEncoding encoding;
         OrderStruct[] items;
     }
 
@@ -100,8 +96,8 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
     /// @notice Submit a portfolio intent, where all values use the same encoding scheme.
     /// @param encoding Encoding type (PLAINTEXT or ENCRYPTED) for all portfolio values.
     /// @param items List of token-amount pairs forming a target portfolio.
-    function submitOrder(ValueEncoding encoding, OrderStruct[] calldata items) external onlyCurator {
-        require(items.length > 0, "Order cannot be empty");
+    function submitOrderIntent(AmountEncoding encoding, OrderStruct[] calldata items) external onlyCurator {
+        require(items.length > 0, "Order intent cannot be empty");
 
         // Validate Universe
         for (uint256 i = 0; i < items.length; i++) {
