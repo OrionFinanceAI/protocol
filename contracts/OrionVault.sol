@@ -45,13 +45,11 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
     struct DepositRequest {
         address user;
         uint256 amount;
-        bool processed; // TODO: remove this field and just keep the list of nonprocessed requests in the state (processed always false).
     }
 
     struct WithdrawRequest {
         address user;
         uint256 shares;
-        bool processed; // TODO: remove this field and just keep the list of nonprocessed requests in the state (processed always false).
     }
 
     // Queues of async requests from curator and LPs.

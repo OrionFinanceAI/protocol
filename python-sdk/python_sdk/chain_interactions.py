@@ -38,7 +38,6 @@ def submit_order_intent(
     account = w3.eth.account.from_key(os.getenv("CURATOR_PRIVATE_KEY"))
     nonce = w3.eth.get_transaction_count(account.address)
 
-    # Build items (OrderStruct[])
     items = [{"token": Web3.to_checksum_address(t), "amount": a} for t, a in zip(tokens, amounts)]
 
     ORION_VAULT_ADDRESS = Web3.to_checksum_address(os.getenv("ORION_VAULT_ADDRESS"))
