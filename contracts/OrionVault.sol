@@ -21,8 +21,7 @@ import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/Reentrancy
  * Intents may be submitted in plaintext or in encrypted form, depending on the
  * privacy requirements of the curator. The vault supports pluggable
  * intent interpreters, enabling support for various interpretation and decryption
- * strategies including plaintext parsing, Fully Homomorphic Encryption (FHE),
- * zero-knowledge proofs (ZK), or other custom logic.
+ * strategies including plaintext parsing and Fully Homomorphic Encryption (FHE).
  *
  * This contract abstracts away the specific encryption method, allowing the protocol
  * to evolve while preserving a consistent interface for intent-driven vault behavior.
@@ -36,7 +35,7 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
 
     struct OrderStruct {
         address token;
-        bytes amount; // uint32 (PLAINTEXT) or euint32 (ENCRYPTED)
+        bytes amount; // uint32 (PLAINTEXT) or euint32 (ENCRYPTED). // TODO: avoid using bytes, use uint32 or euint32 directly.
     }
 
     struct Order {

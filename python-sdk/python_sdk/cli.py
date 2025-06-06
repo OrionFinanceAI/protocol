@@ -5,6 +5,7 @@ from .fhe import run_keygen
 from .chain_interactions import submit_order_intent, get_fhe_public_cid, get_whitelisted_vaults
 from pathlib import Path
 from dotenv import load_dotenv
+from .validation import validate_order
 
 app = typer.Typer()
 
@@ -38,19 +39,14 @@ def download():
 @app.command()
 def order_intent():
     """Submit an order intent."""
-    whitelisted_vaults = get_whitelisted_vaults() 
-    tokens = whitelisted_vaults
-    plaintext_amounts = [1000000000000000000] * len(tokens)
+    tokens = ['0x0692d38F0da545D08d5101aC09AA4139D121F127', '0x3d99435E5531b47267739755D7c91332a0304905']
+    plaintext_amounts = [0.6, 0.4] # TODO: contract expects integers, pct of TVL necessarily float. Define conversion function.
     encoding = 0 # PLAINTEXT
 
-    fuzz = False # TODO: additionally, if fuzz call get_whitelisted_vaults and use random number generator with curator-set seed to populate additional entries with dust.
+    fuzz = False # TODO: if fuzz call get_whitelisted_vaults() and use random number generator with curator-set seed to populate additional entries with dust.
     if fuzz:
         breakpoint()
-
-    # TODO: validate order before encoding.
-    # TODO: values percentage of TVL (sum 1, long only, each bigger than 0)
-    # TODO: (after encoding): FHE encrypted intents associated with protocol public FHE context.
-
+    
     def encode_amount(amount_int, encoding):
         if encoding == 0:
             return encode(['uint256'], [amount_int])
