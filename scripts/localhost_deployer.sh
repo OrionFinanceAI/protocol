@@ -8,6 +8,9 @@ export $(grep -v '^#' .env | xargs)
 # pnpm hardhat compile
 # pnpm typechain
 
+# Generate FHE key pair and upload public key to IPFS.
+cd python-sdk && sdk keygen && sdk upload context.public.tenseal && cd ..
+
 pnpm hardhat run scripts/fund-local-accounts.ts --network localhost
 pnpm hardhat run scripts/deploy-underlying-asset.ts --network localhost
 pnpm hardhat run scripts/mint-underlying-asset-to-lp.ts --network localhost

@@ -26,25 +26,3 @@ uv venv
 source .venv/bin/activate
 uv pip install -e .
 ```
-
-## Development Scripts
-
-### Generate FHE key pair and upload public key to IPFS.
-
-```bash
-cd python-sdk
-sdk keygen
-sdk upload context.public.tenseal
-```
-
-### Verify Config
-
-```bash
-pnpm hardhat run scripts/verify-config.ts --network sepolia
-```
-
-### Deposit USDC to Vault for share token.
-
-```bash
-pnpm hardhat run scripts/deposit-to-vault.ts --network sepolia
-```

@@ -38,7 +38,7 @@ def download():
 @app.command()
 def order_intent():
     """Submit an order intent."""
-    whitelisted_vaults = get_whitelisted_vaults()
+    whitelisted_vaults = get_whitelisted_vaults() 
     tokens = whitelisted_vaults
     plaintext_amounts = [1000000000000000000] * len(tokens)
     encoding = 0 # PLAINTEXT
