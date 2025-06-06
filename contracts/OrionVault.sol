@@ -57,7 +57,7 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
     }
 
     // Queues of async requests from curator and LPs.
-    Order[] private orders; // TODO: we don't need the lsit of orders, just the last one. No need to define this variable like this and process it as it is now.
+    Order[] private orders; // TODO: we don't need the list of orders, just the last one. No need to define this variable like this and process it as it is now.
     DepositRequest[] public depositRequests;
     WithdrawRequest[] public withdrawRequests;
 
