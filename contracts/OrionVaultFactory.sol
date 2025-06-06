@@ -8,8 +8,6 @@ contract OrionVaultFactory {
     address public deployer;
     OrionConfig public config;
 
-    address[] public allOrionVaults;
-
     event OrionVaultCreated(address indexed vault, address indexed curator, address indexed deployer);
 
     constructor(address _config) {
@@ -26,24 +24,9 @@ contract OrionVaultFactory {
             curator,
             address(config)
         );
-
         vault = address(newVault);
-        allOrionVaults.push(vault);
 
         emit OrionVaultCreated(vault, curator, msg.sender);
-    }
-
-    function getOrionVaultAt(uint256 index) external view returns (address) {
-        require(index < allOrionVaults.length, "Index out of bounds");
-        return allOrionVaults[index];
-    }
-
-    function _exists(address vault) internal view returns (bool) {
-        for (uint256 i = 0; i < allOrionVaults.length; i++) {
-            if (allOrionVaults[i] == vault) {
-                return true;
-            }
-        }
-        return false;
+        // config.addOrionVault(vault);
     }
 }

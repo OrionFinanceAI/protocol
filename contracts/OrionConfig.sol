@@ -9,16 +9,25 @@ contract OrionConfig {
     address public internalStateOrchestrator;
     address public liquidityOrchestrator;
     address public priceAndPnLOracle;
+    address public vaultFactory;
+
     string public fhePublicCID;
 
     address[] public whitelistedVaults;
     mapping(address => bool) public isWhitelisted;
+
+    address[] public orionVaults;
+    mapping(address => bool) public isOrionVault;
     
-    uint256 public whitelistCount;
+    uint256 public whitelistVaultCount;
+    uint256 public orionVaultCount;
 
     // Events
-    event VaultAdded(address indexed vault);
-    event VaultRemoved(address indexed vault);
+    event WhitelistedVaultAdded(address indexed vault);
+    event WhitelistedVaultRemoved(address indexed vault);
+    event OrionVaultAdded(address indexed vault);
+    event OrionVaultRemoved(address indexed vault);
+    event VaultFactorySet(address factory);
     event PublicCIDUpdated(string newCID);
     event ProtocolParamsUpdated(
         address underlyingAsset,
@@ -34,12 +43,24 @@ contract OrionConfig {
         _;
     }
 
+    modifier onlyFactory() {
+        require(msg.sender == vaultFactory, "Not factory");
+        _;
+    }
+
     // Constructor
     constructor() {
         owner = msg.sender;
     }
 
     // === Protocol Configuration ===
+
+    function setVaultFactory(address _factory) external onlyOwner {
+        require(_factory != address(0), "Zero address");
+        require(vaultFactory == address(0), "Factory already set");
+        vaultFactory = _factory;
+        emit VaultFactorySet(_factory);
+    }
 
     function setProtocolParams(
         address _underlyingAsset,
@@ -70,26 +91,26 @@ contract OrionConfig {
 
     // === Whitelist Functions ===
 
-    function addVault(address vault) external onlyOwner {
+    function addWhitelistedVault(address vault) external onlyOwner {
         require(!isWhitelisted[vault], "Already whitelisted");
         whitelistedVaults.push(vault);
         isWhitelisted[vault] = true;
-        whitelistCount += 1;
-        emit VaultAdded(vault);
+        whitelistVaultCount += 1;
+        emit WhitelistedVaultAdded(vault);
     }
 
-    function removeVault(address vault) external onlyOwner {
-        require(isWhitelisted[vault], "Not in whitelist");
+    function removeWhitelistedVault(address vault) external onlyOwner {
+        require(isWhitelisted[vault], "Not in list of whitelistedVaults");
 
-        uint256 index = _indexOf(vault);
+        uint256 index = _indexOfWhitelistedVault(vault);
         // Swap and pop
         whitelistedVaults[index] = whitelistedVaults[whitelistedVaults.length - 1];
         whitelistedVaults.pop();
     
         isWhitelisted[vault] = false;
-        whitelistCount -= 1;
+        whitelistVaultCount -= 1;
 
-        emit VaultRemoved(vault);
+        emit WhitelistedVaultRemoved(vault);
     }
 
     function getWhitelistedVaultAt(uint256 index) external view returns (address) {
@@ -97,13 +118,50 @@ contract OrionConfig {
         return whitelistedVaults[index];
     }
 
-    function _indexOf(address vault) internal view returns (uint256) {
+    function _indexOfWhitelistedVault(address vault) internal view returns (uint256) {
         for (uint i = 0; i < whitelistedVaults.length; i++) {
             if (whitelistedVaults[i] == vault) {
                 return i;
             }
         }
-        revert("Vault not found");
+        revert("Vault not found in list of whitelistedVaults");
+    }
+
+    // === Orion Vaults ===
+
+    function addOrionVault(address vault) external onlyFactory {
+        require(!isOrionVault[vault], "Already an OrionVault");
+        orionVaults.push(vault);
+        isOrionVault[vault] = true;
+        orionVaultCount += 1;
+        emit OrionVaultAdded(vault);
+    }
+
+    function removeOrionVault(address vault) external onlyFactory {
+        require(isOrionVault[vault], "Not an OrionVault");
+
+        uint256 index = _indexOfOrionVault(vault);
+        orionVaults[index] = orionVaults[orionVaults.length - 1];
+        orionVaults.pop();
+
+        isOrionVault[vault] = false;
+        orionVaultCount -= 1;
+
+        emit OrionVaultRemoved(vault);
+    }
+
+    function getOrionVaultAt(uint256 index) external view returns (address) {
+        require(index < orionVaults.length, "Index out of bounds");
+        return orionVaults[index];
+    }
+
+    function _indexOfOrionVault(address vault) internal view returns (uint256) {
+        for (uint i = 0; i < orionVaults.length; i++) {
+            if (orionVaults[i] == vault) {
+                return i;
+            }
+        }
+        revert("OrionVault not found in list of OrionVaults");
     }
 
     // === FHE Public CID ===
