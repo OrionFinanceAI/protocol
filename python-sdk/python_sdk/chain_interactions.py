@@ -26,8 +26,8 @@ def get_whitelisted_vaults():
 
 def submit_order_intent(
     tokens: List[str],
-    amounts: List[bytes],
-    encoding: Literal[0, 1],
+    amounts: List,
+    encoding: Literal[0, 1], # 0=PLAINTEXT, 1=ENCRYPTED
 ):
     """Submit a portfolio order intent with PLAINTEXT or ENCRYPTED encoding."""
 
@@ -44,8 +44,20 @@ def submit_order_intent(
     ORION_VAULT_ADDRESS = Web3.to_checksum_address(os.getenv("ORION_VAULT_ADDRESS"))
     contract = w3.eth.contract(address=ORION_VAULT_ADDRESS, abi=load_contract_abi("OrionVault"))
 
-    # Submit transaction
-    tx = contract.functions.submitOrderIntent(encoding, items).build_transaction({
+    # The dispatching is done in the sdk to enable explicit type definitions in the vault contract.
+    if encoding == 0:
+        items = [{"token": Web3.to_checksum_address(t), "amount": int(a)} for t, a in zip(tokens, amounts)]
+        func = contract.functions.submitOrderIntentPlain
+    elif encoding == 1:
+        # Encrypted amounts — amounts are expected to be already encoded as euint32 from TFHE
+        breakpoint()
+        # TODO: before bindings building, assess the compatibility of tenseal/tfhe-rs+py03 and fhevm-solidity.
+        # TODO: asked Zama if the following is good int > euint32 > bytes.
+        # py03 + https://github.com/zama-ai/tfhe-rs
+        items = [{"token": Web3.to_checksum_address(t), "amount": a} for t, a in zip(tokens, amounts)]
+        func = contract.functions.submitOrderIntentEncrypted
+
+    tx = func(items).build_transaction({
         "from": account.address,
         "nonce": nonce,
         "gas": 500_000,

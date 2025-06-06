@@ -14,6 +14,7 @@ contract OrionConfig {
     string public fhePublicCID;
 
     address[] public whitelistedVaults;
+    mapping(address => uint256) public whitelistedVaultIndex;
     mapping(address => bool) public isWhitelisted;
 
     address[] public orionVaults;
@@ -93,9 +94,10 @@ contract OrionConfig {
 
     function addWhitelistedVault(address vault) external onlyOwner {
         require(!isWhitelisted[vault], "Already whitelisted");
-        whitelistedVaults.push(vault);
+        whitelistedVaultIndex[vault] = whitelistedVaults.length;
         isWhitelisted[vault] = true;
         whitelistVaultCount += 1;
+        whitelistedVaults.push(vault);
         emit WhitelistedVaultAdded(vault);
     }
 

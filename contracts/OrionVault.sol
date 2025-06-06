@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import "./OrionConfig.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
+import { euint32 } from "../lib/fhevm-solidity/lib/FHE.sol";
 
 /**
  * @title OrionVault
@@ -31,32 +32,31 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
     address public curator;
     address public deployer;
 
-    enum AmountEncoding { PLAINTEXT, ENCRYPTED }
 
-    struct OrderStruct {
+   struct OrderPlain {
         address token;
-        bytes amount; // uint32 (PLAINTEXT) or euint32 (ENCRYPTED). // TODO: avoid using bytes, use uint32 or euint32 directly.
+        uint32 amount; 
     }
-
-    struct Order {
-        AmountEncoding encoding;
-        OrderStruct[] items;
+    struct OrderEncrypted {
+        address token;
+        euint32 amount; 
     }
 
     struct DepositRequest {
         address user;
         uint256 amount;
-        bool processed; // TODO: consider removing this field and just keep the list of nonprocessed requests in the state.
+        bool processed; // TODO: remove this field and just keep the list of nonprocessed requests in the state (processed always false).
     }
 
     struct WithdrawRequest {
         address user;
         uint256 shares;
-        bool processed; // TODO: Same as above
+        bool processed; // TODO: remove this field and just keep the list of nonprocessed requests in the state (processed always false).
     }
 
     // Queues of async requests from curator and LPs.
-    Order[] private orders; // TODO: we don't need the list of orders, just the last one. No need to define this variable like this and process it as it is now.
+    OrderPlain[] private _plainOrder;
+    OrderEncrypted[] private _encryptedOrder;
     DepositRequest[] public depositRequests;
     WithdrawRequest[] public withdrawRequests;
 
@@ -92,24 +92,60 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
         config = OrionConfig(_config);
     }
 
-    /// @notice Submit a portfolio intent, where all values use the same encoding scheme.
-    /// @param encoding Encoding type (PLAINTEXT or ENCRYPTED) for all portfolio values.
-    /// @param items List of token-amount pairs forming a target portfolio.
-    function submitOrderIntent(AmountEncoding encoding, OrderStruct[] calldata items) external onlyCurator {
-        require(items.length > 0, "Order intent cannot be empty");
+    /// @notice Submit a plaintext portfolio intent.
+    /// @param order OrderPlain struct containing the tokens and amounts.
+    /// TODO: in the plaintext case, the vault can perform the validation of the order intent (e.g. TVL percentage, long only, etc.).
+    function submitOrderIntentPlain(
+        OrderPlain[] calldata order
+    ) external onlyCurator {
+        require(order.length > 0, "Order intent cannot be empty");
 
-        // Validate Universe
-        for (uint256 i = 0; i < items.length; i++) {
-            require(config.isWhitelisted(items[i].token), "Token not whitelisted");
+        uint32[] memory finalAmounts = new uint32[](config.whitelistVaultCount());
+
+        for (uint256 i = 0; i < order.length; i++) {
+            address token = order[i].token;
+            uint32 amount = order[i].amount;
+            require(config.isWhitelisted(token), "Token not whitelisted");
+
+            uint256 index = config.whitelistedVaultIndex(token);
+            finalAmounts[index] = amount;
         }
 
-        Order storage newOrder = orders.push();
-        newOrder.encoding = encoding;
+        delete _plainOrder;
+        for (uint256 i = 0; i < order.length; i++) {
+            _plainOrder.push(OrderPlain({
+                token: order[i].token,
+                amount: finalAmounts[i]
+            }));
+        }
+        emit OrderSubmitted(msg.sender);
+    }
 
-        for (uint256 i = 0; i < items.length; i++) {
-            newOrder.items.push(items[i]);
+    /// @notice Submit an encrypted portfolio intent.
+    /// @param order OrderEncrypted struct containing the tokens and amounts.
+    function submitOrderIntentEncrypted(
+        OrderEncrypted[] calldata order
+    ) external onlyCurator {
+        require(order.length > 0, "Order intent cannot be empty");
+
+        euint32[] memory finalAmounts = new euint32[](config.whitelistVaultCount());
+
+        for (uint256 i = 0; i < order.length; i++) {
+            address token = order[i].token;
+            euint32 amount = order[i].amount;
+            require(config.isWhitelisted(token), "Token not whitelisted");
+
+            uint256 index = config.whitelistedVaultIndex(token);
+            finalAmounts[index] = amount;
         }
 
+        delete _encryptedOrder;
+        for (uint256 i = 0; i < order.length; i++) {
+            _encryptedOrder.push(OrderEncrypted({
+                token: order[i].token,
+                amount: finalAmounts[i]
+            }));
+        }
         emit OrderSubmitted(msg.sender);
     }
 

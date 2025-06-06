@@ -40,21 +40,11 @@ def download():
 def order_intent():
     """Submit an order intent."""
     tokens = ['0x0692d38F0da545D08d5101aC09AA4139D121F127', '0x3d99435E5531b47267739755D7c91332a0304905']
-    plaintext_amounts = [0.6, 0.4] # TODO: contract expects integers, pct of TVL necessarily float. Define conversion function.
+    amounts = [100, 200] # [0.6, 0.4] # TODO: contract expects integers, pct of TVL necessarily float. Define conversion function.
     encoding = 0 # PLAINTEXT
 
     fuzz = False # TODO: if fuzz call get_whitelisted_vaults() and use random number generator with curator-set seed to populate additional entries with dust.
     if fuzz:
         breakpoint()
     
-    def encode_amount(amount_int, encoding):
-        if encoding == 0:
-            return encode(['uint256'], [amount_int])
-        elif encoding == 1:
-            breakpoint()
-            # TODO: asked Zama if the following is good int > euint32 > bytes.
-            # py03 + https://github.com/zama-ai/tfhe-rs
-            # FheUint32::try_encrypt(clear_a, &client_key)?;
-
-    amounts = [encode_amount(amount, encoding) for amount in plaintext_amounts]
     submit_order_intent(tokens=tokens, amounts=amounts, encoding=encoding)
