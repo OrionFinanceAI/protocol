@@ -15,15 +15,16 @@ async function main() {
     throw new Error("⚠️  This script should only be run on the localhost network.");
   }
 
-  const amount = ethers.utils.parseEther(amountInEth);
+  // ethers v6 uses parseEther the same way, but BigInt internally
+  const amount = ethers.parseEther(amountInEth);
 
   for (const address of addresses) {
     console.log(`⛽ Funding ${address} with ${amountInEth} ETH`);
 
-    // Set balance using hardhat_setBalance
+    // hardhat_setBalance expects hex string with 0x prefix — amount is BigInt, convert to hex string:
     await network.provider.send("hardhat_setBalance", [
       address,
-      amount.toHexString(),
+      "0x" + amount.toString(16),
     ]);
   }
 

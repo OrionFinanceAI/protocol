@@ -2,13 +2,14 @@ import { ethers } from "hardhat";
 
 async function main() {
   const [deployer] = await ethers.getSigners();
-  console.log("Deploying InternalStatesOrchestrator with:", deployer.address);
+  console.log("Deploying InternalStatesOrchestrator with:", await deployer.getAddress());
 
   const InternalStatesOrchestrator = await ethers.getContractFactory("InternalStatesOrchestrator");
   const internalStatesOrchestrator = await InternalStatesOrchestrator.deploy();
-  await internalStatesOrchestrator.deployed();
 
-  console.log("✅ InternalStatesOrchestrator deployed to:", internalStatesOrchestrator.address);
+  await internalStatesOrchestrator.waitForDeployment();
+
+  console.log("✅ InternalStatesOrchestrator deployed to:", internalStatesOrchestrator.target);
 }
 
 main().catch((error) => {

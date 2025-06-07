@@ -1,11 +1,11 @@
-import { ethers } from "hardhat";
 import * as dotenv from "dotenv";
+import { ethers } from "hardhat";
 
 dotenv.config();
 
 async function main() {
   const [deployer] = await ethers.getSigners();
-  console.log("Deploying OrionVaultFactory with:", deployer.address);
+  console.log("Deploying OrionVaultFactory with:", await deployer.getAddress());
 
   const configAddress = process.env.CONFIG_ADDRESS;
   if (!configAddress) {
@@ -17,9 +17,9 @@ async function main() {
   // Deploy the OrionVaultFactory
   const OrionVaultFactory = await ethers.getContractFactory("OrionVaultFactory");
   const factory = await OrionVaultFactory.deploy(configAddress);
-  await factory.deployed();
+  await factory.waitForDeployment();
 
-  console.log("OrionVaultFactory deployed to:", factory.address);
+  console.log("OrionVaultFactory deployed to:", factory.target);
 }
 
 main().catch((error) => {

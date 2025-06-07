@@ -1,6 +1,9 @@
-![Hardhat CI](https://github.com/OrionFinanceAI/protocol/actions/workflows/ci.yml/badge.svg)
+# protocol [![Github Actions][gha-badge]][gha] [![Hardhat][hardhat-badge]][hardhat]
 
-# protocol
+[gha]: https://github.com/OrionFinanceAI/protocol/actions
+[gha-badge]: https://github.com/OrionFinanceAI/protocol/actions/workflows/ci.yml/badge.svg
+[hardhat]: https://hardhat.org/
+[hardhat-badge]: https://img.shields.io/badge/Built%20with-Hardhat-FFDB1C.svg
 
 ## About
 

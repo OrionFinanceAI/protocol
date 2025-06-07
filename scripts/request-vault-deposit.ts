@@ -1,5 +1,5 @@
-import { ethers } from "hardhat";
 import * as dotenv from "dotenv";
+import { ethers } from "hardhat";
 
 dotenv.config();
 
@@ -10,8 +10,8 @@ async function main() {
   const vaultAddress = process.env.ORION_VAULT_ADDRESS;
   if (!vaultAddress) throw new Error("Missing ORION_VAULT_ADDRESS in .env");
 
-  const underlyingAssetAddress = process.env.UNDERLYING_ASSET;
-  if (!underlyingAssetAddress) {
+  const UnderlyingAssetAddress = process.env.UNDERLYING_ASSET;
+  if (!UnderlyingAssetAddress) {
     throw new Error("Please set UNDERLYING_ASSET in your .env file");
   }
 
@@ -20,7 +20,7 @@ async function main() {
   const OrionVault = await ethers.getContractFactory("OrionVault");
   const vault = OrionVault.attach(vaultAddress);
 
-  const ERC20 = await ethers.getContractAt("IERC20", underlyingAssetAddress);
+  const ERC20 = await ethers.getContractAt("IERC20", UnderlyingAssetAddress);
 
   const lpAddress = await lp.getAddress();
   const balance = await ERC20.balanceOf(lpAddress);
@@ -31,7 +31,7 @@ async function main() {
   const approveTx = await ERC20.connect(lp).approve(vaultAddress, depositAmount);
   await approveTx.wait();
   console.log(`✅ Approved ${depositAmount} underlying tokens to OrionVault`);
-  
+
   // Connect LP signer to vault and request deposit
   const tx = await vault.connect(lp).requestDeposit(depositAmount);
 

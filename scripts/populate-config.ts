@@ -1,5 +1,5 @@
-import { ethers } from "hardhat";
 import * as dotenv from "dotenv";
+import { ethers } from "hardhat";
 
 dotenv.config();
 
@@ -11,7 +11,6 @@ function getUniverseList(): string[] {
     .map((addr) => addr.trim())
     .filter((addr) => addr.length > 0);
 }
-
 
 async function main() {
   const [deployer] = await ethers.getSigners();
@@ -27,7 +26,15 @@ async function main() {
     FACTORY_ADDRESS,
   } = process.env;
 
-  if (!CONFIG_ADDRESS || !UNDERLYING_ASSET || !INTERNAL_ORCHESTRATOR_ADDRESS || !LIQUIDITY_ORCHESTRATOR_ADDRESS || !ORACLE_ADDRESS || !FHE_PUBLIC_CID || !FACTORY_ADDRESS) {
+  if (
+    !CONFIG_ADDRESS ||
+    !UNDERLYING_ASSET ||
+    !INTERNAL_ORCHESTRATOR_ADDRESS ||
+    !LIQUIDITY_ORCHESTRATOR_ADDRESS ||
+    !ORACLE_ADDRESS ||
+    !FHE_PUBLIC_CID ||
+    !FACTORY_ADDRESS
+  ) {
     throw new Error("Missing one or more required env variables");
   }
 
@@ -40,7 +47,7 @@ async function main() {
     INTERNAL_ORCHESTRATOR_ADDRESS,
     LIQUIDITY_ORCHESTRATOR_ADDRESS,
     ORACLE_ADDRESS,
-    FHE_PUBLIC_CID
+    FHE_PUBLIC_CID,
   );
   await setTx.wait();
   console.log("✅ Protocol parameters updated");

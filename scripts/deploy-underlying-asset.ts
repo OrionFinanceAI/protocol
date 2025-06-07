@@ -2,16 +2,18 @@ import { ethers } from "hardhat";
 
 async function main() {
   const [deployer] = await ethers.getSigners();
-  console.log("Deploying underlyingAsset with:", deployer.address);
+  console.log("Deploying UnderlyingAsset with:", await deployer.getAddress());
 
-  const underlyingAsset = await ethers.getContractFactory("underlyingAsset");
-  const underlyingAssetContract = await underlyingAsset.deploy();
-  await underlyingAssetContract.deployed();
+  const UnderlyingAsset = await ethers.getContractFactory("UnderlyingAsset");
+  console.log("UnderlyingAsset factory ready");
 
-  console.log("✅ underlyingAsset deployed to:", underlyingAssetContract.address);
+  const UnderlyingAssetContract = await UnderlyingAsset.deploy();
+  await UnderlyingAssetContract.waitForDeployment();
+
+  console.log("✅ UnderlyingAsset deployed to:", await UnderlyingAssetContract.getAddress());
 }
 
 main().catch((error) => {
-  console.error("❌ underlyingAsset deployment failed:", error);
+  console.error("❌ UnderlyingAsset deployment failed:", error);
   process.exitCode = 1;
 });

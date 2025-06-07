@@ -5,8 +5,8 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import "./OrionConfig.sol";
-import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
-import {euint32} from "../lib/fhevm-solidity/lib/FHE.sol";
+import { ReentrancyGuardTransient } from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
+import { euint32 } from "../lib/fhevm-solidity/lib/FHE.sol";
 
 /**
  * @title OrionVault
@@ -62,57 +62,51 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
 
     // Events
     event OrderSubmitted(address indexed curator);
-    event DepositRequested(
-        address indexed user,
-        uint256 amount,
-        uint256 requestId
-    );
-    event WithdrawRequested(
-        address indexed user,
-        uint256 shares,
-        uint256 requestId
-    );
-    event DepositProcessed(
-        address indexed user,
-        uint256 amount,
-        uint256 requestId
-    );
-    event WithdrawProcessed(
-        address indexed user,
-        uint256 shares,
-        uint256 requestId
-    );
+    event DepositRequested(address indexed user, uint256 amount, uint256 requestId);
+    event WithdrawRequested(address indexed user, uint256 shares, uint256 requestId);
+    event DepositProcessed(address indexed user, uint256 amount, uint256 requestId);
+    event WithdrawProcessed(address indexed user, uint256 shares, uint256 requestId);
 
     modifier onlyCurator() {
-        require(msg.sender == curator, "Not the curator");
+        if (msg.sender != curator) revert NotCurator();
         _;
     }
 
     modifier onlyInternalStatesOrchestrator() {
-        require(
-            msg.sender == config.internalStatesOrchestrator(),
-            "Not internal states orchestrator"
-        );
+        if (msg.sender != config.internalStatesOrchestrator()) revert NotInternalStatesOrchestrator();
         _;
     }
 
     modifier onlyLiquidityOrchestrator() {
-        require(
-            msg.sender == config.liquidityOrchestrator(),
-            "Not liquidity orchestrator"
-        );
+        if (msg.sender != config.liquidityOrchestrator()) revert NotLiquidityOrchestrator();
         _;
     }
+
+    error InvalidCuratorAddress();
+    error InvalidConfigAddress();
+    error UnderlyingAssetNotSet();
+    error NotCurator();
+    error NotLiquidityOrchestrator();
+    error NotInternalStatesOrchestrator();
+    error TransferFailed();
+    error TokenNotWhitelisted();
+    error AmountMustBeGreaterThanZero();
+    error SharesMustBeGreaterThanZero();
+    error NotEnoughShares();
+    error SynchronousRedemptionsDisabled();
+    error SynchronousDepositsDisabled();
+    error SynchronousWithdrawalsDisabled();
+
+    error ZeroPrice();
+
+    error OrderIntentCannotBeEmpty();
 
     constructor(
         address _curator,
         address _config
-    )
-        ERC20("Orion Vault Token", "oUSDC")
-        ERC4626(_getUnderlyingAsset(_config))
-    {
-        require(_curator != address(0), "Invalid curator address");
-        require(_config != address(0), "Invalid config address");
+    ) ERC20("Orion Vault Token", "oUSDC") ERC4626(_getUnderlyingAsset(_config)) {
+        if (_curator == address(0)) revert InvalidCuratorAddress();
+        if (_config == address(0)) revert InvalidConfigAddress();
 
         deployer = msg.sender;
         curator = _curator;
@@ -123,27 +117,19 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
 
     /// @notice Disable direct deposits and withdrawals on ERC4626 to enforce async only
     function deposit(uint256, address) public pure override returns (uint256) {
-        revert("Synchronous deposits disabled, use requestDeposit");
+        revert SynchronousDepositsDisabled();
     }
 
     function mint(uint256, address) public pure override returns (uint256) {
-        revert("Synchronous deposits disabled, use requestDeposit");
+        revert SynchronousDepositsDisabled();
     }
 
-    function withdraw(
-        uint256,
-        address,
-        address
-    ) public pure override returns (uint256) {
-        revert("Synchronous withdrawals disabled, use requestWithdraw");
+    function withdraw(uint256, address, address) public pure override returns (uint256) {
+        revert SynchronousWithdrawalsDisabled();
     }
 
-    function redeem(
-        uint256,
-        address,
-        address
-    ) public pure override returns (uint256) {
-        revert("Synchronous withdrawals disabled, use requestWithdraw");
+    function redeem(uint256, address, address) public pure override returns (uint256) {
+        revert SynchronousRedemptionsDisabled();
     }
 
     function totalAssets() public view override returns (uint256) {
@@ -153,7 +139,7 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
     function convertToShares(uint256 assets) public view override returns (uint256) {
         return (assets * 1e18) / sharePrice;
     }
-    
+
     function convertToAssets(uint256 shares) public view override returns (uint256) {
         return (shares * sharePrice) / 1e18;
     }
@@ -162,49 +148,38 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
 
     /// @notice Submit a plaintext portfolio intent.
     /// @param order OrderPlain struct containing the tokens and amounts.
-    /// TODO: in the plaintext case, the vault can perform the validation of the order intent (e.g. TVL percentage, long only, etc.).
-    function submitOrderIntentPlain(
-        OrderPlain[] calldata order
-    ) external onlyCurator {
-        require(order.length > 0, "Order intent cannot be empty");
-
-        uint32[] memory finalAmounts = new uint32[](
-            config.whitelistVaultCount()
-        );
-
+    function submitOrderIntentPlain(OrderPlain[] calldata order) external onlyCurator {
+        if (order.length == 0) revert OrderIntentCannotBeEmpty();
+        uint32[] memory finalAmounts = new uint32[](config.whitelistVaultCount());
+        // TODO: validate portfolio entries sum = 100%
+        // Including significant digits for integer usage, to be defined as variable
+        // And consumed by curator sdk, coprocessor >>>> set it in the config contract.
         for (uint256 i = 0; i < order.length; i++) {
             address token = order[i].token;
             uint32 amount = order[i].amount;
-            require(config.isWhitelisted(token), "Token not whitelisted");
-
+            if (!config.isWhitelisted(token)) revert TokenNotWhitelisted();
+            if (amount == 0) revert AmountMustBeGreaterThanZero();
             uint256 index = config.whitelistedVaultIndex(token);
             finalAmounts[index] = amount;
         }
 
         delete _plainOrder;
         for (uint256 i = 0; i < order.length; i++) {
-            _plainOrder.push(
-                OrderPlain({token: order[i].token, amount: finalAmounts[i]})
-            );
+            _plainOrder.push(OrderPlain({ token: order[i].token, amount: finalAmounts[i] }));
         }
         emit OrderSubmitted(msg.sender);
     }
 
     /// @notice Submit an encrypted portfolio intent.
     /// @param order OrderEncrypted struct containing the tokens and amounts.
-    function submitOrderIntentEncrypted(
-        OrderEncrypted[] calldata order
-    ) external onlyCurator {
-        require(order.length > 0, "Order intent cannot be empty");
-
-        euint32[] memory finalAmounts = new euint32[](
-            config.whitelistVaultCount()
-        );
+    function submitOrderIntentEncrypted(OrderEncrypted[] calldata order) external onlyCurator {
+        if (order.length == 0) revert OrderIntentCannotBeEmpty();
+        euint32[] memory finalAmounts = new euint32[](config.whitelistVaultCount());
 
         for (uint256 i = 0; i < order.length; i++) {
             address token = order[i].token;
             euint32 amount = order[i].amount;
-            require(config.isWhitelisted(token), "Token not whitelisted");
+            if (!config.isWhitelisted(token)) revert TokenNotWhitelisted();
 
             uint256 index = config.whitelistedVaultIndex(token);
             finalAmounts[index] = amount;
@@ -212,41 +187,29 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
 
         delete _encryptedOrder;
         for (uint256 i = 0; i < order.length; i++) {
-            _encryptedOrder.push(
-                OrderEncrypted({token: order[i].token, amount: finalAmounts[i]})
-            );
+            _encryptedOrder.push(OrderEncrypted({ token: order[i].token, amount: finalAmounts[i] }));
         }
         emit OrderSubmitted(msg.sender);
     }
 
     /// @notice LPs submits async deposit request; no tokens minted yet
     function requestDeposit(uint256 amount) external {
-        require(amount > 0, "Amount must be > 0");
-
+        if (amount == 0) revert AmountMustBeGreaterThanZero();
         // Transfer underlying tokens from LPs to vault contract as deposit escrow
-        require(
-            IERC20(asset()).transferFrom(msg.sender, address(this), amount),
-            "Transfer failed"
-        );
-
-        depositRequests.push(
-            DepositRequest({user: msg.sender, amount: amount})
-        );
+        if (!IERC20(asset()).transferFrom(msg.sender, address(this), amount)) revert TransferFailed();
+        depositRequests.push(DepositRequest({ user: msg.sender, amount: amount }));
 
         emit DepositRequested(msg.sender, amount, depositRequests.length - 1);
     }
 
     /// @notice LPs submits async withdrawal request; shares locked until processed
     function requestWithdraw(uint256 shares) external {
-        require(shares > 0, "Shares must be > 0");
-        require(balanceOf(msg.sender) >= shares, "Not enough shares");
-
+        if (shares == 0) revert SharesMustBeGreaterThanZero();
+        if (balanceOf(msg.sender) < shares) revert NotEnoughShares();
         // Lock shares by transferring them to contract as escrow
         _transfer(msg.sender, address(this), shares);
 
-        withdrawRequests.push(
-            WithdrawRequest({user: msg.sender, shares: shares})
-        );
+        withdrawRequests.push(WithdrawRequest({ user: msg.sender, shares: shares }));
 
         emit WithdrawRequested(msg.sender, shares, withdrawRequests.length - 1);
     }
@@ -254,7 +217,7 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
 
     function setSharePrice(uint256 newPrice) external onlyInternalStatesOrchestrator {
-        require(newPrice > 0, "ZERO_PRICE");
+        if (newPrice == 0) revert ZeroPrice();
         sharePrice = newPrice;
     }
 
@@ -265,11 +228,7 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
     /// --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
 
     /// @notice Process deposit requests from LPs
-    function processDepositRequests()
-        external
-        onlyLiquidityOrchestrator
-        nonReentrant
-    {
+    function processDepositRequests() external onlyLiquidityOrchestrator nonReentrant {
         uint256 i = 0;
         while (i < depositRequests.length) {
             DepositRequest storage request = depositRequests[i];
@@ -285,11 +244,7 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
     }
 
     /// @notice Process withdrawal requests from LPs
-    function processWithdrawRequests()
-        external
-        onlyLiquidityOrchestrator
-        nonReentrant
-    {
+    function processWithdrawRequests() external onlyLiquidityOrchestrator nonReentrant {
         uint256 i = 0;
         while (i < withdrawRequests.length) {
             WithdrawRequest storage request = withdrawRequests[i];
@@ -299,10 +254,7 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
 
             _burn(address(this), request.shares);
             uint256 underlyingAmount = previewRedeem(request.shares);
-            require(
-                IERC20(asset()).transfer(request.user, underlyingAmount),
-                "Transfer failed"
-            );
+            if (!IERC20(asset()).transfer(request.user, underlyingAmount)) revert TransferFailed();
 
             emit WithdrawProcessed(request.user, request.shares, i);
         }
@@ -313,11 +265,9 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
     /// @notice Get the underlying asset address from the config
     /// @param _config The address of the config contract
     /// @return The underlying asset address
-    function _getUnderlyingAsset(
-        address _config
-    ) internal view returns (IERC20) {
+    function _getUnderlyingAsset(address _config) internal view returns (IERC20) {
         address asset = OrionConfig(_config).underlyingAsset();
-        require(asset != address(0), "Underlying asset not set");
+        if (asset == address(0)) revert UnderlyingAssetNotSet();
         return IERC20(asset);
     }
 }

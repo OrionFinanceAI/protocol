@@ -1,32 +1,45 @@
 {
-    "name": "orion-finance",
-    "scripts": {
-        "build": "hardhat compile",
-        "test": "hardhat test",
-        "deploy": "hardhat run scripts/deploy.ts --network localhost",
-        "typechain": "typechain --target=ethers-v5"
-    },
-    "devDependencies": {
-        "@nomicfoundation/hardhat-toolbox": "^3.0.0",
-        "@nomiclabs/hardhat-ethers": "^2.2.3",
-        "@nomiclabs/hardhat-etherscan": "^3.1.8",
-        "@openzeppelin/contracts": "^5.3.0",
-        "@typechain/ethers-v6": "^0.4.0",
-        "@typechain/hardhat": "^9.1.0",
-        "@types/node": "^22.15.29",
-        "dotenv": "^16.5.0",
-        "ethers": "^5.8.0",
-        "hardhat": "^2.24.2",
-        "ts-node": "^10.9.2",
-        "typescript": "^5.4.0"
-    },
-    "version": "1.0.0",
-    "description": "Orion Finance Protocol",
-    "main": "index.js",
-    "keywords": [],
-    "author": "",
-    "license": "ISC",
-    "dependencies": {
-        "node-seal": "^5.1.6"
-    }
+  "name": "@orion-finance/protocol",
+  "description": "Orion Finance Protocol",
+  "version": "0.1.0",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "author": {
+    "name": "Orion Finance",
+    "url": "https://github.com/OrionFinanceAI"
+  },
+  "scripts": {
+    "build": "pnpm clean && pnpm compile",
+    "clean": "rimraf ./artifacts ./cache ./coverage ./types ./coverage.json && pnpm typechain",
+    "compile": "cross-env TS_NODE_TRANSPILE_ONLY=true hardhat compile",
+    "lint": "pnpm lint:sol && pnpm prettier:check",
+    "lint:sol": "solhint --max-warnings 25 \"contracts/**/*.sol\"",
+    "prettier:check": "prettier --check \"**/*.{js,json,md,sol,ts,yml}\"",
+    "prettier:write": "prettier --write \"**/*.{js,json,md,sol,ts,yml}\"",
+    "typechain": "cross-env TS_NODE_TRANSPILE_ONLY=true hardhat typechain",
+    "test": "hardhat test --network hardhat",
+    "coverage": "hardhat coverage"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^3.0.0",
+    "@nomicfoundation/hardhat-ethers": "^3.0.8",
+    "@nomiclabs/hardhat-etherscan": "^3.1.8",
+    "@trivago/prettier-plugin-sort-imports": "^5.2.2",
+    "ethers": "^6.6.0",
+    "cross-env": "^7.0.3",
+    "dotenv": "^16.5.0",
+    "hardhat": "^2.19.2",
+    "prettier": "^3.1.1",
+    "prettier-plugin-solidity": "^1.2.0",
+    "rimraf": "^5.0.5",
+    "solhint": "^5.1.0",
+    "solhint-plugin-prettier": "^0.1.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.0.2",
+    "node-seal": "^5.1.6"
+  }
 }

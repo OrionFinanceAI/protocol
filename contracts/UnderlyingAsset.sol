@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.4;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
-contract underlyingAsset is ERC20 {
+contract UnderlyingAsset is ERC20 {
     address public minter;
+
+    error NotAuthorized();
 
     constructor() ERC20("USD Coin", "USDC") {
         minter = msg.sender;
@@ -15,7 +17,7 @@ contract underlyingAsset is ERC20 {
     }
 
     function mint(address to, uint256 amount) external {
-        require(msg.sender == minter, "Not authorized");
+        if (msg.sender != minter) revert NotAuthorized();
         _mint(to, amount);
     }
 }

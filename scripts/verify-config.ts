@@ -1,5 +1,6 @@
-import { run } from "hardhat";
 import * as dotenv from "dotenv";
+import { run } from "hardhat";
+
 dotenv.config();
 
 async function main() {

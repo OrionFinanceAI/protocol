@@ -1,7 +1,7 @@
-import { HardhatUserConfig } from "hardhat/config";
+import "@nomicfoundation/hardhat-ethers";
 import "@nomicfoundation/hardhat-toolbox";
 import * as dotenv from "dotenv";
-import "@nomiclabs/hardhat-ethers";
+import { HardhatUserConfig } from "hardhat/config";
 
 dotenv.config();
 
@@ -9,7 +9,7 @@ const config: HardhatUserConfig = {
   solidity: {
     compilers: [
       {
-        version: "0.8.26", 
+        version: "0.8.26",
         settings: {
           optimizer: {
             enabled: true,
@@ -23,24 +23,20 @@ const config: HardhatUserConfig = {
   networks: {
     sepolia: {
       url: process.env.RPC_URL,
-      accounts: [
-        process.env.DEPLOYER_PRIVATE_KEY!,
-        process.env.LP_PRIVATE_KEY!,
-        process.env.CURATOR_PRIVATE_KEY!,
-      ],    
-  },
-  localhost: {
-    url: "http://127.0.0.1:8545",
-    gas: "auto",
-    gasPrice: 2000000000,
-  },
-  hardhat: {
-    forking: {
-      url: process.env.RPC_URL!,
-      blockNumber: 5555555,
+      accounts: [process.env.DEPLOYER_PRIVATE_KEY!, process.env.LP_PRIVATE_KEY!, process.env.CURATOR_PRIVATE_KEY!],
     },
-    chainId: 11155111,
-  },
+    localhost: {
+      url: "http://127.0.0.1:8545",
+      gas: "auto",
+      gasPrice: 2000000000,
+    },
+    hardhat: {
+      forking: {
+        url: process.env.RPC_URL!,
+        blockNumber: 5555555,
+      },
+      chainId: 11155111,
+    },
   },
   etherscan: {
     apiKey: process.env.ETHERSCAN_API_KEY,

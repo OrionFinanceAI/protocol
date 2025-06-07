@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.4;
 
 contract OrionConfig {
     address public owner;
@@ -19,7 +19,7 @@ contract OrionConfig {
 
     address[] public orionVaults;
     mapping(address => bool) public isOrionVault;
-    
+
     uint256 public whitelistVaultCount;
     uint256 public orionVaultCount;
 
@@ -38,14 +38,30 @@ contract OrionConfig {
         string fhePublicCID
     );
 
+    error NotOwner();
+    error NotFactory();
+    error ZeroAddress();
+    error FactoryAlreadySet();
+    error InvalidAsset();
+    error InvalidInternalOrchestrator();
+    error InvalidLiquidityOrchestrator();
+    error InvalidPriceAndPnLOracle();
+    error AlreadyWhitelisted();
+    error NotInWhitelist();
+    error IndexOutOfBounds();
+    error VaultNotFound();
+    error OrionVaultNotFound();
+    error AlreadyAnOrionVault();
+    error NotAnOrionVault();
+
     // Modifier
     modifier onlyOwner() {
-        require(msg.sender == owner, "Not owner");
+        if (msg.sender != owner) revert NotOwner();
         _;
     }
 
     modifier onlyFactory() {
-        require(msg.sender == vaultFactory, "Not factory");
+        if (msg.sender != vaultFactory) revert NotFactory();
         _;
     }
 
@@ -57,8 +73,8 @@ contract OrionConfig {
     // === Protocol Configuration ===
 
     function setVaultFactory(address _factory) external onlyOwner {
-        require(_factory != address(0), "Zero address");
-        require(vaultFactory == address(0), "Factory already set");
+        if (_factory == address(0)) revert ZeroAddress();
+        if (vaultFactory != address(0)) revert FactoryAlreadySet();
         vaultFactory = _factory;
         emit VaultFactorySet(_factory);
     }
@@ -70,10 +86,10 @@ contract OrionConfig {
         address _priceAndPnLOracle,
         string calldata _fhePublicCID
     ) external onlyOwner {
-        require(_underlyingAsset != address(0), "Invalid asset");
-        require(_internalStatesOrchestrator != address(0), "Invalid internal orchestrator");
-        require(_liquidityOrchestrator != address(0), "Invalid liquidity orchestrator");
-        require(_priceAndPnLOracle != address(0), "Invalid price and PnL oracle");
+        if (_underlyingAsset == address(0)) revert InvalidAsset();
+        if (_internalStatesOrchestrator == address(0)) revert InvalidInternalOrchestrator();
+        if (_liquidityOrchestrator == address(0)) revert InvalidLiquidityOrchestrator();
+        if (_priceAndPnLOracle == address(0)) revert InvalidPriceAndPnLOracle();
 
         underlyingAsset = _underlyingAsset;
         internalStatesOrchestrator = _internalStatesOrchestrator;
@@ -93,7 +109,7 @@ contract OrionConfig {
     // === Whitelist Functions ===
 
     function addWhitelistedVault(address vault) external onlyOwner {
-        require(!isWhitelisted[vault], "Already whitelisted");
+        if (isWhitelisted[vault]) revert AlreadyWhitelisted();
         whitelistedVaultIndex[vault] = whitelistedVaults.length;
         isWhitelisted[vault] = true;
         whitelistVaultCount += 1;
@@ -102,13 +118,13 @@ contract OrionConfig {
     }
 
     function removeWhitelistedVault(address vault) external onlyOwner {
-        require(isWhitelisted[vault], "Not in list of whitelistedVaults");
+        if (!isWhitelisted[vault]) revert NotInWhitelist();
 
         uint256 index = _indexOfWhitelistedVault(vault);
         // Swap and pop
         whitelistedVaults[index] = whitelistedVaults[whitelistedVaults.length - 1];
         whitelistedVaults.pop();
-    
+
         isWhitelisted[vault] = false;
         whitelistVaultCount -= 1;
 
@@ -116,23 +132,23 @@ contract OrionConfig {
     }
 
     function getWhitelistedVaultAt(uint256 index) external view returns (address) {
-        require(index < whitelistedVaults.length, "Index out of bounds");
+        if (index >= whitelistedVaults.length) revert IndexOutOfBounds();
         return whitelistedVaults[index];
     }
 
     function _indexOfWhitelistedVault(address vault) internal view returns (uint256) {
-        for (uint i = 0; i < whitelistedVaults.length; i++) {
+        for (uint256 i = 0; i < whitelistedVaults.length; i++) {
             if (whitelistedVaults[i] == vault) {
                 return i;
             }
         }
-        revert("Vault not found in list of whitelistedVaults");
+        revert VaultNotFound();
     }
 
     // === Orion Vaults ===
 
     function addOrionVault(address vault) external onlyFactory {
-        require(!isOrionVault[vault], "Already an OrionVault");
+        if (isOrionVault[vault]) revert AlreadyAnOrionVault();
         orionVaults.push(vault);
         isOrionVault[vault] = true;
         orionVaultCount += 1;
@@ -140,7 +156,7 @@ contract OrionConfig {
     }
 
     function removeOrionVault(address vault) external onlyFactory {
-        require(isOrionVault[vault], "Not an OrionVault");
+        if (!isOrionVault[vault]) revert NotAnOrionVault();
 
         uint256 index = _indexOfOrionVault(vault);
         orionVaults[index] = orionVaults[orionVaults.length - 1];
@@ -153,17 +169,17 @@ contract OrionConfig {
     }
 
     function getOrionVaultAt(uint256 index) external view returns (address) {
-        require(index < orionVaults.length, "Index out of bounds");
+        if (index >= orionVaults.length) revert IndexOutOfBounds();
         return orionVaults[index];
     }
 
     function _indexOfOrionVault(address vault) internal view returns (uint256) {
-        for (uint i = 0; i < orionVaults.length; i++) {
+        for (uint256 i = 0; i < orionVaults.length; i++) {
             if (orionVaults[i] == vault) {
                 return i;
             }
         }
-        revert("OrionVault not found in list of OrionVaults");
+        revert OrionVaultNotFound();
     }
 
     // === FHE Public CID ===
@@ -178,9 +194,9 @@ contract OrionConfig {
     }
 
     // === Ownership ===
-    
+
     function transferOwnership(address newOwner) external onlyOwner {
-        require(newOwner != address(0), "Zero address");
+        if (newOwner == address(0)) revert ZeroAddress();
         owner = newOwner;
     }
 }

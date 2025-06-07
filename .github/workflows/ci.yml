@@ -1,33 +1,60 @@
-name: Hardhat CI
+name: "CI"
 
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
   pull_request:
-    branches: [main]
+  push:
+    branches:
+      - main
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-
+  ci:
+    runs-on: "ubuntu-latest"
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: "Check out the repo"
+        uses: "actions/checkout@v3"
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: "Install Pnpm"
+        uses: "pnpm/action-setup@v2"
         with:
-          node-version: 20
-          cache: 'pnpm'
+          version: "8"
 
-      - name: Install pnpm
-        run: npm install -g pnpm
+      - name: "Install Node.js"
+        uses: "actions/setup-node@v3"
+        with:
+          cache: "pnpm"
+          node-version: "lts/*"
 
-      - name: Install dependencies
-        run: pnpm install
+      - name: "Install the dependencies"
+        run: "pnpm install"
+        env:
+          MNEMONIC:
+            "exchange vintage ocean narrow danger return culture ignore trim solve clock hidden buddy wise emotion"
+          SEPOLIA_RPC_URL: "https://sepolia.infura.io/v3/YOUR-PROJECT-ID"
 
-      - name: Compile contracts
-        run: npx hardhat compile
+      - name: "Lint the code"
+        run: "pnpm lint"
 
-      - name: Run tests
-        run: npx hardhat test
+      - name: "Add lint summary"
+        run: |
+          echo "## Lint results" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Passed" >> $GITHUB_STEP_SUMMARY
+
+      - name: "Compile the contracts and generate the TypeChain bindings"
+        run: "pnpm typechain"
+        env:
+          MNEMONIC:
+            "exchange vintage ocean narrow danger return culture ignore trim solve clock hidden buddy wise emotion"
+          SEPOLIA_RPC_URL: "https://sepolia.infura.io/v3/YOUR-PROJECT-ID"
+
+      - name: "Test the contracts and generate the coverage report"
+        run: "pnpm coverage"
+        env:
+          MNEMONIC:
+            "exchange vintage ocean narrow danger return culture ignore trim solve clock hidden buddy wise emotion"
+          SEPOLIA_RPC_URL: "https://sepolia.infura.io/v3/YOUR-PROJECT-ID"
+
+      - name: "Add test summary"
+        run: |
+          echo "## Test results" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Passed" >> $GITHUB_STEP_SUMMARY

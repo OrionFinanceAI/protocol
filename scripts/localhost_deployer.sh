@@ -3,11 +3,6 @@
 set -e
 export $(grep -v '^#' .env | xargs)
 
-# Update the typechain types and artifacts if needed
-# pnpm hardhat clean
-# pnpm hardhat compile
-# pnpm typechain
-
 # Generate FHE key pair and upload public key to IPFS.
 # cd python-sdk && sdk keygen && sdk upload context.public.tenseal && cd ..
 
