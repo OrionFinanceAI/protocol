@@ -5,7 +5,7 @@ dotenv.config();
 
 async function main() {
   const [signer] = await ethers.getSigners();
-  console.log("Using deployer:", signer.address);
+  console.log("Using deployer:", await signer.getAddress());
 
   const factoryAddress = process.env.FACTORY_ADDRESS;
   const curatorAddress = process.env.CURATOR_ADDRESS;
@@ -21,13 +21,25 @@ async function main() {
   const tx = await factory.createOrionVault(curatorAddress);
   const receipt = await tx.wait();
 
-  const event = receipt.events?.find((e: any) => e.event === "OrionVaultCreated");
+  const iface = factory.interface;
 
-  if (!event) {
+  // Parse logs using the contract's interface and find the OrionVaultCreated event
+  const parsedEvent = receipt.logs
+    .map((log) => {
+      try {
+        return iface.parseLog(log);
+      } catch {
+        return null;
+      }
+    })
+    .find((parsed) => parsed && parsed.name === "OrionVaultCreated");
+
+  if (!parsedEvent) {
     throw new Error("OrionVaultCreated event not found in tx receipt");
   }
 
-  const vaultAddress = event?.args?.vault;
+  const vaultAddress = parsedEvent.args.vault;
+
   console.log("✅ OrionVault deployed at:", vaultAddress);
 }
 

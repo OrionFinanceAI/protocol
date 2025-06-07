@@ -1,5 +1,6 @@
 import * as dotenv from "dotenv";
 import { ethers } from "hardhat";
+import { AddressZero } from "ethers";
 
 dotenv.config();
 
@@ -14,7 +15,7 @@ function getUniverseList(): string[] {
 
 async function main() {
   const [deployer] = await ethers.getSigners();
-  console.log("Using deployer:", deployer.address);
+  console.log("Using deployer:", await deployer.getAddress());
 
   const {
     CONFIG_ADDRESS,
@@ -40,7 +41,6 @@ async function main() {
 
   const config = await ethers.getContractAt("OrionConfig", CONFIG_ADDRESS);
 
-  // Set protocol params
   console.log("📦 Setting protocol parameters...");
   const setTx = await config.setProtocolParams(
     UNDERLYING_ASSET,
@@ -52,9 +52,8 @@ async function main() {
   await setTx.wait();
   console.log("✅ Protocol parameters updated");
 
-  // Set vault factory address
   const currentFactory = await config.vaultFactory();
-  if (currentFactory === ethers.constants.AddressZero) {
+  if (currentFactory === AddressZero) {
     console.log(`🏭 Setting vault factory address to ${FACTORY_ADDRESS}...`);
     const factoryTx = await config.setVaultFactory(FACTORY_ADDRESS);
     await factoryTx.wait();
@@ -63,7 +62,6 @@ async function main() {
     console.log(`ℹ️ Vault factory already set to ${currentFactory}`);
   }
 
-  // Add universe list to whitelist
   const universeList = getUniverseList();
   for (const vault of universeList) {
     const isAlreadyWhitelisted = await config.isWhitelisted(vault);

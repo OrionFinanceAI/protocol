@@ -26,6 +26,6 @@ contract OrionVaultFactory {
         vault = address(newVault);
 
         emit OrionVaultCreated(vault, curator, msg.sender);
-        // config.addOrionVault(vault);
+        config.addOrionVault(vault);
     }
 }
