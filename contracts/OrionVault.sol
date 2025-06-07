@@ -151,9 +151,6 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
     function submitOrderIntentPlain(OrderPlain[] calldata order) external onlyCurator {
         if (order.length == 0) revert OrderIntentCannotBeEmpty();
         uint32[] memory finalAmounts = new uint32[](config.whitelistVaultCount());
-        // TODO: validate portfolio entries sum = 100%
-        // Including significant digits for integer usage, to be defined as variable
-        // And consumed by curator sdk, coprocessor >>>> set it in the config contract.
         for (uint256 i = 0; i < order.length; i++) {
             address token = order[i].token;
             uint32 amount = order[i].amount;
