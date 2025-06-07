@@ -1,3 +1,5 @@
+![Hardhat CI](https://github.com/OrionFinanceAI/protocol/actions/workflows/ci.yml/badge.svg)
+
 # protocol
 
 ## About
