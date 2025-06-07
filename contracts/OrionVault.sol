@@ -159,8 +159,7 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
 
         depositRequests.push(DepositRequest({
             user: msg.sender,
-            amount: amount,
-            processed: false
+            amount: amount
         }));
 
         emit DepositRequested(msg.sender, amount, depositRequests.length - 1);
@@ -176,37 +175,40 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
 
         withdrawRequests.push(WithdrawRequest({
             user: msg.sender,
-            shares: shares,
-            processed: false
+            shares: shares        
         }));
 
         emit WithdrawRequested(msg.sender, shares, withdrawRequests.length - 1);
     }
 
     function processDepositRequests() external onlyLiquidityOrchestrator nonReentrant {
-        for (uint256 i = 0; i < depositRequests.length; i++) {
+        uint256 i = 0;
+        while (i < depositRequests.length) {
             DepositRequest storage request = depositRequests[i];
-            if (!request.processed) {
-                request.processed = true;
-                uint256 shares = previewDeposit(request.amount);
-                _mint(request.user, shares);
+            uint256 shares = previewDeposit(request.amount);
 
-                emit DepositProcessed(request.user, request.amount, i);
-            }
+            depositRequests[i] = depositRequests[depositRequests.length - 1];
+            depositRequests.pop();
+
+            _mint(request.user, shares);
+
+            emit DepositProcessed(request.user, request.amount, i);
         }
     }
 
     function processWithdrawRequests() external onlyLiquidityOrchestrator nonReentrant {
-        for (uint256 i = 0; i < withdrawRequests.length; i++) {
+        uint256 i = 0;
+        while (i < withdrawRequests.length) {
             WithdrawRequest storage request = withdrawRequests[i];
-            if (!request.processed) {
-                request.processed = true;
-                _burn(address(this), request.shares);
-                uint256 underlyingAmount = previewRedeem(request.shares);
-                require(IERC20(asset()).transfer(request.user, underlyingAmount), "Transfer failed");
 
-                emit WithdrawProcessed(request.user, request.shares, i);
-            }
+            withdrawRequests[i] = withdrawRequests[withdrawRequests.length - 1];
+            withdrawRequests.pop();
+
+            _burn(address(this), request.shares);
+            uint256 underlyingAmount = previewRedeem(request.shares);
+            require(IERC20(asset()).transfer(request.user, underlyingAmount), "Transfer failed");
+
+            emit WithdrawProcessed(request.user, request.shares, i);
         }
     }
 
