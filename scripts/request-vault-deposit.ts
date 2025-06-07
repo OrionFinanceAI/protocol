@@ -1,4 +1,5 @@
 import * as dotenv from "dotenv";
+import { parseUnits } from "ethers";
 import { ethers } from "hardhat";
 
 dotenv.config();
@@ -15,13 +16,13 @@ async function main() {
     throw new Error("Please set UNDERLYING_ASSET in your .env file");
   }
 
-  const depositAmount = ethers.utils.parseUnits("1000", 6);
+  const depositAmount = parseUnits("1000", 6);
 
   const OrionVault = await ethers.getContractFactory("OrionVault");
   const vault = OrionVault.attach(vaultAddress);
+  const iface = OrionVault.interface;
 
   const ERC20 = await ethers.getContractAt("IERC20", UnderlyingAssetAddress);
-
   const lpAddress = await lp.getAddress();
   const balance = await ERC20.balanceOf(lpAddress);
 
@@ -34,16 +35,24 @@ async function main() {
 
   // Connect LP signer to vault and request deposit
   const tx = await vault.connect(lp).requestDeposit(depositAmount);
-
   const receipt = await tx.wait();
 
-  const event = receipt.events?.find((e: any) => e.event === "DepositRequested");
+  // Manually parse logs using the OrionVault interface
+  const parsedEvent = receipt.logs
+    .map((log) => {
+      try {
+        return iface.parseLog(log);
+      } catch {
+        return null;
+      }
+    })
+    .find((parsed) => parsed?.name === "DepositRequested");
 
-  if (!event) {
+  if (!parsedEvent) {
     throw new Error("DepositRequested event not found");
   }
 
-  const requestId = event.args?.requestId;
+  const requestId = parsedEvent.args.requestId;
   console.log(`✅ Deposit request submitted (id: ${requestId.toString()})`);
 }
 

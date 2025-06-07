@@ -7,7 +7,7 @@ async function main() {
   const Config = await ethers.getContractFactory("OrionConfig");
   const config = await Config.deploy();
 
-  await config.waitForDeployment(); // updated here
+  await config.waitForDeployment();
 
   console.log("✅ OrionConfig deployed to:", config.target);
 }

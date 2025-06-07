@@ -14,7 +14,6 @@ async function main() {
 
   console.log("Using OrionConfig at:", configAddress);
 
-  // Deploy the OrionVaultFactory
   const OrionVaultFactory = await ethers.getContractFactory("OrionVaultFactory");
   const factory = await OrionVaultFactory.deploy(configAddress);
   await factory.waitForDeployment();

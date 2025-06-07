@@ -23,7 +23,6 @@ async function main() {
 
   const iface = factory.interface;
 
-  // Parse logs using the contract's interface and find the OrionVaultCreated event
   const parsedEvent = receipt.logs
     .map((log) => {
       try {

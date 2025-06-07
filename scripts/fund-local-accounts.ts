@@ -1,4 +1,4 @@
-import { network, ethers } from "hardhat";
+import { ethers, network } from "hardhat";
 
 // List of addresses to fund
 const addresses = [
@@ -22,10 +22,7 @@ async function main() {
     console.log(`⛽ Funding ${address} with ${amountInEth} ETH`);
 
     // hardhat_setBalance expects hex string with 0x prefix — amount is BigInt, convert to hex string:
-    await network.provider.send("hardhat_setBalance", [
-      address,
-      "0x" + amount.toString(16),
-    ]);
+    await network.provider.send("hardhat_setBalance", [address, "0x" + amount.toString(16)]);
   }
 
   console.log("✅ All addresses funded.");

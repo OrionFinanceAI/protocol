@@ -1,6 +1,5 @@
 import * as dotenv from "dotenv";
 import { ethers } from "hardhat";
-import { AddressZero } from "ethers";
 
 dotenv.config();
 
@@ -52,15 +51,10 @@ async function main() {
   await setTx.wait();
   console.log("✅ Protocol parameters updated");
 
-  const currentFactory = await config.vaultFactory();
-  if (currentFactory === AddressZero) {
-    console.log(`🏭 Setting vault factory address to ${FACTORY_ADDRESS}...`);
-    const factoryTx = await config.setVaultFactory(FACTORY_ADDRESS);
-    await factoryTx.wait();
-    console.log("✅ Vault factory address set");
-  } else {
-    console.log(`ℹ️ Vault factory already set to ${currentFactory}`);
-  }
+  console.log(`🏭 Setting vault factory address to ${FACTORY_ADDRESS}...`);
+  const factoryTx = await config.setVaultFactory(FACTORY_ADDRESS);
+  await factoryTx.wait();
+  console.log("✅ Vault factory address set");
 
   const universeList = getUniverseList();
   for (const vault of universeList) {

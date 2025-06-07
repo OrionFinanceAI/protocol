@@ -22,7 +22,7 @@ async function main() {
     const symbol = `VT${i}`;
 
     const vault = await VaultFactory.deploy(UnderlyingAssetAddress, name, symbol);
-    await vault.waitForDeployment();  // <-- updated here
+    await vault.waitForDeployment();
 
     console.log(`Vault ${i} deployed to: ${vault.target}`);
     vaults.push(vault.target);
