@@ -49,6 +49,12 @@ jobs:
 
       - name: "Test the contracts and generate the coverage report"
         run: "pnpm coverage"
+        env:
+          RPC_URL: ${{ secrets.RPC_URL }}
+          DEPLOYER_PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
+          LP_PRIVATE_KEY: ${{ secrets.LP_PRIVATE_KEY }}
+          CURATOR_PRIVATE_KEY: ${{ secrets.CURATOR_PRIVATE_KEY }}
+          ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
 
       - name: "Add test summary"
         run: |
