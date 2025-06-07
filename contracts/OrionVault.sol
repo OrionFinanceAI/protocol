@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import "./OrionConfig.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
-import { euint32 } from "../lib/fhevm-solidity/lib/FHE.sol";
+import {euint32} from "../lib/fhevm-solidity/lib/FHE.sol";
 
 /**
  * @title OrionVault
@@ -15,7 +15,7 @@ import { euint32 } from "../lib/fhevm-solidity/lib/FHE.sol";
  * OrionVault interprets curator-submitted intents as portfolio allocation targets,
  * expressed as percentages of the total value locked (TVL) in the vault. These
  * intents define how assets should be allocated or rebalanced over time.
- * 
+ *
  * The vault implements an asynchronous pattern for deposits, withdrawals and order execution.
  * See https://eips.ethereum.org/EIPS/eip-7540
  *
@@ -32,14 +32,16 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
     address public curator;
     address public deployer;
 
+    uint256 public sharePrice = 1e18; // 1:1 initially, 18 decimals
+    uint256 internal _totalAssets; // manual totalAssets state
 
-   struct OrderPlain {
+    struct OrderPlain {
         address token;
-        uint32 amount; 
+        uint32 amount;
     }
     struct OrderEncrypted {
         address token;
-        euint32 amount; 
+        euint32 amount;
     }
 
     struct DepositRequest {
@@ -60,18 +62,45 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
 
     // Events
     event OrderSubmitted(address indexed curator);
-    event DepositRequested(address indexed user, uint256 amount, uint256 requestId);
-    event WithdrawRequested(address indexed user, uint256 shares, uint256 requestId);
-    event DepositProcessed(address indexed user, uint256 amount, uint256 requestId);
-    event WithdrawProcessed(address indexed user, uint256 shares, uint256 requestId);
+    event DepositRequested(
+        address indexed user,
+        uint256 amount,
+        uint256 requestId
+    );
+    event WithdrawRequested(
+        address indexed user,
+        uint256 shares,
+        uint256 requestId
+    );
+    event DepositProcessed(
+        address indexed user,
+        uint256 amount,
+        uint256 requestId
+    );
+    event WithdrawProcessed(
+        address indexed user,
+        uint256 shares,
+        uint256 requestId
+    );
 
     modifier onlyCurator() {
         require(msg.sender == curator, "Not the curator");
         _;
     }
 
+    modifier onlyInternalStatesOrchestrator() {
+        require(
+            msg.sender == config.internalStatesOrchestrator(),
+            "Not internal states orchestrator"
+        );
+        _;
+    }
+
     modifier onlyLiquidityOrchestrator() {
-        require(msg.sender == config.liquidityOrchestrator(), "Not liquidity orchestrator");
+        require(
+            msg.sender == config.liquidityOrchestrator(),
+            "Not liquidity orchestrator"
+        );
         _;
     }
 
@@ -90,6 +119,47 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
         config = OrionConfig(_config);
     }
 
+    /// --------- PUBLIC FUNCTIONS ---------
+
+    /// @notice Disable direct deposits and withdrawals on ERC4626 to enforce async only
+    function deposit(uint256, address) public pure override returns (uint256) {
+        revert("Synchronous deposits disabled, use requestDeposit");
+    }
+
+    function mint(uint256, address) public pure override returns (uint256) {
+        revert("Synchronous deposits disabled, use requestDeposit");
+    }
+
+    function withdraw(
+        uint256,
+        address,
+        address
+    ) public pure override returns (uint256) {
+        revert("Synchronous withdrawals disabled, use requestWithdraw");
+    }
+
+    function redeem(
+        uint256,
+        address,
+        address
+    ) public pure override returns (uint256) {
+        revert("Synchronous withdrawals disabled, use requestWithdraw");
+    }
+
+    function totalAssets() public view override returns (uint256) {
+        return _totalAssets;
+    }
+
+    function convertToShares(uint256 assets) public view override returns (uint256) {
+        return (assets * 1e18) / sharePrice;
+    }
+    
+    function convertToAssets(uint256 shares) public view override returns (uint256) {
+        return (shares * sharePrice) / 1e18;
+    }
+
+    /// --------- CURATOR FUNCTIONS ---------
+
     /// @notice Submit a plaintext portfolio intent.
     /// @param order OrderPlain struct containing the tokens and amounts.
     /// TODO: in the plaintext case, the vault can perform the validation of the order intent (e.g. TVL percentage, long only, etc.).
@@ -98,7 +168,9 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
     ) external onlyCurator {
         require(order.length > 0, "Order intent cannot be empty");
 
-        uint32[] memory finalAmounts = new uint32[](config.whitelistVaultCount());
+        uint32[] memory finalAmounts = new uint32[](
+            config.whitelistVaultCount()
+        );
 
         for (uint256 i = 0; i < order.length; i++) {
             address token = order[i].token;
@@ -111,10 +183,9 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
 
         delete _plainOrder;
         for (uint256 i = 0; i < order.length; i++) {
-            _plainOrder.push(OrderPlain({
-                token: order[i].token,
-                amount: finalAmounts[i]
-            }));
+            _plainOrder.push(
+                OrderPlain({token: order[i].token, amount: finalAmounts[i]})
+            );
         }
         emit OrderSubmitted(msg.sender);
     }
@@ -126,7 +197,9 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
     ) external onlyCurator {
         require(order.length > 0, "Order intent cannot be empty");
 
-        euint32[] memory finalAmounts = new euint32[](config.whitelistVaultCount());
+        euint32[] memory finalAmounts = new euint32[](
+            config.whitelistVaultCount()
+        );
 
         for (uint256 i = 0; i < order.length; i++) {
             address token = order[i].token;
@@ -139,10 +212,9 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
 
         delete _encryptedOrder;
         for (uint256 i = 0; i < order.length; i++) {
-            _encryptedOrder.push(OrderEncrypted({
-                token: order[i].token,
-                amount: finalAmounts[i]
-            }));
+            _encryptedOrder.push(
+                OrderEncrypted({token: order[i].token, amount: finalAmounts[i]})
+            );
         }
         emit OrderSubmitted(msg.sender);
     }
@@ -157,10 +229,9 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
             "Transfer failed"
         );
 
-        depositRequests.push(DepositRequest({
-            user: msg.sender,
-            amount: amount
-        }));
+        depositRequests.push(
+            DepositRequest({user: msg.sender, amount: amount})
+        );
 
         emit DepositRequested(msg.sender, amount, depositRequests.length - 1);
     }
@@ -173,15 +244,32 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
         // Lock shares by transferring them to contract as escrow
         _transfer(msg.sender, address(this), shares);
 
-        withdrawRequests.push(WithdrawRequest({
-            user: msg.sender,
-            shares: shares        
-        }));
+        withdrawRequests.push(
+            WithdrawRequest({user: msg.sender, shares: shares})
+        );
 
         emit WithdrawRequested(msg.sender, shares, withdrawRequests.length - 1);
     }
 
-    function processDepositRequests() external onlyLiquidityOrchestrator nonReentrant {
+    /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
+
+    function setSharePrice(uint256 newPrice) external onlyInternalStatesOrchestrator {
+        require(newPrice > 0, "ZERO_PRICE");
+        sharePrice = newPrice;
+    }
+
+    function setTotalAssets(uint256 newTotalAssets) external onlyInternalStatesOrchestrator {
+        _totalAssets = newTotalAssets;
+    }
+
+    /// --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
+
+    /// @notice Process deposit requests from LPs
+    function processDepositRequests()
+        external
+        onlyLiquidityOrchestrator
+        nonReentrant
+    {
         uint256 i = 0;
         while (i < depositRequests.length) {
             DepositRequest storage request = depositRequests[i];
@@ -196,7 +284,12 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
         }
     }
 
-    function processWithdrawRequests() external onlyLiquidityOrchestrator nonReentrant {
+    /// @notice Process withdrawal requests from LPs
+    function processWithdrawRequests()
+        external
+        onlyLiquidityOrchestrator
+        nonReentrant
+    {
         uint256 i = 0;
         while (i < withdrawRequests.length) {
             WithdrawRequest storage request = withdrawRequests[i];
@@ -206,33 +299,25 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
 
             _burn(address(this), request.shares);
             uint256 underlyingAmount = previewRedeem(request.shares);
-            require(IERC20(asset()).transfer(request.user, underlyingAmount), "Transfer failed");
+            require(
+                IERC20(asset()).transfer(request.user, underlyingAmount),
+                "Transfer failed"
+            );
 
             emit WithdrawProcessed(request.user, request.shares, i);
         }
     }
 
-    function _getUnderlyingAsset(address _config) internal view returns (IERC20) {
+    /// --------- INTERNAL FUNCTIONS ---------
+
+    /// @notice Get the underlying asset address from the config
+    /// @param _config The address of the config contract
+    /// @return The underlying asset address
+    function _getUnderlyingAsset(
+        address _config
+    ) internal view returns (IERC20) {
         address asset = OrionConfig(_config).underlyingAsset();
         require(asset != address(0), "Underlying asset not set");
         return IERC20(asset);
     }
-
-    /// @notice Disable direct deposits and withdrawals on ERC4626 to enforce async only
-    function deposit(uint256, address) public pure override returns (uint256) {
-        revert("Synchronous deposits disabled, use requestDeposit");
-    }
-
-    function mint(uint256, address) public pure override returns (uint256) {
-        revert("Synchronous deposits disabled, use requestDeposit");
-    }
-
-    function withdraw(uint256, address, address) public pure override returns (uint256) {
-        revert("Synchronous withdrawals disabled, use requestWithdraw");
-    }
-
-    function redeem(uint256, address, address) public pure override returns (uint256) {
-        revert("Synchronous withdrawals disabled, use requestWithdraw");
-    }
-    
 }

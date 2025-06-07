@@ -6,7 +6,7 @@ contract OrionConfig {
 
     // Protocol-wide configuration
     address public underlyingAsset;
-    address public internalStateOrchestrator;
+    address public internalStatesOrchestrator;
     address public liquidityOrchestrator;
     address public priceAndPnLOracle;
     address public vaultFactory;
@@ -32,7 +32,7 @@ contract OrionConfig {
     event PublicCIDUpdated(string newCID);
     event ProtocolParamsUpdated(
         address underlyingAsset,
-        address internalStateOrchestrator,
+        address internalStatesOrchestrator,
         address liquidityOrchestrator,
         address priceAndPnLOracle,
         string fhePublicCID
@@ -65,25 +65,25 @@ contract OrionConfig {
 
     function setProtocolParams(
         address _underlyingAsset,
-        address _internalStateOrchestrator,
+        address _internalStatesOrchestrator,
         address _liquidityOrchestrator,
         address _priceAndPnLOracle,
         string calldata _fhePublicCID
     ) external onlyOwner {
         require(_underlyingAsset != address(0), "Invalid asset");
-        require(_internalStateOrchestrator != address(0), "Invalid internal orchestrator");
+        require(_internalStatesOrchestrator != address(0), "Invalid internal orchestrator");
         require(_liquidityOrchestrator != address(0), "Invalid liquidity orchestrator");
         require(_priceAndPnLOracle != address(0), "Invalid price and PnL oracle");
 
         underlyingAsset = _underlyingAsset;
-        internalStateOrchestrator = _internalStateOrchestrator;
+        internalStatesOrchestrator = _internalStatesOrchestrator;
         liquidityOrchestrator = _liquidityOrchestrator;
         priceAndPnLOracle = _priceAndPnLOracle;
         fhePublicCID = _fhePublicCID;
 
         emit ProtocolParamsUpdated(
             _underlyingAsset,
-            _internalStateOrchestrator,
+            _internalStatesOrchestrator,
             _liquidityOrchestrator,
             _priceAndPnLOracle,
             _fhePublicCID
