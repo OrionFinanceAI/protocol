@@ -32,8 +32,8 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
     address public curator;
     address public deployer;
 
-    uint256 public sharePrice = 1e18; // 1:1 initially, 18 decimals
-    uint256 internal _totalAssets; // manual totalAssets state
+    uint256 public sharePrice;
+    uint256 internal _totalAssets;
 
     struct OrderPlain {
         address token;
@@ -111,6 +111,8 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
         deployer = msg.sender;
         curator = _curator;
         config = OrionConfig(_config);
+        sharePrice = 10 ** decimals();
+        _totalAssets = 0;
     }
 
     /// --------- PUBLIC FUNCTIONS ---------
