@@ -46,6 +46,7 @@ async function main() {
     INTERNAL_ORCHESTRATOR_ADDRESS,
     LIQUIDITY_ORCHESTRATOR_ADDRESS,
     ORACLE_ADDRESS,
+    9, // Biggest integer that can be represented in 32 bits
     FHE_PUBLIC_CID,
   );
   await setTx.wait();

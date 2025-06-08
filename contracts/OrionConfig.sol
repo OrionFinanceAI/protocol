@@ -11,16 +11,19 @@ contract OrionConfig {
     address public priceAndPnLOracle;
     address public vaultFactory;
 
+    // Curator-specific configuration
+    uint256 public curatorIntentDecimals;
     string public fhePublicCID;
 
+    // Vault-specific configuration
     address[] public whitelistedVaults;
     mapping(address => uint256) public whitelistedVaultIndex;
     mapping(address => bool) public isWhitelisted;
+    uint256 public whitelistVaultCount;
 
+    // Orion-specific configuration
     address[] public orionVaults;
     mapping(address => bool) public isOrionVault;
-
-    uint256 public whitelistVaultCount;
     uint256 public orionVaultCount;
 
     // Events
@@ -35,6 +38,7 @@ contract OrionConfig {
         address internalStatesOrchestrator,
         address liquidityOrchestrator,
         address priceAndPnLOracle,
+        uint256 curatorIntentDecimals,
         string fhePublicCID
     );
 
@@ -84,6 +88,7 @@ contract OrionConfig {
         address _internalStatesOrchestrator,
         address _liquidityOrchestrator,
         address _priceAndPnLOracle,
+        uint256 _curatorIntentDecimals,
         string calldata _fhePublicCID
     ) external onlyOwner {
         if (_underlyingAsset == address(0)) revert InvalidAsset();
@@ -95,6 +100,7 @@ contract OrionConfig {
         internalStatesOrchestrator = _internalStatesOrchestrator;
         liquidityOrchestrator = _liquidityOrchestrator;
         priceAndPnLOracle = _priceAndPnLOracle;
+        curatorIntentDecimals = _curatorIntentDecimals;
         fhePublicCID = _fhePublicCID;
 
         emit ProtocolParamsUpdated(
@@ -102,6 +108,7 @@ contract OrionConfig {
             _internalStatesOrchestrator,
             _liquidityOrchestrator,
             _priceAndPnLOracle,
+            _curatorIntentDecimals,
             _fhePublicCID
         );
     }
