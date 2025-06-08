@@ -1,11 +1,10 @@
 import typer
-from eth_abi import encode
 from .ipfs import upload_to_ipfs, download_public_context  
 from .fhe import run_keygen
-from .chain_interactions import submit_order_intent, get_fhe_public_cid, get_whitelisted_vaults
+from .chain_interactions import submit_order_intent, get_fhe_public_cid
 from pathlib import Path
 from dotenv import load_dotenv
-from .validation import validate_order
+from .utils import validate_order
 
 app = typer.Typer()
 
@@ -39,12 +38,12 @@ def download():
 @app.command()
 def order_intent():
     """Submit an order intent."""
-    tokens = ['0x0692d38F0da545D08d5101aC09AA4139D121F127', '0x3d99435E5531b47267739755D7c91332a0304905']
-    amounts = [100, 200] # [0.6, 0.4] # TODO: contract expects integers, pct of TVL necessarily float. Define conversion function.
+
+    # Curator submitting order intent as percentage of TVL.
+    tokens = ['0x3d99435E5531b47267739755D7c91332a0304905']
+    amounts = [1]
+    
     encoding = 0 # PLAINTEXT
 
-    fuzz = False # TODO: if fuzz call get_whitelisted_vaults() and use random number generator with curator-set seed to populate additional entries with dust.
-    if fuzz:
-        breakpoint()
-    
+    tokens, amounts = validate_order(tokens=tokens, amounts=amounts, fuzz=True)
     submit_order_intent(tokens=tokens, amounts=amounts, encoding=encoding)

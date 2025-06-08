@@ -96,7 +96,7 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
     error SynchronousRedemptionsDisabled();
     error SynchronousDepositsDisabled();
     error SynchronousWithdrawalsDisabled();
-
+    error InvalidTotalAmount();
     error ZeroPrice();
 
     error OrderIntentCannotBeEmpty();
@@ -151,6 +151,8 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
     function submitOrderIntentPlain(OrderPlain[] calldata order) external onlyCurator {
         if (order.length == 0) revert OrderIntentCannotBeEmpty();
         uint32[] memory finalAmounts = new uint32[](config.whitelistVaultCount());
+        uint8 curatorIntentDecimals = config.curatorIntentDecimals();
+        uint256 totalAmount = 0;
         for (uint256 i = 0; i < order.length; i++) {
             address token = order[i].token;
             uint32 amount = order[i].amount;
@@ -158,7 +160,10 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
             if (amount == 0) revert AmountMustBeGreaterThanZero();
             uint256 index = config.whitelistedVaultIndex(token);
             finalAmounts[index] = amount;
+            totalAmount += amount;
         }
+
+        if (totalAmount != 10 ** curatorIntentDecimals) revert InvalidTotalAmount();
 
         delete _plainOrder;
         for (uint256 i = 0; i < order.length; i++) {

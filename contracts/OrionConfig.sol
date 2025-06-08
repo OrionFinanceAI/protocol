@@ -12,7 +12,7 @@ contract OrionConfig {
     address public vaultFactory;
 
     // Curator-specific configuration
-    uint256 public curatorIntentDecimals;
+    uint8 public curatorIntentDecimals;
     string public fhePublicCID;
 
     // Vault-specific configuration
@@ -88,7 +88,7 @@ contract OrionConfig {
         address _internalStatesOrchestrator,
         address _liquidityOrchestrator,
         address _priceAndPnLOracle,
-        uint256 _curatorIntentDecimals,
+        uint8 _curatorIntentDecimals,
         string calldata _fhePublicCID
     ) external onlyOwner {
         if (_underlyingAsset == address(0)) revert InvalidAsset();
