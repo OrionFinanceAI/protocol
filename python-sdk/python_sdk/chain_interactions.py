@@ -4,9 +4,13 @@ from web3 import Web3
 import json
 import os
 from pathlib import Path
+from dotenv import load_dotenv
+
+env_path = Path(__file__).resolve().parent.parent.parent / ".env"
+load_dotenv(dotenv_path=env_path)
 
 ABIS_PATH = Path(__file__).resolve().parent.parent.parent / "artifacts" / "contracts"
-w3 = Web3(Web3.HTTPProvider("http://127.0.0.1:8545")) # os.getenv("RPC_URL")
+w3 = Web3(Web3.HTTPProvider(os.getenv("RPC_URL"))) # "http://127.0.0.1:8545")) # 
 
 def load_contract_abi(contract_name: str):
     with open(ABIS_PATH / f"{contract_name}.sol/{contract_name}.json") as f:
@@ -20,32 +24,26 @@ def get_whitelisted_vaults():
     vaults = []
     for i in range(vault_count):
         vault_address = orion_config.functions.getWhitelistedVaultAt(i).call()
-        vaults.append(vault_address)
+        vaults.append(vault_address.lower())
     
     return vaults
 
 def submit_order_intent(
-    tokens: List[str],
-    amounts: List,
+    order_intent: dict,
     encoding: Literal[0, 1], # 0=PLAINTEXT, 1=ENCRYPTED
 ):
     """Submit a portfolio order intent with PLAINTEXT or ENCRYPTED encoding."""
 
-    if len(tokens) != len(amounts):
-        print("❌ Error: tokens and amounts must have same length.")
-        return
-
     account = w3.eth.account.from_key(os.getenv("CURATOR_PRIVATE_KEY"))
     nonce = w3.eth.get_transaction_count(account.address)
 
-    items = [{"token": Web3.to_checksum_address(t), "amount": a} for t, a in zip(tokens, amounts)]
+    items = [{"token": Web3.to_checksum_address(t), "amount": a} for t, a in order_intent.items()]
 
     ORION_VAULT_ADDRESS = Web3.to_checksum_address(os.getenv("ORION_VAULT_ADDRESS"))
     contract = w3.eth.contract(address=ORION_VAULT_ADDRESS, abi=load_contract_abi("OrionVault"))
 
     # The dispatching is done in the sdk to enable explicit type definitions in the vault contract.
     if encoding == 0:
-        items = [{"token": Web3.to_checksum_address(t), "amount": a} for t, a in zip(tokens, amounts)]
         func = contract.functions.submitOrderIntentPlain
     elif encoding == 1:
         # Encrypted amounts — amounts are expected to be already encoded as euint32 from TFHE
@@ -53,9 +51,9 @@ def submit_order_intent(
         # TODO: before bindings building, assess the compatibility of tenseal/tfhe-rs+py03 and fhevm-solidity.
         # TODO: asked Zama if the following is good int > euint32 > bytes.
         # py03 + https://github.com/zama-ai/tfhe-rs
-        items = [{"token": Web3.to_checksum_address(t), "amount": a} for t, a in zip(tokens, amounts)]
+        # items = [{"token": Web3.to_checksum_address(t), "amount": a} for t, a in order_intent.items()]
         func = contract.functions.submitOrderIntentEncrypted
-
+    
     tx = func(items).build_transaction({
         "from": account.address,
         "nonce": nonce,

@@ -5,6 +5,7 @@ from .chain_interactions import submit_order_intent, get_fhe_public_cid
 from pathlib import Path
 from dotenv import load_dotenv
 from .utils import validate_order
+import pandas as pd
 
 app = typer.Typer()
 
@@ -39,12 +40,18 @@ def download():
 def order_intent():
     """Submit an order intent."""
 
-    # TODO; move to dictionary as user input.
-    # Curator submitting order intent as percentage of TVL.
-    tokens = ['0x3d99435E5531b47267739755D7c91332a0304905']
-    amounts = [1] # TODO: make explicit the fact this is a percentage of TVL (call it weight.)
-    
+    df = pd.read_parquet('../../portfolio-manager/output/optimized/1.parquet')
+
+    order_intent = df.iloc[-1]
+        
+    order_intent = order_intent[order_intent != 0]
+
+    order_intent.index = order_intent.index.str.lower().str.replace('_1', '', regex=False)
+
+    order_intent = order_intent.to_dict()
+
     encoding = 0 # PLAINTEXT
 
-    tokens, amounts = validate_order(tokens=tokens, amounts=amounts, fuzz=True)
-    submit_order_intent(tokens=tokens, amounts=amounts, encoding=encoding)
+    order_intent = validate_order(order_intent=order_intent, fuzz=False)
+
+    submit_order_intent(order_intent=order_intent, encoding=encoding)
