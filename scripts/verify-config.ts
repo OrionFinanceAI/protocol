@@ -5,7 +5,6 @@ dotenv.config();
 
 async function main() {
   const configAddress = process.env.CONFIG_ADDRESS;
-  const fhePublicCID = process.env.FHE_PUBLIC_CID;
 
   if (!configAddress) {
     throw new Error("❌ CONFIG_ADDRESS is not set in the .env file.");
@@ -13,7 +12,7 @@ async function main() {
 
   await run("verify:verify", {
     address: configAddress,
-    constructorArguments: [fhePublicCID],
+    constructorArguments: [],
   });
 
   console.log("✅ Verification submitted for OrionConfig.");
