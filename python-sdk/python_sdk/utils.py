@@ -21,7 +21,7 @@ def validate_order(tokens: list[str], amounts: list[float], write: bool = False,
 
     # Validate the sum of amounts is approximately 1 (within tolerance for floating point error)
     TOLERANCE = 1e-10
-    if abs(sum(amounts) - 1) > TOLERANCE:
+    if not np.isclose(sum(amounts), 1, atol=TOLERANCE):
         raise ValueError("The sum of amounts must be 1 (within floating point tolerance)")
 
     if fuzz:

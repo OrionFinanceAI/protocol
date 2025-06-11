@@ -39,9 +39,10 @@ def download():
 def order_intent():
     """Submit an order intent."""
 
+    # TODO; move to dictionary as user input.
     # Curator submitting order intent as percentage of TVL.
     tokens = ['0x3d99435E5531b47267739755D7c91332a0304905']
-    amounts = [1]
+    amounts = [1] # TODO: make explicit the fact this is a percentage of TVL (call it weight.)
     
     encoding = 0 # PLAINTEXT
 
