@@ -37,21 +37,22 @@ def download():
     download_public_context(url)
 
 @app.command()
-def order_intent():
+def order_intent(
+    portfolio_path: str = typer.Option(..., help="Path to the portfolio parquet file"),
+    encoding: int = typer.Option(0, help="Encoding type: 0=PLAINTEXT, 1=ENCRYPTED")
+):
     """Submit an order intent."""
 
-    df = pd.read_parquet('../../portfolio-manager/output/optimized/1.parquet')
+    df = pd.read_parquet(portfolio_path)
 
     order_intent = df.iloc[-1]
-        
     order_intent = order_intent[order_intent != 0]
 
+    # TODO: specific of current curator portfolio management pipeline.
+    # Sdk shall be agnostic of the portfolio management pipeline.
     order_intent.index = order_intent.index.str.lower().str.replace('_1', '', regex=False)
 
-    order_intent = order_intent.to_dict()
+    order_intent_dict = order_intent.to_dict()
+    validated_order_intent = validate_order(order_intent=order_intent_dict, fuzz=False)
 
-    encoding = 0 # PLAINTEXT
-
-    order_intent = validate_order(order_intent=order_intent, fuzz=False)
-
-    submit_order_intent(order_intent=order_intent, encoding=encoding)
+    submit_order_intent(order_intent=validated_order_intent, encoding=encoding)

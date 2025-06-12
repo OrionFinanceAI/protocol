@@ -10,7 +10,7 @@ env_path = Path(__file__).resolve().parent.parent.parent / ".env"
 load_dotenv(dotenv_path=env_path)
 
 ABIS_PATH = Path(__file__).resolve().parent.parent.parent / "artifacts" / "contracts"
-w3 = Web3(Web3.HTTPProvider(os.getenv("RPC_URL"))) # "http://127.0.0.1:8545")) # 
+w3 = Web3(Web3.HTTPProvider(os.getenv("RPC_URL")))
 
 def load_contract_abi(contract_name: str):
     with open(ABIS_PATH / f"{contract_name}.sol/{contract_name}.json") as f:
@@ -49,7 +49,7 @@ def submit_order_intent(
         # Encrypted amounts — amounts are expected to be already encoded as euint32 from TFHE
         breakpoint()
         # TODO: before bindings building, assess the compatibility of tenseal/tfhe-rs+py03 and fhevm-solidity.
-        # TODO: asked Zama if the following is good int > euint32 > bytes.
+        # TODO: int > euint32 > bytes.
         # py03 + https://github.com/zama-ai/tfhe-rs
         # items = [{"token": Web3.to_checksum_address(t), "amount": a} for t, a in order_intent.items()]
         func = contract.functions.submitOrderIntentEncrypted

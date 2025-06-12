@@ -22,8 +22,7 @@ def validate_order(order_intent: dict, fuzz: bool = False):
     # Validate the sum of amounts is approximately 1 (within tolerance for floating point error)
     TOLERANCE = 1e-10
     if not np.isclose(sum(order_intent.values()), 1, atol=TOLERANCE):
-        print('Warning, the sum of amounts is not 1 (within floating point tolerance), renormalizing.')
-        order_intent = {token: weight / sum(order_intent.values()) for token, weight in order_intent.items()}
+        raise ValueError("The sum of amounts is not 1 (within floating point tolerance).")
 
     if fuzz:
         # Add remaining whitelisted vaults with small random amounts
