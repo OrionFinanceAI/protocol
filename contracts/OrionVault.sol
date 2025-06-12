@@ -55,8 +55,8 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
     }
 
     // Queues of async requests from curator and LPs.
-    OrderPlain[] private _plainOrder;
-    OrderEncrypted[] private _encryptedOrder;
+    OrderPlain[] public plainOrder;
+    OrderEncrypted[] public encryptedOrder;
     DepositRequest[] public depositRequests;
     WithdrawRequest[] public withdrawRequests;
 
@@ -167,9 +167,9 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
 
         if (totalAmount != 10 ** curatorIntentDecimals) revert InvalidTotalAmount();
 
-        delete _plainOrder;
+        delete plainOrder;
         for (uint256 i = 0; i < order.length; i++) {
-            _plainOrder.push(OrderPlain({ token: order[i].token, amount: finalAmounts[i] }));
+            plainOrder.push(OrderPlain({ token: order[i].token, amount: finalAmounts[i] }));
         }
         emit OrderSubmitted(msg.sender);
     }
@@ -189,9 +189,9 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
             finalAmounts[index] = amount;
         }
 
-        delete _encryptedOrder;
+        delete encryptedOrder;
         for (uint256 i = 0; i < order.length; i++) {
-            _encryptedOrder.push(OrderEncrypted({ token: order[i].token, amount: finalAmounts[i] }));
+            encryptedOrder.push(OrderEncrypted({ token: order[i].token, amount: finalAmounts[i] }));
         }
         emit OrderSubmitted(msg.sender);
     }
