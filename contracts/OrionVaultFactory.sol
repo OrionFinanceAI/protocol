@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "./OrionVault.sol";
-import "./OrionConfig.sol";
+import "./OrionVault.sol"; // TODO: add IOrionVault interface for protocol upgradeability.
+import "./OrionConfig.sol"; // TODO: add IOrionConfig interface for protocol upgradeability.
 
 contract OrionVaultFactory {
     address public deployer;

@@ -45,7 +45,6 @@ contract OrionConfig {
     error NotOwner();
     error NotFactory();
     error ZeroAddress();
-    error FactoryAlreadySet();
     error InvalidAsset();
     error InvalidInternalOrchestrator();
     error InvalidLiquidityOrchestrator();
@@ -78,7 +77,6 @@ contract OrionConfig {
 
     function setVaultFactory(address _factory) external onlyOwner {
         if (_factory == address(0)) revert ZeroAddress();
-        if (vaultFactory != address(0)) revert FactoryAlreadySet();
         vaultFactory = _factory;
         emit VaultFactorySet(_factory);
     }

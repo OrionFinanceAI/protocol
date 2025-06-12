@@ -53,10 +53,10 @@ async function main() {
   await setTx.wait();
   console.log("✅ Protocol parameters updated");
 
-  // console.log(`🏭 Setting vault factory address to ${FACTORY_ADDRESS}...`);
-  // const factoryTx = await config.setVaultFactory(FACTORY_ADDRESS);
-  // await factoryTx.wait();
-  // console.log("✅ Vault factory address set");
+  console.log(`🏭 Setting vault factory address to ${FACTORY_ADDRESS}...`);
+  const factoryTx = await config.setVaultFactory(FACTORY_ADDRESS);
+  await factoryTx.wait();
+  console.log("✅ Vault factory address set");
 
   const universeList = getUniverseList();
 
