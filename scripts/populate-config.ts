@@ -62,20 +62,20 @@ async function main() {
 
   console.log(`🏭 Setting universe list to ${universeList.length} vaults...`);
 
-  for (const vault of universeList) {
-    const isAlreadyWhitelisted = await config.isWhitelisted(vault);
+  for (const asset of universeList) {
+    const isAlreadyWhitelisted = await config.isWhitelisted(asset);
     if (!isAlreadyWhitelisted) {
-      console.log(`Adding ${vault} to config whitelist...`);
-      const tx = await config.addWhitelistedVault(vault);
+      console.log(`Adding ${asset} to config whitelist...`);
+      const tx = await config.addWhitelistedAsset(asset);
       await tx.wait();
-      console.log(`✅ Added ${vault} to config whitelist`);
+      console.log(`✅ Added ${asset} to config whitelist`);
     } else {
-      console.log(`ℹ️  ${vault} is already in config whitelist.`);
+      console.log(`ℹ️  ${asset} is already in config whitelist.`);
     }
   }
 }
 
 main().catch((error) => {
-  console.error("❌ Failed to add vaults:", error);
+  console.error("❌ Failed to add assets:", error);
   process.exitCode = 1;
 });
