@@ -1,28 +1,26 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.20;
 
-import "./OrionVault.sol";
-import "./OrionConfig.sol";
+import "./OrionTransparentVault.sol";
+import "./interfaces/IOrionConfig.sol";
+import { ErrorsLib } from "./libraries/ErrorsLib.sol";
 
 contract OrionVaultFactory {
     address public deployer;
-    OrionConfig public config;
+    IOrionConfig public config;
 
     event OrionVaultCreated(address indexed vault, address indexed curator, address indexed deployer);
 
-    error CuratorCannotBeZeroAddress();
-    error InvalidConfigAddress();
-
     constructor(address _config) {
-        if (_config == address(0)) revert InvalidConfigAddress();
+        if (_config == address(0)) revert ErrorsLib.InvalidConfigAddress();
         deployer = msg.sender;
-        config = OrionConfig(_config);
+        config = IOrionConfig(_config);
     }
 
-    function createOrionVault(address curator) external returns (address vault) {
-        if (curator == address(0)) revert CuratorCannotBeZeroAddress();
+    function createOrionTransparentVault(address curator) external returns (address vault) {
+        if (curator == address(0)) revert ErrorsLib.CuratorCannotBeZeroAddress();
 
-        OrionVault newVault = new OrionVault(curator, address(config));
+        OrionTransparentVault newVault = new OrionTransparentVault(curator, address(config));
         vault = address(newVault);
 
         emit OrionVaultCreated(vault, curator, msg.sender);

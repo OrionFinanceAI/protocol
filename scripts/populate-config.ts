@@ -4,12 +4,11 @@ import { ethers } from "hardhat";
 dotenv.config();
 
 function getUniverseList(): string[] {
-  const list = process.env.UNIVERSE_LIST;
-  if (!list) throw new Error("Please set UNIVERSE_LIST in your .env file");
-  return list
-    .split(",")
-    .map((addr) => addr.trim())
-    .filter((addr) => addr.length > 0);
+  const universeList = process.env.UNIVERSE_LIST;
+  if (!universeList) {
+    throw new Error("UNIVERSE_LIST environment variable is required");
+  }
+  return universeList.split(",").map((address) => address.trim());
 }
 
 async function main() {
@@ -24,6 +23,7 @@ async function main() {
     ORACLE_ADDRESS,
     FHE_PUBLIC_CID,
     FACTORY_ADDRESS,
+    UNIVERSE_LIST,
   } = process.env;
 
   if (
@@ -33,7 +33,8 @@ async function main() {
     !LIQUIDITY_ORCHESTRATOR_ADDRESS ||
     !ORACLE_ADDRESS ||
     !FHE_PUBLIC_CID ||
-    !FACTORY_ADDRESS
+    !FACTORY_ADDRESS ||
+    !UNIVERSE_LIST
   ) {
     throw new Error("Missing one or more required env variables");
   }
@@ -46,6 +47,7 @@ async function main() {
     INTERNAL_ORCHESTRATOR_ADDRESS,
     LIQUIDITY_ORCHESTRATOR_ADDRESS,
     ORACLE_ADDRESS,
+    9, // Biggest integer that can be represented in 32 bits
     FHE_PUBLIC_CID,
   );
   await setTx.wait();
@@ -57,20 +59,23 @@ async function main() {
   console.log("✅ Vault factory address set");
 
   const universeList = getUniverseList();
-  for (const vault of universeList) {
-    const isAlreadyWhitelisted = await config.isWhitelisted(vault);
+
+  console.log(`🏭 Setting universe list to ${universeList.length} vaults...`);
+
+  for (const asset of universeList) {
+    const isAlreadyWhitelisted = await config.isWhitelisted(asset);
     if (!isAlreadyWhitelisted) {
-      console.log(`Adding ${vault} to config whitelist...`);
-      const tx = await config.addWhitelistedVault(vault);
+      console.log(`Adding ${asset} to config whitelist...`);
+      const tx = await config.addWhitelistedAsset(asset);
       await tx.wait();
-      console.log(`✅ Added ${vault} to config whitelist`);
+      console.log(`✅ Added ${asset} to config whitelist`);
     } else {
-      console.log(`ℹ️  ${vault} is already in config whitelist.`);
+      console.log(`ℹ️  ${asset} is already in config whitelist.`);
     }
   }
 }
 
 main().catch((error) => {
-  console.error("❌ Failed to add vaults:", error);
+  console.error("❌ Failed to add assets:", error);
   process.exitCode = 1;
 });

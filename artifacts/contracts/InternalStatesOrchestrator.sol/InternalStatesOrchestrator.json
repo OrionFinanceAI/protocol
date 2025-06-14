@@ -1,0 +1,29 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "InternalStatesOrchestrator",
+  "sourceName": "contracts/InternalStatesOrchestrator.sol",
+  "abi": [
+    {
+      "inputs": [],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "inputs": [],
+      "name": "owner",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x6080604052348015600e575f80fd5b505f80546001600160a01b03191633179055608d80602b5f395ff3fe6080604052348015600e575f80fd5b50600436106026575f3560e01c80638da5cb5b14602a575b5f80fd5b5f54603b906001600160a01b031681565b6040516001600160a01b03909116815260200160405180910390f3fea26469706673582212209bdb097cd0d067fa383d69cc6d7f4578ed888f90101b966adb733875a820cd2c64736f6c634300081a0033",
+  "deployedBytecode": "0x6080604052348015600e575f80fd5b50600436106026575f3560e01c80638da5cb5b14602a575b5f80fd5b5f54603b906001600160a01b031681565b6040516001600160a01b03909116815260200160405180910390f3fea26469706673582212209bdb097cd0d067fa383d69cc6d7f4578ed888f90101b966adb733875a820cd2c64736f6c634300081a0033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}
