@@ -16,10 +16,10 @@ pnpm hardhat run scripts/deploy-liquidity-orchestrator.ts --network localhost
 pnpm hardhat run scripts/deploy-oracle.ts --network localhost
 pnpm hardhat run scripts/deploy-orion-vault-factory.ts --network localhost
 pnpm hardhat run scripts/populate-config.ts --network localhost
-pnpm hardhat run scripts/deploy-orion-vault.ts --network localhost
-cd python-sdk 
-sdk order-intent --portfolio-path ../../portfolio-manager/output/optimized/1.parquet --encoding 0
-cd ..
+pnpm hardhat run scripts/deploy-orion-vault.ts --network localhost # TODO: refactor, delegate this operation to curator, hence enable to call it from python sdk, not here
+cd ../orion-sdk
+orion order-intent --portfolio-path ../../portfolio-manager/output/optimized/1.parquet --encoding 0
+cd ../protocol
 pnpm hardhat run scripts/request-vault-deposit.ts --network localhost
 
 # ...
