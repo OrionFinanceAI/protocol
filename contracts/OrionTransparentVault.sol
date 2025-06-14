@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -8,6 +8,7 @@ import { ReentrancyGuardTransient } from "@openzeppelin/contracts/utils/Reentran
 import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import "./interfaces/IOrionConfig.sol";
 import "./interfaces/IOrionTransparentVault.sol";
+import { ErrorsLib } from "./libraries/ErrorsLib.sol";
 
 /**
  * @title OrionTransparentVault
@@ -58,46 +59,26 @@ contract OrionTransparentVault is IOrionTransparentVault, ERC4626, ReentrancyGua
     event WithdrawProcessed(address indexed user, uint256 shares, uint256 requestId);
 
     modifier onlyCurator() {
-        if (msg.sender != curator) revert NotCurator();
+        if (msg.sender != curator) revert ErrorsLib.NotCurator();
         _;
     }
 
     modifier onlyInternalStatesOrchestrator() {
-        if (msg.sender != config.internalStatesOrchestrator()) revert NotInternalStatesOrchestrator();
+        if (msg.sender != config.internalStatesOrchestrator()) revert ErrorsLib.NotInternalStatesOrchestrator();
         _;
     }
 
     modifier onlyLiquidityOrchestrator() {
-        if (msg.sender != config.liquidityOrchestrator()) revert NotLiquidityOrchestrator();
+        if (msg.sender != config.liquidityOrchestrator()) revert ErrorsLib.NotLiquidityOrchestrator();
         _;
     }
-
-    error InvalidCuratorAddress();
-    error InvalidConfigAddress();
-    error UnderlyingAssetNotSet();
-    error NotCurator();
-    error NotLiquidityOrchestrator();
-    error NotInternalStatesOrchestrator();
-    error TransferFailed();
-    error TokenNotWhitelisted(address token);
-    error AmountMustBeGreaterThanZero(address asset);
-    error SharesMustBeGreaterThanZero();
-    error NotEnoughShares();
-    error SynchronousRedemptionsDisabled();
-    error SynchronousDepositsDisabled();
-    error SynchronousWithdrawalsDisabled();
-    error InvalidTotalAmount();
-    error ZeroPrice();
-
-    error OrderIntentCannotBeEmpty();
-    error TokenAlreadyInOrder(address token);
 
     constructor(
         address _curator,
         address _config
     ) ERC20("Orion Vault Token", "oUSDC") ERC4626(_getUnderlyingAsset(_config)) {
-        if (_curator == address(0)) revert InvalidCuratorAddress();
-        if (_config == address(0)) revert InvalidConfigAddress();
+        if (_curator == address(0)) revert ErrorsLib.InvalidCuratorAddress();
+        if (_config == address(0)) revert ErrorsLib.InvalidConfigAddress();
 
         deployer = msg.sender;
         curator = _curator;
@@ -109,19 +90,19 @@ contract OrionTransparentVault is IOrionTransparentVault, ERC4626, ReentrancyGua
     /// --------- PUBLIC FUNCTIONS ---------
     /// @notice Disable direct deposits and withdrawals on ERC4626 to enforce async only
     function deposit(uint256, address) public pure override(ERC4626, IERC4626) returns (uint256) {
-        revert SynchronousDepositsDisabled();
+        revert ErrorsLib.SynchronousDepositsDisabled();
     }
 
     function mint(uint256, address) public pure override(ERC4626, IERC4626) returns (uint256) {
-        revert SynchronousDepositsDisabled();
+        revert ErrorsLib.SynchronousDepositsDisabled();
     }
 
     function withdraw(uint256, address, address) public pure override(ERC4626, IERC4626) returns (uint256) {
-        revert SynchronousWithdrawalsDisabled();
+        revert ErrorsLib.SynchronousWithdrawalsDisabled();
     }
 
     function redeem(uint256, address, address) public pure override(ERC4626, IERC4626) returns (uint256) {
-        revert SynchronousRedemptionsDisabled();
+        revert ErrorsLib.SynchronousRedemptionsDisabled();
     }
 
     function totalAssets() public view override(ERC4626, IERC4626) returns (uint256) {
@@ -141,31 +122,31 @@ contract OrionTransparentVault is IOrionTransparentVault, ERC4626, ReentrancyGua
     /// @notice Submit a plaintext portfolio intent.
     /// @param order OrderPlain struct containing the tokens and amounts.
     function submitOrderIntentPlain(OrderPlain[] calldata order) external onlyCurator {
-        if (order.length == 0) revert OrderIntentCannotBeEmpty();
+        if (order.length == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
         _orders.clear();
 
         uint256 totalAmount = 0;
         for (uint256 i = 0; i < order.length; i++) {
             address token = order[i].token;
             uint32 amount = order[i].amount;
-            if (!config.isWhitelisted(token)) revert TokenNotWhitelisted(token);
-            if (amount == 0) revert AmountMustBeGreaterThanZero(token);
+            if (!config.isWhitelisted(token)) revert ErrorsLib.TokenNotWhitelisted(token);
+            if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(token);
             bool inserted = _orders.set(token, amount);
-            if (!inserted) revert TokenAlreadyInOrder(token);
+            if (!inserted) revert ErrorsLib.TokenAlreadyInOrder(token);
             totalAmount += amount;
         }
 
         uint8 curatorIntentDecimals = config.curatorIntentDecimals();
-        if (totalAmount != 10 ** curatorIntentDecimals) revert InvalidTotalAmount();
+        if (totalAmount != 10 ** curatorIntentDecimals) revert ErrorsLib.InvalidTotalAmount();
 
         emit OrderSubmitted(msg.sender);
     }
 
     /// @notice LPs submits async deposit request; no tokens minted yet
     function requestDeposit(uint256 amount) external {
-        if (amount == 0) revert AmountMustBeGreaterThanZero(asset());
+        if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
         // Transfer underlying tokens from LPs to vault contract as deposit escrow
-        if (!IERC20(asset()).transferFrom(msg.sender, address(this), amount)) revert TransferFailed();
+        if (!IERC20(asset()).transferFrom(msg.sender, address(this), amount)) revert ErrorsLib.TransferFailed();
         depositRequests.push(DepositRequest({ user: msg.sender, amount: amount }));
 
         emit DepositRequested(msg.sender, amount, depositRequests.length - 1);
@@ -173,8 +154,8 @@ contract OrionTransparentVault is IOrionTransparentVault, ERC4626, ReentrancyGua
 
     /// @notice LPs submits async withdrawal request; shares locked until processed
     function requestWithdraw(uint256 shares) external {
-        if (shares == 0) revert SharesMustBeGreaterThanZero();
-        if (balanceOf(msg.sender) < shares) revert NotEnoughShares();
+        if (shares == 0) revert ErrorsLib.SharesMustBeGreaterThanZero();
+        if (balanceOf(msg.sender) < shares) revert ErrorsLib.NotEnoughShares();
         // Lock shares by transferring them to contract as escrow
         _transfer(msg.sender, address(this), shares);
 
@@ -186,7 +167,7 @@ contract OrionTransparentVault is IOrionTransparentVault, ERC4626, ReentrancyGua
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
 
     function setSharePrice(uint256 newPrice) external onlyInternalStatesOrchestrator {
-        if (newPrice == 0) revert ZeroPrice();
+        if (newPrice == 0) revert ErrorsLib.ZeroPrice();
         sharePrice = newPrice;
     }
 
@@ -223,7 +204,7 @@ contract OrionTransparentVault is IOrionTransparentVault, ERC4626, ReentrancyGua
 
             _burn(address(this), request.shares);
             uint256 underlyingAmount = previewRedeem(request.shares);
-            if (!IERC20(asset()).transfer(request.user, underlyingAmount)) revert TransferFailed();
+            if (!IERC20(asset()).transfer(request.user, underlyingAmount)) revert ErrorsLib.TransferFailed();
 
             emit WithdrawProcessed(request.user, request.shares, i);
         }
@@ -236,7 +217,7 @@ contract OrionTransparentVault is IOrionTransparentVault, ERC4626, ReentrancyGua
     /// @return The underlying asset address
     function _getUnderlyingAsset(address _config) internal view returns (IERC20) {
         address asset = IOrionConfig(_config).underlyingAsset();
-        if (asset == address(0)) revert UnderlyingAssetNotSet();
+        if (asset == address(0)) revert ErrorsLib.UnderlyingAssetNotSet();
         return IERC20(asset);
     }
 }

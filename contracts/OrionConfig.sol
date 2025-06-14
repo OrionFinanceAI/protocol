@@ -1,8 +1,9 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.4;
 
 import "./interfaces/IOrionConfig.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
+import { ErrorsLib } from "./libraries/ErrorsLib.sol";
 
 contract OrionConfig is IOrionConfig {
     address public owner;
@@ -43,29 +44,14 @@ contract OrionConfig is IOrionConfig {
         string fhePublicCID
     );
 
-    error NotOwner();
-    error NotFactory();
-    error ZeroAddress();
-    error InvalidAsset();
-    error InvalidInternalOrchestrator();
-    error InvalidLiquidityOrchestrator();
-    error InvalidPriceAndPnLOracle();
-    error AlreadyWhitelisted();
-    error NotInWhitelist();
-    error IndexOutOfBounds();
-    error VaultNotFound();
-    error OrionVaultNotFound();
-    error AlreadyAnOrionVault();
-    error NotAnOrionVault();
-
     // Modifier
     modifier onlyOwner() {
-        if (msg.sender != owner) revert NotOwner();
+        if (msg.sender != owner) revert ErrorsLib.NotOwner();
         _;
     }
 
     modifier onlyFactory() {
-        if (msg.sender != vaultFactory) revert NotFactory();
+        if (msg.sender != vaultFactory) revert ErrorsLib.NotFactory();
         _;
     }
 
@@ -77,7 +63,7 @@ contract OrionConfig is IOrionConfig {
     // === Protocol Configuration ===
 
     function setVaultFactory(address _factory) external onlyOwner {
-        if (_factory == address(0)) revert ZeroAddress();
+        if (_factory == address(0)) revert ErrorsLib.ZeroAddress();
         vaultFactory = _factory;
         emit VaultFactorySet(_factory);
     }
@@ -90,10 +76,10 @@ contract OrionConfig is IOrionConfig {
         uint8 _curatorIntentDecimals,
         string calldata _fhePublicCID
     ) external onlyOwner {
-        if (_underlyingAsset == address(0)) revert InvalidAsset();
-        if (_internalStatesOrchestrator == address(0)) revert InvalidInternalOrchestrator();
-        if (_liquidityOrchestrator == address(0)) revert InvalidLiquidityOrchestrator();
-        if (_priceAndPnLOracle == address(0)) revert InvalidPriceAndPnLOracle();
+        if (_underlyingAsset == address(0)) revert ErrorsLib.InvalidAsset();
+        if (_internalStatesOrchestrator == address(0)) revert ErrorsLib.InvalidInternalOrchestrator();
+        if (_liquidityOrchestrator == address(0)) revert ErrorsLib.InvalidLiquidityOrchestrator();
+        if (_priceAndPnLOracle == address(0)) revert ErrorsLib.InvalidPriceAndPnLOracle();
 
         underlyingAsset = _underlyingAsset;
         internalStatesOrchestrator = _internalStatesOrchestrator;
@@ -116,13 +102,13 @@ contract OrionConfig is IOrionConfig {
 
     function addWhitelistedAsset(address asset) external onlyOwner {
         bool inserted = whitelistedAssets.add(asset);
-        if (!inserted) revert AlreadyWhitelisted();
+        if (!inserted) revert ErrorsLib.AlreadyWhitelisted();
         emit WhitelistedAssetAdded(asset);
     }
 
     function removeWhitelistedAsset(address asset) external onlyOwner {
         bool removed = whitelistedAssets.remove(asset);
-        if (!removed) revert NotInWhitelist();
+        if (!removed) revert ErrorsLib.NotInWhitelist();
         emit WhitelistedAssetRemoved(asset);
     }
 
@@ -141,7 +127,7 @@ contract OrionConfig is IOrionConfig {
     // === Orion Vaults ===
 
     function addOrionVault(address vault) external onlyFactory {
-        if (isOrionVault[vault]) revert AlreadyAnOrionVault();
+        if (isOrionVault[vault]) revert ErrorsLib.AlreadyAnOrionVault();
         orionVaults.push(vault);
         isOrionVault[vault] = true;
         orionVaultCount += 1;
@@ -149,7 +135,7 @@ contract OrionConfig is IOrionConfig {
     }
 
     function removeOrionVault(address vault) external onlyFactory {
-        if (!isOrionVault[vault]) revert NotAnOrionVault();
+        if (!isOrionVault[vault]) revert ErrorsLib.NotAnOrionVault();
 
         uint256 index = _indexOfOrionVault(vault);
         orionVaults[index] = orionVaults[orionVaults.length - 1];
@@ -162,7 +148,7 @@ contract OrionConfig is IOrionConfig {
     }
 
     function getOrionVaultAt(uint256 index) external view returns (address) {
-        if (index >= orionVaults.length) revert IndexOutOfBounds();
+        if (index >= orionVaults.length) revert ErrorsLib.IndexOutOfBounds();
         return orionVaults[index];
     }
 
@@ -172,7 +158,7 @@ contract OrionConfig is IOrionConfig {
                 return i;
             }
         }
-        revert OrionVaultNotFound();
+        revert ErrorsLib.OrionVaultNotFound();
     }
 
     // === FHE Public CID ===
@@ -189,7 +175,7 @@ contract OrionConfig is IOrionConfig {
     // === Ownership ===
 
     function transferOwnership(address newOwner) external onlyOwner {
-        if (newOwner == address(0)) revert ZeroAddress();
+        if (newOwner == address(0)) revert ErrorsLib.ZeroAddress();
         owner = newOwner;
     }
 }
