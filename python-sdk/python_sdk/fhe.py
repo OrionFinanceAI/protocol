@@ -1,10 +1,14 @@
+"""FHE operations for the Orion Python SDK."""
+
 import tenseal as ts
 
+
 def run_keygen():
+    """Generate keys for the FHE operations."""
     context = ts.context(
         ts.SCHEME_TYPE.CKKS,
         poly_modulus_degree=8192,
-        coeff_mod_bit_sizes=[60, 40, 40, 60]
+        coeff_mod_bit_sizes=[60, 40, 40, 60],
     )
     context.generate_galois_keys()
     context.generate_relin_keys()
@@ -22,6 +26,7 @@ def run_keygen():
 
 
 def client_encrypt():
+    """Encrypt the data on the client."""
     with open("context.public.tenseal", "rb") as f:
         public_context = ts.context_from(f.read())
 
@@ -35,6 +40,7 @@ def client_encrypt():
 
 
 def compute_server_evaluation():
+    """Compute the result of the compute server evaluation."""
     with open("context.public.tenseal", "rb") as f:
         public_context = ts.context_from(f.read())
 
@@ -50,6 +56,7 @@ def compute_server_evaluation():
 
 
 def decryptor_decrypt():
+    """Decrypt the result of the compute server evaluation."""
     with open("context.secret.tenseal", "rb") as f:
         secret_context = ts.context_from(f.read())
 

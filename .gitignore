@@ -28,7 +28,7 @@ typechain-types/
 .pnp.*
 coverage.json
 package-lock.json
-yarn.lock
+*.lock
 
 res/
 running_node/

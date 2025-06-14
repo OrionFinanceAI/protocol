@@ -17,8 +17,9 @@ pnpm hardhat run scripts/deploy-oracle.ts --network localhost
 pnpm hardhat run scripts/deploy-orion-vault-factory.ts --network localhost
 pnpm hardhat run scripts/populate-config.ts --network localhost
 pnpm hardhat run scripts/deploy-orion-vault.ts --network localhost
-# cd python-sdk && sdk download && cd ..
-cd python-sdk && sdk order-intent && cd ..
+cd python-sdk 
+sdk order-intent --portfolio-path ../../portfolio-manager/output/optimized/1.parquet --encoding 0
+cd ..
 pnpm hardhat run scripts/request-vault-deposit.ts --network localhost
 
 # ...

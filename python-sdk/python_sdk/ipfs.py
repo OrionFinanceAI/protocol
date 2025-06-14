@@ -1,8 +1,9 @@
 """Utils."""
 
 import os
-from lighthouseweb3 import Lighthouse
+
 import requests
+from lighthouseweb3 import Lighthouse
 
 
 def upload_to_ipfs(file_path: str):
@@ -17,6 +18,7 @@ def upload_to_ipfs(file_path: str):
 
     url = f"https://gateway.lighthouse.storage/ipfs/{cid}"
     return url, cid
+
 
 def download_public_context(url: str, output_path: str = "context.public.tenseal"):
     """Download the public TenSEAL context from a given Lighthouse URL."""
