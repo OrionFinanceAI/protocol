@@ -4,34 +4,26 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
-import "./OrionConfig.sol";
-import { ReentrancyGuardTransient } from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
-import { euint32 } from "../lib/fhevm-solidity/lib/FHE.sol";
+// import { ReentrancyGuardTransient } from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
+// import { euint32 } from "../lib/fhevm-solidity/lib/FHE.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
+import "./interfaces/IOrionConfig.sol";
 
-// /**
-//  * @title OrionVault
-//  * @notice A modular asset management vault powered by curator intents.
-//  * @dev
-//  * OrionVault interprets curator-submitted intents as portfolio allocation targets,
-//  * expressed as percentages of the total value locked (TVL) in the vault. These
-//  * intents define how assets should be allocated or rebalanced over time.
-//  *
-//  * The vault implements an asynchronous pattern for deposits, withdrawals and order execution.
-//  * See https://eips.ethereum.org/EIPS/eip-7540
-//  *
-//  * Intents may be submitted in plaintext or in encrypted form, depending on the
-//  * privacy requirements of the curator. The vault supports pluggable
-//  * intent interpreters, enabling support for various interpretation and decryption
-//  * strategies including plaintext parsing and Fully Homomorphic Encryption (FHE).
-//  *
-//  * This contract abstracts away the specific encryption method, allowing the protocol
-//  * to evolve while preserving a consistent interface for intent-driven vault behavior.
-//  */
-// contract OrionVault is ERC4626, ReentrancyGuardTransient {
+/**
+ * @title OrionEncryptedVault
+ * @notice A modular asset management vault powered by curator intents.
+ * @dev
+ * OrionEncryptedVault interprets curator-submitted intents as portfolio allocation targets,
+ * expressed as percentages of the total value locked (TVL) in the vault. These
+ * intents define how assets should be allocated or rebalanced over time.
+ *
+ * The vault implements an asynchronous pattern for deposits, withdrawals and order execution.
+ * See https://eips.ethereum.org/EIPS/eip-7540
+ */
+// contract OrionEncryptedVault is IOrionEncryptedVault, ERC4626, ReentrancyGuardTransient {
 //     using EnumerableMap for EnumerableMap.AddressToUintMap;
 
-//     OrionConfig public config;
+//     IOrionConfig public config;
 //     address public curator;
 //     address public deployer;
 
@@ -113,7 +105,7 @@ import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 
 //         deployer = msg.sender;
 //         curator = _curator;
-//         config = OrionConfig(_config);
+//         config = IOrionConfig(_config);
 //         sharePrice = 10 ** decimals();
 //         _totalAssets = 0;
 //     }
@@ -273,7 +265,7 @@ import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 //     /// @param _config The address of the config contract
 //     /// @return The underlying asset address
 //     function _getUnderlyingAsset(address _config) internal view returns (IERC20) {
-//         address asset = OrionConfig(_config).underlyingAsset();
+//         address asset = IOrionConfig(_config).underlyingAsset();
 //         if (asset == address(0)) revert UnderlyingAssetNotSet();
 //         return IERC20(asset);
 //     }

@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
+
+import "./interfaces/IOrionConfig.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 
-contract OrionConfig {
+contract OrionConfig is IOrionConfig {
     address public owner;
 
     // Protocol-wide configuration

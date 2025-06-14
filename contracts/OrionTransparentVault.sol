@@ -4,9 +4,10 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
-import "./OrionConfig.sol";
 import { ReentrancyGuardTransient } from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
+import "./interfaces/IOrionConfig.sol";
+import "./interfaces/IOrionTransparentVault.sol";
 
 /**
  * @title OrionTransparentVault
@@ -19,10 +20,10 @@ import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
  * The vault implements an asynchronous pattern for deposits, withdrawals and order execution.
  * See https://eips.ethereum.org/EIPS/eip-7540
  */
-contract OrionTransparentVault is ERC4626, ReentrancyGuardTransient {
+contract OrionTransparentVault is IOrionTransparentVault, ERC4626, ReentrancyGuardTransient {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
 
-    OrionConfig public config;
+    IOrionConfig public config;
     address public curator;
     address public deployer;
 
@@ -100,39 +101,38 @@ contract OrionTransparentVault is ERC4626, ReentrancyGuardTransient {
 
         deployer = msg.sender;
         curator = _curator;
-        config = OrionConfig(_config);
+        config = IOrionConfig(_config);
         sharePrice = 10 ** decimals();
         _totalAssets = 0;
     }
 
     /// --------- PUBLIC FUNCTIONS ---------
-
     /// @notice Disable direct deposits and withdrawals on ERC4626 to enforce async only
-    function deposit(uint256, address) public pure override returns (uint256) {
+    function deposit(uint256, address) public pure override(ERC4626, IERC4626) returns (uint256) {
         revert SynchronousDepositsDisabled();
     }
 
-    function mint(uint256, address) public pure override returns (uint256) {
+    function mint(uint256, address) public pure override(ERC4626, IERC4626) returns (uint256) {
         revert SynchronousDepositsDisabled();
     }
 
-    function withdraw(uint256, address, address) public pure override returns (uint256) {
+    function withdraw(uint256, address, address) public pure override(ERC4626, IERC4626) returns (uint256) {
         revert SynchronousWithdrawalsDisabled();
     }
 
-    function redeem(uint256, address, address) public pure override returns (uint256) {
+    function redeem(uint256, address, address) public pure override(ERC4626, IERC4626) returns (uint256) {
         revert SynchronousRedemptionsDisabled();
     }
 
-    function totalAssets() public view override returns (uint256) {
+    function totalAssets() public view override(ERC4626, IERC4626) returns (uint256) {
         return _totalAssets;
     }
 
-    function convertToShares(uint256 assets) public view override returns (uint256) {
+    function convertToShares(uint256 assets) public view override(ERC4626, IERC4626) returns (uint256) {
         return (assets * 1e18) / sharePrice;
     }
 
-    function convertToAssets(uint256 shares) public view override returns (uint256) {
+    function convertToAssets(uint256 shares) public view override(ERC4626, IERC4626) returns (uint256) {
         return (shares * sharePrice) / 1e18;
     }
 
@@ -235,7 +235,7 @@ contract OrionTransparentVault is ERC4626, ReentrancyGuardTransient {
     /// @param _config The address of the config contract
     /// @return The underlying asset address
     function _getUnderlyingAsset(address _config) internal view returns (IERC20) {
-        address asset = OrionConfig(_config).underlyingAsset();
+        address asset = IOrionConfig(_config).underlyingAsset();
         if (asset == address(0)) revert UnderlyingAssetNotSet();
         return IERC20(asset);
     }
