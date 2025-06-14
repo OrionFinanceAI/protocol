@@ -17,8 +17,13 @@ The license for Orion is the Business Source License 1.1 (`BUSL-1.1`) given in [
 
 ## Installation
 
-### Install Node dependencies
-
 ```bash
 pnpm install
+```
+
+## Examples of Usage
+
+```bash
+./scripts/localhost_deployer.sh
+./scripts/localhost_lps.sh
 ```
