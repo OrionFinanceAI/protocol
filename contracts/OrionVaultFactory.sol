@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "./OrionVault.sol"; // TODO: add IOrionVault interface for protocol upgradeability.
+import "./OrionTransparentVault.sol"; // TODO: add IOrionVault interface for protocol upgradeability.
 import "./OrionConfig.sol"; // TODO: add IOrionConfig interface for protocol upgradeability.
 
 contract OrionVaultFactory {
@@ -22,7 +22,7 @@ contract OrionVaultFactory {
     function createOrionVault(address curator) external returns (address vault) {
         if (curator == address(0)) revert CuratorCannotBeZeroAddress();
 
-        OrionVault newVault = new OrionVault(curator, address(config));
+        OrionTransparentVault newVault = new OrionTransparentVault(curator, address(config));
         vault = address(newVault);
 
         emit OrionVaultCreated(vault, curator, msg.sender);

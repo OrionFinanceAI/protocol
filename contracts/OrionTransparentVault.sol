@@ -6,28 +6,22 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import "./OrionConfig.sol";
 import { ReentrancyGuardTransient } from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
-import { euint32 } from "../lib/fhevm-solidity/lib/FHE.sol";
+import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 
 /**
- * @title OrionVault
+ * @title OrionTransparentVault
  * @notice A modular asset management vault powered by curator intents.
  * @dev
- * OrionVault interprets curator-submitted intents as portfolio allocation targets,
+ * OrionTransparentVault interprets curator-submitted intents as portfolio allocation targets,
  * expressed as percentages of the total value locked (TVL) in the vault. These
  * intents define how assets should be allocated or rebalanced over time.
  *
  * The vault implements an asynchronous pattern for deposits, withdrawals and order execution.
  * See https://eips.ethereum.org/EIPS/eip-7540
- *
- * Intents may be submitted in plaintext or in encrypted form, depending on the
- * privacy requirements of the curator. The vault supports pluggable
- * intent interpreters, enabling support for various interpretation and decryption
- * strategies including plaintext parsing and Fully Homomorphic Encryption (FHE).
- *
- * This contract abstracts away the specific encryption method, allowing the protocol
- * to evolve while preserving a consistent interface for intent-driven vault behavior.
  */
-contract OrionVault is ERC4626, ReentrancyGuardTransient {
+contract OrionTransparentVault is ERC4626, ReentrancyGuardTransient {
+    using EnumerableMap for EnumerableMap.AddressToUintMap;
+
     OrionConfig public config;
     address public curator;
     address public deployer;
@@ -38,10 +32,6 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
     struct OrderPlain {
         address token;
         uint32 amount;
-    }
-    struct OrderEncrypted {
-        address token;
-        euint32 amount;
     }
 
     struct DepositRequest {
@@ -55,8 +45,7 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
     }
 
     // Queues of async requests from curator and LPs.
-    OrderPlain[] public plainOrder;
-    OrderEncrypted[] public encryptedOrder;
+    EnumerableMap.AddressToUintMap private _orders;
     DepositRequest[] public depositRequests;
     WithdrawRequest[] public withdrawRequests;
 
@@ -89,8 +78,8 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
     error NotLiquidityOrchestrator();
     error NotInternalStatesOrchestrator();
     error TransferFailed();
-    error TokenNotWhitelisted();
-    error AmountMustBeGreaterThanZero();
+    error TokenNotWhitelisted(address token);
+    error AmountMustBeGreaterThanZero(address asset);
     error SharesMustBeGreaterThanZero();
     error NotEnoughShares();
     error SynchronousRedemptionsDisabled();
@@ -100,6 +89,7 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
     error ZeroPrice();
 
     error OrderIntentCannotBeEmpty();
+    error TokenAlreadyInOrder(address token);
 
     constructor(
         address _curator,
@@ -152,53 +142,28 @@ contract OrionVault is ERC4626, ReentrancyGuardTransient {
     /// @param order OrderPlain struct containing the tokens and amounts.
     function submitOrderIntentPlain(OrderPlain[] calldata order) external onlyCurator {
         if (order.length == 0) revert OrderIntentCannotBeEmpty();
-        uint32[] memory finalAmounts = new uint32[](config.whitelistVaultCount());
-        uint8 curatorIntentDecimals = config.curatorIntentDecimals();
+        _orders.clear();
+
         uint256 totalAmount = 0;
         for (uint256 i = 0; i < order.length; i++) {
             address token = order[i].token;
             uint32 amount = order[i].amount;
-            if (!config.isWhitelisted(token)) revert TokenNotWhitelisted();
-            if (amount == 0) revert AmountMustBeGreaterThanZero();
-            uint256 index = config.whitelistedVaultIndex(token);
-            finalAmounts[index] = amount;
+            if (!config.isWhitelisted(token)) revert TokenNotWhitelisted(token);
+            if (amount == 0) revert AmountMustBeGreaterThanZero(token);
+            bool inserted = _orders.set(token, amount);
+            if (!inserted) revert TokenAlreadyInOrder(token);
             totalAmount += amount;
         }
 
+        uint8 curatorIntentDecimals = config.curatorIntentDecimals();
         if (totalAmount != 10 ** curatorIntentDecimals) revert InvalidTotalAmount();
 
-        delete plainOrder;
-        for (uint256 i = 0; i < order.length; i++) {
-            plainOrder.push(OrderPlain({ token: order[i].token, amount: finalAmounts[i] }));
-        }
-        emit OrderSubmitted(msg.sender);
-    }
-
-    /// @notice Submit an encrypted portfolio intent.
-    /// @param order OrderEncrypted struct containing the tokens and amounts.
-    function submitOrderIntentEncrypted(OrderEncrypted[] calldata order) external onlyCurator {
-        if (order.length == 0) revert OrderIntentCannotBeEmpty();
-        euint32[] memory finalAmounts = new euint32[](config.whitelistVaultCount());
-
-        for (uint256 i = 0; i < order.length; i++) {
-            address token = order[i].token;
-            euint32 amount = order[i].amount;
-            if (!config.isWhitelisted(token)) revert TokenNotWhitelisted();
-
-            uint256 index = config.whitelistedVaultIndex(token);
-            finalAmounts[index] = amount;
-        }
-
-        delete encryptedOrder;
-        for (uint256 i = 0; i < order.length; i++) {
-            encryptedOrder.push(OrderEncrypted({ token: order[i].token, amount: finalAmounts[i] }));
-        }
         emit OrderSubmitted(msg.sender);
     }
 
     /// @notice LPs submits async deposit request; no tokens minted yet
     function requestDeposit(uint256 amount) external {
-        if (amount == 0) revert AmountMustBeGreaterThanZero();
+        if (amount == 0) revert AmountMustBeGreaterThanZero(asset());
         // Transfer underlying tokens from LPs to vault contract as deposit escrow
         if (!IERC20(asset()).transferFrom(msg.sender, address(this), amount)) revert TransferFailed();
         depositRequests.push(DepositRequest({ user: msg.sender, amount: amount }));

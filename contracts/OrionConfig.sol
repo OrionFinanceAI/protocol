@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
+import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 
 contract OrionConfig {
     address public owner;
@@ -16,10 +17,8 @@ contract OrionConfig {
     string public fhePublicCID;
 
     // Vault-specific configuration
-    address[] public whitelistedVaults;
-    mapping(address => uint256) public whitelistedVaultIndex;
-    mapping(address => bool) public isWhitelisted;
-    uint256 public whitelistVaultCount;
+    using EnumerableSet for EnumerableSet.AddressSet;
+    EnumerableSet.AddressSet private whitelistedAssets;
 
     // Orion-specific configuration
     address[] public orionVaults;
@@ -27,8 +26,8 @@ contract OrionConfig {
     uint256 public orionVaultCount;
 
     // Events
-    event WhitelistedVaultAdded(address indexed vault);
-    event WhitelistedVaultRemoved(address indexed vault);
+    event WhitelistedAssetAdded(address indexed asset);
+    event WhitelistedAssetRemoved(address indexed asset);
     event OrionVaultAdded(address indexed vault);
     event OrionVaultRemoved(address indexed vault);
     event VaultFactorySet(address factory);
@@ -113,41 +112,28 @@ contract OrionConfig {
 
     // === Whitelist Functions ===
 
-    function addWhitelistedVault(address vault) external onlyOwner {
-        if (isWhitelisted[vault]) revert AlreadyWhitelisted();
-        whitelistedVaultIndex[vault] = whitelistedVaults.length;
-        isWhitelisted[vault] = true;
-        whitelistVaultCount += 1;
-        whitelistedVaults.push(vault);
-        emit WhitelistedVaultAdded(vault);
+    function addWhitelistedAsset(address asset) external onlyOwner {
+        bool inserted = whitelistedAssets.add(asset);
+        if (!inserted) revert AlreadyWhitelisted();
+        emit WhitelistedAssetAdded(asset);
     }
 
-    function removeWhitelistedVault(address vault) external onlyOwner {
-        if (!isWhitelisted[vault]) revert NotInWhitelist();
-
-        uint256 index = _indexOfWhitelistedVault(vault);
-        // Swap and pop
-        whitelistedVaults[index] = whitelistedVaults[whitelistedVaults.length - 1];
-        whitelistedVaults.pop();
-
-        isWhitelisted[vault] = false;
-        whitelistVaultCount -= 1;
-
-        emit WhitelistedVaultRemoved(vault);
+    function removeWhitelistedAsset(address asset) external onlyOwner {
+        bool removed = whitelistedAssets.remove(asset);
+        if (!removed) revert NotInWhitelist();
+        emit WhitelistedAssetRemoved(asset);
     }
 
-    function getWhitelistedVaultAt(uint256 index) external view returns (address) {
-        if (index >= whitelistedVaults.length) revert IndexOutOfBounds();
-        return whitelistedVaults[index];
+    function whitelistedAssetsLength() external view returns (uint256) {
+        return whitelistedAssets.length();
     }
 
-    function _indexOfWhitelistedVault(address vault) internal view returns (uint256) {
-        for (uint256 i = 0; i < whitelistedVaults.length; i++) {
-            if (whitelistedVaults[i] == vault) {
-                return i;
-            }
-        }
-        revert VaultNotFound();
+    function getWhitelistedAssetAt(uint256 index) external view returns (address) {
+        return whitelistedAssets.at(index);
+    }
+
+    function isWhitelisted(address asset) external view returns (bool) {
+        return whitelistedAssets.contains(asset);
     }
 
     // === Orion Vaults ===
