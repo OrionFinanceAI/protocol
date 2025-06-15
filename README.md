@@ -25,5 +25,16 @@ pnpm install
 
 ```bash
 ./scripts/localhost_deployer.sh
-./scripts/localhost_lps.sh
+```
+
+```bash
+pnpm hardhat run scripts/request-vault-deposit.ts --network localhost
+pnpm hardhat run scripts/simulate-chainlink-automation.ts --network localhost
+pnpm hardhat run scripts/request-vault-withdrawal.ts --network localhost
+```
+
+## Processes
+
+```bash
+pnpm hardhat run scripts/advance-time.ts --network localhost
 ```

@@ -1,11 +1,20 @@
+import * as dotenv from "dotenv";
 import { ethers } from "hardhat";
+
+dotenv.config();
 
 async function main() {
   const [deployer] = await ethers.getSigners();
   console.log("Deploying InternalStatesOrchestrator with:", await deployer.getAddress());
 
+  const registryAddress = process.env.CHAINLINK_AUTOMATION_REGISTRY_ADDRESS;
+  if (!registryAddress) {
+    throw new Error("Please set CHAINLINK_AUTOMATION_REGISTRY_ADDRESS in your .env file");
+  }
+  console.log("Using Chainlink Automation Registry:", registryAddress);
+
   const InternalStatesOrchestrator = await ethers.getContractFactory("InternalStatesOrchestrator");
-  const internalStatesOrchestrator = await InternalStatesOrchestrator.deploy();
+  const internalStatesOrchestrator = await InternalStatesOrchestrator.deploy(registryAddress);
 
   await internalStatesOrchestrator.waitForDeployment();
 
