@@ -142,7 +142,7 @@ abstract contract OrionVault is IOrionVault, ERC4626, ReentrancyGuardTransient {
     /// @notice Process deposit requests from LPs
     function processDepositRequests() external onlyLiquidityOrchestrator nonReentrant {
         uint256 i = 0;
-        while (i < depositRequests.length) {
+        for (i = 0; i < depositRequests.length; i++) {
             DepositRequest storage request = depositRequests[i];
             uint256 shares = previewDeposit(request.amount);
 
@@ -158,7 +158,7 @@ abstract contract OrionVault is IOrionVault, ERC4626, ReentrancyGuardTransient {
     /// @notice Process withdrawal requests from LPs
     function processWithdrawRequests() external onlyLiquidityOrchestrator nonReentrant {
         uint256 i = 0;
-        while (i < withdrawRequests.length) {
+        for (i = 0; i < withdrawRequests.length; i++) {
             WithdrawRequest storage request = withdrawRequests[i];
 
             withdrawRequests[i] = withdrawRequests[withdrawRequests.length - 1];
