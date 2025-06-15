@@ -7,10 +7,20 @@ import "./interfaces/IOrionConfig.sol";
 import { ErrorsLib } from "./libraries/ErrorsLib.sol";
 
 contract OrionVaultFactory {
+    enum VaultType {
+        Transparent,
+        Encrypted
+    }
+
     address public deployer;
     IOrionConfig public config;
 
-    event OrionVaultCreated(address indexed vault, address indexed curator, address indexed deployer, string vaultType);
+    event OrionVaultCreated(
+        address indexed vault,
+        address indexed curator,
+        address indexed deployer,
+        VaultType vaultType
+    );
 
     constructor(address _config) {
         deployer = msg.sender;
@@ -27,7 +37,7 @@ contract OrionVaultFactory {
         OrionTransparentVault newVault = new OrionTransparentVault(curator, config, name, symbol);
         vault = address(newVault);
 
-        emit OrionVaultCreated(vault, curator, msg.sender, "transparent");
+        emit OrionVaultCreated(vault, curator, msg.sender, VaultType.Transparent);
         config.addOrionVault(vault);
     }
 
@@ -41,7 +51,7 @@ contract OrionVaultFactory {
         OrionEncryptedVault newVault = new OrionEncryptedVault(curator, config, name, symbol);
         vault = address(newVault);
 
-        emit OrionVaultCreated(vault, curator, msg.sender, "encrypted");
+        emit OrionVaultCreated(vault, curator, msg.sender, VaultType.Encrypted);
         config.addOrionVault(vault);
     }
 }
