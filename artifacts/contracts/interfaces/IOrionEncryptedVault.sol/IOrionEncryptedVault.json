@@ -737,7 +737,7 @@
             {
               "internalType": "euint32",
               "name": "amount",
-              "type": "bytes32"
+              "type": "uint256"
             }
           ],
           "internalType": "struct IOrionEncryptedVault.Order[]",

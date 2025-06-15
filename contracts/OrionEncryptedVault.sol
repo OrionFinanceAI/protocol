@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.20;
 
-import { euint32 } from "../lib/fhevm-solidity/lib/FHE.sol";
+import { euint32 } from "fhevm/lib/TFHE.sol";
+import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import "./OrionVault.sol";
 import "./interfaces/IOrionConfig.sol";
 import "./interfaces/IOrionEncryptedVault.sol";
@@ -16,7 +17,9 @@ import { ErrorsLib } from "./libraries/ErrorsLib.sol";
  * privacy of the portfolio allocation strategy, while maintaining capital efficiency.
  */
 contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
-    mapping(address => euint32) private _orders;
+    using EnumerableMap for EnumerableMap.AddressToUintMap;
+
+    EnumerableMap.AddressToUintMap private _orders;
 
     constructor(
         address _curator,
@@ -31,16 +34,14 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
     /// @param order Order struct containing the tokens and encrypted amounts.
     function submitOrderIntent(Order[] calldata order) external onlyCurator {
         if (order.length == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
-
-        for (uint256 i = 0; i < order.length; i++) {
-            _orders[order[i].token] = euint32.wrap(0);
-        }
+        _orders.clear();
 
         for (uint256 i = 0; i < order.length; i++) {
             address token = order[i].token;
             euint32 amount = order[i].amount;
             if (!config.isWhitelisted(token)) revert ErrorsLib.TokenNotWhitelisted(token);
-            _orders[token] = amount;
+            bool inserted = _orders.set(token, euint32.unwrap(amount));
+            if (!inserted) revert ErrorsLib.TokenAlreadyInOrder(token);
         }
 
         emit OrderSubmitted(msg.sender);

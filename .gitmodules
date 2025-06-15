@@ -1,3 +1,0 @@
-[submodule "lib/fhevm-solidity"]
-	path = lib/fhevm-solidity
-	url = https://github.com/zama-ai/fhevm-solidity

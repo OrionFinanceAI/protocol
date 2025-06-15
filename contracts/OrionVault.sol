@@ -90,6 +90,7 @@ abstract contract OrionVault is IOrionVault, ERC4626, ReentrancyGuardTransient {
     }
 
     function totalAssets() public view override(ERC4626, IERC4626) returns (uint256) {
+        // TODO: mimicking the ERC4626 implementation when it comes to events emission, for etherscan consistency.
         return _totalAssets;
     }
 

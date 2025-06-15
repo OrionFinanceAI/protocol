@@ -41,5 +41,6 @@ rust-fhe/target/
 artifacts/@openzeppelin/
 artifacts/build-info/
 artifacts/lib/
+artifacts/fhevm/
 !artifacts/contracts/**/*.json
 artifacts/contracts/**/*.dbg.json
