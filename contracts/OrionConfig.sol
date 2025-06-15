@@ -12,7 +12,7 @@ contract OrionConfig is IOrionConfig, Ownable2Step {
     IERC20 public underlyingAsset;
     address public internalStatesOrchestrator;
     address public liquidityOrchestrator;
-    address public priceAndPnLOracle;
+    address public MarketOracle;
     address public vaultFactory;
 
     // Curator-specific configuration
@@ -36,7 +36,7 @@ contract OrionConfig is IOrionConfig, Ownable2Step {
         address underlyingAsset,
         address internalStatesOrchestrator,
         address liquidityOrchestrator,
-        address priceAndPnLOracle,
+        address MarketOracle,
         uint256 curatorIntentDecimals,
         string fhePublicCID,
         address factory
@@ -56,7 +56,7 @@ contract OrionConfig is IOrionConfig, Ownable2Step {
         address _underlyingAsset,
         address _internalStatesOrchestrator,
         address _liquidityOrchestrator,
-        address _priceAndPnLOracle,
+        address _MarketOracle,
         uint8 _curatorIntentDecimals,
         string calldata _fhePublicCID,
         address _factory
@@ -64,13 +64,13 @@ contract OrionConfig is IOrionConfig, Ownable2Step {
         if (_underlyingAsset == address(0)) revert ErrorsLib.InvalidAsset();
         if (_internalStatesOrchestrator == address(0)) revert ErrorsLib.InvalidInternalOrchestrator();
         if (_liquidityOrchestrator == address(0)) revert ErrorsLib.InvalidLiquidityOrchestrator();
-        if (_priceAndPnLOracle == address(0)) revert ErrorsLib.InvalidPriceAndPnLOracle();
+        if (_MarketOracle == address(0)) revert ErrorsLib.InvalidMarketOracle();
         if (_factory == address(0)) revert ErrorsLib.ZeroAddress();
 
         underlyingAsset = IERC20(_underlyingAsset);
         internalStatesOrchestrator = _internalStatesOrchestrator;
         liquidityOrchestrator = _liquidityOrchestrator;
-        priceAndPnLOracle = _priceAndPnLOracle;
+        MarketOracle = _MarketOracle;
         curatorIntentDecimals = _curatorIntentDecimals;
         fhePublicCID = _fhePublicCID;
         vaultFactory = _factory;
@@ -79,7 +79,7 @@ contract OrionConfig is IOrionConfig, Ownable2Step {
             _underlyingAsset,
             _internalStatesOrchestrator,
             _liquidityOrchestrator,
-            _priceAndPnLOracle,
+            _MarketOracle,
             _curatorIntentDecimals,
             _fhePublicCID,
             _factory

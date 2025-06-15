@@ -3,6 +3,9 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@chainlink/contracts/src/v0.8/automation/AutomationCompatible.sol";
+import "./interfaces/IOrionConfig.sol";
+import "./interfaces/IOrionVault.sol";
+import "./interfaces/IMarketOracle.sol";
 
 // https://automation.chain.link/
 // InternalStatesOrchestrator: Orchestrates internal state transitions triggered by Chainlink Automation
@@ -16,12 +19,17 @@ contract InternalStatesOrchestrator is Ownable2Step, AutomationCompatibleInterfa
     /// @notice Chainlink Automation Registry address
     address public immutable registry;
 
+    /// @notice Orion Config contract address
+    IOrionConfig public config;
+
     /// @notice Emitted when internal states are processed
     event InternalStateProcessed(uint256 timestamp);
 
     /// @param _registry The Chainlink Automation registry address
-    constructor(address _registry) Ownable(msg.sender) {
+    /// @param _config The Orion Config contract address
+    constructor(address _registry, address _config) Ownable(msg.sender) {
         registry = _registry;
+        config = IOrionConfig(_config);
         nextUpdateTime = block.timestamp + UPDATE_INTERVAL;
     }
 
@@ -42,22 +50,33 @@ contract InternalStatesOrchestrator is Ownable2Step, AutomationCompatibleInterfa
     function performUpkeep(bytes calldata) external override onlyRegistry {
         require(block.timestamp >= nextUpdateTime, "Too early");
 
-        _processInternalStates();
+        // 1. Collect states from market oracle
+        address oracleAddress = config.MarketOracle();
+        IMarketOracle oracle = IMarketOracle(oracleAddress);
+        (uint256[] memory previousPriceArray, uint256[] memory currentPriceArray) = oracle.getPrices();
 
-        // Update the timestamp for the next run
-        nextUpdateTime = block.timestamp + UPDATE_INTERVAL;
-    }
+        // 2. Collect states from all Orion vaults
+        uint256 vaultCount = config.orionVaultsLength();
 
-    function _processInternalStates() internal {
-        // TODO:
-        // 1. Collect states from all Orion vaults and from price oracle
+        for (uint256 i = 0; i < vaultCount; i++) {
+            address vaultAddress = config.getOrionVaultAt(i);
+            IOrionVault vault = IOrionVault(vaultAddress);
 
-        // 2. Update internal states based on the collected states
+            // Read vault states
+            uint256 sharePrice = vault.sharePrice();
+            uint256 totalAssets = vault.totalAssets();
+        }
+
+        // 3. Update internal states based on the collected states
         // TVL_t+1= TVL_t + Deposits - Withdraw + P&L(vault)
         // share_price_t+1 = share_price + P&L(vault)
 
-        // 3. Trigger Liquidity Orchestrator to update liquidity positions based on updated internal states.
+        // 4. Trigger Liquidity Orchestrator to update liquidity positions based on updated internal states.
+        // TODO: Implement liquidity orchestrator trigger
 
         emit InternalStateProcessed(block.timestamp);
+
+        // Update the timestamp for the next run
+        nextUpdateTime = block.timestamp + UPDATE_INTERVAL;
     }
 }
