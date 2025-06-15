@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "./IMarketOracle.sol";
 
 interface IOrionConfig {
     /// @notice Returns the address of the internal states orchestrator contract
@@ -17,7 +18,7 @@ interface IOrionConfig {
     /// @notice Returns the address of the market oracle contract
     /// @dev This oracle provides price feeds and profit/loss calculations
     /// @return The address of the market oracle
-    function MarketOracle() external view returns (address);
+    function marketOracle() external view returns (IMarketOracle);
 
     /// @notice Returns the address of the vault factory contract
     /// @dev This factory is responsible for creating new Orion vaults
@@ -50,7 +51,7 @@ interface IOrionConfig {
     /// @param _underlyingAsset The address of the underlying asset contract
     /// @param _internalStatesOrchestrator The address of the internal states orchestrator
     /// @param _liquidityOrchestrator The address of the liquidity orchestrator
-    /// @param _MarketOracle The address of the market oracle
+    /// @param _marketOracle The address of the market oracle
     /// @param _curatorIntentDecimals The number of decimal places for curator intents
     /// @param _fhePublicCID The FHE public CID string
     /// @param _factory The address of the vault factory
@@ -58,7 +59,7 @@ interface IOrionConfig {
         address _underlyingAsset,
         address _internalStatesOrchestrator,
         address _liquidityOrchestrator,
-        address _MarketOracle,
+        IMarketOracle _marketOracle,
         uint8 _curatorIntentDecimals,
         string calldata _fhePublicCID,
         address _factory

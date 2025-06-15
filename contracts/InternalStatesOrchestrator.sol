@@ -39,10 +39,13 @@ contract InternalStatesOrchestrator is Ownable2Step, AutomationCompatibleInterfa
         _;
     }
 
-    /// @notice Called off-chain by Chainlink nodes to check if `performUpkeep()` should be called
     function checkUpkeep(bytes calldata) external view override returns (bool upkeepNeeded, bytes memory performData) {
         upkeepNeeded = block.timestamp >= nextUpdateTime;
         performData = bytes("");
+        // TODO: compute here all read-only states to generate payload to then pass to performUpkeep
+        // https://docs.chain.link/chainlink-automation/reference/automation-interfaces
+        // Losing atomicity, not sure if best approach.
+        // get previousPriceArray from oracle here.
         return (upkeepNeeded, performData);
     }
 
@@ -51,8 +54,9 @@ contract InternalStatesOrchestrator is Ownable2Step, AutomationCompatibleInterfa
         require(block.timestamp >= nextUpdateTime, "Too early");
 
         // 1. Collect states from market oracle
-        address oracleAddress = config.MarketOracle();
-        IMarketOracle oracle = IMarketOracle(oracleAddress);
+        IMarketOracle oracle = config.marketOracle();
+        // TODO: break down following function to have a read-only query
+        // and another which is actually writing to the oracle state latest price.
         (uint256[] memory previousPriceArray, uint256[] memory currentPriceArray) = oracle.getPrices();
 
         // 2. Collect states from all Orion vaults
@@ -71,10 +75,13 @@ contract InternalStatesOrchestrator is Ownable2Step, AutomationCompatibleInterfa
         // TVL_t+1= TVL_t + Deposits - Withdraw + P&L(vault)
         // share_price_t+1 = share_price + P&L(vault)
 
+        emit InternalStateProcessed(block.timestamp);
+
+        // TODO: consider having another offchain process listening to this event
+        // and updating the liquidity positions in another transaction.
+        // No atomicity, but better for scalability. To be discussed.
         // 4. Trigger Liquidity Orchestrator to update liquidity positions based on updated internal states.
         // TODO: Implement liquidity orchestrator trigger
-
-        emit InternalStateProcessed(block.timestamp);
 
         // Update the timestamp for the next run
         nextUpdateTime = block.timestamp + UPDATE_INTERVAL;

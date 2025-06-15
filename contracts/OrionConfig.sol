@@ -6,13 +6,14 @@ import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import { ErrorsLib } from "./libraries/ErrorsLib.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "./interfaces/IMarketOracle.sol";
 
 contract OrionConfig is IOrionConfig, Ownable2Step {
     // Protocol-wide configuration
     IERC20 public underlyingAsset;
     address public internalStatesOrchestrator;
     address public liquidityOrchestrator;
-    address public MarketOracle;
+    IMarketOracle public marketOracle;
     address public vaultFactory;
 
     // Curator-specific configuration
@@ -36,7 +37,7 @@ contract OrionConfig is IOrionConfig, Ownable2Step {
         address underlyingAsset,
         address internalStatesOrchestrator,
         address liquidityOrchestrator,
-        address MarketOracle,
+        IMarketOracle marketOracle,
         uint256 curatorIntentDecimals,
         string fhePublicCID,
         address factory
@@ -56,7 +57,7 @@ contract OrionConfig is IOrionConfig, Ownable2Step {
         address _underlyingAsset,
         address _internalStatesOrchestrator,
         address _liquidityOrchestrator,
-        address _MarketOracle,
+        IMarketOracle _marketOracle,
         uint8 _curatorIntentDecimals,
         string calldata _fhePublicCID,
         address _factory
@@ -64,13 +65,13 @@ contract OrionConfig is IOrionConfig, Ownable2Step {
         if (_underlyingAsset == address(0)) revert ErrorsLib.InvalidAsset();
         if (_internalStatesOrchestrator == address(0)) revert ErrorsLib.InvalidInternalOrchestrator();
         if (_liquidityOrchestrator == address(0)) revert ErrorsLib.InvalidLiquidityOrchestrator();
-        if (_MarketOracle == address(0)) revert ErrorsLib.InvalidMarketOracle();
+        if (address(_marketOracle) == address(0)) revert ErrorsLib.InvalidMarketOracle();
         if (_factory == address(0)) revert ErrorsLib.ZeroAddress();
 
         underlyingAsset = IERC20(_underlyingAsset);
         internalStatesOrchestrator = _internalStatesOrchestrator;
         liquidityOrchestrator = _liquidityOrchestrator;
-        MarketOracle = _MarketOracle;
+        marketOracle = _marketOracle;
         curatorIntentDecimals = _curatorIntentDecimals;
         fhePublicCID = _fhePublicCID;
         vaultFactory = _factory;
@@ -79,7 +80,7 @@ contract OrionConfig is IOrionConfig, Ownable2Step {
             _underlyingAsset,
             _internalStatesOrchestrator,
             _liquidityOrchestrator,
-            _MarketOracle,
+            _marketOracle,
             _curatorIntentDecimals,
             _fhePublicCID,
             _factory
