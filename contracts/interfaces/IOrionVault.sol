@@ -5,17 +5,6 @@ import "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import "./IOrionConfig.sol";
 
 interface IOrionVault is IERC4626 {
-    // Structs
-    struct DepositRequest {
-        address user;
-        uint256 amount;
-    }
-
-    struct WithdrawRequest {
-        address user;
-        uint256 shares;
-    }
-
     // Events
     event OrderSubmitted(address indexed curator);
     event DepositRequested(address indexed user, uint256 amount, uint256 requestId);

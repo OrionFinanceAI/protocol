@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
+import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import { ReentrancyGuardTransient } from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import "./interfaces/IOrionConfig.sol";
 import "./interfaces/IOrionVault.sol";
@@ -29,6 +30,8 @@ import { ErrorsLib } from "./libraries/ErrorsLib.sol";
  * (OrionTransparentVault) or encrypted form (OrionEncryptedVault) for privacy-preserving vaults.
  */
 abstract contract OrionVault is IOrionVault, ERC4626, ReentrancyGuardTransient {
+    using EnumerableMap for EnumerableMap.AddressToUintMap;
+
     IOrionConfig public config;
     address public curator;
     address public deployer;
@@ -37,8 +40,8 @@ abstract contract OrionVault is IOrionVault, ERC4626, ReentrancyGuardTransient {
     uint256 internal _totalAssets;
 
     // Queues of async requests from LPs
-    DepositRequest[] public depositRequests;
-    WithdrawRequest[] public withdrawRequests;
+    EnumerableMap.AddressToUintMap private _depositRequests;
+    EnumerableMap.AddressToUintMap private _withdrawRequests;
 
     modifier onlyCurator() {
         if (msg.sender != curator) revert ErrorsLib.NotCurator();
@@ -104,26 +107,42 @@ abstract contract OrionVault is IOrionVault, ERC4626, ReentrancyGuardTransient {
 
     /// --------- LP FUNCTIONS ---------
 
-    /// @notice LPs submits async deposit request; no tokens minted yet
+    /// @notice LPs submits async deposit request; no share tokens minted yet,
+    /// while underlying tokens are transferred to the vault contract as escrow.
     function requestDeposit(uint256 amount) external {
+        // Checks first
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
-        // Transfer underlying tokens from LPs to vault contract as deposit escrow
-        if (!IERC20(asset()).transferFrom(msg.sender, address(this), amount)) revert ErrorsLib.TransferFailed();
-        depositRequests.push(DepositRequest({ user: msg.sender, amount: amount }));
 
-        emit DepositRequested(msg.sender, amount, depositRequests.length - 1);
+        // Effects - update internal state before external interactions
+        (bool exists, uint256 existingAmount) = _depositRequests.tryGet(msg.sender);
+        if (exists) _depositRequests.set(msg.sender, existingAmount + amount);
+        else _depositRequests.set(msg.sender, amount);
+
+        // Interactions - external calls last
+        bool success = IERC20(asset()).transferFrom(msg.sender, address(this), amount);
+        if (!success) revert ErrorsLib.TransferFailed();
+
+        emit DepositRequested(msg.sender, amount, _depositRequests.length());
     }
+    // TODO: To make the system more trustless,
+    // add a function to withdrawl (syncronously) before minting and
+    // get back the underlying tokens in the escrow.
 
     /// @notice LPs submits async withdrawal request; shares locked until processed
     function requestWithdraw(uint256 shares) external {
+        // Checks first
         if (shares == 0) revert ErrorsLib.SharesMustBeGreaterThanZero();
         if (balanceOf(msg.sender) < shares) revert ErrorsLib.NotEnoughShares();
-        // Lock shares by transferring them to contract as escrow
+
+        // Effects - update internal state before transfers
+        (bool exists, uint256 existingShares) = _withdrawRequests.tryGet(msg.sender);
+        if (exists) _withdrawRequests.set(msg.sender, existingShares + shares);
+        else _withdrawRequests.set(msg.sender, shares);
+
+        // Interactions - lock shares by transferring them to contract as escrow
         _transfer(msg.sender, address(this), shares);
 
-        withdrawRequests.push(WithdrawRequest({ user: msg.sender, shares: shares }));
-
-        emit WithdrawRequested(msg.sender, shares, withdrawRequests.length - 1);
+        emit WithdrawRequested(msg.sender, shares, _withdrawRequests.length());
     }
 
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
@@ -142,33 +161,31 @@ abstract contract OrionVault is IOrionVault, ERC4626, ReentrancyGuardTransient {
     /// @notice Process deposit requests from LPs
     function processDepositRequests() external onlyLiquidityOrchestrator nonReentrant {
         uint256 i = 0;
-        for (i = 0; i < depositRequests.length; i++) {
-            DepositRequest storage request = depositRequests[i];
-            uint256 shares = previewDeposit(request.amount);
+        for (i = 0; i < _depositRequests.length(); i++) {
+            (address user, uint256 amount) = _depositRequests.at(i);
+            uint256 shares = previewDeposit(amount);
 
-            depositRequests[i] = depositRequests[depositRequests.length - 1];
-            depositRequests.pop();
+            _depositRequests.remove(user);
 
-            _mint(request.user, shares);
+            _mint(user, shares);
 
-            emit DepositProcessed(request.user, request.amount, i);
+            emit DepositProcessed(user, amount, i);
         }
     }
 
     /// @notice Process withdrawal requests from LPs
     function processWithdrawRequests() external onlyLiquidityOrchestrator nonReentrant {
         uint256 i = 0;
-        for (i = 0; i < withdrawRequests.length; i++) {
-            WithdrawRequest storage request = withdrawRequests[i];
+        for (i = 0; i < _withdrawRequests.length(); i++) {
+            (address user, uint256 shares) = _withdrawRequests.at(i);
 
-            withdrawRequests[i] = withdrawRequests[withdrawRequests.length - 1];
-            withdrawRequests.pop();
+            _withdrawRequests.remove(user);
 
-            _burn(address(this), request.shares);
-            uint256 underlyingAmount = previewRedeem(request.shares);
-            if (!IERC20(asset()).transfer(request.user, underlyingAmount)) revert ErrorsLib.TransferFailed();
+            _burn(address(this), shares);
+            uint256 underlyingAmount = previewRedeem(shares);
+            if (!IERC20(asset()).transfer(user, underlyingAmount)) revert ErrorsLib.TransferFailed();
 
-            emit WithdrawProcessed(request.user, request.shares, i);
+            emit WithdrawProcessed(user, shares, i);
         }
     }
 

@@ -672,30 +672,6 @@
     {
       "inputs": [
         {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "name": "depositRequests",
-      "outputs": [
-        {
-          "internalType": "address",
-          "name": "user",
-          "type": "address"
-        },
-        {
-          "internalType": "uint256",
-          "name": "amount",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
           "internalType": "address",
           "name": "",
           "type": "address"
@@ -1109,30 +1085,6 @@
         }
       ],
       "stateMutability": "pure",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "name": "withdrawRequests",
-      "outputs": [
-        {
-          "internalType": "address",
-          "name": "user",
-          "type": "address"
-        },
-        {
-          "internalType": "uint256",
-          "name": "shares",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
       "type": "function"
     }
   ],
