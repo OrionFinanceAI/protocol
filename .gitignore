@@ -39,6 +39,7 @@ rust-fhe/target/
 
 # Artifacts
 artifacts/@openzeppelin/
+artifacts/@chainlink/
 artifacts/build-info/
 artifacts/lib/
 artifacts/fhevm/
