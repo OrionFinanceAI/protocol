@@ -5,10 +5,11 @@ import "./interfaces/IOrionConfig.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import { ErrorsLib } from "./libraries/ErrorsLib.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract OrionConfig is IOrionConfig, Ownable2Step {
     // Protocol-wide configuration
-    address public underlyingAsset;
+    IERC20 public underlyingAsset;
     address public internalStatesOrchestrator;
     address public liquidityOrchestrator;
     address public priceAndPnLOracle;
@@ -70,7 +71,7 @@ contract OrionConfig is IOrionConfig, Ownable2Step {
         if (_liquidityOrchestrator == address(0)) revert ErrorsLib.InvalidLiquidityOrchestrator();
         if (_priceAndPnLOracle == address(0)) revert ErrorsLib.InvalidPriceAndPnLOracle();
 
-        underlyingAsset = _underlyingAsset;
+        underlyingAsset = IERC20(_underlyingAsset);
         internalStatesOrchestrator = _internalStatesOrchestrator;
         liquidityOrchestrator = _liquidityOrchestrator;
         priceAndPnLOracle = _priceAndPnLOracle;

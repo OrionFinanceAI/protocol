@@ -241,11 +241,6 @@
     },
     {
       "inputs": [],
-      "name": "UnderlyingAssetNotSet",
-      "type": "error"
-    },
-    {
-      "inputs": [],
       "name": "ZeroPrice",
       "type": "error"
     },

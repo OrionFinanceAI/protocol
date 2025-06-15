@@ -27,7 +27,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
     constructor(
         address _curator,
-        address _config,
+        IOrionConfig _config,
         string memory _name,
         string memory _symbol
     ) OrionVault(_curator, _config, _name, _symbol) {}

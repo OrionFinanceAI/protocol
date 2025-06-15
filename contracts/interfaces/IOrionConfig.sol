@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.20;
 
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
 interface IOrionConfig {
     /// @notice Returns the address of the internal states orchestrator contract
     /// @dev This orchestrator manages the internal state transitions of the protocol
@@ -31,5 +33,5 @@ interface IOrionConfig {
     /// @notice Returns the address of the underlying asset used by the protocol
     /// @dev This is the base asset that the protocol operates with
     /// @return The address of the underlying asset contract
-    function underlyingAsset() external view returns (address);
+    function underlyingAsset() external view returns (IERC20);
 }

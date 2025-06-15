@@ -74,16 +74,16 @@ abstract contract OrionVault is IOrionVault, ERC4626, ReentrancyGuardTransient {
 
     constructor(
         address _curator,
-        address _config,
+        IOrionConfig _config,
         string memory _name,
         string memory _symbol
-    ) ERC20(_name, _symbol) ERC4626(_getUnderlyingAsset(_config)) {
+    ) ERC20(_name, _symbol) ERC4626(_config.underlyingAsset()) {
         if (_curator == address(0)) revert ErrorsLib.InvalidCuratorAddress();
-        if (_config == address(0)) revert ErrorsLib.InvalidConfigAddress();
+        if (address(_config) == address(0)) revert ErrorsLib.InvalidConfigAddress();
 
         deployer = msg.sender;
         curator = _curator;
-        config = IOrionConfig(_config);
+        config = _config;
         sharePrice = 10 ** decimals();
         _totalAssets = 0;
     }
@@ -194,9 +194,9 @@ abstract contract OrionVault is IOrionVault, ERC4626, ReentrancyGuardTransient {
     /// @param _config The address of the config contract
     /// @return The underlying asset address
     function _getUnderlyingAsset(address _config) internal view returns (IERC20) {
-        address asset = IOrionConfig(_config).underlyingAsset();
-        if (asset == address(0)) revert ErrorsLib.UnderlyingAssetNotSet();
-        return IERC20(asset);
+        IERC20 asset = IOrionConfig(_config).underlyingAsset();
+        if (address(asset) == address(0)) revert ErrorsLib.UnderlyingAssetNotSet();
+        return asset;
     }
 
     /// --------- ABSTRACT FUNCTIONS ---------
