@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import { ReentrancyGuardTransient } from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import "./interfaces/IOrionConfig.sol";
 import "./interfaces/IOrionVault.sol";
@@ -29,7 +30,7 @@ import { ErrorsLib } from "./libraries/ErrorsLib.sol";
  * Derived contracts implement the specific intent submission and interpretation logic, either in plaintext
  * (OrionTransparentVault) or encrypted form (OrionEncryptedVault) for privacy-preserving vaults.
  */
-abstract contract OrionVault is IOrionVault, ERC4626, ReentrancyGuardTransient {
+abstract contract OrionVault is IOrionVault, ERC4626, ReentrancyGuardTransient, Ownable2Step {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
 
     IOrionConfig public config;
@@ -63,7 +64,7 @@ abstract contract OrionVault is IOrionVault, ERC4626, ReentrancyGuardTransient {
         IOrionConfig _config,
         string memory _name,
         string memory _symbol
-    ) ERC20(_name, _symbol) ERC4626(_config.underlyingAsset()) {
+    ) ERC20(_name, _symbol) ERC4626(_config.underlyingAsset()) Ownable(_curator) {
         if (_curator == address(0)) revert ErrorsLib.InvalidCuratorAddress();
         if (address(_config) == address(0)) revert ErrorsLib.InvalidConfigAddress();
 
