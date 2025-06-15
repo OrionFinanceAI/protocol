@@ -111,11 +111,11 @@ abstract contract OrionVault is IOrionVault, ERC4626, ReentrancyGuardTransient {
     }
 
     function convertToShares(uint256 assets) public view override(ERC4626, IERC4626) returns (uint256) {
-        return (assets * 1e18) / sharePrice;
+        return (assets * decimals()) / sharePrice;
     }
 
     function convertToAssets(uint256 shares) public view override(ERC4626, IERC4626) returns (uint256) {
-        return (shares * sharePrice) / 1e18;
+        return (shares * sharePrice) / decimals();
     }
 
     /// --------- LP FUNCTIONS ---------
