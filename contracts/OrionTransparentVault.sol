@@ -18,11 +18,6 @@ import { ErrorsLib } from "./libraries/ErrorsLib.sol";
 contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
 
-    struct Order {
-        address token;
-        uint32 amount;
-    }
-
     EnumerableMap.AddressToUintMap private _orders;
 
     constructor(

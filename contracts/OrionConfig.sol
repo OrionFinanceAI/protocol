@@ -31,7 +31,6 @@ contract OrionConfig is IOrionConfig, Ownable2Step {
     event WhitelistedAssetRemoved(address indexed asset);
     event OrionVaultAdded(address indexed vault);
     event OrionVaultRemoved(address indexed vault);
-    event VaultFactorySet(address factory);
     event PublicCIDUpdated(string newCID);
     event ProtocolParamsUpdated(
         address underlyingAsset,
@@ -39,7 +38,8 @@ contract OrionConfig is IOrionConfig, Ownable2Step {
         address liquidityOrchestrator,
         address priceAndPnLOracle,
         uint256 curatorIntentDecimals,
-        string fhePublicCID
+        string fhePublicCID,
+        address factory
     );
 
     modifier onlyFactory() {
@@ -52,24 +52,20 @@ contract OrionConfig is IOrionConfig, Ownable2Step {
 
     // === Protocol Configuration ===
 
-    function setVaultFactory(address _factory) external onlyOwner {
-        if (_factory == address(0)) revert ErrorsLib.ZeroAddress();
-        vaultFactory = _factory;
-        emit VaultFactorySet(_factory);
-    }
-
     function setProtocolParams(
         address _underlyingAsset,
         address _internalStatesOrchestrator,
         address _liquidityOrchestrator,
         address _priceAndPnLOracle,
         uint8 _curatorIntentDecimals,
-        string calldata _fhePublicCID
+        string calldata _fhePublicCID,
+        address _factory
     ) external onlyOwner {
         if (_underlyingAsset == address(0)) revert ErrorsLib.InvalidAsset();
         if (_internalStatesOrchestrator == address(0)) revert ErrorsLib.InvalidInternalOrchestrator();
         if (_liquidityOrchestrator == address(0)) revert ErrorsLib.InvalidLiquidityOrchestrator();
         if (_priceAndPnLOracle == address(0)) revert ErrorsLib.InvalidPriceAndPnLOracle();
+        if (_factory == address(0)) revert ErrorsLib.ZeroAddress();
 
         underlyingAsset = IERC20(_underlyingAsset);
         internalStatesOrchestrator = _internalStatesOrchestrator;
@@ -77,6 +73,7 @@ contract OrionConfig is IOrionConfig, Ownable2Step {
         priceAndPnLOracle = _priceAndPnLOracle;
         curatorIntentDecimals = _curatorIntentDecimals;
         fhePublicCID = _fhePublicCID;
+        vaultFactory = _factory;
 
         emit ProtocolParamsUpdated(
             _underlyingAsset,
@@ -84,7 +81,8 @@ contract OrionConfig is IOrionConfig, Ownable2Step {
             _liquidityOrchestrator,
             _priceAndPnLOracle,
             _curatorIntentDecimals,
-            _fhePublicCID
+            _fhePublicCID,
+            _factory
         );
     }
 
@@ -137,10 +135,6 @@ contract OrionConfig is IOrionConfig, Ownable2Step {
     }
 
     // === FHE Public CID ===
-
-    function getFhePublicCID() external view returns (string memory) {
-        return fhePublicCID;
-    }
 
     function updateFhePublicCID(string calldata newCID) external onlyOwner {
         fhePublicCID = newCID;

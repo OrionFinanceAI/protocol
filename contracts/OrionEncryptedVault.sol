@@ -2,9 +2,10 @@
 pragma solidity ^0.8.20;
 
 import { euint32 } from "../lib/fhevm-solidity/lib/FHE.sol";
-import "./interfaces/IOrionConfig.sol";
 import "./OrionVault.sol";
+import "./interfaces/IOrionConfig.sol";
 import "./interfaces/IOrionEncryptedVault.sol";
+import { ErrorsLib } from "./libraries/ErrorsLib.sol";
 
 /**
  * @title OrionEncryptedVault
@@ -15,11 +16,6 @@ import "./interfaces/IOrionEncryptedVault.sol";
  * privacy of the portfolio allocation strategy, while maintaining capital efficiency.
  */
 contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
-    struct Order {
-        address token;
-        euint32 amount;
-    }
-
     mapping(address => euint32) private _orders;
 
     constructor(

@@ -36,26 +36,9 @@ abstract contract OrionVault is IOrionVault, ERC4626, ReentrancyGuardTransient {
     uint256 public sharePrice;
     uint256 internal _totalAssets;
 
-    struct DepositRequest {
-        address user;
-        uint256 amount;
-    }
-
-    struct WithdrawRequest {
-        address user;
-        uint256 shares;
-    }
-
     // Queues of async requests from LPs
     DepositRequest[] public depositRequests;
     WithdrawRequest[] public withdrawRequests;
-
-    // Events
-    event OrderSubmitted(address indexed curator);
-    event DepositRequested(address indexed user, uint256 amount, uint256 requestId);
-    event WithdrawRequested(address indexed user, uint256 shares, uint256 requestId);
-    event DepositProcessed(address indexed user, uint256 amount, uint256 requestId);
-    event WithdrawProcessed(address indexed user, uint256 shares, uint256 requestId);
 
     modifier onlyCurator() {
         if (msg.sender != curator) revert ErrorsLib.NotCurator();
