@@ -2,14 +2,14 @@
 pragma solidity ^0.8.4;
 
 import "./interfaces/IOrionConfig.sol";
-import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
+import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import { ErrorsLib } from "./libraries/ErrorsLib.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract OrionConfig is IOrionConfig {
-    address public owner;
-
+contract OrionConfig is IOrionConfig, Ownable2Step {
     // Protocol-wide configuration
-    address public underlyingAsset;
+    IERC20 public underlyingAsset;
     address public internalStatesOrchestrator;
     address public liquidityOrchestrator;
     address public priceAndPnLOracle;
@@ -24,16 +24,13 @@ contract OrionConfig is IOrionConfig {
     EnumerableSet.AddressSet private whitelistedAssets;
 
     // Orion-specific configuration
-    address[] public orionVaults;
-    mapping(address => bool) public isOrionVault;
-    uint256 public orionVaultCount;
+    EnumerableSet.AddressSet private orionVaults;
 
     // Events
     event WhitelistedAssetAdded(address indexed asset);
     event WhitelistedAssetRemoved(address indexed asset);
     event OrionVaultAdded(address indexed vault);
     event OrionVaultRemoved(address indexed vault);
-    event VaultFactorySet(address factory);
     event PublicCIDUpdated(string newCID);
     event ProtocolParamsUpdated(
         address underlyingAsset,
@@ -41,14 +38,9 @@ contract OrionConfig is IOrionConfig {
         address liquidityOrchestrator,
         address priceAndPnLOracle,
         uint256 curatorIntentDecimals,
-        string fhePublicCID
+        string fhePublicCID,
+        address factory
     );
-
-    // Modifier
-    modifier onlyOwner() {
-        if (msg.sender != owner) revert ErrorsLib.NotOwner();
-        _;
-    }
 
     modifier onlyFactory() {
         if (msg.sender != vaultFactory) revert ErrorsLib.NotFactory();
@@ -56,17 +48,9 @@ contract OrionConfig is IOrionConfig {
     }
 
     // Constructor
-    constructor() {
-        owner = msg.sender;
-    }
+    constructor() Ownable(msg.sender) {}
 
     // === Protocol Configuration ===
-
-    function setVaultFactory(address _factory) external onlyOwner {
-        if (_factory == address(0)) revert ErrorsLib.ZeroAddress();
-        vaultFactory = _factory;
-        emit VaultFactorySet(_factory);
-    }
 
     function setProtocolParams(
         address _underlyingAsset,
@@ -74,19 +58,22 @@ contract OrionConfig is IOrionConfig {
         address _liquidityOrchestrator,
         address _priceAndPnLOracle,
         uint8 _curatorIntentDecimals,
-        string calldata _fhePublicCID
+        string calldata _fhePublicCID,
+        address _factory
     ) external onlyOwner {
         if (_underlyingAsset == address(0)) revert ErrorsLib.InvalidAsset();
         if (_internalStatesOrchestrator == address(0)) revert ErrorsLib.InvalidInternalOrchestrator();
         if (_liquidityOrchestrator == address(0)) revert ErrorsLib.InvalidLiquidityOrchestrator();
         if (_priceAndPnLOracle == address(0)) revert ErrorsLib.InvalidPriceAndPnLOracle();
+        if (_factory == address(0)) revert ErrorsLib.ZeroAddress();
 
-        underlyingAsset = _underlyingAsset;
+        underlyingAsset = IERC20(_underlyingAsset);
         internalStatesOrchestrator = _internalStatesOrchestrator;
         liquidityOrchestrator = _liquidityOrchestrator;
         priceAndPnLOracle = _priceAndPnLOracle;
         curatorIntentDecimals = _curatorIntentDecimals;
         fhePublicCID = _fhePublicCID;
+        vaultFactory = _factory;
 
         emit ProtocolParamsUpdated(
             _underlyingAsset,
@@ -94,7 +81,8 @@ contract OrionConfig is IOrionConfig {
             _liquidityOrchestrator,
             _priceAndPnLOracle,
             _curatorIntentDecimals,
-            _fhePublicCID
+            _fhePublicCID,
+            _factory
         );
     }
 
@@ -127,55 +115,29 @@ contract OrionConfig is IOrionConfig {
     // === Orion Vaults ===
 
     function addOrionVault(address vault) external onlyFactory {
-        if (isOrionVault[vault]) revert ErrorsLib.AlreadyAnOrionVault();
-        orionVaults.push(vault);
-        isOrionVault[vault] = true;
-        orionVaultCount += 1;
+        bool inserted = orionVaults.add(vault);
+        if (!inserted) revert ErrorsLib.AlreadyAnOrionVault();
         emit OrionVaultAdded(vault);
     }
 
     function removeOrionVault(address vault) external onlyFactory {
-        if (!isOrionVault[vault]) revert ErrorsLib.NotAnOrionVault();
-
-        uint256 index = _indexOfOrionVault(vault);
-        orionVaults[index] = orionVaults[orionVaults.length - 1];
-        orionVaults.pop();
-
-        isOrionVault[vault] = false;
-        orionVaultCount -= 1;
-
+        bool removed = orionVaults.remove(vault);
+        if (!removed) revert ErrorsLib.NotAnOrionVault();
         emit OrionVaultRemoved(vault);
     }
 
-    function getOrionVaultAt(uint256 index) external view returns (address) {
-        if (index >= orionVaults.length) revert ErrorsLib.IndexOutOfBounds();
-        return orionVaults[index];
+    function orionVaultsLength() external view returns (uint256) {
+        return orionVaults.length();
     }
 
-    function _indexOfOrionVault(address vault) internal view returns (uint256) {
-        for (uint256 i = 0; i < orionVaults.length; i++) {
-            if (orionVaults[i] == vault) {
-                return i;
-            }
-        }
-        revert ErrorsLib.OrionVaultNotFound();
+    function getOrionVaultAt(uint256 index) external view returns (address) {
+        return orionVaults.at(index);
     }
 
     // === FHE Public CID ===
 
-    function getFhePublicCID() external view returns (string memory) {
-        return fhePublicCID;
-    }
-
     function updateFhePublicCID(string calldata newCID) external onlyOwner {
         fhePublicCID = newCID;
         emit PublicCIDUpdated(newCID);
-    }
-
-    // === Ownership ===
-
-    function transferOwnership(address newOwner) external onlyOwner {
-        if (newOwner == address(0)) revert ErrorsLib.ZeroAddress();
-        owner = newOwner;
     }
 }

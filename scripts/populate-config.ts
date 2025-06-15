@@ -49,14 +49,10 @@ async function main() {
     ORACLE_ADDRESS,
     9, // Biggest integer that can be represented in 32 bits
     FHE_PUBLIC_CID,
+    FACTORY_ADDRESS,
   );
   await setTx.wait();
   console.log("✅ Protocol parameters updated");
-
-  console.log(`🏭 Setting vault factory address to ${FACTORY_ADDRESS}...`);
-  const factoryTx = await config.setVaultFactory(FACTORY_ADDRESS);
-  await factoryTx.wait();
-  console.log("✅ Vault factory address set");
 
   const universeList = getUniverseList();
 

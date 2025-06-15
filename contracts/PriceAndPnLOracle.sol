@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.20;
 
-contract PriceAndPnLOracle {
-    address public owner;
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
 
-    constructor() {
-        owner = msg.sender;
-    }
+contract PriceAndPnLOracle is Ownable2Step {
+    constructor() Ownable(msg.sender) {}
 }
