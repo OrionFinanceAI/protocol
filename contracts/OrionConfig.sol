@@ -3,11 +3,10 @@ pragma solidity ^0.8.4;
 
 import "./interfaces/IOrionConfig.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import { ErrorsLib } from "./libraries/ErrorsLib.sol";
 
-contract OrionConfig is IOrionConfig {
-    address public owner;
-
+contract OrionConfig is IOrionConfig, Ownable2Step {
     // Protocol-wide configuration
     address public underlyingAsset;
     address public internalStatesOrchestrator;
@@ -44,21 +43,13 @@ contract OrionConfig is IOrionConfig {
         string fhePublicCID
     );
 
-    // Modifier
-    modifier onlyOwner() {
-        if (msg.sender != owner) revert ErrorsLib.NotOwner();
-        _;
-    }
-
     modifier onlyFactory() {
         if (msg.sender != vaultFactory) revert ErrorsLib.NotFactory();
         _;
     }
 
     // Constructor
-    constructor() {
-        owner = msg.sender;
-    }
+    constructor() Ownable(msg.sender) {}
 
     // === Protocol Configuration ===
 
@@ -170,12 +161,5 @@ contract OrionConfig is IOrionConfig {
     function updateFhePublicCID(string calldata newCID) external onlyOwner {
         fhePublicCID = newCID;
         emit PublicCIDUpdated(newCID);
-    }
-
-    // === Ownership ===
-
-    function transferOwnership(address newOwner) external onlyOwner {
-        if (newOwner == address(0)) revert ErrorsLib.ZeroAddress();
-        owner = newOwner;
     }
 }
