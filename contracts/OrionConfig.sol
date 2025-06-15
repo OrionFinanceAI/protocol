@@ -2,7 +2,7 @@
 pragma solidity ^0.8.4;
 
 import "./interfaces/IOrionConfig.sol";
-import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
+import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import { ErrorsLib } from "./libraries/ErrorsLib.sol";
 
@@ -23,9 +23,7 @@ contract OrionConfig is IOrionConfig, Ownable2Step {
     EnumerableSet.AddressSet private whitelistedAssets;
 
     // Orion-specific configuration
-    address[] public orionVaults;
-    mapping(address => bool) public isOrionVault;
-    uint256 public orionVaultCount;
+    EnumerableSet.AddressSet private orionVaults;
 
     // Events
     event WhitelistedAssetAdded(address indexed asset);
@@ -118,38 +116,23 @@ contract OrionConfig is IOrionConfig, Ownable2Step {
     // === Orion Vaults ===
 
     function addOrionVault(address vault) external onlyFactory {
-        if (isOrionVault[vault]) revert ErrorsLib.AlreadyAnOrionVault();
-        orionVaults.push(vault);
-        isOrionVault[vault] = true;
-        orionVaultCount += 1;
+        bool inserted = orionVaults.add(vault);
+        if (!inserted) revert ErrorsLib.AlreadyAnOrionVault();
         emit OrionVaultAdded(vault);
     }
 
     function removeOrionVault(address vault) external onlyFactory {
-        if (!isOrionVault[vault]) revert ErrorsLib.NotAnOrionVault();
-
-        uint256 index = _indexOfOrionVault(vault);
-        orionVaults[index] = orionVaults[orionVaults.length - 1];
-        orionVaults.pop();
-
-        isOrionVault[vault] = false;
-        orionVaultCount -= 1;
-
+        bool removed = orionVaults.remove(vault);
+        if (!removed) revert ErrorsLib.NotAnOrionVault();
         emit OrionVaultRemoved(vault);
     }
 
-    function getOrionVaultAt(uint256 index) external view returns (address) {
-        if (index >= orionVaults.length) revert ErrorsLib.IndexOutOfBounds();
-        return orionVaults[index];
+    function orionVaultsLength() external view returns (uint256) {
+        return orionVaults.length();
     }
 
-    function _indexOfOrionVault(address vault) internal view returns (uint256) {
-        for (uint256 i = 0; i < orionVaults.length; i++) {
-            if (orionVaults[i] == vault) {
-                return i;
-            }
-        }
-        revert ErrorsLib.OrionVaultNotFound();
+    function getOrionVaultAt(uint256 index) external view returns (address) {
+        return orionVaults.at(index);
     }
 
     // === FHE Public CID ===
