@@ -18,7 +18,7 @@ async function main() {
   const factory = await OrionVaultFactory.deploy(configAddress);
   await factory.waitForDeployment();
 
-  console.log("OrionVaultFactory deployed to:", factory.target);
+  console.log("✅ OrionVaultFactory deployed to:", factory.target);
 }
 
 main().catch((error) => {
