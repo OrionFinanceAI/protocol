@@ -16,14 +16,24 @@ contract MarketOracle is Ownable2Step {
     // TODO: to avoid returning asset address, make sure the components match the whitelisted universe.
     // Support the case in which the whitelist changed from the previous call.
 
-    function getPrices() external view returns (Price[] memory) {
+    function getPrices()
+        external
+        view
+        returns (uint256[] memory previousPriceArray, uint256[] memory currentPriceArray)
+    {
         // TODO: Implement this function
 
-        Price[] memory prices = new Price[](2);
-        prices[0] = Price({ previous: 1000000000000000000, current: 1000000000000000000 });
-        prices[1] = Price({ previous: 1000000000000000000, current: 1000000000000000000 });
+        // For now, return mock data with correct format
+        previousPriceArray = new uint256[](2);
+        currentPriceArray = new uint256[](2);
 
-        return prices;
+        previousPriceArray[0] = 1000000000000000000; // 1 ETH
+        previousPriceArray[1] = 1000000000000000000; // 1 ETH
+
+        currentPriceArray[0] = 1000000000000000000; // 1 ETH
+        currentPriceArray[1] = 1000000000000000000; // 1 ETH
+
+        return (previousPriceArray, currentPriceArray);
     }
 
     // TODO: two functions, one returning previous price

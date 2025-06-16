@@ -13,8 +13,15 @@ async function main() {
   }
   console.log("Using Chainlink Automation Registry:", registryAddress);
 
+  const configAddress = process.env.CONFIG_ADDRESS;
+  if (!configAddress) {
+    throw new Error("Please set CONFIG_ADDRESS in your .env file");
+  }
+
+  console.log("Using OrionConfig at:", configAddress);
+
   const InternalStatesOrchestrator = await ethers.getContractFactory("InternalStatesOrchestrator");
-  const internalStatesOrchestrator = await InternalStatesOrchestrator.deploy(registryAddress);
+  const internalStatesOrchestrator = await InternalStatesOrchestrator.deploy(registryAddress, configAddress);
 
   await internalStatesOrchestrator.waitForDeployment();
 
