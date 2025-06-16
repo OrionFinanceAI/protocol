@@ -1,5 +1,6 @@
 import * as dotenv from "dotenv";
-import { ethers } from "hardhat";
+
+const { ethers, upgrades } = require("hardhat");
 
 dotenv.config();
 
@@ -17,15 +18,19 @@ async function main() {
   if (!configAddress) {
     throw new Error("Please set CONFIG_ADDRESS in your .env file");
   }
-
   console.log("Using OrionConfig at:", configAddress);
 
   const InternalStatesOrchestrator = await ethers.getContractFactory("InternalStatesOrchestrator");
-  const internalStatesOrchestrator = await InternalStatesOrchestrator.deploy(registryAddress, configAddress);
 
-  await internalStatesOrchestrator.waitForDeployment();
+  const internalStatesOrchestratorProxy = await upgrades.deployProxy(
+    InternalStatesOrchestrator,
+    [deployer.address, registryAddress, configAddress],
+    { initializer: "initialize" },
+  );
 
-  console.log("✅ InternalStatesOrchestrator deployed to:", internalStatesOrchestrator.target);
+  await internalStatesOrchestratorProxy.waitForDeployment();
+
+  console.log("✅ InternalStatesOrchestrator deployed to:", await internalStatesOrchestratorProxy.getAddress());
 }
 
 main().catch((error) => {

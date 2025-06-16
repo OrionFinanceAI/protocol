@@ -3,12 +3,14 @@ pragma solidity ^0.8.4;
 
 import "./interfaces/IOrionConfig.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import "@openzeppelin/contracts/access/Ownable2Step.sol";
+import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import { ErrorsLib } from "./libraries/ErrorsLib.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./interfaces/IMarketOracle.sol";
 
-contract OrionConfig is IOrionConfig, Ownable2Step {
+contract OrionConfig is IOrionConfig, Initializable, Ownable2StepUpgradeable, UUPSUpgradeable {
     // Protocol-wide configuration
     IERC20 public underlyingAsset;
     address public internalStatesOrchestrator;
@@ -48,8 +50,13 @@ contract OrionConfig is IOrionConfig, Ownable2Step {
         _;
     }
 
-    // Constructor
-    constructor() Ownable(msg.sender) {}
+    function initialize(address initialOwner) public initializer {
+        __Ownable_init(initialOwner);
+        __Ownable2Step_init();
+        __UUPSUpgradeable_init();
+    }
+
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     // === Protocol Configuration ===
 

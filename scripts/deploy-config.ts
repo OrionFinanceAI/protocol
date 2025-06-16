@@ -1,15 +1,16 @@
-import { ethers } from "hardhat";
+const { ethers, upgrades } = require("hardhat");
 
 async function main() {
   const [deployer] = await ethers.getSigners();
   console.log("Deploying OrionConfig with:", await deployer.getAddress());
 
-  const Config = await ethers.getContractFactory("OrionConfig");
-  const config = await Config.deploy();
+  const OrionConfig = await ethers.getContractFactory("OrionConfig");
 
-  await config.waitForDeployment();
+  const configProxy = await upgrades.deployProxy(OrionConfig, [deployer.address], { initializer: "initialize" });
 
-  console.log("✅ OrionConfig deployed to:", config.target);
+  await configProxy.waitForDeployment();
+
+  console.log("✅ OrionConfig deployed to:", await configProxy.getAddress());
 }
 
 main().catch((error) => {

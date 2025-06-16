@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/access/Ownable2Step.sol";
+import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@chainlink/contracts/src/v0.8/automation/AutomationCompatible.sol";
 import "./interfaces/IOrionConfig.sol";
 import "./interfaces/IOrionVault.sol";
@@ -9,7 +11,12 @@ import "./interfaces/IMarketOracle.sol";
 
 // https://automation.chain.link/
 // InternalStatesOrchestrator: Orchestrates internal state transitions triggered by Chainlink Automation
-contract InternalStatesOrchestrator is Ownable2Step, AutomationCompatibleInterface {
+contract InternalStatesOrchestrator is
+    Initializable,
+    Ownable2StepUpgradeable,
+    UUPSUpgradeable,
+    AutomationCompatibleInterface
+{
     /// @notice Timestamp when the next upkeep is allowed
     uint256 public nextUpdateTime;
 
@@ -17,7 +24,7 @@ contract InternalStatesOrchestrator is Ownable2Step, AutomationCompatibleInterfa
     uint256 public constant UPDATE_INTERVAL = 1 minutes;
 
     /// @notice Chainlink Automation Registry address
-    address public immutable registry;
+    address public registry;
 
     /// @notice Orion Config contract address
     IOrionConfig public config;
@@ -25,18 +32,31 @@ contract InternalStatesOrchestrator is Ownable2Step, AutomationCompatibleInterfa
     /// @notice Emitted when internal states are processed
     event InternalStateProcessed(uint256 timestamp);
 
-    /// @param _registry The Chainlink Automation registry address
-    /// @param _config The Orion Config contract address
-    constructor(address _registry, address _config) Ownable(msg.sender) {
+    function initialize(address initialOwner, address _registry, address _config) public initializer {
+        __Ownable_init(initialOwner);
+        __Ownable2Step_init();
+        __UUPSUpgradeable_init();
+
         registry = _registry;
         config = IOrionConfig(_config);
+
         nextUpdateTime = block.timestamp + UPDATE_INTERVAL;
     }
+
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     /// @dev Restricts function to only Chainlink Automation registry
     modifier onlyRegistry() {
         require(msg.sender == registry, "Not Chainlink Registry");
         _;
+    }
+
+    function updateRegistry(address _newRegistry) external onlyOwner {
+        registry = _newRegistry;
+    }
+
+    function updateConfig(address _newConfig) external onlyOwner {
+        config = IOrionConfig(_newConfig);
     }
 
     function checkUpkeep(bytes calldata) external view override returns (bool upkeepNeeded, bytes memory performData) {
