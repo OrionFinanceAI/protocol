@@ -1,17 +1,25 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/access/Ownable2Step.sol";
+import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
-contract MarketOracle is Ownable2Step {
-    constructor() Ownable(msg.sender) {}
-
+contract MarketOracle is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable {
     struct Price {
         uint256 previous;
         uint256 current;
     }
 
     Price[] public prices;
+
+    function initialize(address initialOwner) public initializer {
+        __Ownable2Step_init();
+        __UUPSUpgradeable_init();
+        _transferOwnership(initialOwner);
+    }
+
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     // TODO: to avoid returning asset address, make sure the components match the whitelisted universe.
     // Support the case in which the whitelist changed from the previous call.

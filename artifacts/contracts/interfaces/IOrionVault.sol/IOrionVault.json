@@ -432,6 +432,34 @@
       "inputs": [
         {
           "internalType": "address",
+          "name": "curator",
+          "type": "address"
+        },
+        {
+          "internalType": "contract IOrionConfig",
+          "name": "config",
+          "type": "address"
+        },
+        {
+          "internalType": "string",
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "symbol",
+          "type": "string"
+        }
+      ],
+      "name": "initialize",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
           "name": "receiver",
           "type": "address"
         }

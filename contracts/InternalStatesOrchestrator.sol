@@ -9,8 +9,9 @@ import "./interfaces/IOrionConfig.sol";
 import "./interfaces/IOrionVault.sol";
 import "./interfaces/IMarketOracle.sol";
 
-// https://automation.chain.link/
-// InternalStatesOrchestrator: Orchestrates internal state transitions triggered by Chainlink Automation
+/// @title Internal States Orchestrator
+/// @notice Orchestrates internal state transitions triggered by Chainlink Automation
+/// @dev This contract manages periodic updates of vault states and market data through Chainlink Automation
 contract InternalStatesOrchestrator is
     Initializable,
     Ownable2StepUpgradeable,
@@ -111,7 +112,7 @@ contract InternalStatesOrchestrator is
         return block.timestamp >= nextUpdateTime;
     }
 
-    function _computeNextUpdateTime(uint256 currentTime) internal view returns (uint256) {
+    function _computeNextUpdateTime(uint256 currentTime) internal pure returns (uint256) {
         return currentTime + UPDATE_INTERVAL;
     }
 }
