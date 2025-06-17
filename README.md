@@ -30,7 +30,7 @@ pnpm install
 ```bash
 pnpm hardhat run scripts/request-vault-deposit.ts --network localhost
 pnpm hardhat run scripts/simulate-chainlink-automation.ts --network localhost
-pnpm hardhat run scripts/request-vault-withdrawal.ts --network localhost
+# pnpm hardhat run scripts/request-vault-withdrawal.ts --network localhost
 ```
 
 ## Processes
