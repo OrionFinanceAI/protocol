@@ -40,7 +40,7 @@ contract InternalStatesOrchestrator is
         registry = _registry;
         config = IOrionConfig(_config);
 
-        nextUpdateTime = block.timestamp + UPDATE_INTERVAL;
+        nextUpdateTime = _computeNextUpdateTime(block.timestamp);
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
@@ -60,7 +60,7 @@ contract InternalStatesOrchestrator is
     }
 
     function checkUpkeep(bytes calldata) external view override returns (bool upkeepNeeded, bytes memory performData) {
-        upkeepNeeded = block.timestamp >= nextUpdateTime;
+        upkeepNeeded = _shouldTriggerUpkeep();
         performData = bytes("");
         // TODO: compute here all read-only states to generate payload to then pass to performUpkeep
         // https://docs.chain.link/chainlink-automation/reference/automation-interfaces
@@ -71,7 +71,7 @@ contract InternalStatesOrchestrator is
 
     /// @notice Called by Chainlink Automation to execute internal state logic
     function performUpkeep(bytes calldata) external override onlyRegistry {
-        require(block.timestamp >= nextUpdateTime, "Too early");
+        require(_shouldTriggerUpkeep(), "Too early");
 
         // 1. Collect states from market oracle
         IMarketOracle oracle = config.marketOracle();
@@ -104,6 +104,14 @@ contract InternalStatesOrchestrator is
         // TODO: Implement liquidity orchestrator trigger
 
         // Update the timestamp for the next run
-        nextUpdateTime = block.timestamp + UPDATE_INTERVAL;
+        nextUpdateTime = _computeNextUpdateTime(block.timestamp);
+    }
+
+    function _shouldTriggerUpkeep() internal view returns (bool) {
+        return block.timestamp >= nextUpdateTime;
+    }
+
+    function _computeNextUpdateTime(uint256 currentTime) internal view returns (uint256) {
+        return currentTime + UPDATE_INTERVAL;
     }
 }
