@@ -11,5 +11,6 @@ pnpm hardhat run scripts/deploy-config.ts --network localhost
 pnpm hardhat run scripts/deploy-internal-states-orchestrator.ts --network localhost
 pnpm hardhat run scripts/deploy-liquidity-orchestrator.ts --network localhost
 pnpm hardhat run scripts/deploy-oracle.ts --network localhost
+pnpm hardhat run scripts/deploy-implementations.ts --network localhost
 pnpm hardhat run scripts/deploy-orion-vault-factory.ts --network localhost
 pnpm hardhat run scripts/populate-config.ts --network localhost

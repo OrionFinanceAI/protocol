@@ -18,9 +18,9 @@ async function main() {
 
   const depositAmount = parseUnits("1000", 6);
 
-  const OrionVault = await ethers.getContractFactory("OrionVault");
-  const vault = OrionVault.attach(vaultAddress);
-  const iface = OrionVault.interface;
+  const OrionTransparentVault = await ethers.getContractFactory("OrionTransparentVault");
+  const vault = OrionTransparentVault.attach(vaultAddress);
+  const iface = OrionTransparentVault.interface;
 
   const ERC20 = await ethers.getContractAt("IERC20", UnderlyingAssetAddress);
   const lpAddress = await lp.getAddress();
@@ -31,7 +31,7 @@ async function main() {
   // Approve vault to spend underlying asset tokens from LP
   const approveTx = await ERC20.connect(lp).approve(vaultAddress, depositAmount);
   await approveTx.wait();
-  console.log(`✅ Approved ${depositAmount} underlying tokens to OrionVault`);
+  console.log(`✅ Approved ${depositAmount} underlying tokens to OrionTransparentVault`);
 
   // Connect LP signer to vault and request deposit
   const tx = await vault.connect(lp).requestDeposit(depositAmount);
@@ -52,8 +52,7 @@ async function main() {
     throw new Error("DepositRequested event not found");
   }
 
-  const requestId = parsedEvent.args.requestId;
-  console.log(`✅ Deposit request submitted (id: ${requestId.toString()})`);
+  console.log(`✅ Deposit request submitted`);
 }
 
 main().catch((error) => {

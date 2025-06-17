@@ -1,10 +1,13 @@
+import * as dotenv from "dotenv";
 import { ethers, network } from "hardhat";
 
-// List of addresses to fund
+dotenv.config();
+
 const addresses = [
-  "0x94b971A1c73d10b12E0010ab1327C40aB5bCd330",
-  "0xde1F4FeE2886fF17294DCC3fE13033A4dB9B6545",
-  "0xB86aff7C3dfE0694453F90F0Db8FDF9b93528BA2",
+  process.env.DEPLOYER_ADDRESS,
+  process.env.CURATOR_ADDRESS,
+  process.env.LP_ADDRESS,
+  process.env.CHAINLINK_AUTOMATION_REGISTRY_ADDRESS,
 ];
 
 // Amount to fund in ETH
