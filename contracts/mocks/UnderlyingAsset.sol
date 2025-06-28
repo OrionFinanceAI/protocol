@@ -2,7 +2,7 @@
 pragma solidity ^0.8.4;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { ErrorsLib } from "./libraries/ErrorsLib.sol";
+import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 
 contract UnderlyingAsset is ERC20 {
     address public minter;

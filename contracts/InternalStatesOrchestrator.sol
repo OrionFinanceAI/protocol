@@ -98,7 +98,8 @@ contract InternalStatesOrchestrator is
 
         emit InternalStateProcessed(block.timestamp);
 
-        // TODO: consider having another offchain process listening to this event
+        // TODO: consider having another offchain process
+        // (potentially again chainlink automation) listening to this event
         // and updating the liquidity positions in another transaction.
         // No atomicity, but better for scalability. To be discussed.
         // 4. Trigger Liquidity Orchestrator to update liquidity positions based on updated internal states.
