@@ -7,6 +7,7 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "./interfaces/IOrionConfig.sol";
 import "./interfaces/IOrionVault.sol";
+import { ErrorsLib } from "./libraries/ErrorsLib.sol";
 
 contract OrionVaultFactory is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable {
     enum VaultType {
@@ -44,20 +45,11 @@ contract OrionVaultFactory is Initializable, Ownable2StepUpgradeable, UUPSUpgrad
     }
 
     function setImplementations(address _transparentImpl, address _encryptedImpl) external onlyOwner {
-        require(_transparentImpl != address(0), "T0");
-        require(_encryptedImpl != address(0), "E0");
+        if (_transparentImpl == address(0)) revert ErrorsLib.ZeroAddress();
+        if (_encryptedImpl == address(0)) revert ErrorsLib.ZeroAddress();
 
         transparentVaultImplementation = _transparentImpl;
         encryptedVaultImplementation = _encryptedImpl;
-    }
-
-    function updateImplementations(address _newTransparentImpl, address _newEncryptedImpl) external onlyOwner {
-        if (_newTransparentImpl != address(0)) {
-            transparentVaultImplementation = _newTransparentImpl;
-        }
-        if (_newEncryptedImpl != address(0)) {
-            encryptedVaultImplementation = _newEncryptedImpl;
-        }
     }
 
     function createOrionTransparentVault(
@@ -65,8 +57,8 @@ contract OrionVaultFactory is Initializable, Ownable2StepUpgradeable, UUPSUpgrad
         string calldata name,
         string calldata symbol
     ) external returns (address vault) {
-        require(curator != address(0), "C0");
-        require(transparentVaultImplementation != address(0), "TI0");
+        if (curator == address(0)) revert ErrorsLib.ZeroAddress();
+        if (transparentVaultImplementation == address(0)) revert ErrorsLib.ZeroAddress();
 
         // Create proxy for transparent vault
         bytes memory initData = abi.encodeWithSelector(IOrionVault.initialize.selector, curator, config, name, symbol);
@@ -83,8 +75,8 @@ contract OrionVaultFactory is Initializable, Ownable2StepUpgradeable, UUPSUpgrad
         string calldata name,
         string calldata symbol
     ) external returns (address vault) {
-        require(curator != address(0), "C0");
-        require(encryptedVaultImplementation != address(0), "EI0");
+        if (curator == address(0)) revert ErrorsLib.ZeroAddress();
+        if (encryptedVaultImplementation == address(0)) revert ErrorsLib.ZeroAddress();
 
         // Create proxy for encrypted vault
         bytes memory initData = abi.encodeWithSelector(IOrionVault.initialize.selector, curator, config, name, symbol);

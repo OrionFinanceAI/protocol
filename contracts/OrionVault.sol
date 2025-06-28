@@ -80,9 +80,9 @@ abstract contract OrionVault is
         __ERC20_init(_name, _symbol);
         __ERC4626_init(_config.underlyingAsset());
         __ReentrancyGuard_init();
+
         __Ownable2Step_init();
         __UUPSUpgradeable_init();
-
         _transferOwnership(_curator);
 
         deployer = msg.sender;

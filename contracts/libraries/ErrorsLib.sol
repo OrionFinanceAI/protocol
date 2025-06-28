@@ -38,4 +38,5 @@ library ErrorsLib {
     error TokenAlreadyInOrder(address token);
     error CuratorCannotBeZeroAddress();
     error NotAuthorized();
+    error TooEarly();
 }

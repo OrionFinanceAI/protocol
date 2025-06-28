@@ -8,6 +8,7 @@ import "@chainlink/contracts/src/v0.8/automation/AutomationCompatible.sol";
 import "./interfaces/IOrionConfig.sol";
 import "./interfaces/IOrionVault.sol";
 import "./interfaces/IMarketOracle.sol";
+import { ErrorsLib } from "./libraries/ErrorsLib.sol";
 
 /// @title Internal States Orchestrator
 /// @notice Orchestrates internal state transitions triggered by Chainlink Automation
@@ -48,7 +49,7 @@ contract InternalStatesOrchestrator is
 
     /// @dev Restricts function to only Chainlink Automation registry
     modifier onlyRegistry() {
-        require(msg.sender == registry, "Not Chainlink Registry");
+        if (msg.sender != registry) revert ErrorsLib.NotAuthorized();
         _;
     }
 
@@ -72,7 +73,7 @@ contract InternalStatesOrchestrator is
 
     /// @notice Called by Chainlink Automation to execute internal state logic
     function performUpkeep(bytes calldata) external override onlyRegistry {
-        require(_shouldTriggerUpkeep(), "Too early");
+        if (!_shouldTriggerUpkeep()) revert ErrorsLib.TooEarly();
 
         // 1. Collect states from market oracle
         IMarketOracle oracle = config.marketOracle();
