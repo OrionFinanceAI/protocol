@@ -1,9 +1,20 @@
-# protocol [![Github Actions][gha-badge]][gha] [![Hardhat][hardhat-badge]][hardhat]
+# protocol 
+
+<div align="center">
+
+[![Github Actions][gha-badge]][gha] [![Hardhat][hardhat-badge]][hardhat] [![Discord][discord-badge]][discord]
+
+</div>
 
 [gha]: https://github.com/OrionFinanceAI/protocol/actions
 [gha-badge]: https://github.com/OrionFinanceAI/protocol/actions/workflows/ci.yml/badge.svg
 [hardhat]: https://hardhat.org/
 [hardhat-badge]: https://img.shields.io/badge/Built%20with-Hardhat-FFDB1C.svg
+[discord]: https://discord.gg/8bAXxPSPdw
+[discord-badge]: https://img.shields.io/badge/discord-join%20chat-5865F2?logo=discord&logoColor=white
+
+![orion](./assets/OF_lockup_white.png)
+
 
 ## About
 
