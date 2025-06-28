@@ -10,7 +10,7 @@ library ErrorsLib {
     error InvalidAsset();
     error InvalidInternalOrchestrator();
     error InvalidLiquidityOrchestrator();
-    error InvalidPriceAndPnLOracle();
+    error InvalidMarketOracle();
     error AlreadyWhitelisted();
     error NotInWhitelist();
     error IndexOutOfBounds();
@@ -38,4 +38,5 @@ library ErrorsLib {
     error TokenAlreadyInOrder(address token);
     error CuratorCannotBeZeroAddress();
     error NotAuthorized();
+    error TooEarly();
 }

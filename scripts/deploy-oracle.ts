@@ -2,14 +2,14 @@ import { ethers } from "hardhat";
 
 async function main() {
   const [deployer] = await ethers.getSigners();
-  console.log("Deploying PriceAndPnLOracle with:", await deployer.getAddress());
+  console.log("Deploying MarketOracle with:", await deployer.getAddress());
 
-  const PriceAndPnLOracle = await ethers.getContractFactory("PriceAndPnLOracle");
-  const priceAndPnLOracle = await PriceAndPnLOracle.deploy();
+  const MarketOracle = await ethers.getContractFactory("MarketOracle");
+  const marketOracle = await MarketOracle.deploy();
 
-  await priceAndPnLOracle.waitForDeployment();
+  await marketOracle.waitForDeployment();
 
-  console.log("✅ PriceAndPnLOracle deployed to:", priceAndPnLOracle.target);
+  console.log("✅ MarketOracle deployed to:", marketOracle.target);
 }
 
 main().catch((error) => {

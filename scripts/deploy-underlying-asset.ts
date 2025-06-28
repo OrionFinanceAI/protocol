@@ -5,8 +5,6 @@ async function main() {
   console.log("Deploying UnderlyingAsset with:", await deployer.getAddress());
 
   const UnderlyingAsset = await ethers.getContractFactory("UnderlyingAsset");
-  console.log("UnderlyingAsset factory ready");
-
   const UnderlyingAssetContract = await UnderlyingAsset.deploy();
   await UnderlyingAssetContract.waitForDeployment();
 

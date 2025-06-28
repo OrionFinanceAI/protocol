@@ -3,16 +3,30 @@ pragma solidity ^0.8.4;
 
 import "./interfaces/IOrionConfig.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import "@openzeppelin/contracts/access/Ownable2Step.sol";
+import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import { ErrorsLib } from "./libraries/ErrorsLib.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "./interfaces/IMarketOracle.sol";
 
-contract OrionConfig is IOrionConfig, Ownable2Step {
+/**
+ *     ██████╗ ██████╗ ██╗ ██████╗ ███╗   ██╗    ███████╗██╗███╗   ██╗ █████╗ ███╗   ██╗ ██████╗███████╗
+ *    ██╔═══██╗██╔══██╗██║██╔═══██╗████╗  ██║    ██╔════╝██║████╗  ██║██╔══██╗████╗  ██║██╔════╝██╔════╝
+ *    ██║   ██║██████╔╝██║██║   ██║██╔██╗ ██║    █████╗  ██║██╔██╗ ██║███████║██╔██╗ ██║██║     █████╗
+ *    ██║   ██║██╔══██╗██║██║   ██║██║╚██╗██║    ██╔══╝  ██║██║╚██╗██║██╔══██║██║╚██╗██║██║     ██╔══╝
+ *    ╚██████╔╝██║  ██║██║╚██████╔╝██║ ╚████║    ██║     ██║██║ ╚████║██║  ██║██║ ╚████║╚██████╗███████╗
+ *     ╚═════╝ ╚═╝  ╚═╝╚═╝ ╚═════╝ ╚═╝  ╚═══╝    ╚═╝     ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝
+ *
+ * @title OrionConfig
+ * @notice This contract is responsible for configuring the Orion protocol.
+ */
+contract OrionConfig is IOrionConfig, Initializable, Ownable2StepUpgradeable, UUPSUpgradeable {
     // Protocol-wide configuration
     IERC20 public underlyingAsset;
     address public internalStatesOrchestrator;
     address public liquidityOrchestrator;
-    address public priceAndPnLOracle;
+    IMarketOracle public marketOracle;
     address public vaultFactory;
 
     // Curator-specific configuration
@@ -36,7 +50,7 @@ contract OrionConfig is IOrionConfig, Ownable2Step {
         address underlyingAsset,
         address internalStatesOrchestrator,
         address liquidityOrchestrator,
-        address priceAndPnLOracle,
+        IMarketOracle marketOracle,
         uint256 curatorIntentDecimals,
         string fhePublicCID,
         address factory
@@ -47,8 +61,13 @@ contract OrionConfig is IOrionConfig, Ownable2Step {
         _;
     }
 
-    // Constructor
-    constructor() Ownable(msg.sender) {}
+    function initialize(address initialOwner) public initializer {
+        __Ownable2Step_init();
+        __UUPSUpgradeable_init();
+        _transferOwnership(initialOwner);
+    }
+
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     // === Protocol Configuration ===
 
@@ -56,7 +75,7 @@ contract OrionConfig is IOrionConfig, Ownable2Step {
         address _underlyingAsset,
         address _internalStatesOrchestrator,
         address _liquidityOrchestrator,
-        address _priceAndPnLOracle,
+        IMarketOracle _marketOracle,
         uint8 _curatorIntentDecimals,
         string calldata _fhePublicCID,
         address _factory
@@ -64,13 +83,13 @@ contract OrionConfig is IOrionConfig, Ownable2Step {
         if (_underlyingAsset == address(0)) revert ErrorsLib.InvalidAsset();
         if (_internalStatesOrchestrator == address(0)) revert ErrorsLib.InvalidInternalOrchestrator();
         if (_liquidityOrchestrator == address(0)) revert ErrorsLib.InvalidLiquidityOrchestrator();
-        if (_priceAndPnLOracle == address(0)) revert ErrorsLib.InvalidPriceAndPnLOracle();
+        if (address(_marketOracle) == address(0)) revert ErrorsLib.InvalidMarketOracle();
         if (_factory == address(0)) revert ErrorsLib.ZeroAddress();
 
         underlyingAsset = IERC20(_underlyingAsset);
         internalStatesOrchestrator = _internalStatesOrchestrator;
         liquidityOrchestrator = _liquidityOrchestrator;
-        priceAndPnLOracle = _priceAndPnLOracle;
+        marketOracle = _marketOracle;
         curatorIntentDecimals = _curatorIntentDecimals;
         fhePublicCID = _fhePublicCID;
         vaultFactory = _factory;
@@ -79,7 +98,7 @@ contract OrionConfig is IOrionConfig, Ownable2Step {
             _underlyingAsset,
             _internalStatesOrchestrator,
             _liquidityOrchestrator,
-            _priceAndPnLOracle,
+            _marketOracle,
             _curatorIntentDecimals,
             _fhePublicCID,
             _factory

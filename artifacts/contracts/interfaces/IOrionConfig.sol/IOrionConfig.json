@@ -140,12 +140,12 @@
     },
     {
       "inputs": [],
-      "name": "orionVaultsLength",
+      "name": "marketOracle",
       "outputs": [
         {
-          "internalType": "uint256",
+          "internalType": "contract IMarketOracle",
           "name": "",
-          "type": "uint256"
+          "type": "address"
         }
       ],
       "stateMutability": "view",
@@ -153,12 +153,12 @@
     },
     {
       "inputs": [],
-      "name": "priceAndPnLOracle",
+      "name": "orionVaultsLength",
       "outputs": [
         {
-          "internalType": "address",
+          "internalType": "uint256",
           "name": "",
-          "type": "address"
+          "type": "uint256"
         }
       ],
       "stateMutability": "view",
@@ -208,8 +208,8 @@
           "type": "address"
         },
         {
-          "internalType": "address",
-          "name": "_priceAndPnLOracle",
+          "internalType": "contract IMarketOracle",
+          "name": "_marketOracle",
           "type": "address"
         },
         {

@@ -20,12 +20,14 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
     EnumerableMap.AddressToUintMap private _orders;
 
-    constructor(
+    function initialize(
         address _curator,
         IOrionConfig _config,
         string memory _name,
         string memory _symbol
-    ) OrionVault(_curator, _config, _name, _symbol) {}
+    ) public initializer {
+        __OrionVault_init(_curator, _config, _name, _symbol);
+    }
 
     /// --------- CURATOR FUNCTIONS ---------
 
