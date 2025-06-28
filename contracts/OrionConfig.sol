@@ -62,9 +62,9 @@ contract OrionConfig is IOrionConfig, Initializable, Ownable2StepUpgradeable, UU
     }
 
     function initialize(address initialOwner) public initializer {
-        __Ownable_init(initialOwner);
         __Ownable2Step_init();
         __UUPSUpgradeable_init();
+        _transferOwnership(initialOwner);
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}

@@ -34,9 +34,9 @@ contract InternalStatesOrchestrator is
     event InternalStateProcessed(uint256 timestamp);
 
     function initialize(address initialOwner, address _registry, address _config) public initializer {
-        __Ownable_init(initialOwner);
         __Ownable2Step_init();
         __UUPSUpgradeable_init();
+        _transferOwnership(initialOwner);
 
         registry = _registry;
         config = IOrionConfig(_config);
