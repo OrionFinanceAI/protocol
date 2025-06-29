@@ -2,6 +2,7 @@
 pragma solidity ^0.8.4;
 
 import "./interfaces/IOrionConfig.sol";
+import "./interfaces/IOrionVault.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
@@ -152,6 +153,38 @@ contract OrionConfig is IOrionConfig, Initializable, Ownable2StepUpgradeable, UU
             vaults[i] = orionVaults.at(i);
         }
         return vaults;
+    }
+
+    function getVaultStates()
+        external
+        view
+        returns (
+            address[] memory vaults,
+            uint256[] memory sharePrices,
+            uint256[] memory totalAssets,
+            uint256[] memory depositRequests,
+            uint256[] memory withdrawRequests
+        )
+    {
+        uint256 length = orionVaults.length();
+        vaults = new address[](length);
+        sharePrices = new uint256[](length);
+        totalAssets = new uint256[](length);
+        depositRequests = new uint256[](length);
+        withdrawRequests = new uint256[](length);
+
+        for (uint256 i = 0; i < length; ++i) {
+            address vaultAddress = orionVaults.at(i);
+            vaults[i] = vaultAddress;
+
+            IOrionVault vault = IOrionVault(vaultAddress);
+            sharePrices[i] = vault.sharePrice();
+            totalAssets[i] = vault.totalAssets();
+
+            // Get pending deposits and withdrawals
+            depositRequests[i] = vault.getPendingDeposits();
+            withdrawRequests[i] = vault.getPendingWithdrawals();
+        }
     }
 
     // === FHE Public CID ===

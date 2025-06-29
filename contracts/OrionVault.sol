@@ -185,6 +185,49 @@ abstract contract OrionVault is
         _totalAssets = newTotalAssets;
     }
 
+    /// @notice Get total pending deposit amount across all users
+    function getPendingDeposits() external view returns (uint256) {
+        uint256 totalPending = 0;
+        for (uint256 i = 0; i < _depositRequests.length(); i++) {
+            (address user, uint256 amount) = _depositRequests.at(i);
+            user;
+
+            totalPending += amount;
+        }
+        return totalPending;
+    }
+
+    /// @notice Get total pending withdrawal shares across all users
+    function getPendingWithdrawals() external view returns (uint256) {
+        uint256 totalPending = 0;
+        for (uint256 i = 0; i < _withdrawRequests.length(); i++) {
+            (address user, uint256 shares) = _withdrawRequests.at(i);
+            user;
+
+            totalPending += shares;
+        }
+        return totalPending;
+    }
+
+    /// @notice Update vault state based on market performance and pending operations
+    /// @param newSharePrice The new share price after P&L calculation
+    /// @param newTotalAssets The new total assets after processing deposits/withdrawals
+    /// @param pnlAmount The profit/loss amount for this update period
+    function updateVaultState(
+        uint256 newSharePrice,
+        uint256 newTotalAssets,
+        uint256 pnlAmount
+    ) external onlyInternalStatesOrchestrator {
+        if (newSharePrice == 0) revert ErrorsLib.ZeroPrice();
+
+        // Update state variables
+        sharePrice = newSharePrice;
+        _totalAssets = newTotalAssets;
+
+        // Emit event for tracking state updates
+        emit VaultStateUpdated(newSharePrice, newTotalAssets, pnlAmount);
+    }
+
     /// --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
 
     /// @notice Process deposit requests from LPs

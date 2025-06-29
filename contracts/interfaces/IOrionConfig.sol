@@ -99,6 +99,23 @@ interface IOrionConfig {
     /// @return An array of Orion vault addresses
     function getAllOrionVaults() external view returns (address[] memory);
 
+    /// @notice Returns aggregated vault states for all registered vaults
+    /// @return vaults Array of vault addresses
+    /// @return sharePrices Array of share prices for each vault
+    /// @return totalAssets Array of total assets for each vault
+    /// @return depositRequests Array of pending deposit amounts for each vault
+    /// @return withdrawRequests Array of pending withdrawal shares for each vault
+    function getVaultStates()
+        external
+        view
+        returns (
+            address[] memory vaults,
+            uint256[] memory sharePrices,
+            uint256[] memory totalAssets,
+            uint256[] memory depositRequests,
+            uint256[] memory withdrawRequests
+        );
+
     /// @notice Updates the FHE public CID used for encryption operations
     /// @dev Can only be called by the contract owner
     /// @param newCID The new FHE public CID string to set

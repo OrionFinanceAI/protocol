@@ -11,6 +11,7 @@ interface IOrionVault is IERC4626 {
     event WithdrawRequested(address indexed user, uint256 shares, uint256 requestId);
     event DepositProcessed(address indexed user, uint256 amount, uint256 requestId);
     event WithdrawProcessed(address indexed user, uint256 shares, uint256 requestId);
+    event VaultStateUpdated(uint256 newSharePrice, uint256 newTotalAssets, uint256 pnlAmount);
 
     function initialize(
         address curatorAddress,
@@ -32,6 +33,16 @@ interface IOrionVault is IERC4626 {
     // Internal States Orchestrator Functions
     function setSharePrice(uint256 newPrice) external;
     function setTotalAssets(uint256 newTotalAssets) external;
+
+    // State query functions for efficient batch processing
+    function getPendingDeposits() external view returns (uint256);
+    function getPendingWithdrawals() external view returns (uint256);
+
+    /// @notice Update vault state based on market performance and pending operations
+    /// @param newSharePrice The new share price after P&L calculation
+    /// @param newTotalAssets The new total assets after processing deposits/withdrawals
+    /// @param pnlAmount The profit/loss amount for this update period
+    function updateVaultState(uint256 newSharePrice, uint256 newTotalAssets, uint256 pnlAmount) external;
 
     // Liquidity Orchestrator Functions
     function processDepositRequests() external;
