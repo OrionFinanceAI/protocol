@@ -56,19 +56,13 @@
       "type": "function"
     },
     {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "index",
-          "type": "uint256"
-        }
-      ],
-      "name": "getOrionVaultAt",
+      "inputs": [],
+      "name": "getAllOrionVaults",
       "outputs": [
         {
-          "internalType": "address",
+          "internalType": "address[]",
           "name": "",
-          "type": "address"
+          "type": "address[]"
         }
       ],
       "stateMutability": "view",
@@ -146,19 +140,6 @@
           "internalType": "contract IMarketOracle",
           "name": "",
           "type": "address"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "orionVaultsLength",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
         }
       ],
       "stateMutability": "view",

@@ -95,15 +95,9 @@ interface IOrionConfig {
     /// @param vault The address of the vault to remove from the registry
     function removeOrionVault(address vault) external;
 
-    /// @notice Returns the total number of registered Orion vaults
-    /// @return The count of registered Orion vaults
-    function orionVaultsLength() external view returns (uint256);
-
-    /// @notice Returns the Orion vault address at the specified index
-    /// @dev Uses EnumerableSet ordering, which may change when vaults are added/removed
-    /// @param index The index of the vault to retrieve
-    /// @return The address of the Orion vault at the given index
-    function getOrionVaultAt(uint256 index) external view returns (address);
+    /// @notice Returns all Orion vault addresses
+    /// @return An array of Orion vault addresses
+    function getAllOrionVaults() external view returns (address[] memory);
 
     /// @notice Updates the FHE public CID used for encryption operations
     /// @dev Can only be called by the contract owner

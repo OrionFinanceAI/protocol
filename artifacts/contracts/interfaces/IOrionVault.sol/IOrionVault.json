@@ -432,12 +432,12 @@
       "inputs": [
         {
           "internalType": "address",
-          "name": "curator",
+          "name": "curatorAddress",
           "type": "address"
         },
         {
           "internalType": "contract IOrionConfig",
-          "name": "config",
+          "name": "configAddress",
           "type": "address"
         },
         {

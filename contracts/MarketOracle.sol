@@ -26,7 +26,7 @@ contract MarketOracle is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable
 
     function getPrices()
         external
-        view
+        pure
         returns (uint256[] memory previousPriceArray, uint256[] memory currentPriceArray)
     {
         // TODO: Implement this function

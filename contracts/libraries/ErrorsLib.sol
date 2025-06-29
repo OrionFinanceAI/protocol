@@ -39,4 +39,6 @@ library ErrorsLib {
     error CuratorCannotBeZeroAddress();
     error NotAuthorized();
     error TooEarly();
+    error DepositRequestFailed();
+    error WithdrawRequestFailed();
 }

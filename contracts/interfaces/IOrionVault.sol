@@ -12,7 +12,12 @@ interface IOrionVault is IERC4626 {
     event DepositProcessed(address indexed user, uint256 amount, uint256 requestId);
     event WithdrawProcessed(address indexed user, uint256 shares, uint256 requestId);
 
-    function initialize(address curator, IOrionConfig config, string calldata name, string calldata symbol) external;
+    function initialize(
+        address curatorAddress,
+        IOrionConfig configAddress,
+        string calldata name,
+        string calldata symbol
+    ) external;
 
     // State variables (public getters)
     function config() external view returns (IOrionConfig);

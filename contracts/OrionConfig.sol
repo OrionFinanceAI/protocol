@@ -145,12 +145,13 @@ contract OrionConfig is IOrionConfig, Initializable, Ownable2StepUpgradeable, UU
         emit OrionVaultRemoved(vault);
     }
 
-    function orionVaultsLength() external view returns (uint256) {
-        return orionVaults.length();
-    }
-
-    function getOrionVaultAt(uint256 index) external view returns (address) {
-        return orionVaults.at(index);
+    function getAllOrionVaults() external view returns (address[] memory) {
+        uint256 length = orionVaults.length();
+        address[] memory vaults = new address[](length);
+        for (uint256 i = 0; i < length; ++i) {
+            vaults[i] = orionVaults.at(i);
+        }
+        return vaults;
     }
 
     // === FHE Public CID ===

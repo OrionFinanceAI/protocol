@@ -29,6 +29,9 @@ The license for Orion is the Business Source License 1.1 (`BUSL-1.1`) given in [
 ## Installation
 
 ```bash
+uv venv 
+source .venv/bin/activate
+uv pip install slither-analyzer
 pnpm install
 ```
 

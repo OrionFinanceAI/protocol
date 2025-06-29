@@ -135,9 +135,13 @@ abstract contract OrionVault is
 
         // Effects - update internal state before external interactions
         (bool exists, uint256 existingAmount) = _depositRequests.tryGet(msg.sender);
-        if (exists) _depositRequests.set(msg.sender, existingAmount + amount);
-        else _depositRequests.set(msg.sender, amount);
-
+        bool ok;
+        if (exists) {
+            ok = _depositRequests.set(msg.sender, existingAmount + amount);
+        } else {
+            ok = _depositRequests.set(msg.sender, amount);
+        }
+        if (!ok) revert ErrorsLib.DepositRequestFailed();
         // Interactions - external calls last
         bool success = IERC20(asset()).transferFrom(msg.sender, address(this), amount);
         if (!success) revert ErrorsLib.TransferFailed();
@@ -156,8 +160,13 @@ abstract contract OrionVault is
 
         // Effects - update internal state before transfers
         (bool exists, uint256 existingShares) = _withdrawRequests.tryGet(msg.sender);
-        if (exists) _withdrawRequests.set(msg.sender, existingShares + shares);
-        else _withdrawRequests.set(msg.sender, shares);
+        bool ok;
+        if (exists) {
+            ok = _withdrawRequests.set(msg.sender, existingShares + shares);
+        } else {
+            ok = _withdrawRequests.set(msg.sender, shares);
+        }
+        if (!ok) revert ErrorsLib.WithdrawRequestFailed();
 
         // Interactions - lock shares by transferring them to contract as escrow
         _transfer(msg.sender, address(this), shares);
@@ -185,7 +194,8 @@ abstract contract OrionVault is
             (address user, uint256 amount) = _depositRequests.at(i);
             uint256 shares = previewDeposit(amount);
 
-            _depositRequests.remove(user);
+            bool ok = _depositRequests.remove(user);
+            if (!ok) revert ErrorsLib.DepositRequestFailed();
 
             _mint(user, shares);
 
@@ -199,7 +209,8 @@ abstract contract OrionVault is
         for (i = 0; i < _withdrawRequests.length(); i++) {
             (address user, uint256 shares) = _withdrawRequests.at(i);
 
-            _withdrawRequests.remove(user);
+            bool ok = _withdrawRequests.remove(user);
+            if (!ok) revert ErrorsLib.WithdrawRequestFailed();
 
             _burn(address(this), shares);
             uint256 underlyingAmount = previewRedeem(shares);

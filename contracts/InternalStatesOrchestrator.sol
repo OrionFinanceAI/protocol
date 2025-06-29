@@ -34,11 +34,15 @@ contract InternalStatesOrchestrator is
     /// @notice Emitted when internal states are processed
     event InternalStateProcessed(uint256 timestamp);
 
+    /// @notice Emitted when the Chainlink Automation Registry address is updated
+    event RegistryUpdated(address indexed newRegistry);
+
     function initialize(address initialOwner, address _registry, address _config) public initializer {
         __Ownable2Step_init();
         __UUPSUpgradeable_init();
         _transferOwnership(initialOwner);
 
+        if (_registry == address(0)) revert ErrorsLib.ZeroAddress();
         registry = _registry;
         config = IOrionConfig(_config);
 
@@ -53,10 +57,16 @@ contract InternalStatesOrchestrator is
         _;
     }
 
+    /// @notice Updates the Chainlink Automation Registry address
+    /// @param _newRegistry The new registry address
     function updateRegistry(address _newRegistry) external onlyOwner {
+        if (_newRegistry == address(0)) revert ErrorsLib.ZeroAddress();
         registry = _newRegistry;
+        emit RegistryUpdated(_newRegistry);
     }
 
+    /// @notice Updates the Orion Config contract address
+    /// @param _newConfig The new config address
     function updateConfig(address _newConfig) external onlyOwner {
         config = IOrionConfig(_newConfig);
     }
@@ -81,16 +91,23 @@ contract InternalStatesOrchestrator is
         // and another which is actually writing to the oracle state latest price.
         (uint256[] memory previousPriceArray, uint256[] memory currentPriceArray) = oracle.getPrices();
 
-        // 2. Collect states from all Orion vaults
-        uint256 vaultCount = config.orionVaultsLength();
+        // TODO: use these arrays to compute PandL and update internal states
+        previousPriceArray;
+        currentPriceArray;
 
-        for (uint256 i = 0; i < vaultCount; i++) {
-            address vaultAddress = config.getOrionVaultAt(i);
-            IOrionVault vault = IOrionVault(vaultAddress);
+        // 2. Collect states from all Orion vaults
+        address[] memory vaults = config.getAllOrionVaults();
+
+        for (uint256 i = 0; i < vaults.length; i++) {
+            IOrionVault vault = IOrionVault(vaults[i]);
 
             // Read vault states
             uint256 sharePrice = vault.sharePrice();
             uint256 totalAssets = vault.totalAssets();
+
+            // TODO: update internal states
+            sharePrice;
+            totalAssets;
         }
 
         // 3. Update internal states based on the collected states
