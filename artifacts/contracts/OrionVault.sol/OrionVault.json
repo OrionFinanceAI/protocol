@@ -474,19 +474,6 @@
         {
           "indexed": true,
           "internalType": "address",
-          "name": "curator",
-          "type": "address"
-        }
-      ],
-      "name": "OrderSubmitted",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
           "name": "previousOwner",
           "type": "address"
         },

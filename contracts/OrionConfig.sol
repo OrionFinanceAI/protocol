@@ -9,6 +9,7 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import { ErrorsLib } from "./libraries/ErrorsLib.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { EventsLib } from "./libraries/EventsLib.sol";
 
 /**
  *     ██████╗ ██████╗ ██╗ ██████╗ ███╗   ██╗    ███████╗██╗███╗   ██╗ █████╗ ███╗   ██╗ ██████╗███████╗
@@ -38,20 +39,6 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
 
     // Orion-specific configuration
     EnumerableSet.AddressSet private orionVaults;
-
-    // Events
-    event WhitelistedAssetAdded(address indexed asset);
-    event WhitelistedAssetRemoved(address indexed asset);
-    event OrionVaultAdded(address indexed vault);
-    event OrionVaultRemoved(address indexed vault);
-    event ProtocolParamsUpdated(
-        address underlyingAsset,
-        address internalStatesOrchestrator,
-        address liquidityOrchestrator,
-        uint256 curatorIntentDecimals,
-        address factory,
-        address oracleRegistry
-    );
 
     modifier onlyFactory() {
         if (msg.sender != vaultFactory) revert ErrorsLib.NotFactory();
@@ -89,7 +76,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         vaultFactory = _factory;
         oracleRegistry = _oracleRegistry;
 
-        emit ProtocolParamsUpdated(
+        emit EventsLib.ProtocolParamsUpdated(
             _underlyingAsset,
             _internalStatesOrchestrator,
             _liquidityOrchestrator,
@@ -104,13 +91,13 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     function addWhitelistedAsset(address asset) external onlyOwner {
         bool inserted = whitelistedAssets.add(asset);
         if (!inserted) revert ErrorsLib.AlreadyWhitelisted();
-        emit WhitelistedAssetAdded(asset);
+        emit EventsLib.WhitelistedAssetAdded(asset);
     }
 
     function removeWhitelistedAsset(address asset) external onlyOwner {
         bool removed = whitelistedAssets.remove(asset);
         if (!removed) revert ErrorsLib.NotInWhitelist();
-        emit WhitelistedAssetRemoved(asset);
+        emit EventsLib.WhitelistedAssetRemoved(asset);
     }
 
     function whitelistedAssetsLength() external view returns (uint256) {
@@ -139,13 +126,13 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     function addOrionVault(address vault) external onlyFactory {
         bool inserted = orionVaults.add(vault);
         if (!inserted) revert ErrorsLib.AlreadyAnOrionVault();
-        emit OrionVaultAdded(vault);
+        emit EventsLib.OrionVaultAdded(vault);
     }
 
     function removeOrionVault(address vault) external onlyFactory {
         bool removed = orionVaults.remove(vault);
         if (!removed) revert ErrorsLib.NotAnOrionVault();
-        emit OrionVaultRemoved(vault);
+        emit EventsLib.OrionVaultRemoved(vault);
     }
 
     function getAllOrionVaults() external view returns (address[] memory) {

@@ -8,26 +8,15 @@ import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "./interfaces/IOrionConfig.sol";
 import "./interfaces/IOrionVault.sol";
 import { ErrorsLib } from "./libraries/ErrorsLib.sol";
+import { EventsLib } from "./libraries/EventsLib.sol";
 
 contract OrionVaultFactory is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable {
-    enum VaultType {
-        Transparent,
-        Encrypted
-    }
-
     address public deployer;
     IOrionConfig public config;
 
     // Implementation addresses for vault types
     address public transparentVaultImplementation;
     address public encryptedVaultImplementation;
-
-    event OrionVaultCreated(
-        address indexed vault,
-        address indexed curator,
-        address indexed deployer,
-        VaultType vaultType
-    );
 
     function initialize(address initialOwner, address _config) public initializer {
         __Ownable2Step_init();
@@ -66,7 +55,7 @@ contract OrionVaultFactory is Initializable, Ownable2StepUpgradeable, UUPSUpgrad
         ERC1967Proxy proxy = new ERC1967Proxy(transparentVaultImplementation, initData);
         vault = address(proxy);
 
-        emit OrionVaultCreated(vault, curator, msg.sender, VaultType.Transparent);
+        emit EventsLib.OrionVaultCreated(vault, curator, msg.sender, EventsLib.VaultType.Transparent);
         config.addOrionVault(vault);
     }
 
@@ -84,7 +73,7 @@ contract OrionVaultFactory is Initializable, Ownable2StepUpgradeable, UUPSUpgrad
         ERC1967Proxy proxy = new ERC1967Proxy(encryptedVaultImplementation, initData);
         vault = address(proxy);
 
-        emit OrionVaultCreated(vault, curator, msg.sender, VaultType.Encrypted);
+        emit EventsLib.OrionVaultCreated(vault, curator, msg.sender, EventsLib.VaultType.Encrypted);
         config.addOrionVault(vault);
     }
 }

@@ -7,6 +7,7 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "./interfaces/IOracleRegistry.sol";
 import "./interfaces/IAssetOracle.sol";
 import { ErrorsLib } from "./libraries/ErrorsLib.sol";
+import { EventsLib } from "./libraries/EventsLib.sol";
 
 contract OracleRegistry is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable, IOracleRegistry {
     mapping(address => address) public oracleOf;
@@ -19,13 +20,11 @@ contract OracleRegistry is Initializable, Ownable2StepUpgradeable, UUPSUpgradeab
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
-    event OracleRegistered(address indexed asset, address indexed oracle);
-
     /// @notice Owner registers or replaces the oracle for an asset
     function setOracle(address asset, address oracle) external onlyOwner {
         if (asset == address(0) || address(oracle) == address(0)) revert ErrorsLib.ZeroAddress();
         oracleOf[asset] = oracle;
-        emit OracleRegistered(asset, address(oracle));
+        emit EventsLib.OracleRegistered(asset, address(oracle));
     }
 
     /// Pass through functions to the oracle

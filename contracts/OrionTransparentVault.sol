@@ -6,6 +6,7 @@ import "./OrionVault.sol";
 import "./interfaces/IOrionConfig.sol";
 import "./interfaces/IOrionTransparentVault.sol";
 import { ErrorsLib } from "./libraries/ErrorsLib.sol";
+import { EventsLib } from "./libraries/EventsLib.sol";
 
 /**
  * @title OrionTransparentVault
@@ -51,6 +52,6 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
         uint8 curatorIntentDecimals = config.curatorIntentDecimals();
         if (totalAmount != 10 ** curatorIntentDecimals) revert ErrorsLib.InvalidTotalAmount();
 
-        emit OrderSubmitted(msg.sender);
+        emit EventsLib.OrderSubmitted(msg.sender);
     }
 }

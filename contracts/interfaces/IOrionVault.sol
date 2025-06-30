@@ -5,15 +5,6 @@ import "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import "./IOrionConfig.sol";
 
 interface IOrionVault is IERC4626 {
-    // Events
-    event OrderSubmitted(address indexed curator);
-    event DepositRequested(address indexed user, uint256 amount, uint256 requestId);
-    event WithdrawRequested(address indexed user, uint256 shares, uint256 requestId);
-    event DepositProcessed(address indexed user, uint256 amount, uint256 requestId);
-    event WithdrawProcessed(address indexed user, uint256 shares, uint256 requestId);
-    event DepositRequestWithdrawn(address indexed user, uint256 amount, uint256 requestId);
-    event VaultStateUpdated(uint256 newSharePrice, uint256 newTotalAssets, uint256 pnlAmount);
-
     function initialize(
         address curatorAddress,
         IOrionConfig configAddress,

@@ -1,6 +1,5 @@
 import hre from "hardhat";
 
-// TODO: generalize this process to also advance the price of whitelisted assets for end to end testing.
 async function advanceTime() {
   try {
     await hre.network.provider.send("evm_increaseTime", [5]);

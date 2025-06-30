@@ -10,6 +10,7 @@ import "./interfaces/IOrionConfig.sol";
 import "./interfaces/IOrionVault.sol";
 import "./interfaces/IOracleRegistry.sol";
 import { ErrorsLib } from "./libraries/ErrorsLib.sol";
+import { EventsLib } from "./libraries/EventsLib.sol";
 
 /// @title Internal States Orchestrator
 /// @notice Orchestrates internal state transitions triggered by Chainlink Automation
@@ -32,12 +33,6 @@ contract InternalStatesOrchestrator is
 
     /// @notice Orion Config contract address
     IOrionConfig public config;
-
-    /// @notice Emitted when internal states are processed
-    event InternalStateProcessed(uint256 timestamp);
-
-    /// @notice Emitted when the Chainlink Automation Registry address is updated
-    event AutomationRegistryUpdated(address indexed newAutomationRegistry);
 
     function initialize(address initialOwner, address _automationRegistry, address _config) public initializer {
         __Ownable2Step_init();
@@ -65,7 +60,7 @@ contract InternalStatesOrchestrator is
     function updateAutomationRegistry(address _newAutomationRegistry) external onlyOwner {
         if (_newAutomationRegistry == address(0)) revert ErrorsLib.ZeroAddress();
         automationRegistry = _newAutomationRegistry;
-        emit AutomationRegistryUpdated(_newAutomationRegistry);
+        emit EventsLib.AutomationRegistryUpdated(_newAutomationRegistry);
     }
 
     /// @notice Updates the Orion Config contract address
@@ -134,7 +129,7 @@ contract InternalStatesOrchestrator is
             vault.updateVaultState(newSharePrice, newTotalAssets, pnlAmount);
         }
 
-        emit InternalStateProcessed(block.timestamp);
+        emit EventsLib.InternalStateProcessed(block.timestamp);
 
         // TODO: consider having another offchain process
         // (potentially again chainlink automation) listening to this event

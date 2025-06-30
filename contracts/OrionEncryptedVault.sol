@@ -7,6 +7,7 @@ import "./OrionVault.sol";
 import "./interfaces/IOrionConfig.sol";
 import "./interfaces/IOrionEncryptedVault.sol";
 import { ErrorsLib } from "./libraries/ErrorsLib.sol";
+import { EventsLib } from "./libraries/EventsLib.sol";
 
 /**
  * @title OrionEncryptedVault
@@ -46,6 +47,6 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
             if (!inserted) revert ErrorsLib.TokenAlreadyInOrder(token);
         }
 
-        emit OrderSubmitted(msg.sender);
+        emit EventsLib.OrderSubmitted(msg.sender);
     }
 }

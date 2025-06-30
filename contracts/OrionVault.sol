@@ -12,6 +12,7 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "./interfaces/IOrionConfig.sol";
 import "./interfaces/IOrionVault.sol";
 import { ErrorsLib } from "./libraries/ErrorsLib.sol";
+import { EventsLib } from "./libraries/EventsLib.sol";
 
 /**
  * @title OrionVault
@@ -145,7 +146,7 @@ abstract contract OrionVault is
         bool success = IERC20(asset()).transferFrom(msg.sender, address(this), amount);
         if (!success) revert ErrorsLib.TransferFailed();
 
-        emit DepositRequested(msg.sender, amount, _depositRequestors.length);
+        emit EventsLib.DepositRequested(msg.sender, amount, _depositRequestors.length);
     }
 
     /// @notice Allow LPs to withdraw their escrowed tokens before minting, making the system more trustless
@@ -163,7 +164,7 @@ abstract contract OrionVault is
         bool success = IERC20(asset()).transfer(msg.sender, amount);
         if (!success) revert ErrorsLib.TransferFailed();
 
-        emit DepositRequestWithdrawn(msg.sender, amount, _depositRequestors.length);
+        emit EventsLib.DepositRequestWithdrawn(msg.sender, amount, _depositRequestors.length);
     }
 
     /// @notice LPs submits async withdrawal request; shares locked until processed
@@ -181,7 +182,7 @@ abstract contract OrionVault is
         // Interactions - lock shares by transferring them to contract as escrow
         _transfer(msg.sender, address(this), shares);
 
-        emit WithdrawRequested(msg.sender, shares, _withdrawRequestors.length);
+        emit EventsLib.WithdrawRequested(msg.sender, shares, _withdrawRequestors.length);
     }
 
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
@@ -229,7 +230,7 @@ abstract contract OrionVault is
         _totalAssets = newTotalAssets;
 
         // Emit event for tracking state updates
-        emit VaultStateUpdated(newSharePrice, newTotalAssets, pnlAmount);
+        emit EventsLib.VaultStateUpdated(newSharePrice, newTotalAssets, pnlAmount);
     }
 
     /// --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
@@ -246,7 +247,7 @@ abstract contract OrionVault is
 
             _mint(user, shares);
 
-            emit DepositProcessed(user, amount, i);
+            emit EventsLib.DepositProcessed(user, amount, i);
         }
     }
 
@@ -263,7 +264,7 @@ abstract contract OrionVault is
             uint256 underlyingAmount = previewRedeem(shares);
             if (!IERC20(asset()).transfer(user, underlyingAmount)) revert ErrorsLib.TransferFailed();
 
-            emit WithdrawProcessed(user, shares, i);
+            emit EventsLib.WithdrawProcessed(user, shares, i);
         }
     }
 
