@@ -40,6 +40,8 @@ abstract contract OrionVault is
     UUPSUpgradeable,
     IOrionVault
 {
+    using Math for uint256;
+
     IOrionConfig public config;
     address public curator;
     address public deployer;
@@ -90,7 +92,7 @@ abstract contract OrionVault is
         deployer = msg.sender;
         curator = curator_;
         config = config_;
-        sharePrice = 10 ** decimals();
+        sharePrice = 10 ** config.statesDecimals();
         _totalAssets = 0;
     }
 
@@ -122,16 +124,24 @@ abstract contract OrionVault is
         return _convertToShares(assets, Math.Rounding.Floor);
     }
 
-    function _convertToShares(uint256 assets, Math.Rounding rounding) internal view override returns (uint256) {
-        return (assets * decimals()) / sharePrice; // TODO: make this inflation attack resistant.
-    }
-
     function convertToAssets(uint256 shares) public view override(ERC4626Upgradeable, IERC4626) returns (uint256) {
-        return _convertToAssets(shares);
+        return _convertToAssets(shares, Math.Rounding.Floor);
     }
 
-    function _convertToAssets(uint256 shares) internal view returns (uint256) {
-        return (shares * sharePrice) / decimals(); // TODO: make this inflation attack resistant.
+    /* ---------- INTERNAL ---------- */
+
+    // Defends with a “virtual offset”‑free formula recommended by OZ
+    // https://docs.openzeppelin.com/contracts/5.x/erc4626#defending_with_a_virtual_offset
+    function _convertToAssets(uint256 shares, Math.Rounding rounding) internal view override returns (uint256) {
+        uint256 supply = totalSupply();
+        uint8 statesDecimals = config.statesDecimals();
+        return shares.mulDiv(_totalAssets + 1, supply + 10 ** statesDecimals, rounding);
+    }
+
+    function _convertToShares(uint256 assets, Math.Rounding rounding) internal view override returns (uint256) {
+        uint256 supply = totalSupply();
+        uint8 statesDecimals = config.statesDecimals();
+        return assets.mulDiv(supply + 10 ** statesDecimals, _totalAssets + 1, rounding);
     }
 
     /// --------- LP FUNCTIONS ---------

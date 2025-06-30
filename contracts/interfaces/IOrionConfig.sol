@@ -25,6 +25,12 @@ interface IOrionConfig {
     /// @return True if the asset is whitelisted, false otherwise
     function isWhitelisted(address asset) external view returns (bool);
 
+    /// @notice Returns the number of decimal places used for states calculations
+    /// @dev This value is used to scale state values for precision
+    /// (e.g. inflation resistant conversions, P&L calculations).
+    /// @return The number of decimal places for states
+    function statesDecimals() external view returns (uint8);
+
     /// @notice Returns the number of decimal places used for curator intent calculations
     /// @dev This value is used to scale curator intent values for precision
     /// @return The number of decimal places for curator intents
@@ -46,6 +52,7 @@ interface IOrionConfig {
     /// @param _internalStatesOrchestrator The address of the internal states orchestrator
     /// @param _liquidityOrchestrator The address of the liquidity orchestrator
     /// @param _curatorIntentDecimals The number of decimal places for curator intents
+    /// @param _statesDecimals The number of decimal places for states
     /// @param _factory The address of the vault factory
     /// @param _oracleRegistry The address of the oracle registry
     function setProtocolParams(
@@ -53,6 +60,7 @@ interface IOrionConfig {
         address _internalStatesOrchestrator,
         address _liquidityOrchestrator,
         uint8 _curatorIntentDecimals,
+        uint8 _statesDecimals,
         address _factory,
         address _oracleRegistry
     ) external;

@@ -26,6 +26,7 @@ describe("OrionVault", function () {
       underlyingAssetAddress,
       internalOrchestrator.address,
       liquidityOrchestrator.address,
+      18, // statesDecimals
       6, // curatorIntentDecimals
       owner.address, // factory
       owner.address, // oracleRegistry
@@ -65,7 +66,7 @@ describe("OrionVault", function () {
       expect(await vault.name()).to.equal("Test Vault");
       expect(await vault.symbol()).to.equal("TV");
       expect(await vault.decimals()).to.equal(6);
-      expect(await vault.sharePrice()).to.equal(ethers.parseUnits("1", 6));
+      expect(await vault.sharePrice()).to.equal(ethers.parseUnits("1", 18));
       expect(await vault.totalAssets()).to.equal(0);
     });
     it("Should revert if initialized with zero curator address", async function () {

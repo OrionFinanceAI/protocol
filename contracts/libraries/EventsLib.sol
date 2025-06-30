@@ -13,7 +13,8 @@ library EventsLib {
         address underlyingAsset,
         address internalStatesOrchestrator,
         address liquidityOrchestrator,
-        uint256 curatorIntentDecimals,
+        uint8 statesDecimals,
+        uint8 curatorIntentDecimals,
         address factory,
         address oracleRegistry
     );

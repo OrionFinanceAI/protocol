@@ -9,6 +9,7 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import { ErrorsLib } from "./libraries/ErrorsLib.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { EventsLib } from "./libraries/EventsLib.sol";
 
 /**
@@ -29,6 +30,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     address public liquidityOrchestrator;
     address public vaultFactory;
     address public oracleRegistry;
+    uint8 public statesDecimals;
 
     // Curator-specific configuration
     uint8 public curatorIntentDecimals;
@@ -59,6 +61,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         address underlyingAsset_,
         address internalStatesOrchestrator_,
         address liquidityOrchestrator_,
+        uint8 statesDecimals_,
         uint8 curatorIntentDecimals_,
         address factory_,
         address oracleRegistry_
@@ -72,6 +75,11 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         underlyingAsset = IERC20(underlyingAsset_);
         internalStatesOrchestrator = internalStatesOrchestrator_;
         liquidityOrchestrator = liquidityOrchestrator_;
+
+        uint8 underlyingDecimals = IERC20Metadata(underlyingAsset_).decimals();
+        if (statesDecimals_ < underlyingDecimals) revert ErrorsLib.InvalidStatesDecimals();
+        statesDecimals = statesDecimals_;
+
         curatorIntentDecimals = curatorIntentDecimals_;
         vaultFactory = factory_;
         oracleRegistry = oracleRegistry_;
@@ -80,6 +88,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
             underlyingAsset_,
             internalStatesOrchestrator_,
             liquidityOrchestrator_,
+            statesDecimals_,
             curatorIntentDecimals_,
             factory_,
             oracleRegistry_

@@ -24,7 +24,7 @@ async function main() {
     console.log("Using deployer address:", await deployer.getAddress());
 
     // Impersonate Chainlink Registry on Hardhat network
-    const registryAddress = await orchestrator.registry();
+    const registryAddress = await orchestrator.automationRegistry();
 
     await hre.network.provider.request({
       method: "hardhat_impersonateAccount",

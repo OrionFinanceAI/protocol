@@ -83,6 +83,22 @@ contract InternalStatesOrchestrator is
     function performUpkeep(bytes calldata) external override onlyAutomationRegistry nonReentrant {
         if (!_shouldTriggerUpkeep()) revert ErrorsLib.TooEarly();
 
+        // Update internal state BEFORE external calls (EFFECTS before INTERACTIONS)
+        nextUpdateTime = _computeNextUpdateTime(block.timestamp);
+
+        // Process vault states
+        _processVaultStates();
+
+        emit EventsLib.InternalStateProcessed(block.timestamp);
+
+        // TODO: have another chainlink automation offchain process
+        // listening to this event and updating the liquidity positions
+        //in another transaction based on the updated internal states.
+        // No atomicity, but better for scalability.
+    }
+
+    /// @notice Process vault states by updating oracle prices and calculating P&L
+    function _processVaultStates() internal {
         // Collect read-only states from all Orion vaults
         (
             address[] memory vaults,
@@ -92,15 +108,21 @@ contract InternalStatesOrchestrator is
             uint256[] memory withdrawRequests
         ) = config.getVaultStates();
 
-        // Update internal state BEFORE external calls (EFFECTS before INTERACTIONS)
-        nextUpdateTime = _computeNextUpdateTime(block.timestamp);
+        // Update oracle prices and calculate P&L
+        uint256[] memory pnlAmountArray = _updateOraclePricesAndCalculatePnL();
 
-        // Collect read-write states from market oracle
+        // Update vault states
+        _updateVaultStates(vaults, sharePrices, totalAssets, depositRequests, withdrawRequests, pnlAmountArray);
+    }
+
+    /// @notice Update oracle prices and calculate P&L based on price changes
+    function _updateOraclePricesAndCalculatePnL() internal returns (uint256[] memory) {
         address[] memory universe = config.getAllWhitelistedAssets();
         IOracleRegistry registry = IOracleRegistry(config.oracleRegistry());
 
         uint256[] memory previousPriceArray = new uint256[](universe.length);
         uint256[] memory currentPriceArray = new uint256[](universe.length);
+
         for (uint256 i = 0; i < universe.length; i++) {
             // slither-disable-start calls-loop
             previousPriceArray[i] = registry.price(universe[i]);
@@ -108,10 +130,18 @@ contract InternalStatesOrchestrator is
             // slither-disable-end calls-loop
         }
 
-        // Calculate P&L based on price changes
-        uint256[] memory pnlAmountArray = _calculatePnL(previousPriceArray, currentPriceArray);
+        return _calculatePnL(previousPriceArray, currentPriceArray);
+    }
 
-        // Calculate P&L and update vault states based on market data
+    /// @notice Update vault states based on market data and pending operations
+    function _updateVaultStates(
+        address[] memory vaults,
+        uint256[] memory sharePrices,
+        uint256[] memory totalAssets,
+        uint256[] memory depositRequests,
+        uint256[] memory withdrawRequests,
+        uint256[] memory pnlAmountArray
+    ) internal {
         for (uint256 i = 0; i < vaults.length; i++) {
             // slither-disable-start calls-loop
             // Validate vault address before making external calls
@@ -119,30 +149,26 @@ contract InternalStatesOrchestrator is
 
             IOrionVault vault = IOrionVault(vaults[i]);
 
-            // TODO: compute vault absolute pnl performing dot product between the vault's weights and the pnl amount array.
+            // TODO: compute vault absolute pnl performing dot product between
+            // the vault's weights and the pnl amount array.
             // Multiplied by the vault's total assets.
             // TODO: this requires to have the executed vault weights in the vault state.
             // Best to overwrite this state from the liquidity orchestrator.
             uint256 pnlAmount = pnlAmountArray[i] * totalAssets[i]; // TODO: placeholder, to be removed
 
-            // Calculate new total assets: current + deposits - withdrawals + P&L
-            // TODO: fix, as deposits are in underlying and withdrawals are in shares.
-            // Use inflation resistant conversion functions defined in vault contract.
-            uint256 newTotalAssets = totalAssets[i] + depositRequests[i] - withdrawRequests[i] + pnlAmount;
-
             // Calculate new share price based on P&L [%]
-            uint256 newSharePrice = sharePrices[i] * (1 + pnlAmountArray[i]);
+            uint256 newSharePrice = (sharePrices[i] * (10 ** config.statesDecimals() + pnlAmountArray[i])) /
+                10 ** config.statesDecimals();
+
+            // TODO: compute new deposit requests in shares? Needed for total supply calculation.
+            // uint256 newDepositRequests = vault.convertToShares(depositRequests[i]);
+
+            uint256 withdrawalAssets = vault.convertToAssets(withdrawRequests[i]);
+            uint256 newTotalAssets = totalAssets[i] + depositRequests[i] - withdrawalAssets + pnlAmount;
 
             vault.updateVaultState(newSharePrice, newTotalAssets);
             // slither-disable-end calls-loop
         }
-
-        emit EventsLib.InternalStateProcessed(block.timestamp);
-
-        // TODO: have another chainlink automation offchain process
-        // listening to this event and updating the liquidity positions
-        //in another transaction based on the updated internal states.
-        // No atomicity, but better for scalability.
     }
 
     function _shouldTriggerUpkeep() internal view returns (bool) {
@@ -161,11 +187,12 @@ contract InternalStatesOrchestrator is
     function _calculatePnL(
         uint256[] memory previousPriceArray,
         uint256[] memory currentPriceArray
-    ) internal pure returns (uint256[] memory pnlAmountArray) {
+    ) internal view returns (uint256[] memory pnlAmountArray) {
         pnlAmountArray = new uint256[](previousPriceArray.length);
+        uint8 statesDecimals = config.statesDecimals();
         for (uint256 i = 0; i < previousPriceArray.length; i++) {
-            // TODO: Avoid rounding errors.
-            pnlAmountArray[i] = (currentPriceArray[i] - previousPriceArray[i]) / previousPriceArray[i];
+            uint256 deltaPrice = currentPriceArray[i] - previousPriceArray[i];
+            pnlAmountArray[i] = (deltaPrice * 10 ** statesDecimals) / previousPriceArray[i];
         }
     }
 }

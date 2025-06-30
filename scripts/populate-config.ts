@@ -71,6 +71,7 @@ async function main() {
     underlyingAsset,
     internalOrchestrator,
     liquidityOrchestrator,
+    18,
     9, // Biggest integer that can be represented in 32 bits
     factoryAddress,
     oracleRegistryAddress,
