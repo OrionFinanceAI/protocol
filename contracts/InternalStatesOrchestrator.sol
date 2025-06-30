@@ -34,15 +34,15 @@ contract InternalStatesOrchestrator is
     /// @notice Orion Config contract address
     IOrionConfig public config;
 
-    function initialize(address initialOwner, address _automationRegistry, address _config) public initializer {
+    function initialize(address initialOwner, address automationRegistry_, address config_) public initializer {
         __Ownable2Step_init();
         __UUPSUpgradeable_init();
         __ReentrancyGuard_init();
         _transferOwnership(initialOwner);
 
-        if (_automationRegistry == address(0)) revert ErrorsLib.ZeroAddress();
-        automationRegistry = _automationRegistry;
-        config = IOrionConfig(_config);
+        if (automationRegistry_ == address(0)) revert ErrorsLib.ZeroAddress();
+        automationRegistry = automationRegistry_;
+        config = IOrionConfig(config_);
 
         nextUpdateTime = _computeNextUpdateTime(block.timestamp);
     }
@@ -56,17 +56,17 @@ contract InternalStatesOrchestrator is
     }
 
     /// @notice Updates the Chainlink Automation Registry address
-    /// @param _newAutomationRegistry The new automation registry address
-    function updateAutomationRegistry(address _newAutomationRegistry) external onlyOwner {
-        if (_newAutomationRegistry == address(0)) revert ErrorsLib.ZeroAddress();
-        automationRegistry = _newAutomationRegistry;
-        emit EventsLib.AutomationRegistryUpdated(_newAutomationRegistry);
+    /// @param newAutomationRegistry The new automation registry address
+    function updateAutomationRegistry(address newAutomationRegistry) external onlyOwner {
+        if (newAutomationRegistry == address(0)) revert ErrorsLib.ZeroAddress();
+        automationRegistry = newAutomationRegistry;
+        emit EventsLib.AutomationRegistryUpdated(newAutomationRegistry);
     }
 
     /// @notice Updates the Orion Config contract address
-    /// @param _newConfig The new config address
-    function updateConfig(address _newConfig) external onlyOwner {
-        config = IOrionConfig(_newConfig);
+    /// @param newConfig The new config address
+    function updateConfig(address newConfig) external onlyOwner {
+        config = IOrionConfig(newConfig);
     }
 
     function checkUpkeep(bytes calldata) external view override returns (bool upkeepNeeded, bytes memory performData) {
@@ -102,8 +102,10 @@ contract InternalStatesOrchestrator is
         uint256[] memory previousPriceArray = new uint256[](universe.length);
         uint256[] memory currentPriceArray = new uint256[](universe.length);
         for (uint256 i = 0; i < universe.length; i++) {
+            // slither-disable-start calls-loop
             previousPriceArray[i] = registry.price(universe[i]);
             currentPriceArray[i] = registry.update(universe[i]);
+            // slither-disable-end calls-loop
         }
 
         // Calculate P&L based on price changes
@@ -111,6 +113,7 @@ contract InternalStatesOrchestrator is
 
         // Calculate P&L and update vault states based on market data
         for (uint256 i = 0; i < vaults.length; i++) {
+            // slither-disable-start calls-loop
             // Validate vault address before making external calls
             if (vaults[i] == address(0)) revert ErrorsLib.ZeroAddress();
 
@@ -125,6 +128,7 @@ contract InternalStatesOrchestrator is
             uint256 newSharePrice = sharePrices[i] * (1 + pnlAmount);
 
             vault.updateVaultState(newSharePrice, newTotalAssets);
+            // slither-disable-end calls-loop
         }
 
         emit EventsLib.InternalStateProcessed(block.timestamp);
@@ -136,6 +140,7 @@ contract InternalStatesOrchestrator is
     }
 
     function _shouldTriggerUpkeep() internal view returns (bool) {
+        // slither-disable-next-line timestamp
         return block.timestamp >= nextUpdateTime;
     }
 

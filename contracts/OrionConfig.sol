@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.4;
+pragma solidity ^0.8.20;
 
 import "./interfaces/IOrionConfig.sol";
 import "./interfaces/IOrionVault.sol";
@@ -56,33 +56,33 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     // === Protocol Configuration ===
 
     function setProtocolParams(
-        address _underlyingAsset,
-        address _internalStatesOrchestrator,
-        address _liquidityOrchestrator,
-        uint8 _curatorIntentDecimals,
-        address _factory,
-        address _oracleRegistry
+        address underlyingAsset_,
+        address internalStatesOrchestrator_,
+        address liquidityOrchestrator_,
+        uint8 curatorIntentDecimals_,
+        address factory_,
+        address oracleRegistry_
     ) external onlyOwner {
-        if (_underlyingAsset == address(0)) revert ErrorsLib.InvalidAsset();
-        if (_internalStatesOrchestrator == address(0)) revert ErrorsLib.InvalidInternalOrchestrator();
-        if (_liquidityOrchestrator == address(0)) revert ErrorsLib.InvalidLiquidityOrchestrator();
-        if (_factory == address(0)) revert ErrorsLib.ZeroAddress();
-        if (_oracleRegistry == address(0)) revert ErrorsLib.ZeroAddress();
+        if (underlyingAsset_ == address(0)) revert ErrorsLib.InvalidAsset();
+        if (internalStatesOrchestrator_ == address(0)) revert ErrorsLib.InvalidInternalOrchestrator();
+        if (liquidityOrchestrator_ == address(0)) revert ErrorsLib.InvalidLiquidityOrchestrator();
+        if (factory_ == address(0)) revert ErrorsLib.ZeroAddress();
+        if (oracleRegistry_ == address(0)) revert ErrorsLib.ZeroAddress();
 
-        underlyingAsset = IERC20(_underlyingAsset);
-        internalStatesOrchestrator = _internalStatesOrchestrator;
-        liquidityOrchestrator = _liquidityOrchestrator;
-        curatorIntentDecimals = _curatorIntentDecimals;
-        vaultFactory = _factory;
-        oracleRegistry = _oracleRegistry;
+        underlyingAsset = IERC20(underlyingAsset_);
+        internalStatesOrchestrator = internalStatesOrchestrator_;
+        liquidityOrchestrator = liquidityOrchestrator_;
+        curatorIntentDecimals = curatorIntentDecimals_;
+        vaultFactory = factory_;
+        oracleRegistry = oracleRegistry_;
 
         emit EventsLib.ProtocolParamsUpdated(
-            _underlyingAsset,
-            _internalStatesOrchestrator,
-            _liquidityOrchestrator,
-            _curatorIntentDecimals,
-            _factory,
-            _oracleRegistry
+            underlyingAsset_,
+            internalStatesOrchestrator_,
+            liquidityOrchestrator_,
+            curatorIntentDecimals_,
+            factory_,
+            oracleRegistry_
         );
     }
 
@@ -163,6 +163,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         withdrawRequests = new uint256[](length);
 
         for (uint256 i = 0; i < length; ++i) {
+            // slither-disable-start calls-loop
             address vaultAddress = orionVaults.at(i);
             vaults[i] = vaultAddress;
 
@@ -173,6 +174,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
             // Get pending deposits and withdrawals
             depositRequests[i] = vault.getPendingDeposits();
             withdrawRequests[i] = vault.getPendingWithdrawals();
+            // slither-disable-end calls-loop
         }
     }
 }
