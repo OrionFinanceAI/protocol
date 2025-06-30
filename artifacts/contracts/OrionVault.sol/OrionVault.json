@@ -26,11 +26,6 @@
       "type": "error"
     },
     {
-      "inputs": [],
-      "name": "DepositRequestFailed",
-      "type": "error"
-    },
-    {
       "inputs": [
         {
           "internalType": "address",
@@ -322,11 +317,6 @@
         }
       ],
       "name": "UUPSUnsupportedProxiableUUID",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "WithdrawRequestFailed",
       "type": "error"
     },
     {

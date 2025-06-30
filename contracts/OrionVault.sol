@@ -40,8 +40,6 @@ abstract contract OrionVault is
     UUPSUpgradeable,
     IOrionVault
 {
-    using EnumerableMap for EnumerableMap.AddressToUintMap;
-
     IOrionConfig public config;
     address public curator;
     address public deployer;
@@ -50,8 +48,11 @@ abstract contract OrionVault is
     uint256 internal _totalAssets;
 
     // Queues of async requests from LPs
-    EnumerableMap.AddressToUintMap private _depositRequests;
-    EnumerableMap.AddressToUintMap private _withdrawRequests;
+    mapping(address => uint256) private _depositRequests;
+    mapping(address => uint256) private _withdrawRequests;
+
+    address[] private _depositRequestors;
+    address[] private _withdrawRequestors;
 
     modifier onlyCurator() {
         if (msg.sender != curator) revert ErrorsLib.NotCurator();
@@ -133,20 +134,18 @@ abstract contract OrionVault is
         // Checks first
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
 
-        // Effects - update internal state before external interactions
-        (bool exists, uint256 existingAmount) = _depositRequests.tryGet(msg.sender);
-        bool ok;
-        if (exists) {
-            ok = _depositRequests.set(msg.sender, existingAmount + amount);
-        } else {
-            ok = _depositRequests.set(msg.sender, amount);
+        if (_depositRequests[msg.sender] == 0) {
+            _depositRequestors.push(msg.sender);
         }
-        if (!ok) revert ErrorsLib.DepositRequestFailed();
+
+        // Effects - update internal state before external interactions
+        _depositRequests[msg.sender] += amount;
+
         // Interactions - external calls last
         bool success = IERC20(asset()).transferFrom(msg.sender, address(this), amount);
         if (!success) revert ErrorsLib.TransferFailed();
 
-        emit DepositRequested(msg.sender, amount, _depositRequests.length());
+        emit DepositRequested(msg.sender, amount, _depositRequestors.length);
     }
 
     /// @notice Allow LPs to withdraw their escrowed tokens before minting, making the system more trustless
@@ -155,23 +154,16 @@ abstract contract OrionVault is
         // Checks first
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
 
-        (bool exists, uint256 existingAmount) = _depositRequests.tryGet(msg.sender);
-        if (!exists || existingAmount < amount) revert ErrorsLib.NotEnoughDepositRequest();
+        if (_depositRequests[msg.sender] < amount) revert ErrorsLib.NotEnoughDepositRequest();
 
         // Effects - update internal state before external interactions
-        bool ok;
-        if (existingAmount == amount) {
-            ok = _depositRequests.remove(msg.sender);
-        } else {
-            ok = _depositRequests.set(msg.sender, existingAmount - amount);
-        }
-        if (!ok) revert ErrorsLib.DepositRequestFailed();
+        _depositRequests[msg.sender] -= amount;
 
         // Interactions - external calls last
         bool success = IERC20(asset()).transfer(msg.sender, amount);
         if (!success) revert ErrorsLib.TransferFailed();
 
-        emit DepositRequestWithdrawn(msg.sender, amount, _depositRequests.length());
+        emit DepositRequestWithdrawn(msg.sender, amount, _depositRequestors.length);
     }
 
     /// @notice LPs submits async withdrawal request; shares locked until processed
@@ -181,19 +173,15 @@ abstract contract OrionVault is
         if (balanceOf(msg.sender) < shares) revert ErrorsLib.NotEnoughShares();
 
         // Effects - update internal state before transfers
-        (bool exists, uint256 existingShares) = _withdrawRequests.tryGet(msg.sender);
-        bool ok;
-        if (exists) {
-            ok = _withdrawRequests.set(msg.sender, existingShares + shares);
-        } else {
-            ok = _withdrawRequests.set(msg.sender, shares);
+        if (_withdrawRequests[msg.sender] == 0) {
+            _withdrawRequestors.push(msg.sender);
         }
-        if (!ok) revert ErrorsLib.WithdrawRequestFailed();
+        _withdrawRequests[msg.sender] += shares;
 
         // Interactions - lock shares by transferring them to contract as escrow
         _transfer(msg.sender, address(this), shares);
 
-        emit WithdrawRequested(msg.sender, shares, _withdrawRequests.length());
+        emit WithdrawRequested(msg.sender, shares, _withdrawRequestors.length);
     }
 
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
@@ -210,11 +198,8 @@ abstract contract OrionVault is
     /// @notice Get total pending deposit amount across all users
     function getPendingDeposits() external view returns (uint256) {
         uint256 totalPending = 0;
-        for (uint256 i = 0; i < _depositRequests.length(); i++) {
-            // slither-disable-next-line unused-return
-            (, uint256 amount) = _depositRequests.at(i);
-
-            totalPending += amount;
+        for (uint256 i = 0; i < _depositRequestors.length; i++) {
+            totalPending += _depositRequests[_depositRequestors[i]];
         }
         return totalPending;
     }
@@ -222,11 +207,8 @@ abstract contract OrionVault is
     /// @notice Get total pending withdrawal shares across all users
     function getPendingWithdrawals() external view returns (uint256) {
         uint256 totalPending = 0;
-        for (uint256 i = 0; i < _withdrawRequests.length(); i++) {
-            // slither-disable-next-line unused-return
-            (, uint256 shares) = _withdrawRequests.at(i);
-
-            totalPending += shares;
+        for (uint256 i = 0; i < _withdrawRequestors.length; i++) {
+            totalPending += _withdrawRequests[_withdrawRequestors[i]];
         }
         return totalPending;
     }
@@ -255,12 +237,12 @@ abstract contract OrionVault is
     /// @notice Process deposit requests from LPs
     function processDepositRequests() external onlyLiquidityOrchestrator nonReentrant {
         uint256 i = 0;
-        for (i = 0; i < _depositRequests.length(); i++) {
-            (address user, uint256 amount) = _depositRequests.at(i);
+        for (i = 0; i < _depositRequestors.length; i++) {
+            address user = _depositRequestors[i];
+            uint256 amount = _depositRequests[user];
             uint256 shares = previewDeposit(amount);
 
-            bool ok = _depositRequests.remove(user);
-            if (!ok) revert ErrorsLib.DepositRequestFailed();
+            _depositRequests[user] = 0;
 
             _mint(user, shares);
 
@@ -271,11 +253,11 @@ abstract contract OrionVault is
     /// @notice Process withdrawal requests from LPs
     function processWithdrawRequests() external onlyLiquidityOrchestrator nonReentrant {
         uint256 i = 0;
-        for (i = 0; i < _withdrawRequests.length(); i++) {
-            (address user, uint256 shares) = _withdrawRequests.at(i);
+        for (i = 0; i < _withdrawRequestors.length; i++) {
+            address user = _withdrawRequestors[i];
+            uint256 shares = _withdrawRequests[user];
 
-            bool ok = _withdrawRequests.remove(user);
-            if (!ok) revert ErrorsLib.WithdrawRequestFailed();
+            _withdrawRequests[user] = 0;
 
             _burn(address(this), shares);
             uint256 underlyingAmount = previewRedeem(shares);
