@@ -37,6 +37,8 @@ library EventsLib {
 
     // Oracle Registry Events
     event OracleRegistered(address indexed asset, address indexed oracle);
+    // Oracle Events
+    event PriceUpdated(address indexed asset, uint256 newPrice);
 
     // Orion Vault Factory Events
     enum VaultType {
