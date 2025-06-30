@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.4;
+pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 
 contract UnderlyingAsset is ERC20 {
-    address public minter;
+    address public immutable minter;
 
     constructor() ERC20("USD Coin", "USDC") {
         minter = msg.sender;

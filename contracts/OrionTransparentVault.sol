@@ -6,6 +6,7 @@ import "./OrionVault.sol";
 import "./interfaces/IOrionConfig.sol";
 import "./interfaces/IOrionTransparentVault.sol";
 import { ErrorsLib } from "./libraries/ErrorsLib.sol";
+import { EventsLib } from "./libraries/EventsLib.sol";
 
 /**
  * @title OrionTransparentVault
@@ -21,12 +22,12 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     EnumerableMap.AddressToUintMap private _orders;
 
     function initialize(
-        address _curator,
-        IOrionConfig _config,
-        string memory _name,
-        string memory _symbol
+        address curatorAddress,
+        IOrionConfig configAddress,
+        string calldata name,
+        string calldata symbol
     ) public initializer {
-        __OrionVault_init(_curator, _config, _name, _symbol);
+        __OrionVault_init(curatorAddress, configAddress, name, symbol);
     }
 
     /// --------- CURATOR FUNCTIONS ---------
@@ -39,6 +40,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
         uint256 totalAmount = 0;
         for (uint256 i = 0; i < order.length; i++) {
+            // slither-disable-start calls-loop
             address token = order[i].token;
             uint32 amount = order[i].amount;
             if (!config.isWhitelisted(token)) revert ErrorsLib.TokenNotWhitelisted(token);
@@ -46,11 +48,12 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
             bool inserted = _orders.set(token, amount);
             if (!inserted) revert ErrorsLib.TokenAlreadyInOrder(token);
             totalAmount += amount;
+            // slither-disable-end calls-loop
         }
 
         uint8 curatorIntentDecimals = config.curatorIntentDecimals();
         if (totalAmount != 10 ** curatorIntentDecimals) revert ErrorsLib.InvalidTotalAmount();
 
-        emit OrderSubmitted(msg.sender);
+        emit EventsLib.OrderSubmitted(msg.sender);
     }
 }

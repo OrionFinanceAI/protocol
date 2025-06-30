@@ -2,9 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
-import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
@@ -12,6 +10,7 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "./interfaces/IOrionConfig.sol";
 import "./interfaces/IOrionVault.sol";
 import { ErrorsLib } from "./libraries/ErrorsLib.sol";
+import { EventsLib } from "./libraries/EventsLib.sol";
 
 /**
  * @title OrionVault
@@ -40,8 +39,6 @@ abstract contract OrionVault is
     UUPSUpgradeable,
     IOrionVault
 {
-    using EnumerableMap for EnumerableMap.AddressToUintMap;
-
     IOrionConfig public config;
     address public curator;
     address public deployer;
@@ -50,8 +47,11 @@ abstract contract OrionVault is
     uint256 internal _totalAssets;
 
     // Queues of async requests from LPs
-    EnumerableMap.AddressToUintMap private _depositRequests;
-    EnumerableMap.AddressToUintMap private _withdrawRequests;
+    mapping(address => uint256) private _depositRequests;
+    mapping(address => uint256) private _withdrawRequests;
+
+    address[] private _depositRequestors;
+    address[] private _withdrawRequestors;
 
     modifier onlyCurator() {
         if (msg.sender != curator) revert ErrorsLib.NotCurator();
@@ -68,26 +68,27 @@ abstract contract OrionVault is
         _;
     }
 
+    // slither-disable-next-line naming-convention
     function __OrionVault_init(
-        address _curator,
-        IOrionConfig _config,
-        string memory _name,
-        string memory _symbol
+        address curator_,
+        IOrionConfig config_,
+        string memory name_,
+        string memory symbol_
     ) internal onlyInitializing {
-        if (_curator == address(0)) revert ErrorsLib.InvalidCuratorAddress();
-        if (address(_config) == address(0)) revert ErrorsLib.InvalidConfigAddress();
+        if (curator_ == address(0)) revert ErrorsLib.InvalidCuratorAddress();
+        if (address(config_) == address(0)) revert ErrorsLib.InvalidConfigAddress();
 
-        __ERC20_init(_name, _symbol);
-        __ERC4626_init(_config.underlyingAsset());
+        __ERC20_init(name_, symbol_);
+        __ERC4626_init(config_.underlyingAsset());
         __ReentrancyGuard_init();
 
         __Ownable2Step_init();
         __UUPSUpgradeable_init();
-        _transferOwnership(_curator);
+        _transferOwnership(curator_);
 
         deployer = msg.sender;
-        curator = _curator;
-        config = _config;
+        curator = curator_;
+        config = config_;
         sharePrice = 10 ** decimals();
         _totalAssets = 0;
     }
@@ -113,7 +114,6 @@ abstract contract OrionVault is
     }
 
     function totalAssets() public view override(ERC4626Upgradeable, IERC4626) returns (uint256) {
-        // TODO: mimicking the ERC4626 implementation when it comes to events emission, for etherscan consistency.
         return _totalAssets;
     }
 
@@ -129,24 +129,41 @@ abstract contract OrionVault is
 
     /// @notice LPs submits async deposit request; no share tokens minted yet,
     /// while underlying tokens are transferred to the vault contract as escrow.
-    function requestDeposit(uint256 amount) external {
+    function requestDeposit(uint256 amount) external nonReentrant {
         // Checks first
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
 
+        if (_depositRequests[msg.sender] == 0) {
+            _depositRequestors.push(msg.sender);
+        }
+
         // Effects - update internal state before external interactions
-        (bool exists, uint256 existingAmount) = _depositRequests.tryGet(msg.sender);
-        if (exists) _depositRequests.set(msg.sender, existingAmount + amount);
-        else _depositRequests.set(msg.sender, amount);
+        _depositRequests[msg.sender] += amount;
 
         // Interactions - external calls last
         bool success = IERC20(asset()).transferFrom(msg.sender, address(this), amount);
         if (!success) revert ErrorsLib.TransferFailed();
 
-        emit DepositRequested(msg.sender, amount, _depositRequests.length());
+        emit EventsLib.DepositRequested(msg.sender, amount, _depositRequestors.length);
     }
-    // TODO: To make the system more trustless,
-    // add a function to withdrawl (syncronously) before minting and
-    // get back the underlying tokens in the escrow.
+
+    /// @notice Allow LPs to withdraw their escrowed tokens before minting, making the system more trustless
+    /// @param amount The amount of underlying tokens to withdraw from escrow
+    function withdrawDepositRequest(uint256 amount) external nonReentrant {
+        // Checks first
+        if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
+        if (_depositRequests[msg.sender] < amount) revert ErrorsLib.NotEnoughDepositRequest();
+
+        // Effects - update internal state before external interactions
+        _depositRequests[msg.sender] -= amount;
+        uint256 depositorCount = _depositRequestors.length;
+
+        // Interactions - external calls last
+        bool success = IERC20(asset()).transfer(msg.sender, amount);
+        if (!success) revert ErrorsLib.TransferFailed();
+
+        emit EventsLib.DepositRequestWithdrawn(msg.sender, amount, depositorCount);
+    }
 
     /// @notice LPs submits async withdrawal request; shares locked until processed
     function requestWithdraw(uint256 shares) external {
@@ -155,69 +172,92 @@ abstract contract OrionVault is
         if (balanceOf(msg.sender) < shares) revert ErrorsLib.NotEnoughShares();
 
         // Effects - update internal state before transfers
-        (bool exists, uint256 existingShares) = _withdrawRequests.tryGet(msg.sender);
-        if (exists) _withdrawRequests.set(msg.sender, existingShares + shares);
-        else _withdrawRequests.set(msg.sender, shares);
+        if (_withdrawRequests[msg.sender] == 0) {
+            _withdrawRequestors.push(msg.sender);
+        }
+        _withdrawRequests[msg.sender] += shares;
 
         // Interactions - lock shares by transferring them to contract as escrow
         _transfer(msg.sender, address(this), shares);
 
-        emit WithdrawRequested(msg.sender, shares, _withdrawRequests.length());
+        emit EventsLib.WithdrawRequested(msg.sender, shares, _withdrawRequestors.length);
     }
 
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
 
-    function setSharePrice(uint256 newPrice) external onlyInternalStatesOrchestrator {
-        if (newPrice == 0) revert ErrorsLib.ZeroPrice();
-        sharePrice = newPrice;
+    /// @notice Update vault state based on market performance and pending operations
+    /// @param newSharePrice The new share price after P&L calculation
+    /// @param newTotalAssets The new total assets after processing deposits/withdrawals
+    function updateVaultState(uint256 newSharePrice, uint256 newTotalAssets) external onlyInternalStatesOrchestrator {
+        if (newSharePrice == 0) revert ErrorsLib.ZeroPrice();
+
+        // Update state variables
+        sharePrice = newSharePrice;
+        _totalAssets = newTotalAssets;
+
+        // Emit event for tracking state updates
+        emit EventsLib.VaultStateUpdated(newSharePrice, newTotalAssets);
     }
 
-    function setTotalAssets(uint256 newTotalAssets) external onlyInternalStatesOrchestrator {
-        _totalAssets = newTotalAssets;
+    /// @notice Get total pending deposit amount across all users
+    function getPendingDeposits() external view returns (uint256) {
+        uint256 totalPending = 0;
+        uint256 length = _depositRequestors.length;
+        for (uint256 i = 0; i < length; i++) {
+            totalPending += _depositRequests[_depositRequestors[i]];
+        }
+        return totalPending;
+    }
+
+    /// @notice Get total pending withdrawal shares across all users
+    function getPendingWithdrawals() external view returns (uint256) {
+        uint256 totalPending = 0;
+        uint256 length = _withdrawRequestors.length;
+        for (uint256 i = 0; i < length; i++) {
+            totalPending += _withdrawRequests[_withdrawRequestors[i]];
+        }
+        return totalPending;
     }
 
     /// --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
 
-    /// @notice Process deposit requests from LPs
+    /// @notice Process deposit requests from LPs and reset the requestor's request amount
+    // TODO: consider risks of using internal states to update share price and total assets and then reset them
+    // after successful transaction processed
+    // In a second step by the liquidity orchestrator. There are risks in this, need to identify an alternative
+    // solution.
     function processDepositRequests() external onlyLiquidityOrchestrator nonReentrant {
-        uint256 i = 0;
-        for (i = 0; i < _depositRequests.length(); i++) {
-            (address user, uint256 amount) = _depositRequests.at(i);
+        uint256 length = _depositRequestors.length;
+        for (uint256 i = 0; i < length; i++) {
+            address user = _depositRequestors[i];
+            uint256 amount = _depositRequests[user];
             uint256 shares = previewDeposit(amount);
 
-            _depositRequests.remove(user);
+            _depositRequests[user] = 0;
 
             _mint(user, shares);
 
-            emit DepositProcessed(user, amount, i);
+            emit EventsLib.DepositProcessed(user, amount, i);
         }
     }
 
     /// @notice Process withdrawal requests from LPs
+    // TODO: same as above. Fix.
     function processWithdrawRequests() external onlyLiquidityOrchestrator nonReentrant {
-        uint256 i = 0;
-        for (i = 0; i < _withdrawRequests.length(); i++) {
-            (address user, uint256 shares) = _withdrawRequests.at(i);
+        uint256 length = _withdrawRequestors.length;
+        for (uint256 i = 0; i < length; i++) {
+            address user = _withdrawRequestors[i];
+            uint256 shares = _withdrawRequests[user];
 
-            _withdrawRequests.remove(user);
+            _withdrawRequests[user] = 0;
 
             _burn(address(this), shares);
             uint256 underlyingAmount = previewRedeem(shares);
+            // slither-disable-next-line calls-loop
             if (!IERC20(asset()).transfer(user, underlyingAmount)) revert ErrorsLib.TransferFailed();
 
-            emit WithdrawProcessed(user, shares, i);
+            emit EventsLib.WithdrawProcessed(user, shares, i);
         }
-    }
-
-    /// --------- INTERNAL FUNCTIONS ---------
-
-    /// @notice Get the underlying asset address from the config
-    /// @param _config The address of the config contract
-    /// @return The underlying asset address
-    function _getUnderlyingAsset(address _config) internal view returns (IERC20) {
-        IERC20 asset = IOrionConfig(_config).underlyingAsset();
-        if (address(asset) == address(0)) revert ErrorsLib.UnderlyingAssetNotSet();
-        return asset;
     }
 
     /// --------- ABSTRACT FUNCTIONS ---------

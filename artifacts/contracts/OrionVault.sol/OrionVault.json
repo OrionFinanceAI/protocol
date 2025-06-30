@@ -228,6 +228,11 @@
     },
     {
       "inputs": [],
+      "name": "NotEnoughDepositRequest",
+      "type": "error"
+    },
+    {
+      "inputs": [],
       "name": "NotEnoughShares",
       "type": "error"
     },
@@ -422,6 +427,31 @@
           "type": "uint256"
         }
       ],
+      "name": "DepositRequestWithdrawn",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "user",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "requestId",
+          "type": "uint256"
+        }
+      ],
       "name": "DepositRequested",
       "type": "event"
     },
@@ -436,19 +466,6 @@
         }
       ],
       "name": "Initialized",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "curator",
-          "type": "address"
-        }
-      ],
-      "name": "OrderSubmitted",
       "type": "event"
     },
     {
@@ -525,6 +542,25 @@
         }
       ],
       "name": "Upgraded",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "newSharePrice",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "newTotalAssets",
+          "type": "uint256"
+        }
+      ],
+      "name": "VaultStateUpdated",
       "type": "event"
     },
     {
@@ -829,15 +865,41 @@
       "type": "function"
     },
     {
+      "inputs": [],
+      "name": "getPendingDeposits",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getPendingWithdrawals",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
       "inputs": [
         {
           "internalType": "address",
-          "name": "curator",
+          "name": "curatorAddress",
           "type": "address"
         },
         {
           "internalType": "contract IOrionConfig",
-          "name": "config",
+          "name": "configAddress",
           "type": "address"
         },
         {
@@ -1161,32 +1223,6 @@
       "type": "function"
     },
     {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "newPrice",
-          "type": "uint256"
-        }
-      ],
-      "name": "setSharePrice",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "newTotalAssets",
-          "type": "uint256"
-        }
-      ],
-      "name": "setTotalAssets",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
       "inputs": [],
       "name": "sharePrice",
       "outputs": [
@@ -1307,6 +1343,24 @@
     {
       "inputs": [
         {
+          "internalType": "uint256",
+          "name": "newSharePrice",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "newTotalAssets",
+          "type": "uint256"
+        }
+      ],
+      "name": "updateVaultState",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
           "internalType": "address",
           "name": "newImplementation",
           "type": "address"
@@ -1349,6 +1403,19 @@
         }
       ],
       "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "withdrawDepositRequest",
+      "outputs": [],
+      "stateMutability": "nonpayable",
       "type": "function"
     }
   ],

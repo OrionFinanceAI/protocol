@@ -2,7 +2,7 @@
 
 <div align="center">
 
-[![Github Actions][gha-badge]][gha] [![Hardhat][hardhat-badge]][hardhat] [![Discord][discord-badge]][discord]
+[![codecov][codecov-badge]][codecov] [![Github Actions][gha-badge]][gha] [![Hardhat][hardhat-badge]][hardhat]  [![Discord][discord-badge]][discord]
 
 </div>
 
@@ -12,6 +12,10 @@
 [hardhat-badge]: https://img.shields.io/badge/Built%20with-Hardhat-FFDB1C.svg
 [discord]: https://discord.gg/8bAXxPSPdw
 [discord-badge]: https://img.shields.io/badge/discord-join%20chat-5865F2?logo=discord&logoColor=white
+
+[codecov]: https://codecov.io/gh/OrionFinanceAI/protocol
+[codecov-badge]: https://codecov.io/gh/OrionFinanceAI/protocol/branch/main/graph/badge.svg
+
 
 ![orion](./assets/OF_lockup_white.png)
 
@@ -29,6 +33,9 @@ The license for Orion is the Business Source License 1.1 (`BUSL-1.1`) given in [
 ## Installation
 
 ```bash
+uv venv 
+source .venv/bin/activate
+uv pip install slither-analyzer==0.11.3
 pnpm install
 ```
 

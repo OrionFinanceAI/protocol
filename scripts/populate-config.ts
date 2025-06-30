@@ -29,9 +29,8 @@ async function main() {
     UNDERLYING_ASSET,
     INTERNAL_ORCHESTRATOR_ADDRESS,
     LIQUIDITY_ORCHESTRATOR_ADDRESS,
-    ORACLE_ADDRESS,
-    FHE_PUBLIC_CID,
     FACTORY_ADDRESS,
+    ORACLE_REGISTRY_ADDRESS,
     UNIVERSE_LIST,
   } = process.env;
 
@@ -40,9 +39,8 @@ async function main() {
     !UNDERLYING_ASSET ||
     !INTERNAL_ORCHESTRATOR_ADDRESS ||
     !LIQUIDITY_ORCHESTRATOR_ADDRESS ||
-    !ORACLE_ADDRESS ||
-    !FHE_PUBLIC_CID ||
     !FACTORY_ADDRESS ||
+    !ORACLE_REGISTRY_ADDRESS ||
     !UNIVERSE_LIST
   ) {
     throw new Error("Missing one or more required env variables");
@@ -53,8 +51,8 @@ async function main() {
   const underlyingAsset = validateAddress(UNDERLYING_ASSET, "underlying asset");
   const internalOrchestrator = validateAddress(INTERNAL_ORCHESTRATOR_ADDRESS, "internal orchestrator");
   const liquidityOrchestrator = validateAddress(LIQUIDITY_ORCHESTRATOR_ADDRESS, "liquidity orchestrator");
-  const oracleAddress = validateAddress(ORACLE_ADDRESS, "oracle");
   const factoryAddress = validateAddress(FACTORY_ADDRESS, "factory");
+  const oracleRegistryAddress = validateAddress(ORACLE_REGISTRY_ADDRESS, "oracle registry");
 
   // Get the config contract
   const config = await ethers.getContractAt("OrionConfig", configAddress);
@@ -73,10 +71,9 @@ async function main() {
     underlyingAsset,
     internalOrchestrator,
     liquidityOrchestrator,
-    oracleAddress,
     9, // Biggest integer that can be represented in 32 bits
-    FHE_PUBLIC_CID,
     factoryAddress,
+    oracleRegistryAddress,
   );
   await setTx.wait();
   console.log("✅ Protocol parameters updated");

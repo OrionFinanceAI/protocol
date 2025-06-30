@@ -31,6 +31,11 @@
     },
     {
       "inputs": [],
+      "name": "DepositRequestFailed",
+      "type": "error"
+    },
+    {
+      "inputs": [],
       "name": "IndexOutOfBounds",
       "type": "error"
     },
@@ -61,11 +66,6 @@
     },
     {
       "inputs": [],
-      "name": "InvalidMarketOracle",
-      "type": "error"
-    },
-    {
-      "inputs": [],
       "name": "InvalidTotalAmount",
       "type": "error"
     },
@@ -82,6 +82,11 @@
     {
       "inputs": [],
       "name": "NotCurator",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotEnoughDepositRequest",
       "type": "error"
     },
     {
@@ -112,6 +117,11 @@
     {
       "inputs": [],
       "name": "NotOwner",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "OracleNotSet",
       "type": "error"
     },
     {
@@ -188,6 +198,11 @@
     },
     {
       "inputs": [],
+      "name": "WithdrawRequestFailed",
+      "type": "error"
+    },
+    {
+      "inputs": [],
       "name": "ZeroAddress",
       "type": "error"
     },
@@ -197,8 +212,8 @@
       "type": "error"
     }
   ],
-  "bytecode": "0x60556032600b8282823980515f1a607314602657634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f80fdfea2646970667358221220f0b9dfbbe90ac3d637342eef0ee051ca57e228857cd7bbad5c83b7af5fbae02064736f6c634300081a0033",
-  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f80fdfea2646970667358221220f0b9dfbbe90ac3d637342eef0ee051ca57e228857cd7bbad5c83b7af5fbae02064736f6c634300081a0033",
+  "bytecode": "0x60556032600b8282823980515f1a607314602657634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f80fdfea26469706673582212205d2078557f5e9dacca27fa4fed0e9c2379c89b6ca11826a0e8bc1070c284d23b64736f6c634300081a0033",
+  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f80fdfea26469706673582212205d2078557f5e9dacca27fa4fed0e9c2379c89b6ca11826a0e8bc1070c284d23b64736f6c634300081a0033",
   "linkReferences": {},
   "deployedLinkReferences": {}
 }

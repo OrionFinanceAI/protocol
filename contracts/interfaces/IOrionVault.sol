@@ -5,14 +5,12 @@ import "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import "./IOrionConfig.sol";
 
 interface IOrionVault is IERC4626 {
-    // Events
-    event OrderSubmitted(address indexed curator);
-    event DepositRequested(address indexed user, uint256 amount, uint256 requestId);
-    event WithdrawRequested(address indexed user, uint256 shares, uint256 requestId);
-    event DepositProcessed(address indexed user, uint256 amount, uint256 requestId);
-    event WithdrawProcessed(address indexed user, uint256 shares, uint256 requestId);
-
-    function initialize(address curator, IOrionConfig config, string calldata name, string calldata symbol) external;
+    function initialize(
+        address curatorAddress,
+        IOrionConfig configAddress,
+        string calldata name,
+        string calldata symbol
+    ) external;
 
     // State variables (public getters)
     function config() external view returns (IOrionConfig);
@@ -23,10 +21,16 @@ interface IOrionVault is IERC4626 {
     // LP Functions
     function requestDeposit(uint256 amount) external;
     function requestWithdraw(uint256 shares) external;
+    function withdrawDepositRequest(uint256 amount) external;
 
     // Internal States Orchestrator Functions
-    function setSharePrice(uint256 newPrice) external;
-    function setTotalAssets(uint256 newTotalAssets) external;
+    function getPendingDeposits() external view returns (uint256);
+    function getPendingWithdrawals() external view returns (uint256);
+
+    /// @notice Update vault state based on market performance and pending operations
+    /// @param newSharePrice The new share price after P&L calculation
+    /// @param newTotalAssets The new total assets after processing deposits/withdrawals
+    function updateVaultState(uint256 newSharePrice, uint256 newTotalAssets) external;
 
     // Liquidity Orchestrator Functions
     function processDepositRequests() external;

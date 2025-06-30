@@ -7,6 +7,7 @@ import "./OrionVault.sol";
 import "./interfaces/IOrionConfig.sol";
 import "./interfaces/IOrionEncryptedVault.sol";
 import { ErrorsLib } from "./libraries/ErrorsLib.sol";
+import { EventsLib } from "./libraries/EventsLib.sol";
 
 /**
  * @title OrionEncryptedVault
@@ -22,12 +23,12 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
     EnumerableMap.AddressToUintMap private _orders;
 
     function initialize(
-        address _curator,
-        IOrionConfig _config,
-        string memory _name,
-        string memory _symbol
+        address curatorAddress,
+        IOrionConfig configAddress,
+        string calldata name,
+        string calldata symbol
     ) public initializer {
-        __OrionVault_init(_curator, _config, _name, _symbol);
+        __OrionVault_init(curatorAddress, configAddress, name, symbol);
     }
 
     /// --------- CURATOR FUNCTIONS ---------
@@ -39,13 +40,15 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
         _orders.clear();
 
         for (uint256 i = 0; i < order.length; i++) {
+            // slither-disable-start calls-loop
             address token = order[i].token;
             euint32 amount = order[i].amount;
             if (!config.isWhitelisted(token)) revert ErrorsLib.TokenNotWhitelisted(token);
             bool inserted = _orders.set(token, euint32.unwrap(amount));
             if (!inserted) revert ErrorsLib.TokenAlreadyInOrder(token);
+            // slither-disable-end calls-loop
         }
 
-        emit OrderSubmitted(msg.sender);
+        emit EventsLib.OrderSubmitted(msg.sender);
     }
 }

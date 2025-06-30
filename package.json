@@ -1,7 +1,7 @@
 {
   "name": "@orion-finance/protocol",
   "description": "Orion Finance Protocol",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "engines": {
     "node": ">=20.0.0"
   },
@@ -10,16 +10,17 @@
     "url": "https://github.com/OrionFinanceAI"
   },
   "scripts": {
-    "build": "pnpm clean && pnpm compile",
     "clean": "rimraf ./artifacts ./cache ./coverage ./types ./coverage.json && pnpm typechain",
+    "build": "pnpm clean && pnpm compile",
     "compile": "cross-env TS_NODE_TRANSPILE_ONLY=true hardhat compile",
+    "typechain": "cross-env TS_NODE_TRANSPILE_ONLY=true hardhat typechain",
+    "test": "hardhat test --network hardhat",
+    "coverage": "hardhat coverage",
     "lint": "pnpm lint:sol && pnpm prettier:check",
     "lint:sol": "solhint --max-warnings 25 \"contracts/**/*.sol\"",
     "prettier:check": "prettier --check \"**/*.{js,json,md,sol,ts,yml}\"",
     "prettier:write": "prettier --write \"**/*.{js,json,md,sol,ts,yml}\"",
-    "typechain": "cross-env TS_NODE_TRANSPILE_ONLY=true hardhat typechain",
-    "test": "hardhat test --network hardhat",
-    "coverage": "hardhat coverage"
+    "slither": "pnpm build && slither . --ignore-compile --filter-paths 'lib|node_modules|dependencies'"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ethers": "^3.0.8",

@@ -44,31 +44,58 @@
     },
     {
       "inputs": [],
-      "name": "fhePublicCID",
+      "name": "getAllOrionVaults",
       "outputs": [
         {
-          "internalType": "string",
+          "internalType": "address[]",
           "name": "",
-          "type": "string"
+          "type": "address[]"
         }
       ],
       "stateMutability": "view",
       "type": "function"
     },
     {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "index",
-          "type": "uint256"
-        }
-      ],
-      "name": "getOrionVaultAt",
+      "inputs": [],
+      "name": "getAllWhitelistedAssets",
       "outputs": [
         {
-          "internalType": "address",
+          "internalType": "address[]",
           "name": "",
-          "type": "address"
+          "type": "address[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getVaultStates",
+      "outputs": [
+        {
+          "internalType": "address[]",
+          "name": "vaults",
+          "type": "address[]"
+        },
+        {
+          "internalType": "uint256[]",
+          "name": "sharePrices",
+          "type": "uint256[]"
+        },
+        {
+          "internalType": "uint256[]",
+          "name": "totalAssets",
+          "type": "uint256[]"
+        },
+        {
+          "internalType": "uint256[]",
+          "name": "depositRequests",
+          "type": "uint256[]"
+        },
+        {
+          "internalType": "uint256[]",
+          "name": "withdrawRequests",
+          "type": "uint256[]"
         }
       ],
       "stateMutability": "view",
@@ -140,25 +167,12 @@
     },
     {
       "inputs": [],
-      "name": "marketOracle",
+      "name": "oracleRegistry",
       "outputs": [
         {
-          "internalType": "contract IMarketOracle",
+          "internalType": "address",
           "name": "",
           "type": "address"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "orionVaultsLength",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
         }
       ],
       "stateMutability": "view",
@@ -208,23 +222,18 @@
           "type": "address"
         },
         {
-          "internalType": "contract IMarketOracle",
-          "name": "_marketOracle",
-          "type": "address"
-        },
-        {
           "internalType": "uint8",
           "name": "_curatorIntentDecimals",
           "type": "uint8"
         },
         {
-          "internalType": "string",
-          "name": "_fhePublicCID",
-          "type": "string"
+          "internalType": "address",
+          "name": "_factory",
+          "type": "address"
         },
         {
           "internalType": "address",
-          "name": "_factory",
+          "name": "_oracleRegistry",
           "type": "address"
         }
       ],
@@ -244,19 +253,6 @@
         }
       ],
       "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "string",
-          "name": "newCID",
-          "type": "string"
-        }
-      ],
-      "name": "updateFhePublicCID",
-      "outputs": [],
-      "stateMutability": "nonpayable",
       "type": "function"
     },
     {
