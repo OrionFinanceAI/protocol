@@ -71,11 +71,11 @@ contract InternalStatesOrchestrator is
 
     function checkUpkeep(bytes calldata) external view override returns (bool upkeepNeeded, bytes memory performData) {
         upkeepNeeded = _shouldTriggerUpkeep();
+
         performData = bytes("");
         // TODO: compute here all read-only states to generate payload to then pass to performUpkeep
         // https://docs.chain.link/chainlink-automation/reference/automation-interfaces
         // Losing atomicity, not sure if best approach.
-        // get previousPriceArray from oracle here.
         return (upkeepNeeded, performData);
     }
 
@@ -125,18 +125,15 @@ contract InternalStatesOrchestrator is
             // Calculate new share price based on P&L
             uint256 newSharePrice = sharePrices[i] * (1 + pnlAmount);
 
-            // TODO: https://github.com/crytic/slither/wiki/Detector-Documentation/#calls-inside-a-loop
             vault.updateVaultState(newSharePrice, newTotalAssets, pnlAmount);
         }
 
         emit EventsLib.InternalStateProcessed(block.timestamp);
 
-        // TODO: consider having another offchain process
-        // (potentially again chainlink automation) listening to this event
-        // and updating the liquidity positions in another transaction.
-        // No atomicity, but better for scalability. To be discussed.
-        // Trigger Liquidity Orchestrator to update liquidity positions based on updated internal states.
-        // TODO: Implement liquidity orchestrator trigger
+        // TODO: have another chainlink automation offchain process
+        // listening to this event and updating the liquidity positions
+        //in another transaction based on the updated internal states.
+        // No atomicity, but better for scalability.
     }
 
     function _shouldTriggerUpkeep() internal view returns (bool) {

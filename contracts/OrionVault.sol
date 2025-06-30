@@ -115,7 +115,6 @@ abstract contract OrionVault is
     }
 
     function totalAssets() public view override(ERC4626Upgradeable, IERC4626) returns (uint256) {
-        // TODO: mimicking the ERC4626 implementation when it comes to events emission, for etherscan consistency.
         return _totalAssets;
     }
 
@@ -187,31 +186,15 @@ abstract contract OrionVault is
 
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
 
+    // TODO: functional overlap with updateVaultState, remove one of them.
     function setSharePrice(uint256 newPrice) external onlyInternalStatesOrchestrator {
         if (newPrice == 0) revert ErrorsLib.ZeroPrice();
         sharePrice = newPrice;
     }
 
+    // TODO: functional overlap with updateVaultState, remove one of them.
     function setTotalAssets(uint256 newTotalAssets) external onlyInternalStatesOrchestrator {
         _totalAssets = newTotalAssets;
-    }
-
-    /// @notice Get total pending deposit amount across all users
-    function getPendingDeposits() external view returns (uint256) {
-        uint256 totalPending = 0;
-        for (uint256 i = 0; i < _depositRequestors.length; i++) {
-            totalPending += _depositRequests[_depositRequestors[i]];
-        }
-        return totalPending;
-    }
-
-    /// @notice Get total pending withdrawal shares across all users
-    function getPendingWithdrawals() external view returns (uint256) {
-        uint256 totalPending = 0;
-        for (uint256 i = 0; i < _withdrawRequestors.length; i++) {
-            totalPending += _withdrawRequests[_withdrawRequestors[i]];
-        }
-        return totalPending;
     }
 
     /// @notice Update vault state based on market performance and pending operations
@@ -231,6 +214,24 @@ abstract contract OrionVault is
 
         // Emit event for tracking state updates
         emit EventsLib.VaultStateUpdated(newSharePrice, newTotalAssets, pnlAmount);
+    }
+
+    /// @notice Get total pending deposit amount across all users
+    function getPendingDeposits() external view returns (uint256) {
+        uint256 totalPending = 0;
+        for (uint256 i = 0; i < _depositRequestors.length; i++) {
+            totalPending += _depositRequests[_depositRequestors[i]];
+        }
+        return totalPending;
+    }
+
+    /// @notice Get total pending withdrawal shares across all users
+    function getPendingWithdrawals() external view returns (uint256) {
+        uint256 totalPending = 0;
+        for (uint256 i = 0; i < _withdrawRequestors.length; i++) {
+            totalPending += _withdrawRequests[_withdrawRequestors[i]];
+        }
+        return totalPending;
     }
 
     /// --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------

@@ -43,8 +43,8 @@ contract OrionVaultFactory is Initializable, Ownable2StepUpgradeable, UUPSUpgrad
 
     function createOrionTransparentVault(
         address curator,
-        string calldata name, // TODO: reject if name already exists
-        string calldata symbol // TODO: reject if symbol already exists
+        string calldata name,
+        string calldata symbol
     ) external returns (address vault) {
         if (curator == address(0)) revert ErrorsLib.ZeroAddress();
         if (transparentVaultImplementation == address(0)) revert ErrorsLib.ZeroAddress();
