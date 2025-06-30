@@ -186,26 +186,10 @@ abstract contract OrionVault is
 
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
 
-    // TODO: functional overlap with updateVaultState, remove one of them.
-    function setSharePrice(uint256 newPrice) external onlyInternalStatesOrchestrator {
-        if (newPrice == 0) revert ErrorsLib.ZeroPrice();
-        sharePrice = newPrice;
-    }
-
-    // TODO: functional overlap with updateVaultState, remove one of them.
-    function setTotalAssets(uint256 newTotalAssets) external onlyInternalStatesOrchestrator {
-        _totalAssets = newTotalAssets;
-    }
-
     /// @notice Update vault state based on market performance and pending operations
     /// @param newSharePrice The new share price after P&L calculation
     /// @param newTotalAssets The new total assets after processing deposits/withdrawals
-    /// @param pnlAmount The profit/loss amount for this update period
-    function updateVaultState(
-        uint256 newSharePrice,
-        uint256 newTotalAssets,
-        uint256 pnlAmount
-    ) external onlyInternalStatesOrchestrator {
+    function updateVaultState(uint256 newSharePrice, uint256 newTotalAssets) external onlyInternalStatesOrchestrator {
         if (newSharePrice == 0) revert ErrorsLib.ZeroPrice();
 
         // Update state variables
@@ -213,7 +197,7 @@ abstract contract OrionVault is
         _totalAssets = newTotalAssets;
 
         // Emit event for tracking state updates
-        emit EventsLib.VaultStateUpdated(newSharePrice, newTotalAssets, pnlAmount);
+        emit EventsLib.VaultStateUpdated(newSharePrice, newTotalAssets);
     }
 
     /// @notice Get total pending deposit amount across all users
@@ -236,7 +220,9 @@ abstract contract OrionVault is
 
     /// --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
 
-    /// @notice Process deposit requests from LPs
+    /// @notice Process deposit requests from LPs and reset the requestor's request amount
+    // TODO: consider risks of using internal states to update share price and total assets and then reset them after successful transaction processed
+    // In a second step by the liquidity orchestrator. There are risks in this, need to identify an alternative solution.
     function processDepositRequests() external onlyLiquidityOrchestrator nonReentrant {
         uint256 i = 0;
         for (i = 0; i < _depositRequestors.length; i++) {
@@ -253,6 +239,7 @@ abstract contract OrionVault is
     }
 
     /// @notice Process withdrawal requests from LPs
+    // TODO: same as above. Fix.
     function processWithdrawRequests() external onlyLiquidityOrchestrator nonReentrant {
         uint256 i = 0;
         for (i = 0; i < _withdrawRequestors.length; i++) {

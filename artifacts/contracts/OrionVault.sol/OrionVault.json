@@ -558,12 +558,6 @@
           "internalType": "uint256",
           "name": "newTotalAssets",
           "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "pnlAmount",
-          "type": "uint256"
         }
       ],
       "name": "VaultStateUpdated",
@@ -1229,32 +1223,6 @@
       "type": "function"
     },
     {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "newPrice",
-          "type": "uint256"
-        }
-      ],
-      "name": "setSharePrice",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "newTotalAssets",
-          "type": "uint256"
-        }
-      ],
-      "name": "setTotalAssets",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
       "inputs": [],
       "name": "sharePrice",
       "outputs": [
@@ -1382,11 +1350,6 @@
         {
           "internalType": "uint256",
           "name": "newTotalAssets",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "pnlAmount",
           "type": "uint256"
         }
       ],

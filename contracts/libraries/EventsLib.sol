@@ -25,7 +25,7 @@ library EventsLib {
     event DepositProcessed(address indexed user, uint256 amount, uint256 requestId);
     event WithdrawProcessed(address indexed user, uint256 shares, uint256 requestId);
     event DepositRequestWithdrawn(address indexed user, uint256 amount, uint256 requestId);
-    event VaultStateUpdated(uint256 newSharePrice, uint256 newTotalAssets, uint256 pnlAmount);
+    event VaultStateUpdated(uint256 newSharePrice, uint256 newTotalAssets);
 
     // Internal States Orchestrator Events
     /// @notice Emitted when internal states are processed

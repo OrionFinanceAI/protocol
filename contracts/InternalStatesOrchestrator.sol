@@ -83,22 +83,7 @@ contract InternalStatesOrchestrator is
     function performUpkeep(bytes calldata) external override onlyAutomationRegistry nonReentrant {
         if (!_shouldTriggerUpkeep()) revert ErrorsLib.TooEarly();
 
-        // Collect states from market oracle
-        IOracleRegistry registry = IOracleRegistry(config.oracleRegistry());
-
-        address[] memory universe = config.getAllWhitelistedAssets();
-
-        uint256[] memory previousPriceArray = new uint256[](universe.length);
-        uint256[] memory currentPriceArray = new uint256[](universe.length);
-        for (uint256 i = 0; i < universe.length; i++) {
-            previousPriceArray[i] = registry.price(universe[i]);
-            currentPriceArray[i] = registry.update(universe[i]);
-        }
-
-        // Calculate P&L based on price changes
-        uint256[] memory pnlAmountArray = _calculatePnL(previousPriceArray, currentPriceArray);
-
-        // Collect states from all Orion vaults
+        // Collect read-only states from all Orion vaults
         (
             address[] memory vaults,
             uint256[] memory sharePrices,
@@ -109,6 +94,20 @@ contract InternalStatesOrchestrator is
 
         // Update internal state BEFORE external calls (EFFECTS before INTERACTIONS)
         nextUpdateTime = _computeNextUpdateTime(block.timestamp);
+
+        // Collect read-write states from market oracle
+        address[] memory universe = config.getAllWhitelistedAssets();
+        IOracleRegistry registry = IOracleRegistry(config.oracleRegistry());
+
+        uint256[] memory previousPriceArray = new uint256[](universe.length);
+        uint256[] memory currentPriceArray = new uint256[](universe.length);
+        for (uint256 i = 0; i < universe.length; i++) {
+            previousPriceArray[i] = registry.price(universe[i]);
+            currentPriceArray[i] = registry.update(universe[i]);
+        }
+
+        // Calculate P&L based on price changes
+        uint256[] memory pnlAmountArray = _calculatePnL(previousPriceArray, currentPriceArray);
 
         // Calculate P&L and update vault states based on market data
         for (uint256 i = 0; i < vaults.length; i++) {
@@ -125,7 +124,7 @@ contract InternalStatesOrchestrator is
             // Calculate new share price based on P&L
             uint256 newSharePrice = sharePrices[i] * (1 + pnlAmount);
 
-            vault.updateVaultState(newSharePrice, newTotalAssets, pnlAmount);
+            vault.updateVaultState(newSharePrice, newTotalAssets);
         }
 
         emit EventsLib.InternalStateProcessed(block.timestamp);

@@ -97,16 +97,10 @@ describe("OrionVault", function () {
         "NotCurator",
       );
     });
-    it("Should only allow internal states orchestrator to set share price", async function () {
+    it("Should only allow internal states orchestrator to update vault state", async function () {
       const { vault, unauthorized } = await loadFixture(deployVaultFixture);
       await expect(
-        vault.connect(unauthorized).setSharePrice(ethers.parseUnits("1.1", 6)),
-      ).to.be.revertedWithCustomError(vault, "NotInternalStatesOrchestrator");
-    });
-    it("Should only allow internal states orchestrator to set total assets", async function () {
-      const { vault, unauthorized } = await loadFixture(deployVaultFixture);
-      await expect(
-        vault.connect(unauthorized).setTotalAssets(ethers.parseUnits("1000", 6)),
+        vault.connect(unauthorized).updateVaultState(ethers.parseUnits("1.1", 6), ethers.parseUnits("1000", 6)),
       ).to.be.revertedWithCustomError(vault, "NotInternalStatesOrchestrator");
     });
     it("Should only allow liquidity orchestrator to process deposit requests", async function () {
@@ -261,40 +255,20 @@ describe("OrionVault", function () {
   });
 
   describe("State Management", function () {
-    it("Should allow internal states orchestrator to set share price", async function () {
+    it("Should allow internal states orchestrator to update vault state", async function () {
       const { vault, internalOrchestrator } = await loadFixture(deployVaultFixture);
-      const newPrice = ethers.parseUnits("1.2", 6);
-      await vault.connect(internalOrchestrator).setSharePrice(newPrice);
-      expect(await vault.sharePrice()).to.equal(newPrice);
-    });
-    it("Should revert setting zero share price", async function () {
-      const { vault, internalOrchestrator } = await loadFixture(deployVaultFixture);
-      await expect(vault.connect(internalOrchestrator).setSharePrice(0)).to.be.revertedWithCustomError(
-        vault,
-        "ZeroPrice",
-      );
-    });
-    it("Should allow internal states orchestrator to set total assets", async function () {
-      const { vault, internalOrchestrator } = await loadFixture(deployVaultFixture);
-      const newTotalAssets = ethers.parseUnits("1000", 6);
-      await vault.connect(internalOrchestrator).setTotalAssets(newTotalAssets);
-      expect(await vault.totalAssets()).to.equal(newTotalAssets);
-    });
-    it("Should update vault state correctly", async function () {
-      const { vault, internalOrchestrator } = await loadFixture(deployVaultFixture);
-      const newSharePrice = ethers.parseUnits("1.15", 6);
-      const newTotalAssets = ethers.parseUnits("1150", 6);
-      const pnlAmount = ethers.parseUnits("150", 6);
-      await expect(vault.connect(internalOrchestrator).updateVaultState(newSharePrice, newTotalAssets, pnlAmount))
+      const newSharePrice = ethers.parseUnits("1.2", 6);
+      const newTotalAssets = ethers.parseUnits("1200", 6);
+      await expect(vault.connect(internalOrchestrator).updateVaultState(newSharePrice, newTotalAssets))
         .to.emit(vault, "VaultStateUpdated")
-        .withArgs(newSharePrice, newTotalAssets, pnlAmount);
+        .withArgs(newSharePrice, newTotalAssets);
       expect(await vault.sharePrice()).to.equal(newSharePrice);
       expect(await vault.totalAssets()).to.equal(newTotalAssets);
     });
     it("Should revert vault state update with zero share price", async function () {
       const { vault, internalOrchestrator } = await loadFixture(deployVaultFixture);
       await expect(
-        vault.connect(internalOrchestrator).updateVaultState(0, ethers.parseUnits("1000", 6), 0),
+        vault.connect(internalOrchestrator).updateVaultState(0, ethers.parseUnits("1000", 6)),
       ).to.be.revertedWithCustomError(vault, "ZeroPrice");
     });
   });
@@ -359,21 +333,18 @@ describe("OrionVault", function () {
         {
           sharePrice: ethers.parseUnits("1.1", 6),
           totalAssets: ethers.parseUnits("1100", 6),
-          pnl: ethers.parseUnits("100", 6),
         },
         {
           sharePrice: ethers.parseUnits("1.2", 6),
           totalAssets: ethers.parseUnits("1200", 6),
-          pnl: ethers.parseUnits("100", 6),
         },
         {
           sharePrice: ethers.parseUnits("0.9", 6),
           totalAssets: ethers.parseUnits("900", 6),
-          pnl: ethers.parseUnits("300", 6), // Changed from negative to positive
         },
       ];
       for (const update of updates) {
-        await vault.connect(internalOrchestrator).updateVaultState(update.sharePrice, update.totalAssets, update.pnl);
+        await vault.connect(internalOrchestrator).updateVaultState(update.sharePrice, update.totalAssets);
       }
       expect(await vault.sharePrice()).to.equal(updates[2].sharePrice);
       expect(await vault.totalAssets()).to.equal(updates[2].totalAssets);
@@ -382,7 +353,7 @@ describe("OrionVault", function () {
       const { vault, internalOrchestrator } = await loadFixture(deployVaultFixture);
       const largeSharePrice = ethers.parseUnits("999999.999999", 6);
       const largeTotalAssets = ethers.parseUnits("999999999999", 6);
-      await vault.connect(internalOrchestrator).updateVaultState(largeSharePrice, largeTotalAssets, 0);
+      await vault.connect(internalOrchestrator).updateVaultState(largeSharePrice, largeTotalAssets);
       expect(await vault.sharePrice()).to.equal(largeSharePrice);
       expect(await vault.totalAssets()).to.equal(largeTotalAssets);
     });
