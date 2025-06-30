@@ -11,6 +11,7 @@ import "./interfaces/IOrionConfig.sol";
 import "./interfaces/IOrionVault.sol";
 import { ErrorsLib } from "./libraries/ErrorsLib.sol";
 import { EventsLib } from "./libraries/EventsLib.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
  * @title OrionVault
@@ -118,11 +119,19 @@ abstract contract OrionVault is
     }
 
     function convertToShares(uint256 assets) public view override(ERC4626Upgradeable, IERC4626) returns (uint256) {
-        return (assets * decimals()) / sharePrice;
+        return _convertToShares(assets, Math.Rounding.Floor);
+    }
+
+    function _convertToShares(uint256 assets, Math.Rounding rounding) internal view override returns (uint256) {
+        return (assets * decimals()) / sharePrice; // TODO: make this inflation attack resistant.
     }
 
     function convertToAssets(uint256 shares) public view override(ERC4626Upgradeable, IERC4626) returns (uint256) {
-        return (shares * sharePrice) / decimals();
+        return _convertToAssets(shares);
+    }
+
+    function _convertToAssets(uint256 shares) internal view returns (uint256) {
+        return (shares * sharePrice) / decimals(); // TODO: make this inflation attack resistant.
     }
 
     /// --------- LP FUNCTIONS ---------
@@ -242,7 +251,7 @@ abstract contract OrionVault is
     }
 
     /// @notice Process withdrawal requests from LPs
-    // TODO: same as above. Fix.
+    // TODO: same as processDepositRequests. Fix.
     function processWithdrawRequests() external onlyLiquidityOrchestrator nonReentrant {
         uint256 length = _withdrawRequestors.length;
         for (uint256 i = 0; i < length; i++) {

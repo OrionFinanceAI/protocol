@@ -73,9 +73,9 @@ contract InternalStatesOrchestrator is
         upkeepNeeded = _shouldTriggerUpkeep();
 
         performData = bytes("");
-        // TODO: compute here all read-only states to generate payload to then pass to performUpkeep
+        // NOTE: we can compute here all read-only states to generate payload to then pass to performUpkeep
         // https://docs.chain.link/chainlink-automation/reference/automation-interfaces
-        // Losing atomicity, not sure if best approach.
+        // Losing atomicity, but better for scalability.
         return (upkeepNeeded, performData);
     }
 
@@ -119,13 +119,19 @@ contract InternalStatesOrchestrator is
 
             IOrionVault vault = IOrionVault(vaults[i]);
 
-            uint256 pnlAmount = pnlAmountArray[i];
+            // TODO: compute vault absolute pnl performing dot product between the vault's weights and the pnl amount array.
+            // Multiplied by the vault's total assets.
+            // TODO: this requires to have the executed vault weights in the vault state.
+            // Best to overwrite this state from the liquidity orchestrator.
+            uint256 pnlAmount = pnlAmountArray[i] * totalAssets[i]; // TODO: placeholder, to be removed
 
             // Calculate new total assets: current + deposits - withdrawals + P&L
+            // TODO: fix, as deposits are in underlying and withdrawals are in shares.
+            // Use inflation resistant conversion functions defined in vault contract.
             uint256 newTotalAssets = totalAssets[i] + depositRequests[i] - withdrawRequests[i] + pnlAmount;
 
-            // Calculate new share price based on P&L
-            uint256 newSharePrice = sharePrices[i] * (1 + pnlAmount);
+            // Calculate new share price based on P&L [%]
+            uint256 newSharePrice = sharePrices[i] * (1 + pnlAmountArray[i]);
 
             vault.updateVaultState(newSharePrice, newTotalAssets);
             // slither-disable-end calls-loop
@@ -148,12 +154,17 @@ contract InternalStatesOrchestrator is
         return currentTime + UPDATE_INTERVAL;
     }
 
+    /// @notice Calculates the percentage change (P&L) between previous and current prices
+    /// @param previousPriceArray Array of previous prices
+    /// @param currentPriceArray Array of current prices
+    /// @return pnlAmountArray Array of P&L percentages [%]
     function _calculatePnL(
         uint256[] memory previousPriceArray,
         uint256[] memory currentPriceArray
     ) internal pure returns (uint256[] memory pnlAmountArray) {
         pnlAmountArray = new uint256[](previousPriceArray.length);
         for (uint256 i = 0; i < previousPriceArray.length; i++) {
+            // TODO: Avoid rounding errors.
             pnlAmountArray[i] = (currentPriceArray[i] - previousPriceArray[i]) / previousPriceArray[i];
         }
     }
