@@ -33,6 +33,8 @@ async function main() {
 
     const registrySigner = await ethers.getSigner(registryAddress);
 
+    console.log("Performing upkeep...");
+
     // Send performUpkeep tx from impersonated registry address
     const tx = await orchestrator.connect(registrySigner).performUpkeep(performData);
     await tx.wait();

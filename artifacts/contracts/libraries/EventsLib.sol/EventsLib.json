@@ -222,6 +222,25 @@
       "anonymous": false,
       "inputs": [
         {
+          "indexed": true,
+          "internalType": "address",
+          "name": "asset",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "newPrice",
+          "type": "uint256"
+        }
+      ],
+      "name": "PriceUpdated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
           "indexed": false,
           "internalType": "address",
           "name": "underlyingAsset",
@@ -388,8 +407,8 @@
       "type": "event"
     }
   ],
-  "bytecode": "0x60556032600b8282823980515f1a607314602657634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f80fdfea2646970667358221220283216524a79b1b481a5c2d86faa2c36ffea21170721b9b0acda64107f3c6eaf64736f6c634300081a0033",
-  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f80fdfea2646970667358221220283216524a79b1b481a5c2d86faa2c36ffea21170721b9b0acda64107f3c6eaf64736f6c634300081a0033",
+  "bytecode": "0x60556032600b8282823980515f1a607314602657634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f80fdfea2646970667358221220fe29f00fea61032cd785c23701a65a9cac63991c530bc2c17c3e4a3753107d9e64736f6c634300081a0033",
+  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f80fdfea2646970667358221220fe29f00fea61032cd785c23701a65a9cac63991c530bc2c17c3e4a3753107d9e64736f6c634300081a0033",
   "linkReferences": {},
   "deployedLinkReferences": {}
 }

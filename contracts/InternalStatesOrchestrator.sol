@@ -112,7 +112,8 @@ contract InternalStatesOrchestrator is
         uint256[] memory pnlAmountArray = _updateOraclePricesAndCalculatePnL();
 
         // Update vault states
-        _updateVaultStates(vaults, sharePrices, totalAssets, depositRequests, withdrawRequests, pnlAmountArray);
+        // TODO: debugging, remove
+        // _updateVaultStates(vaults, sharePrices, totalAssets, depositRequests, withdrawRequests, pnlAmountArray);
     }
 
     /// @notice Update oracle prices and calculate P&L based on price changes
@@ -126,11 +127,15 @@ contract InternalStatesOrchestrator is
         for (uint256 i = 0; i < universe.length; i++) {
             // slither-disable-start calls-loop
             previousPriceArray[i] = registry.price(universe[i]);
-            currentPriceArray[i] = registry.update(universe[i]);
+            // currentPriceArray[i] = registry.update(universe[i]);
+            // TODO: debugging, remove
+            currentPriceArray[i] = 1000000000000000000;
             // slither-disable-end calls-loop
         }
 
-        return _calculatePnL(previousPriceArray, currentPriceArray);
+        // return _calculatePnL(previousPriceArray, currentPriceArray);
+        // TODO: debugging, remove
+        return new uint256[](0);
     }
 
     /// @notice Update vault states based on market data and pending operations

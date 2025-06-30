@@ -31,7 +31,6 @@ async function main() {
     LIQUIDITY_ORCHESTRATOR_ADDRESS,
     FACTORY_ADDRESS,
     ORACLE_REGISTRY_ADDRESS,
-    UNIVERSE_LIST,
   } = process.env;
 
   if (
@@ -40,8 +39,7 @@ async function main() {
     !INTERNAL_ORCHESTRATOR_ADDRESS ||
     !LIQUIDITY_ORCHESTRATOR_ADDRESS ||
     !FACTORY_ADDRESS ||
-    !ORACLE_REGISTRY_ADDRESS ||
-    !UNIVERSE_LIST
+    !ORACLE_REGISTRY_ADDRESS
   ) {
     throw new Error("Missing one or more required env variables");
   }

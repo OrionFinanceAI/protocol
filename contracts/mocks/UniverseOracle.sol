@@ -11,16 +11,16 @@ import { EventsLib } from "../libraries/EventsLib.sol";
 /// @title UniverseOracle (mock)
 /// @notice One instance per asset. Produces pseudo‑random prices for testing.
 contract UniverseOracle is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable, IAssetOracle {
-    /// @notice ERC‑20 / ERC‑721 / ERC‑1155 asset this oracle is bound to
+    /// @notice Asset this oracle is bound to.
     address public asset;
+    // TODO: determine the level of generality of the asset standard
+    // 4626 only? 20 only? 1155? 721?
 
     /// @notice Last stored price
     uint256 private lastPrice;
 
-    /// @param asset_       The asset this oracle serves
-    /// @param initialPrice First price to store
-    /// @param owner_       Initial owner (usually the deployer / dev ops EOA)
-    function initialize(address asset_, uint256 initialPrice, address owner_) external initializer {
+    // TODO: remove initialPrice for production oracles, force update on first price in that case.
+    function initialize(address asset_, uint256 initialPrice, address initialOwner) external initializer {
         if (asset_ == address(0)) revert ErrorsLib.ZeroAddress();
         if (initialPrice == 0) revert ErrorsLib.ZeroPrice();
 
@@ -30,7 +30,7 @@ contract UniverseOracle is Initializable, Ownable2StepUpgradeable, UUPSUpgradeab
         asset = asset_;
         lastPrice = initialPrice;
 
-        _transferOwnership(owner_);
+        _transferOwnership(initialOwner);
     }
 
     function _authorizeUpgrade(address) internal override onlyOwner {}
