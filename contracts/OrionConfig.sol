@@ -9,7 +9,6 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import { ErrorsLib } from "./libraries/ErrorsLib.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "./interfaces/IMarketOracle.sol";
 
 /**
  *     ██████╗ ██████╗ ██╗ ██████╗ ███╗   ██╗    ███████╗██╗███╗   ██╗ █████╗ ███╗   ██╗ ██████╗███████╗
@@ -22,17 +21,16 @@ import "./interfaces/IMarketOracle.sol";
  * @title OrionConfig
  * @notice This contract is responsible for configuring the Orion protocol.
  */
-contract OrionConfig is IOrionConfig, Initializable, Ownable2StepUpgradeable, UUPSUpgradeable {
+contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable, IOrionConfig {
     // Protocol-wide configuration
     IERC20 public underlyingAsset;
     address public internalStatesOrchestrator;
     address public liquidityOrchestrator;
-    IMarketOracle public marketOracle;
     address public vaultFactory;
+    address public oracleRegistry;
 
     // Curator-specific configuration
     uint8 public curatorIntentDecimals;
-    string public fhePublicCID;
 
     // Vault-specific configuration
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -46,15 +44,13 @@ contract OrionConfig is IOrionConfig, Initializable, Ownable2StepUpgradeable, UU
     event WhitelistedAssetRemoved(address indexed asset);
     event OrionVaultAdded(address indexed vault);
     event OrionVaultRemoved(address indexed vault);
-    event PublicCIDUpdated(string newCID);
     event ProtocolParamsUpdated(
         address underlyingAsset,
         address internalStatesOrchestrator,
         address liquidityOrchestrator,
-        IMarketOracle marketOracle,
         uint256 curatorIntentDecimals,
-        string fhePublicCID,
-        address factory
+        address factory,
+        address oracleRegistry
     );
 
     modifier onlyFactory() {
@@ -76,33 +72,30 @@ contract OrionConfig is IOrionConfig, Initializable, Ownable2StepUpgradeable, UU
         address _underlyingAsset,
         address _internalStatesOrchestrator,
         address _liquidityOrchestrator,
-        IMarketOracle _marketOracle,
         uint8 _curatorIntentDecimals,
-        string calldata _fhePublicCID,
-        address _factory
+        address _factory,
+        address _oracleRegistry
     ) external onlyOwner {
         if (_underlyingAsset == address(0)) revert ErrorsLib.InvalidAsset();
         if (_internalStatesOrchestrator == address(0)) revert ErrorsLib.InvalidInternalOrchestrator();
         if (_liquidityOrchestrator == address(0)) revert ErrorsLib.InvalidLiquidityOrchestrator();
-        if (address(_marketOracle) == address(0)) revert ErrorsLib.InvalidMarketOracle();
         if (_factory == address(0)) revert ErrorsLib.ZeroAddress();
+        if (_oracleRegistry == address(0)) revert ErrorsLib.ZeroAddress();
 
         underlyingAsset = IERC20(_underlyingAsset);
         internalStatesOrchestrator = _internalStatesOrchestrator;
         liquidityOrchestrator = _liquidityOrchestrator;
-        marketOracle = _marketOracle;
         curatorIntentDecimals = _curatorIntentDecimals;
-        fhePublicCID = _fhePublicCID;
         vaultFactory = _factory;
+        oracleRegistry = _oracleRegistry;
 
         emit ProtocolParamsUpdated(
             _underlyingAsset,
             _internalStatesOrchestrator,
             _liquidityOrchestrator,
-            _marketOracle,
             _curatorIntentDecimals,
-            _fhePublicCID,
-            _factory
+            _factory,
+            _oracleRegistry
         );
     }
 
@@ -126,6 +119,15 @@ contract OrionConfig is IOrionConfig, Initializable, Ownable2StepUpgradeable, UU
 
     function getWhitelistedAssetAt(uint256 index) external view returns (address) {
         return whitelistedAssets.at(index);
+    }
+
+    function getAllWhitelistedAssets() external view returns (address[] memory assets) {
+        uint256 length = whitelistedAssets.length();
+        assets = new address[](length);
+        for (uint256 i = 0; i < length; ++i) {
+            assets[i] = whitelistedAssets.at(i);
+        }
+        return assets;
     }
 
     function isWhitelisted(address asset) external view returns (bool) {
@@ -185,12 +187,5 @@ contract OrionConfig is IOrionConfig, Initializable, Ownable2StepUpgradeable, UU
             depositRequests[i] = vault.getPendingDeposits();
             withdrawRequests[i] = vault.getPendingWithdrawals();
         }
-    }
-
-    // === FHE Public CID ===
-
-    function updateFhePublicCID(string calldata newCID) external onlyOwner {
-        fhePublicCID = newCID;
-        emit PublicCIDUpdated(newCID);
     }
 }

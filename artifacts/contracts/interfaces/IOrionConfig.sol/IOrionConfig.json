@@ -44,12 +44,12 @@
     },
     {
       "inputs": [],
-      "name": "fhePublicCID",
+      "name": "getAllOrionVaults",
       "outputs": [
         {
-          "internalType": "string",
+          "internalType": "address[]",
           "name": "",
-          "type": "string"
+          "type": "address[]"
         }
       ],
       "stateMutability": "view",
@@ -57,7 +57,7 @@
     },
     {
       "inputs": [],
-      "name": "getAllOrionVaults",
+      "name": "getAllWhitelistedAssets",
       "outputs": [
         {
           "internalType": "address[]",
@@ -167,10 +167,10 @@
     },
     {
       "inputs": [],
-      "name": "marketOracle",
+      "name": "oracleRegistry",
       "outputs": [
         {
-          "internalType": "contract IMarketOracle",
+          "internalType": "address",
           "name": "",
           "type": "address"
         }
@@ -222,23 +222,18 @@
           "type": "address"
         },
         {
-          "internalType": "contract IMarketOracle",
-          "name": "_marketOracle",
-          "type": "address"
-        },
-        {
           "internalType": "uint8",
           "name": "_curatorIntentDecimals",
           "type": "uint8"
         },
         {
-          "internalType": "string",
-          "name": "_fhePublicCID",
-          "type": "string"
+          "internalType": "address",
+          "name": "_factory",
+          "type": "address"
         },
         {
           "internalType": "address",
-          "name": "_factory",
+          "name": "_oracleRegistry",
           "type": "address"
         }
       ],
@@ -258,19 +253,6 @@
         }
       ],
       "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "string",
-          "name": "newCID",
-          "type": "string"
-        }
-      ],
-      "name": "updateFhePublicCID",
-      "outputs": [],
-      "stateMutability": "nonpayable",
       "type": "function"
     },
     {

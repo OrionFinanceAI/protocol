@@ -10,7 +10,6 @@ library ErrorsLib {
     error InvalidAsset();
     error InvalidInternalOrchestrator();
     error InvalidLiquidityOrchestrator();
-    error InvalidMarketOracle();
     error AlreadyWhitelisted();
     error NotInWhitelist();
     error IndexOutOfBounds();
@@ -41,4 +40,5 @@ library ErrorsLib {
     error TooEarly();
     error DepositRequestFailed();
     error WithdrawRequestFailed();
+    error OracleNotSet();
 }

@@ -8,7 +8,7 @@ import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol
 import "@chainlink/contracts/src/v0.8/automation/AutomationCompatible.sol";
 import "./interfaces/IOrionConfig.sol";
 import "./interfaces/IOrionVault.sol";
-import "./interfaces/IMarketOracle.sol";
+import "./interfaces/IOracleRegistry.sol";
 import { ErrorsLib } from "./libraries/ErrorsLib.sol";
 
 /// @title Internal States Orchestrator
@@ -28,7 +28,7 @@ contract InternalStatesOrchestrator is
     uint256 public constant UPDATE_INTERVAL = 1 minutes;
 
     /// @notice Chainlink Automation Registry address
-    address public registry;
+    address public automationRegistry;
 
     /// @notice Orion Config contract address
     IOrionConfig public config;
@@ -37,16 +37,16 @@ contract InternalStatesOrchestrator is
     event InternalStateProcessed(uint256 timestamp);
 
     /// @notice Emitted when the Chainlink Automation Registry address is updated
-    event RegistryUpdated(address indexed newRegistry);
+    event AutomationRegistryUpdated(address indexed newAutomationRegistry);
 
-    function initialize(address initialOwner, address _registry, address _config) public initializer {
+    function initialize(address initialOwner, address _automationRegistry, address _config) public initializer {
         __Ownable2Step_init();
         __UUPSUpgradeable_init();
         __ReentrancyGuard_init();
         _transferOwnership(initialOwner);
 
-        if (_registry == address(0)) revert ErrorsLib.ZeroAddress();
-        registry = _registry;
+        if (_automationRegistry == address(0)) revert ErrorsLib.ZeroAddress();
+        automationRegistry = _automationRegistry;
         config = IOrionConfig(_config);
 
         nextUpdateTime = _computeNextUpdateTime(block.timestamp);
@@ -55,17 +55,17 @@ contract InternalStatesOrchestrator is
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     /// @dev Restricts function to only Chainlink Automation registry
-    modifier onlyRegistry() {
-        if (msg.sender != registry) revert ErrorsLib.NotAuthorized();
+    modifier onlyAutomationRegistry() {
+        if (msg.sender != automationRegistry) revert ErrorsLib.NotAuthorized();
         _;
     }
 
     /// @notice Updates the Chainlink Automation Registry address
-    /// @param _newRegistry The new registry address
-    function updateRegistry(address _newRegistry) external onlyOwner {
-        if (_newRegistry == address(0)) revert ErrorsLib.ZeroAddress();
-        registry = _newRegistry;
-        emit RegistryUpdated(_newRegistry);
+    /// @param _newAutomationRegistry The new automation registry address
+    function updateAutomationRegistry(address _newAutomationRegistry) external onlyOwner {
+        if (_newAutomationRegistry == address(0)) revert ErrorsLib.ZeroAddress();
+        automationRegistry = _newAutomationRegistry;
+        emit AutomationRegistryUpdated(_newAutomationRegistry);
     }
 
     /// @notice Updates the Orion Config contract address
@@ -85,19 +85,25 @@ contract InternalStatesOrchestrator is
     }
 
     /// @notice Called by Chainlink Automation to execute internal state logic
-    function performUpkeep(bytes calldata) external override onlyRegistry nonReentrant {
+    function performUpkeep(bytes calldata) external override onlyAutomationRegistry nonReentrant {
         if (!_shouldTriggerUpkeep()) revert ErrorsLib.TooEarly();
 
-        // 1. Collect states from market oracle
-        IMarketOracle oracle = config.marketOracle();
-        // TODO: break down following function to have a read-only query
-        // and another which is actually writing to the oracle state latest price.
-        (uint256[] memory previousPriceArray, uint256[] memory currentPriceArray) = oracle.getPrices();
+        // Collect states from market oracle
+        IOracleRegistry registry = IOracleRegistry(config.oracleRegistry());
+
+        address[] memory universe = config.getAllWhitelistedAssets();
+
+        uint256[] memory previousPriceArray = new uint256[](universe.length);
+        uint256[] memory currentPriceArray = new uint256[](universe.length);
+        for (uint256 i = 0; i < universe.length; i++) {
+            previousPriceArray[i] = registry.price(universe[i]);
+            currentPriceArray[i] = registry.update(universe[i]);
+        }
 
         // Calculate P&L based on price changes
         uint256[] memory pnlAmountArray = _calculatePnL(previousPriceArray, currentPriceArray);
 
-        // 2. Collect states from all Orion vaults
+        // Collect states from all Orion vaults
         (
             address[] memory vaults,
             uint256[] memory sharePrices,
@@ -106,10 +112,10 @@ contract InternalStatesOrchestrator is
             uint256[] memory withdrawRequests
         ) = config.getVaultStates();
 
-        // 3. Update internal state BEFORE external calls (EFFECTS before INTERACTIONS)
+        // Update internal state BEFORE external calls (EFFECTS before INTERACTIONS)
         nextUpdateTime = _computeNextUpdateTime(block.timestamp);
 
-        // 4. Calculate P&L and update vault states based on market data
+        // Calculate P&L and update vault states based on market data
         for (uint256 i = 0; i < vaults.length; i++) {
             // Validate vault address before making external calls
             if (vaults[i] == address(0)) revert ErrorsLib.ZeroAddress();
@@ -134,7 +140,7 @@ contract InternalStatesOrchestrator is
         // (potentially again chainlink automation) listening to this event
         // and updating the liquidity positions in another transaction.
         // No atomicity, but better for scalability. To be discussed.
-        // 6. Trigger Liquidity Orchestrator to update liquidity positions based on updated internal states.
+        // Trigger Liquidity Orchestrator to update liquidity positions based on updated internal states.
         // TODO: Implement liquidity orchestrator trigger
     }
 

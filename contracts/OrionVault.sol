@@ -189,8 +189,8 @@ abstract contract OrionVault is
     function getPendingDeposits() external view returns (uint256) {
         uint256 totalPending = 0;
         for (uint256 i = 0; i < _depositRequests.length(); i++) {
-            (address user, uint256 amount) = _depositRequests.at(i);
-            user;
+            // slither-disable-next-line unused-return
+            (, uint256 amount) = _depositRequests.at(i);
 
             totalPending += amount;
         }
@@ -201,8 +201,8 @@ abstract contract OrionVault is
     function getPendingWithdrawals() external view returns (uint256) {
         uint256 totalPending = 0;
         for (uint256 i = 0; i < _withdrawRequests.length(); i++) {
-            (address user, uint256 shares) = _withdrawRequests.at(i);
-            user;
+            // slither-disable-next-line unused-return
+            (, uint256 shares) = _withdrawRequests.at(i);
 
             totalPending += shares;
         }

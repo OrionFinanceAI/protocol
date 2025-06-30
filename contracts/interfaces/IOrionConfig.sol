@@ -2,7 +2,6 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "./IMarketOracle.sol";
 
 interface IOrionConfig {
     /// @notice Returns the address of the internal states orchestrator contract
@@ -15,20 +14,10 @@ interface IOrionConfig {
     /// @return The address of the liquidity orchestrator
     function liquidityOrchestrator() external view returns (address);
 
-    /// @notice Returns the address of the market oracle contract
-    /// @dev This oracle provides price feeds and profit/loss calculations
-    /// @return The address of the market oracle
-    function marketOracle() external view returns (IMarketOracle);
-
     /// @notice Returns the address of the vault factory contract
     /// @dev This factory is responsible for creating new Orion vaults
     /// @return The address of the vault factory
     function vaultFactory() external view returns (address);
-
-    /// @notice Returns the FHE public CID used for fully homomorphic encryption
-    /// @dev This CID is used to reference the public parameters for FHE operations
-    /// @return The FHE public CID string
-    function fhePublicCID() external view returns (string memory);
 
     /// @notice Checks if an asset is whitelisted for use in the protocol
     /// @dev Only whitelisted assets can be used in various protocol operations
@@ -46,23 +35,26 @@ interface IOrionConfig {
     /// @return The address of the underlying asset contract
     function underlyingAsset() external view returns (IERC20);
 
+    /// @notice Returns the address of the oracle registry contract
+    /// @dev This registry is responsible for managing asset price oracles
+    /// @return The address of the oracle registry
+    function oracleRegistry() external view returns (address);
+
     /// @notice Sets the core protocol parameters in a single transaction
     /// @dev Can only be called by the contract owner
     /// @param _underlyingAsset The address of the underlying asset contract
     /// @param _internalStatesOrchestrator The address of the internal states orchestrator
     /// @param _liquidityOrchestrator The address of the liquidity orchestrator
-    /// @param _marketOracle The address of the market oracle
     /// @param _curatorIntentDecimals The number of decimal places for curator intents
-    /// @param _fhePublicCID The FHE public CID string
     /// @param _factory The address of the vault factory
+    /// @param _oracleRegistry The address of the oracle registry
     function setProtocolParams(
         address _underlyingAsset,
         address _internalStatesOrchestrator,
         address _liquidityOrchestrator,
-        IMarketOracle _marketOracle,
         uint8 _curatorIntentDecimals,
-        string calldata _fhePublicCID,
-        address _factory
+        address _factory,
+        address _oracleRegistry
     ) external;
 
     /// @notice Adds an asset to the whitelist
@@ -84,6 +76,10 @@ interface IOrionConfig {
     /// @param index The index of the asset to retrieve
     /// @return The address of the whitelisted asset at the given index
     function getWhitelistedAssetAt(uint256 index) external view returns (address);
+
+    /// @notice Returns all whitelisted assets
+    /// @return An array of whitelisted asset addresses
+    function getAllWhitelistedAssets() external view returns (address[] memory);
 
     /// @notice Adds a new Orion vault to the protocol registry
     /// @dev Only callable by the vault factory contract
@@ -115,9 +111,4 @@ interface IOrionConfig {
             uint256[] memory depositRequests,
             uint256[] memory withdrawRequests
         );
-
-    /// @notice Updates the FHE public CID used for encryption operations
-    /// @dev Can only be called by the contract owner
-    /// @param newCID The new FHE public CID string to set
-    function updateFhePublicCID(string calldata newCID) external;
 }
