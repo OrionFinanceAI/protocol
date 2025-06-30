@@ -40,5 +40,6 @@ library ErrorsLib {
     error TooEarly();
     error DepositRequestFailed();
     error WithdrawRequestFailed();
+    error NotEnoughDepositRequest();
     error OracleNotSet();
 }

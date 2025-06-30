@@ -106,6 +106,31 @@
           "type": "uint256"
         }
       ],
+      "name": "DepositRequestWithdrawn",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "user",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "requestId",
+          "type": "uint256"
+        }
+      ],
       "name": "DepositRequested",
       "type": "event"
     },
@@ -970,6 +995,19 @@
           "type": "uint256"
         }
       ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "withdrawDepositRequest",
+      "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
     }

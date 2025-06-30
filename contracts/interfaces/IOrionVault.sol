@@ -11,6 +11,7 @@ interface IOrionVault is IERC4626 {
     event WithdrawRequested(address indexed user, uint256 shares, uint256 requestId);
     event DepositProcessed(address indexed user, uint256 amount, uint256 requestId);
     event WithdrawProcessed(address indexed user, uint256 shares, uint256 requestId);
+    event DepositRequestWithdrawn(address indexed user, uint256 amount, uint256 requestId);
     event VaultStateUpdated(uint256 newSharePrice, uint256 newTotalAssets, uint256 pnlAmount);
 
     function initialize(
@@ -29,6 +30,7 @@ interface IOrionVault is IERC4626 {
     // LP Functions
     function requestDeposit(uint256 amount) external;
     function requestWithdraw(uint256 shares) external;
+    function withdrawDepositRequest(uint256 amount) external;
 
     // Internal States Orchestrator Functions
     function setSharePrice(uint256 newPrice) external;

@@ -233,6 +233,11 @@
     },
     {
       "inputs": [],
+      "name": "NotEnoughDepositRequest",
+      "type": "error"
+    },
+    {
+      "inputs": [],
       "name": "NotEnoughShares",
       "type": "error"
     },
@@ -408,6 +413,31 @@
         }
       ],
       "name": "DepositProcessed",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "user",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "requestId",
+          "type": "uint256"
+        }
+      ],
+      "name": "DepositRequestWithdrawn",
       "type": "event"
     },
     {
@@ -1433,6 +1463,19 @@
         }
       ],
       "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "withdrawDepositRequest",
+      "outputs": [],
+      "stateMutability": "nonpayable",
       "type": "function"
     }
   ],

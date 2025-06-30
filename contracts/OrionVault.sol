@@ -148,9 +148,31 @@ abstract contract OrionVault is
 
         emit DepositRequested(msg.sender, amount, _depositRequests.length());
     }
-    // TODO: To make the system more trustless,
-    // add a function to withdrawl (syncronously) before minting and
-    // get back the underlying tokens in the escrow.
+
+    /// @notice Allow LPs to withdraw their escrowed tokens before minting, making the system more trustless
+    /// @param amount The amount of underlying tokens to withdraw from escrow
+    function withdrawDepositRequest(uint256 amount) external {
+        // Checks first
+        if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
+
+        (bool exists, uint256 existingAmount) = _depositRequests.tryGet(msg.sender);
+        if (!exists || existingAmount < amount) revert ErrorsLib.NotEnoughDepositRequest();
+
+        // Effects - update internal state before external interactions
+        bool ok;
+        if (existingAmount == amount) {
+            ok = _depositRequests.remove(msg.sender);
+        } else {
+            ok = _depositRequests.set(msg.sender, existingAmount - amount);
+        }
+        if (!ok) revert ErrorsLib.DepositRequestFailed();
+
+        // Interactions - external calls last
+        bool success = IERC20(asset()).transfer(msg.sender, amount);
+        if (!success) revert ErrorsLib.TransferFailed();
+
+        emit DepositRequestWithdrawn(msg.sender, amount, _depositRequests.length());
+    }
 
     /// @notice LPs submits async withdrawal request; shares locked until processed
     function requestWithdraw(uint256 shares) external {
