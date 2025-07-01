@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.20;
 
+import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
@@ -41,6 +42,7 @@ abstract contract OrionVault is
     IOrionVault
 {
     using Math for uint256;
+    using EnumerableMap for EnumerableMap.AddressToUintMap;
 
     IOrionConfig public config;
     address public curator;
@@ -55,6 +57,9 @@ abstract contract OrionVault is
 
     address[] private _depositRequestors;
     address[] private _withdrawRequestors;
+
+    // Portfolio state managed by orchestrators
+    EnumerableMap.AddressToUintMap private _portfolio;
 
     modifier onlyCurator() {
         if (msg.sender != curator) revert ErrorsLib.NotCurator();
@@ -94,10 +99,6 @@ abstract contract OrionVault is
         config = config_;
         sharePrice = 10 ** config.statesDecimals();
         _totalAssets = 0;
-        // TODO: how to deal with growing whitelist? Whitelist update to trigger update of portfolio with new keys and value associated to 0?
-        // portfolio = 0; // TODO: same type as transparent intent, bring that up in general ivault, used also by encrypted vault.
-        // TODO: add function for liquidity orchestrator to update portfolio weights.
-        // TODO: add function to get portfolio weights from internal states orchestrator.
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyCurator {}
@@ -243,6 +244,8 @@ abstract contract OrionVault is
         return totalPending;
     }
 
+    // TODO: add function to get portfolio weights from internal states orchestrator.
+
     /// --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
 
     /// @notice Process deposit requests from LPs and reset the requestor's request amount
@@ -285,6 +288,8 @@ abstract contract OrionVault is
             emit EventsLib.WithdrawProcessed(user, shares, i);
         }
     }
+
+    // TODO: add function for liquidity orchestrator to update portfolio weights.
 
     /// --------- ABSTRACT FUNCTIONS ---------
     /// @notice Derived contracts implement their specific submitOrderIntent functions

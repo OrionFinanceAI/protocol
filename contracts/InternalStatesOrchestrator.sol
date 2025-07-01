@@ -89,15 +89,11 @@ contract InternalStatesOrchestrator is
         // Update internal state BEFORE external calls (EFFECTS before INTERACTIONS)
         nextUpdateTime = _computeNextUpdateTime(block.timestamp);
 
-        // Process vault states
+        // TODO: break this down into multiple functions.
+        // TODO: have multiple chainlink automation offchain process triggered by events in the middle of the process.
         _processVaultStates();
 
         emit EventsLib.InternalStateProcessed(block.timestamp);
-
-        // TODO: have another chainlink automation offchain process
-        // listening to this event and updating the liquidity positions
-        //in another transaction based on the updated internal states.
-        // No atomicity, but better for scalability.
     }
 
     /// @notice Process vault states by updating oracle prices and calculating P&L

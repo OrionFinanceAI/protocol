@@ -174,6 +174,8 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         totalAssets = new uint256[](length);
         depositRequests = new uint256[](length);
         withdrawRequests = new uint256[](length);
+        // TODO: add portfolio weights.
+        // TODO: add orders.
 
         for (uint256 i = 0; i < length; ++i) {
             // slither-disable-start calls-loop
