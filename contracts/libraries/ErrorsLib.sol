@@ -14,7 +14,6 @@ library ErrorsLib {
     error NotInWhitelist();
     error IndexOutOfBounds();
     error VaultNotFound();
-    error OrionVaultNotFound();
     error AlreadyAnOrionVault();
     error NotAnOrionVault();
     error InvalidCuratorAddress();
@@ -44,4 +43,5 @@ library ErrorsLib {
     error OracleNotSet();
     error OracleNotInitialized();
     error InvalidStatesDecimals();
+    error Underflow();
 }

@@ -91,7 +91,7 @@ abstract contract OrionVault is
 
     /// @notice Current portfolio weights (p_0) - mapping of token address to live allocation percentage
     /// Units: Percentage points
-    EnumerableMap.AddressToUintMap private _portfolio;
+    EnumerableMap.AddressToUintMap internal _portfolio;
 
     /// @notice Curator intent (p_1) - mapping of token address to target allocation percentage
     /// Units: Percentage points
@@ -268,30 +268,6 @@ abstract contract OrionVault is
             totalPending += _withdrawRequests[_withdrawRequestors[i]];
         }
         return totalPending;
-    }
-
-    function getPortfolio() external view returns (address[] memory tokens, uint256[] memory weights) {
-        uint256 length = _portfolio.length();
-        tokens = new address[](length);
-        weights = new uint256[](length);
-
-        for (uint256 i = 0; i < length; ++i) {
-            (address token, uint256 weight) = _portfolio.at(i);
-            tokens[i] = token;
-            weights[i] = weight;
-        }
-    }
-
-    function getCuratorOrder() external view returns (address[] memory tokens, uint256[] memory weights) {
-        uint256 length = _orders.length();
-        tokens = new address[](length);
-        weights = new uint256[](length);
-
-        for (uint256 i = 0; i < length; ++i) {
-            (address token, uint256 weight) = _orders.at(i);
-            tokens[i] = token;
-            weights[i] = weight;
-        }
     }
 
     /// @notice Update vault state based on market performance and pending operations

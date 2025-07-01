@@ -7,6 +7,7 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import "./interfaces/IOrionConfig.sol";
 import "./interfaces/IOrionVault.sol";
+import "./interfaces/IOrionTransparentVault.sol";
 import "./interfaces/IOracleRegistry.sol";
 import "./interfaces/IInternalStateOrchestrator.sol";
 import { ErrorsLib } from "./libraries/ErrorsLib.sol";
@@ -95,25 +96,30 @@ contract InternalStatesOrchestrator is
             pnlArray.push(pnlMemory[i]);
         }
 
-        // TODO: break this down into multiple functions.
-        // TODO: get p_0 array from vaults.
+        address[] memory transparentVaults = config.getAllOrionVaults(false);
+        // address[] memory encryptedVaults = config.getAllOrionVaults(true); // TODO: add encrypted vaults support.
+        // TODO: add entry point for Zama coprocessor for both dot product and batching.
 
-        // t_1 = t_0 * (1 + R_t @ p_0)
-        // TODO: add entry point for Zama coprocessor here, as should be doing this
-        // For every orion Vault, both transparent and encrypted.
+        for (uint256 i = 0; i < transparentVaults.length; i++) {
+            IOrionTransparentVault vault = IOrionTransparentVault(transparentVaults[i]);
+            uint256 t0 = vault.totalAssets();
+            (address[] memory portfolioTokens, uint256[] memory portfolioWeights) = vault.getPortfolio();
+            // TODO: fix the following, use portfolioTokens and match with pnl entry of same asset, after fixing the
+            // pnlArray definition.
+            uint256 t1 = t0 * onePlusDotProduct(portfolioWeights, pnlArray);
 
-        // W_a = _convertToAssets(W, t_1) [assets]
-        // P_0 = sum(t_1 * p_0)
-        // TODO: add entry point for Zama coprocessor here, as should be doing this
-        // For every orion Vault, both transparent and encrypted.
+            // TODO: add input to convertToAssets function, so that we can pass intermediate total assets as input.
+            // W_a = _convertToAssets(W, t_1) [assets]
 
-        // t_2 = t_1 + D - W_a
+            // P_0 = sum(t_1 * p_0)
 
-        // P_1 = sum(t_2 * p_1)
+            // t_2 = t_1 + D - W_a
+            // P_1 = sum(t_2 * p_1)
 
-        // delta_P = P_1 - P_0
-        // _processVaultStates();
-        // TODO. Be sure to remove unused functions across contracts, there may be, given the degree of refactoring of today.
+            // delta_P = P_1 - P_0
+            // _processVaultStates();
+            // TODO. Be sure to remove unused functions across contracts, there may be, given the degree of refactoring of today.
+        }
 
         emit EventsLib.InternalStateProcessed(block.timestamp);
         // TODO: have additional chainlink automation offchain process triggered by this event and triggering liquidity orchestrator.
@@ -166,6 +172,22 @@ contract InternalStatesOrchestrator is
 
             pnlMem[i] = PnL({ pctChange: pct, isPositive: isPos });
         }
+    }
+    function onePlusDotProduct(
+        uint256[] memory portfolioWeights_,
+        PnL[] memory pnlArray_
+    ) internal view returns (uint256) {
+        uint256 sum = config.statesDecimals();
+        for (uint256 i = 0; i < portfolioWeights_.length; i++) {
+            uint256 product = portfolioWeights_[i] * pnlArray_[i].pctChange;
+            if (pnlArray_[i].isPositive) {
+                sum += product;
+            } else {
+                if (sum < product) revert ErrorsLib.Underflow();
+                sum -= product;
+            }
+        }
+        return sum;
     }
 
     /// @notice Update vault states based on market data and pending operations

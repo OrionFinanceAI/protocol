@@ -873,24 +873,6 @@
     },
     {
       "inputs": [],
-      "name": "getCuratorOrder",
-      "outputs": [
-        {
-          "internalType": "address[]",
-          "name": "tokens",
-          "type": "address[]"
-        },
-        {
-          "internalType": "uint256[]",
-          "name": "weights",
-          "type": "uint256[]"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
       "name": "getPendingDeposits",
       "outputs": [
         {
@@ -910,24 +892,6 @@
           "internalType": "uint256",
           "name": "",
           "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "getPortfolio",
-      "outputs": [
-        {
-          "internalType": "address[]",
-          "name": "tokens",
-          "type": "address[]"
-        },
-        {
-          "internalType": "uint256[]",
-          "name": "weights",
-          "type": "uint256[]"
         }
       ],
       "stateMutability": "view",
