@@ -5,10 +5,10 @@ import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
-import "@chainlink/contracts/src/v0.8/automation/AutomationCompatible.sol";
 import "./interfaces/IOrionConfig.sol";
 import "./interfaces/IOrionVault.sol";
 import "./interfaces/IOracleRegistry.sol";
+import "./interfaces/IInternalStateOrchestrator.sol";
 import { ErrorsLib } from "./libraries/ErrorsLib.sol";
 import { EventsLib } from "./libraries/EventsLib.sol";
 
@@ -19,8 +19,8 @@ contract InternalStatesOrchestrator is
     Initializable,
     Ownable2StepUpgradeable,
     UUPSUpgradeable,
-    AutomationCompatibleInterface,
-    ReentrancyGuardUpgradeable
+    ReentrancyGuardUpgradeable,
+    IInternalStateOrchestrator
 {
     /// @notice Timestamp when the next upkeep is allowed
     uint256 public nextUpdateTime;
@@ -33,6 +33,9 @@ contract InternalStatesOrchestrator is
 
     /// @notice Orion Config contract address
     IOrionConfig public config;
+
+    /// @notice P&L array
+    PnL[] public pnlArray;
 
     function initialize(address initialOwner, address automationRegistry_, address config_) public initializer {
         __Ownable2Step_init();
@@ -108,16 +111,22 @@ contract InternalStatesOrchestrator is
             uint256[] memory withdrawRequests
         ) = config.getVaultStates();
 
+        // Clear the storage array
+        delete pnlArray;
         // Update oracle prices and calculate P&L
-        uint256[] memory pnlAmountArray = _updateOraclePricesAndCalculatePnL();
+        PnL[] memory pnlMemory = _updateOraclePricesAndCalculatePnL();
+
+        // Copy memory array to storage array
+        for (uint256 i = 0; i < pnlMemory.length; i++) {
+            pnlArray.push(pnlMemory[i]);
+        }
 
         // Update vault states
-        // TODO: debugging, remove
-        // _updateVaultStates(vaults, sharePrices, totalAssets, depositRequests, withdrawRequests, pnlAmountArray);
+        _updateVaultStates(vaults, sharePrices, totalAssets, depositRequests, withdrawRequests, pnlArray);
     }
 
     /// @notice Update oracle prices and calculate P&L based on price changes
-    function _updateOraclePricesAndCalculatePnL() internal returns (uint256[] memory) {
+    function _updateOraclePricesAndCalculatePnL() internal returns (PnL[] memory) {
         address[] memory universe = config.getAllWhitelistedAssets();
         IOracleRegistry registry = IOracleRegistry(config.oracleRegistry());
 
@@ -127,15 +136,11 @@ contract InternalStatesOrchestrator is
         for (uint256 i = 0; i < universe.length; i++) {
             // slither-disable-start calls-loop
             previousPriceArray[i] = registry.price(universe[i]);
-            // currentPriceArray[i] = registry.update(universe[i]);
-            // TODO: debugging, remove
-            currentPriceArray[i] = 1000000000000000000;
+            currentPriceArray[i] = registry.update(universe[i]);
             // slither-disable-end calls-loop
         }
 
-        // return _calculatePnL(previousPriceArray, currentPriceArray);
-        // TODO: debugging, remove
-        return new uint256[](0);
+        return _calculatePnL(previousPriceArray, currentPriceArray);
     }
 
     /// @notice Update vault states based on market data and pending operations
@@ -145,7 +150,7 @@ contract InternalStatesOrchestrator is
         uint256[] memory totalAssets,
         uint256[] memory depositRequests,
         uint256[] memory withdrawRequests,
-        uint256[] memory pnlAmountArray
+        PnL[] memory pnlMem
     ) internal {
         for (uint256 i = 0; i < vaults.length; i++) {
             // slither-disable-start calls-loop
@@ -159,19 +164,19 @@ contract InternalStatesOrchestrator is
             // Multiplied by the vault's total assets.
             // TODO: this requires to have the executed vault weights in the vault state.
             // Best to overwrite this state from the liquidity orchestrator.
-            uint256 pnlAmount = pnlAmountArray[i] * totalAssets[i]; // TODO: placeholder, to be removed
+            // uint256 pnlAmount = pnlMem[i] * totalAssets[i]; // TODO: placeholder, to be removed
 
-            // Calculate new share price based on P&L [%]
-            uint256 newSharePrice = (sharePrices[i] * (10 ** config.statesDecimals() + pnlAmountArray[i])) /
-                10 ** config.statesDecimals();
+            // // Calculate new share price based on P&L [%]
+            // uint256 newSharePrice = (sharePrices[i] * (10 ** config.statesDecimals() + pnlAmountArray[i])) /
+            //     10 ** config.statesDecimals();
 
-            // TODO: compute new deposit requests in shares? Needed for total supply calculation.
-            // uint256 newDepositRequests = vault.convertToShares(depositRequests[i]);
+            // // TODO: compute new deposit requests in shares? Needed for total supply calculation.
+            // // uint256 newDepositRequests = vault.convertToShares(depositRequests[i]);
 
-            uint256 withdrawalAssets = vault.convertToAssets(withdrawRequests[i]);
-            uint256 newTotalAssets = totalAssets[i] + depositRequests[i] - withdrawalAssets + pnlAmount;
+            // uint256 withdrawalAssets = vault.convertToAssets(withdrawRequests[i]);
+            // uint256 newTotalAssets = totalAssets[i] + depositRequests[i] - withdrawalAssets + pnlAmount;
 
-            vault.updateVaultState(newSharePrice, newTotalAssets);
+            // vault.updateVaultState(newSharePrice, newTotalAssets);
             // slither-disable-end calls-loop
         }
     }
@@ -186,18 +191,23 @@ contract InternalStatesOrchestrator is
     }
 
     /// @notice Calculates the percentage change (P&L) between previous and current prices
-    /// @param previousPriceArray Array of previous prices
-    /// @param currentPriceArray Array of current prices
-    /// @return pnlAmountArray Array of P&L percentages [%]
-    function _calculatePnL(
-        uint256[] memory previousPriceArray,
-        uint256[] memory currentPriceArray
-    ) internal view returns (uint256[] memory pnlAmountArray) {
-        pnlAmountArray = new uint256[](previousPriceArray.length);
+    /// @param prev Array of previous prices
+    /// @param curr Array of current prices
+    /// @return pnlMem Array of P&L percentages [%]
+    function _calculatePnL(uint256[] memory prev, uint256[] memory curr) internal view returns (PnL[] memory pnlMem) {
+        uint256 len = prev.length;
+        pnlMem = new PnL[](len);
         uint8 statesDecimals = config.statesDecimals();
-        for (uint256 i = 0; i < previousPriceArray.length; i++) {
-            uint256 deltaPrice = currentPriceArray[i] - previousPriceArray[i];
-            pnlAmountArray[i] = (deltaPrice * 10 ** statesDecimals) / previousPriceArray[i];
+
+        for (uint256 i = 0; i < len; i++) {
+            uint256 oldP = prev[i];
+            uint256 newP = curr[i];
+
+            bool isPos = newP >= oldP;
+            uint256 diff = isPos ? (newP - oldP) : (oldP - newP);
+            uint256 pct = (diff * 10 ** statesDecimals) / oldP;
+
+            pnlMem[i] = PnL({ pctChange: pct, isPositive: isPos });
         }
     }
 }
