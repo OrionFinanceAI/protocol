@@ -550,12 +550,6 @@
         {
           "indexed": false,
           "internalType": "uint256",
-          "name": "newSharePrice",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
           "name": "newTotalAssets",
           "type": "uint256"
         }
@@ -1237,19 +1231,6 @@
     },
     {
       "inputs": [],
-      "name": "sharePrice",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
       "name": "symbol",
       "outputs": [
         {
@@ -1355,11 +1336,6 @@
     },
     {
       "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "newSharePrice",
-          "type": "uint256"
-        },
         {
           "internalType": "uint256",
           "name": "newTotalAssets",

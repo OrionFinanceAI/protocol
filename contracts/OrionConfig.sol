@@ -162,7 +162,6 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         view
         returns (
             address[] memory vaults,
-            uint256[] memory sharePrices,
             uint256[] memory totalAssets,
             uint256[] memory depositRequests,
             uint256[] memory withdrawRequests
@@ -170,7 +169,6 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     {
         uint256 length = orionVaults.length();
         vaults = new address[](length);
-        sharePrices = new uint256[](length);
         totalAssets = new uint256[](length);
         depositRequests = new uint256[](length);
         withdrawRequests = new uint256[](length);
@@ -183,7 +181,6 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
             vaults[i] = vaultAddress;
 
             IOrionVault vault = IOrionVault(vaultAddress);
-            sharePrices[i] = vault.sharePrice();
             totalAssets[i] = vault.totalAssets();
 
             // Get pending deposits and withdrawals

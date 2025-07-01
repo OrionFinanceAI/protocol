@@ -79,11 +79,6 @@
         },
         {
           "internalType": "uint256[]",
-          "name": "sharePrices",
-          "type": "uint256[]"
-        },
-        {
-          "internalType": "uint256[]",
           "name": "totalAssets",
           "type": "uint256[]"
         },

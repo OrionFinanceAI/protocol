@@ -48,7 +48,6 @@ abstract contract OrionVault is
     address public curator;
     address public deployer;
 
-    uint256 public sharePrice;
     uint256 internal _totalAssets;
 
     // Queues of async requests from LPs
@@ -97,7 +96,6 @@ abstract contract OrionVault is
         deployer = msg.sender;
         curator = curator_;
         config = config_;
-        sharePrice = 10 ** config.statesDecimals();
         _totalAssets = 0;
     }
 
@@ -211,17 +209,15 @@ abstract contract OrionVault is
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
 
     /// @notice Update vault state based on market performance and pending operations
-    /// @param newSharePrice The new share price after P&L calculation
     /// @param newTotalAssets The new total assets after processing deposits/withdrawals
-    function updateVaultState(uint256 newSharePrice, uint256 newTotalAssets) external onlyInternalStatesOrchestrator {
-        if (newSharePrice == 0) revert ErrorsLib.ZeroPrice();
+    function updateVaultState(uint256 newTotalAssets) external onlyInternalStatesOrchestrator {
+        if (newTotalAssets == 0) revert ErrorsLib.ZeroPrice();
 
         // Update state variables
-        sharePrice = newSharePrice;
         _totalAssets = newTotalAssets;
 
         // Emit event for tracking state updates
-        emit EventsLib.VaultStateUpdated(newSharePrice, newTotalAssets);
+        emit EventsLib.VaultStateUpdated(newTotalAssets);
     }
 
     /// @notice Get total pending deposit amount across all users

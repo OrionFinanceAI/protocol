@@ -90,9 +90,25 @@ contract InternalStatesOrchestrator is
         nextUpdateTime = _computeNextUpdateTime(block.timestamp);
 
         // TODO: break this down into multiple functions.
+        // The Vault states are:
+        // - total assets (t_0) [#]
+        // - deposit requests (D) [assets]
+        // - withdraw requests (W) [shares]
+        // - portfolio weights (p_0) [%]
+        // - curator intent (p_1) [%]
+
+        // Get current prices from oracle + calculate P&L (R_t)
+        // t_1 = t_0 * (1 + R_t @ p_0)
+        // W_a = _convertToAssets(W, t_1) [assets]
+        // P_0 = sum(t_1 * p_0)
+        // t_2 = t_1 + D - W_a
+        // P_1 = sum(t_2 * p_1)
+        // delta_P = P_1 - P_0
         // TODO: have multiple chainlink automation offchain process triggered by events in the middle of the process.
         _processVaultStates();
 
+        // Move to liquidity orchestrator:
+        // Process delta_P, W, D. Here I use prices_t. // TODO: investigate D/W netting.
         emit EventsLib.InternalStateProcessed(block.timestamp);
     }
 
@@ -101,7 +117,6 @@ contract InternalStatesOrchestrator is
         // Collect read-only states from all Orion vaults
         (
             address[] memory vaults,
-            uint256[] memory sharePrices,
             uint256[] memory totalAssets,
             uint256[] memory depositRequests,
             uint256[] memory withdrawRequests
@@ -118,7 +133,7 @@ contract InternalStatesOrchestrator is
         }
 
         // Update vault states
-        _updateVaultStates(vaults, sharePrices, totalAssets, depositRequests, withdrawRequests, pnlArray);
+        _updateVaultStates(vaults, totalAssets, depositRequests, withdrawRequests, pnlArray);
     }
 
     /// @notice Update oracle prices and calculate P&L based on price changes
@@ -142,7 +157,6 @@ contract InternalStatesOrchestrator is
     /// @notice Update vault states based on market data and pending operations
     function _updateVaultStates(
         address[] memory vaults,
-        uint256[] memory sharePrices,
         uint256[] memory totalAssets,
         uint256[] memory depositRequests,
         uint256[] memory withdrawRequests,
@@ -159,17 +173,13 @@ contract InternalStatesOrchestrator is
             // Best to overwrite this state from the liquidity orchestrator.
             // uint256 pnlAmount = pnlMem[i] * totalAssets[i]; // TODO: placeholder, to be removed
 
-            // // Calculate new share price based on P&L [%]
-            // uint256 newSharePrice = (sharePrices[i] * (10 ** config.statesDecimals() + pnlAmountArray[i])) /
-            //     10 ** config.statesDecimals();
-
             // // TODO: compute new deposit requests in shares? Needed for total supply calculation.
             // // uint256 newDepositRequests = vault.convertToShares(depositRequests[i]);
 
             // uint256 withdrawalAssets = vault.convertToAssets(withdrawRequests[i]);
             // uint256 newTotalAssets = totalAssets[i] + depositRequests[i] - withdrawalAssets + pnlAmount;
 
-            // vault.updateVaultState(newSharePrice, newTotalAssets);
+            // vault.updateVaultState(newTotalAssets);
             // slither-disable-end calls-loop
         }
     }

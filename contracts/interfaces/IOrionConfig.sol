@@ -105,7 +105,6 @@ interface IOrionConfig {
 
     /// @notice Returns aggregated vault states for all registered vaults
     /// @return vaults Array of vault addresses
-    /// @return sharePrices Array of share prices for each vault
     /// @return totalAssets Array of total assets for each vault
     /// @return depositRequests Array of pending deposit amounts for each vault
     /// @return withdrawRequests Array of pending withdrawal shares for each vault
@@ -114,7 +113,6 @@ interface IOrionConfig {
         view
         returns (
             address[] memory vaults,
-            uint256[] memory sharePrices,
             uint256[] memory totalAssets,
             uint256[] memory depositRequests,
             uint256[] memory withdrawRequests
