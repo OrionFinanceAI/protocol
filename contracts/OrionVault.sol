@@ -96,6 +96,8 @@ abstract contract OrionVault is
         _totalAssets = 0;
         // TODO: how to deal with growing whitelist? Whitelist update to trigger update of portfolio with new keys and value associated to 0?
         // portfolio = 0; // TODO: same type as transparent intent, bring that up in general ivault, used also by encrypted vault.
+        // TODO: add function for liquidity orchestrator to update portfolio weights.
+        // TODO: add function to get portfolio weights from internal states orchestrator.
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyCurator {}
@@ -248,6 +250,8 @@ abstract contract OrionVault is
     // after successful transaction processed
     // In a second step by the liquidity orchestrator. There are risks in this, need to identify an alternative
     // solution.
+    // Solution seems to be processing share price update only based on portfolio weights and PNL and then use that
+    // to perform the deposit/withdrawals from liquidity orchestrator, updating internal ledger + total assets.
     function processDepositRequests() external onlyLiquidityOrchestrator nonReentrant {
         uint256 length = _depositRequestors.length;
         for (uint256 i = 0; i < length; i++) {
