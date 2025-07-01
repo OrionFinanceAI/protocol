@@ -21,7 +21,7 @@ interface IOrionVault is IERC4626 {
     // LP Functions
     function requestDeposit(uint256 amount) external;
     function requestWithdraw(uint256 shares) external;
-    function withdrawDepositRequest(uint256 amount) external;
+    function cancelDepositRequest(uint256 amount) external;
 
     // Internal States Orchestrator Functions
     function getPendingDeposits() external view returns (uint256);

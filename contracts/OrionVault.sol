@@ -166,9 +166,10 @@ abstract contract OrionVault is
         emit EventsLib.DepositRequested(msg.sender, amount, _depositRequestors.length);
     }
 
-    /// @notice Allow LPs to withdraw their escrowed tokens before minting, making the system more trustless
+    /// @notice Allow LPs to cancel their deposit request, withdrawing their escrowed tokens before minting,
+    /// this makes the system more trustless.
     /// @param amount The amount of underlying tokens to withdraw from escrow
-    function withdrawDepositRequest(uint256 amount) external nonReentrant {
+    function cancelDepositRequest(uint256 amount) external nonReentrant {
         // Checks first
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
         if (_depositRequests[msg.sender] < amount) revert ErrorsLib.NotEnoughDepositRequest();
@@ -181,7 +182,7 @@ abstract contract OrionVault is
         bool success = IERC20(asset()).transfer(msg.sender, amount);
         if (!success) revert ErrorsLib.TransferFailed();
 
-        emit EventsLib.DepositRequestWithdrawn(msg.sender, amount, depositorCount);
+        emit EventsLib.DepositRequestCancelled(msg.sender, amount, depositorCount);
     }
 
     /// @notice LPs submits async withdrawal request; shares locked until processed

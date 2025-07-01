@@ -182,8 +182,8 @@ describe("OrionVault", function () {
       await underlyingAsset.connect(lp1).approve(await vault.getAddress(), depositAmount);
       await vault.connect(lp1).requestDeposit(depositAmount);
       const balanceBefore = await underlyingAsset.balanceOf(lp1.address);
-      await expect(vault.connect(lp1).withdrawDepositRequest(withdrawAmount))
-        .to.emit(vault, "DepositRequestWithdrawn")
+      await expect(vault.connect(lp1).cancelDepositRequest(withdrawAmount))
+        .to.emit(vault, "DepositRequestCancelled")
         .withArgs(lp1.address, withdrawAmount, 1);
       const balanceAfter = await underlyingAsset.balanceOf(lp1.address);
       expect(balanceAfter - balanceBefore).to.equal(withdrawAmount);
@@ -194,23 +194,25 @@ describe("OrionVault", function () {
       const depositAmount = ethers.parseUnits("100", 6);
       await underlyingAsset.connect(lp1).approve(await vault.getAddress(), depositAmount);
       await vault.connect(lp1).requestDeposit(depositAmount);
-      await vault.connect(lp1).withdrawDepositRequest(depositAmount);
+      await vault.connect(lp1).cancelDepositRequest(depositAmount);
       expect(await vault.getPendingDeposits()).to.equal(0);
     });
     it("Should revert withdrawal of non-existent deposit request", async function () {
       const { vault, lp1 } = await loadFixture(deployVaultFixture);
-      await expect(
-        vault.connect(lp1).withdrawDepositRequest(ethers.parseUnits("100", 6)),
-      ).to.be.revertedWithCustomError(vault, "NotEnoughDepositRequest");
+      await expect(vault.connect(lp1).cancelDepositRequest(ethers.parseUnits("100", 6))).to.be.revertedWithCustomError(
+        vault,
+        "NotEnoughDepositRequest",
+      );
     });
     it("Should revert withdrawal of more than requested", async function () {
       const { vault, underlyingAsset, lp1 } = await loadFixture(deployVaultFixture);
       const depositAmount = ethers.parseUnits("100", 6);
       await underlyingAsset.connect(lp1).approve(await vault.getAddress(), depositAmount);
       await vault.connect(lp1).requestDeposit(depositAmount);
-      await expect(
-        vault.connect(lp1).withdrawDepositRequest(ethers.parseUnits("150", 6)),
-      ).to.be.revertedWithCustomError(vault, "NotEnoughDepositRequest");
+      await expect(vault.connect(lp1).cancelDepositRequest(ethers.parseUnits("150", 6))).to.be.revertedWithCustomError(
+        vault,
+        "NotEnoughDepositRequest",
+      );
     });
   });
 

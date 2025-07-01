@@ -29,14 +29,14 @@ contract OracleRegistry is Initializable, Ownable2StepUpgradeable, UUPSUpgradeab
 
     /// Pass through functions to the oracle
     function price(address asset) external view returns (uint256) {
-        address o = oracleOf[asset];
-        if (o == address(0)) revert ErrorsLib.OracleNotSet();
-        return IAssetOracle(o).price();
+        address assetOracle = oracleOf[asset];
+        if (assetOracle == address(0)) revert ErrorsLib.OracleNotSet();
+        return IAssetOracle(assetOracle).price();
     }
 
     function update(address asset) external returns (uint256 newPrice) {
-        address o = oracleOf[asset];
-        if (o == address(0)) revert ErrorsLib.OracleNotSet();
-        return IAssetOracle(o).update();
+        address assetOracle = oracleOf[asset];
+        if (assetOracle == address(0)) revert ErrorsLib.OracleNotSet();
+        return IAssetOracle(assetOracle).update();
     }
 }
