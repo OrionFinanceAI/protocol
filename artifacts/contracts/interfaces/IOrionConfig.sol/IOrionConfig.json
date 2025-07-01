@@ -9,6 +9,11 @@
           "internalType": "address",
           "name": "vault",
           "type": "address"
+        },
+        {
+          "internalType": "bool",
+          "name": "encrypted",
+          "type": "bool"
         }
       ],
       "name": "addOrionVault",
@@ -43,7 +48,13 @@
       "type": "function"
     },
     {
-      "inputs": [],
+      "inputs": [
+        {
+          "internalType": "bool",
+          "name": "encrypted",
+          "type": "bool"
+        }
+      ],
       "name": "getAllOrionVaults",
       "outputs": [
         {
@@ -63,34 +74,6 @@
           "internalType": "address[]",
           "name": "",
           "type": "address[]"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "getVaultStates",
-      "outputs": [
-        {
-          "internalType": "address[]",
-          "name": "vaults",
-          "type": "address[]"
-        },
-        {
-          "internalType": "uint256[]",
-          "name": "totalAssets",
-          "type": "uint256[]"
-        },
-        {
-          "internalType": "uint256[]",
-          "name": "depositRequests",
-          "type": "uint256[]"
-        },
-        {
-          "internalType": "uint256[]",
-          "name": "withdrawRequests",
-          "type": "uint256[]"
         }
       ],
       "stateMutability": "view",
@@ -179,6 +162,11 @@
           "internalType": "address",
           "name": "vault",
           "type": "address"
+        },
+        {
+          "internalType": "bool",
+          "name": "encrypted",
+          "type": "bool"
         }
       ],
       "name": "removeOrionVault",

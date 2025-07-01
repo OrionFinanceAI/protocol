@@ -42,5 +42,6 @@ library ErrorsLib {
     error WithdrawRequestFailed();
     error NotEnoughDepositRequest();
     error OracleNotSet();
+    error OracleNotInitialized();
     error InvalidStatesDecimals();
 }

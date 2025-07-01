@@ -18,8 +18,6 @@ async function main() {
   console.log("Upkeep needed?", upkeepNeeded);
 
   if (upkeepNeeded) {
-    console.log("Performing upkeep...");
-
     const [deployer] = await ethers.getSigners();
     console.log("Using deployer address:", await deployer.getAddress());
 

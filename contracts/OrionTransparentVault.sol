@@ -19,8 +19,6 @@ import { EventsLib } from "./libraries/EventsLib.sol";
 contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
 
-    EnumerableMap.AddressToUintMap private _orders;
-
     function initialize(
         address curatorAddress,
         IOrionConfig configAddress,

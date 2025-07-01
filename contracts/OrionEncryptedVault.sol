@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.20;
 
-import { euint32 } from "fhevm/lib/TFHE.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
+import { euint32 } from "fhevm/lib/TFHE.sol";
 import "./OrionVault.sol";
 import "./interfaces/IOrionConfig.sol";
 import "./interfaces/IOrionEncryptedVault.sol";
@@ -20,8 +20,6 @@ import { EventsLib } from "./libraries/EventsLib.sol";
 contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
 
-    EnumerableMap.AddressToUintMap private _orders;
-
     function initialize(
         address curatorAddress,
         IOrionConfig configAddress,
@@ -34,8 +32,8 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
     /// --------- CURATOR FUNCTIONS ---------
 
     /// @notice Submit an encrypted portfolio intent.
-    /// @param order EncryptedOrder struct containing the tokens and encrypted weights.
-    function submitOrderIntent(EncryptedOrder[] calldata order) external onlyCurator {
+    /// @param order EncryptedPosition struct containing the tokens and encrypted weights.
+    function submitOrderIntent(EncryptedPosition[] calldata order) external onlyCurator {
         if (order.length == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
         _orders.clear();
 

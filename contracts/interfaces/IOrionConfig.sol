@@ -92,29 +92,17 @@ interface IOrionConfig {
     /// @notice Adds a new Orion vault to the protocol registry
     /// @dev Only callable by the vault factory contract
     /// @param vault The address of the vault to add to the registry
-    function addOrionVault(address vault) external;
+    /// @param encrypted Whether the vault is encrypted or transparent
+    function addOrionVault(address vault, bool encrypted) external;
 
     /// @notice Removes an Orion vault from the protocol registry
     /// @dev Only callable by the vault factory contract
     /// @param vault The address of the vault to remove from the registry
-    function removeOrionVault(address vault) external;
+    /// @param encrypted Whether the vault is encrypted or transparent
+    function removeOrionVault(address vault, bool encrypted) external;
 
     /// @notice Returns all Orion vault addresses
+    /// @param encrypted Whether to return encrypted or transparent vaults
     /// @return An array of Orion vault addresses
-    function getAllOrionVaults() external view returns (address[] memory);
-
-    /// @notice Returns aggregated vault states for all registered vaults
-    /// @return vaults Array of vault addresses
-    /// @return totalAssets Array of total assets for each vault
-    /// @return depositRequests Array of pending deposit amounts for each vault
-    /// @return withdrawRequests Array of pending withdrawal shares for each vault
-    function getVaultStates()
-        external
-        view
-        returns (
-            address[] memory vaults,
-            uint256[] memory totalAssets,
-            uint256[] memory depositRequests,
-            uint256[] memory withdrawRequests
-        );
+    function getAllOrionVaults(bool encrypted) external view returns (address[] memory);
 }

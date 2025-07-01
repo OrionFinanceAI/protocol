@@ -655,7 +655,7 @@
               "type": "uint32"
             }
           ],
-          "internalType": "struct IOrionVault.Position[]",
+          "internalType": "struct IOrionTransparentVault.Position[]",
           "name": "order",
           "type": "tuple[]"
         }

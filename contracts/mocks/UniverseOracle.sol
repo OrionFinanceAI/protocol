@@ -13,22 +13,21 @@ import { EventsLib } from "../libraries/EventsLib.sol";
 contract UniverseOracle is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable, IAssetOracle {
     /// @notice Asset this oracle is bound to.
     address public asset;
-    // TODO: determine the level of generality of the asset standard
-    // 4626 only? 20 only? 1155? 721?
 
     /// @notice Last stored price
     uint256 private lastPrice;
 
-    // TODO: remove initialPrice for production oracles, force update on first price in that case.
-    function initialize(address asset_, uint256 initialPrice, address initialOwner) external initializer {
+    /// @notice Flag to track if the oracle has been initialized with a price
+    bool private isInitialized;
+
+    function initialize(address asset_, address initialOwner) external initializer {
         if (asset_ == address(0)) revert ErrorsLib.ZeroAddress();
-        if (initialPrice == 0) revert ErrorsLib.ZeroPrice();
 
         __Ownable2Step_init();
         __UUPSUpgradeable_init();
 
         asset = asset_;
-        lastPrice = initialPrice;
+        isInitialized = false;
 
         _transferOwnership(initialOwner);
     }
@@ -37,6 +36,7 @@ contract UniverseOracle is Initializable, Ownable2StepUpgradeable, UUPSUpgradeab
 
     /// @inheritdoc IAssetOracle
     function price() external view override returns (uint256) {
+        if (!isInitialized) revert ErrorsLib.OracleNotInitialized();
         return lastPrice;
     }
 
@@ -49,6 +49,7 @@ contract UniverseOracle is Initializable, Ownable2StepUpgradeable, UUPSUpgradeab
             1;
 
         lastPrice = newPrice;
+        isInitialized = true;
         emit EventsLib.PriceUpdated(asset, newPrice);
     }
 }

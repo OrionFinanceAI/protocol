@@ -32,6 +32,30 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
  *
  * Derived contracts implement the specific intent submission and interpretation logic, either in plaintext
  * (OrionTransparentVault) or encrypted form (OrionEncryptedVault) for privacy-preserving vaults.
+ *
+ * The vault maintains the following key states that the orchestrators must track and manage:
+ *
+ * 1. Total Assets (t_0) [assets] - The total value of assets under management in the vault
+ *    - Stored in: _totalAssets
+ *    - Units: Asset tokens (e.g., USDC, ETH)
+ *
+ * 2. Deposit Requests (D) [assets] - Pending deposit requests from liquidity providers
+ *    - Stored in: _depositRequests mapping
+ *    - Units: Asset tokens (e.g., USDC, ETH)
+ *    - Note: These are denominated in underlying asset units, not shares
+ *
+ * 3. Withdraw Requests (W) [shares] - Pending withdrawal requests from liquidity providers
+ *    - Stored in: _withdrawRequests mapping
+ *    - Units: Vault share tokens
+ *    - Note: These are denominated in vault share units, not underlying assets
+ *
+ * 4. Portfolio Weights (p_0) [%] - Current portfolio allocation weights
+ *    - Stored in: _portfolio
+ *    - Units: Percentage points
+ *
+ * 5. Curator Intent (p_1) [%] - Target portfolio allocation from curator
+ *    - Implementation specific to derived contracts
+ *    - Units: Percentage points
  */
 abstract contract OrionVault is
     Initializable,
@@ -48,17 +72,31 @@ abstract contract OrionVault is
     address public curator;
     address public deployer;
 
+    /// @notice Total assets under management (t_0) - denominated in underlying asset units
     uint256 internal _totalAssets;
 
-    // Queues of async requests from LPs
+    /// @notice Deposit requests queue (D) - mapping of user address to requested asset amount
+    /// Units: Asset tokens (e.g., USDC, ETH), not shares
     mapping(address => uint256) private _depositRequests;
+
+    /// @notice Withdraw requests queue (W) - mapping of user address to requested share amount
+    /// Units: Vault share tokens, not underlying assets
     mapping(address => uint256) private _withdrawRequests;
 
+    /// @notice Array of users who have pending deposit requests
     address[] private _depositRequestors;
+
+    /// @notice Array of users who have pending withdrawal requests
     address[] private _withdrawRequestors;
 
-    // Portfolio state managed by orchestrators
+    /// @notice Current portfolio weights (p_0) - mapping of token address to live allocation percentage
+    /// Units: Percentage points
     EnumerableMap.AddressToUintMap private _portfolio;
+
+    /// @notice Curator intent (p_1) - mapping of token address to target allocation percentage
+    /// Units: Percentage points
+    /// This stores the curator's target portfolio allocation
+    EnumerableMap.AddressToUintMap internal _orders;
 
     modifier onlyCurator() {
         if (msg.sender != curator) revert ErrorsLib.NotCurator();
@@ -208,6 +246,54 @@ abstract contract OrionVault is
 
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
 
+    /// @notice Get total pending deposit amount across all users
+    /// @return Total pending deposits denominated in underlying asset units (e.g., USDC, ETH)
+    /// Note: This returns asset amounts, not share amounts
+    function getPendingDeposits() external view returns (uint256) {
+        uint256 totalPending = 0;
+        uint256 length = _depositRequestors.length;
+        for (uint256 i = 0; i < length; i++) {
+            totalPending += _depositRequests[_depositRequestors[i]];
+        }
+        return totalPending;
+    }
+
+    /// @notice Get total pending withdrawal shares across all users
+    /// @return Total pending withdrawals denominated in vault share units
+    /// Note: This returns share amounts, not underlying asset amounts
+    function getPendingWithdrawals() external view returns (uint256) {
+        uint256 totalPending = 0;
+        uint256 length = _withdrawRequestors.length;
+        for (uint256 i = 0; i < length; i++) {
+            totalPending += _withdrawRequests[_withdrawRequestors[i]];
+        }
+        return totalPending;
+    }
+
+    function getPortfolio() external view returns (address[] memory tokens, uint256[] memory weights) {
+        uint256 length = _portfolio.length();
+        tokens = new address[](length);
+        weights = new uint256[](length);
+
+        for (uint256 i = 0; i < length; ++i) {
+            (address token, uint256 weight) = _portfolio.at(i);
+            tokens[i] = token;
+            weights[i] = weight;
+        }
+    }
+
+    function getCuratorOrder() external view returns (address[] memory tokens, uint256[] memory weights) {
+        uint256 length = _orders.length();
+        tokens = new address[](length);
+        weights = new uint256[](length);
+
+        for (uint256 i = 0; i < length; ++i) {
+            (address token, uint256 weight) = _orders.at(i);
+            tokens[i] = token;
+            weights[i] = weight;
+        }
+    }
+
     /// @notice Update vault state based on market performance and pending operations
     /// @param newTotalAssets The new total assets after processing deposits/withdrawals
     function updateVaultState(uint256 newTotalAssets) external onlyInternalStatesOrchestrator {
@@ -219,28 +305,6 @@ abstract contract OrionVault is
         // Emit event for tracking state updates
         emit EventsLib.VaultStateUpdated(newTotalAssets);
     }
-
-    /// @notice Get total pending deposit amount across all users
-    function getPendingDeposits() external view returns (uint256) {
-        uint256 totalPending = 0;
-        uint256 length = _depositRequestors.length;
-        for (uint256 i = 0; i < length; i++) {
-            totalPending += _depositRequests[_depositRequestors[i]];
-        }
-        return totalPending;
-    }
-
-    /// @notice Get total pending withdrawal shares across all users
-    function getPendingWithdrawals() external view returns (uint256) {
-        uint256 totalPending = 0;
-        uint256 length = _withdrawRequestors.length;
-        for (uint256 i = 0; i < length; i++) {
-            totalPending += _withdrawRequests[_withdrawRequestors[i]];
-        }
-        return totalPending;
-    }
-
-    // TODO: add function to get portfolio weights from internal states orchestrator.
 
     /// --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
 

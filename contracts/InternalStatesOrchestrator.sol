@@ -88,52 +88,45 @@ contract InternalStatesOrchestrator is
 
         // Update internal state BEFORE external calls (EFFECTS before INTERACTIONS)
         nextUpdateTime = _computeNextUpdateTime(block.timestamp);
-
-        // TODO: break this down into multiple functions.
-        // The Vault states are:
-        // - total assets (t_0) [#]
-        // - deposit requests (D) [assets]
-        // - withdraw requests (W) [shares]
-        // - portfolio weights (p_0) [%]
-        // - curator intent (p_1) [%]
-
-        // Get current prices from oracle + calculate P&L (R_t)
-        // t_1 = t_0 * (1 + R_t @ p_0)
-        // W_a = _convertToAssets(W, t_1) [assets]
-        // P_0 = sum(t_1 * p_0)
-        // t_2 = t_1 + D - W_a
-        // P_1 = sum(t_2 * p_1)
-        // delta_P = P_1 - P_0
-        // TODO: have multiple chainlink automation offchain process triggered by events in the middle of the process.
-        _processVaultStates();
-
-        // Move to liquidity orchestrator:
-        // Process delta_P, W, D. Here I use prices_t. // TODO: investigate D/W netting.
-        emit EventsLib.InternalStateProcessed(block.timestamp);
-    }
-
-    /// @notice Process vault states by updating oracle prices and calculating P&L
-    function _processVaultStates() internal {
-        // Collect read-only states from all Orion vaults
-        (
-            address[] memory vaults,
-            uint256[] memory totalAssets,
-            uint256[] memory depositRequests,
-            uint256[] memory withdrawRequests
-        ) = config.getVaultStates();
-
-        // Clear the storage array
-        delete pnlArray;
         // Update oracle prices and calculate P&L
         PnL[] memory pnlMemory = _updateOraclePricesAndCalculatePnL();
-
-        // Copy memory array to storage array
+        delete pnlArray;
         for (uint256 i = 0; i < pnlMemory.length; i++) {
             pnlArray.push(pnlMemory[i]);
         }
 
-        // Update vault states
-        _updateVaultStates(vaults, totalAssets, depositRequests, withdrawRequests, pnlArray);
+        // TODO: break this down into multiple functions.
+        // TODO: get p_0 array from vaults.
+
+        // t_1 = t_0 * (1 + R_t @ p_0)
+        // TODO: add entry point for Zama coprocessor here, as should be doing this
+        // For every orion Vault, both transparent and encrypted.
+
+        // W_a = _convertToAssets(W, t_1) [assets]
+        // P_0 = sum(t_1 * p_0)
+        // TODO: add entry point for Zama coprocessor here, as should be doing this
+        // For every orion Vault, both transparent and encrypted.
+
+        // t_2 = t_1 + D - W_a
+
+        // P_1 = sum(t_2 * p_1)
+
+        // delta_P = P_1 - P_0
+        // _processVaultStates();
+        // TODO. Be sure to remove unused functions across contracts, there may be, given the degree of refactoring of today.
+
+        emit EventsLib.InternalStateProcessed(block.timestamp);
+        // TODO: have additional chainlink automation offchain process triggered by this event and triggering liquidity orchestrator.
+        // Move to liquidity orchestrator:
+        // Process delta_P, W, D. Here I use prices_t. // TODO: investigate D/W netting.
+    }
+
+    function _computeNextUpdateTime(uint256 currentTime) internal pure returns (uint256) {
+        return currentTime + UPDATE_INTERVAL;
+    }
+    function _shouldTriggerUpkeep() internal view returns (bool) {
+        // slither-disable-next-line timestamp
+        return block.timestamp >= nextUpdateTime;
     }
 
     /// @notice Update oracle prices and calculate P&L based on price changes
@@ -152,45 +145,6 @@ contract InternalStatesOrchestrator is
         }
 
         return _calculatePnL(previousPriceArray, currentPriceArray);
-    }
-
-    /// @notice Update vault states based on market data and pending operations
-    function _updateVaultStates(
-        address[] memory vaults,
-        uint256[] memory totalAssets,
-        uint256[] memory depositRequests,
-        uint256[] memory withdrawRequests,
-        PnL[] memory pnlMem
-    ) internal {
-        for (uint256 i = 0; i < vaults.length; i++) {
-            // slither-disable-start calls-loop
-            IOrionVault vault = IOrionVault(vaults[i]);
-
-            // TODO: compute vault absolute pnl performing dot product between
-            // the vault's weights and the pnl amount array.
-            // Multiplied by the vault's total assets.
-            // TODO: this requires to have the executed vault weights in the vault state.
-            // Best to overwrite this state from the liquidity orchestrator.
-            // uint256 pnlAmount = pnlMem[i] * totalAssets[i]; // TODO: placeholder, to be removed
-
-            // // TODO: compute new deposit requests in shares? Needed for total supply calculation.
-            // // uint256 newDepositRequests = vault.convertToShares(depositRequests[i]);
-
-            // uint256 withdrawalAssets = vault.convertToAssets(withdrawRequests[i]);
-            // uint256 newTotalAssets = totalAssets[i] + depositRequests[i] - withdrawalAssets + pnlAmount;
-
-            // vault.updateVaultState(newTotalAssets);
-            // slither-disable-end calls-loop
-        }
-    }
-
-    function _shouldTriggerUpkeep() internal view returns (bool) {
-        // slither-disable-next-line timestamp
-        return block.timestamp >= nextUpdateTime;
-    }
-
-    function _computeNextUpdateTime(uint256 currentTime) internal pure returns (uint256) {
-        return currentTime + UPDATE_INTERVAL;
     }
 
     /// @notice Calculates the percentage change (P&L) between previous and current prices
@@ -213,4 +167,34 @@ contract InternalStatesOrchestrator is
             pnlMem[i] = PnL({ pctChange: pct, isPositive: isPos });
         }
     }
+
+    /// @notice Update vault states based on market data and pending operations
+    // function _updateVaultStates(
+    //     address[] memory vaults,
+    //     uint256[] memory totalAssets,
+    //     uint256[] memory depositRequests,
+    //     uint256[] memory withdrawRequests,
+    //     PnL[] memory pnlMem
+    // ) internal {
+    //     for (uint256 i = 0; i < vaults.length; i++) {
+    //         // slither-disable-start calls-loop
+    //         IOrionVault vault = IOrionVault(vaults[i]);
+
+    //         // TODO: compute vault absolute pnl performing dot product between
+    //         // the vault's weights and the pnl amount array.
+    //         // Multiplied by the vault's total assets.
+    //         // TODO: this requires to have the executed vault weights in the vault state.
+    //         // Best to overwrite this state from the liquidity orchestrator.
+    //         // uint256 pnlAmount = pnlMem[i] * totalAssets[i]; // TODO: placeholder, to be removed
+
+    //         // // TODO: compute new deposit requests in shares? Needed for total supply calculation.
+    //         // // uint256 newDepositRequests = vault.convertToShares(depositRequests[i]);
+
+    //         // uint256 withdrawalAssets = vault.convertToAssets(withdrawRequests[i]);
+    //         // uint256 newTotalAssets = totalAssets[i] + depositRequests[i] - withdrawalAssets + pnlAmount;
+
+    //         // vault.updateVaultState(newTotalAssets);
+    //         // slither-disable-end calls-loop
+    //     }
+    // }
 }
