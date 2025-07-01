@@ -91,7 +91,7 @@ describe("OrionVault", function () {
   describe("Access Control", function () {
     it("Should only allow curator to submit order intents", async function () {
       const { vault, unauthorized } = await loadFixture(deployVaultFixture);
-      const order = [{ token: ethers.ZeroAddress, amount: 1000000 }];
+      const order = [{ token: ethers.ZeroAddress, weight: 1000000 }];
       await expect(vault.connect(unauthorized).submitOrderIntent(order)).to.be.revertedWithCustomError(
         vault,
         "NotCurator",
@@ -100,7 +100,7 @@ describe("OrionVault", function () {
     it("Should only allow internal states orchestrator to update vault state", async function () {
       const { vault, unauthorized } = await loadFixture(deployVaultFixture);
       await expect(
-        vault.connect(unauthorized).updateVaultState(ethers.parseUnits("1.1", 6), ethers.parseUnits("1000", 6)),
+        vault.connect(unauthorized).updateVaultState(ethers.parseUnits("1.1", 6)),
       ).to.be.revertedWithCustomError(vault, "NotInternalStatesOrchestrator");
     });
     it("Should only allow liquidity orchestrator to process deposit requests", async function () {
@@ -265,12 +265,6 @@ describe("OrionVault", function () {
         .withArgs(newTotalAssets);
       expect(await vault.totalAssets()).to.equal(newTotalAssets);
     });
-    it("Should revert vault state update with zero share price", async function () {
-      const { vault, internalOrchestrator } = await loadFixture(deployVaultFixture);
-      await expect(
-        vault.connect(internalOrchestrator).updateVaultState(0, ethers.parseUnits("1000", 6)),
-      ).to.be.revertedWithCustomError(vault, "ZeroPrice");
-    });
   });
 
   describe("Curator Functions", function () {
@@ -278,7 +272,7 @@ describe("OrionVault", function () {
       const { vault, curator, config } = await loadFixture(deployVaultFixture);
       const tokenAddress = ethers.Wallet.createRandom().address;
       await config.addWhitelistedAsset(tokenAddress);
-      const order = [{ token: tokenAddress, amount: 1000000 }];
+      const order = [{ token: tokenAddress, weight: 1000000 }];
       await expect(vault.connect(curator).submitOrderIntent(order))
         .to.emit(vault, "OrderSubmitted")
         .withArgs(curator.address);
@@ -294,7 +288,7 @@ describe("OrionVault", function () {
     it("Should revert order with non-whitelisted token", async function () {
       const { vault, curator } = await loadFixture(deployVaultFixture);
       const nonWhitelistedToken = ethers.Wallet.createRandom().address;
-      const order = [{ token: nonWhitelistedToken, amount: 1000000 }];
+      const order = [{ token: nonWhitelistedToken, weight: 1000000 }];
       await expect(vault.connect(curator).submitOrderIntent(order)).to.be.revertedWithCustomError(
         vault,
         "TokenNotWhitelisted",
@@ -304,7 +298,7 @@ describe("OrionVault", function () {
       const { vault, curator, config } = await loadFixture(deployVaultFixture);
       const tokenAddress = ethers.Wallet.createRandom().address;
       await config.addWhitelistedAsset(tokenAddress);
-      const order = [{ token: tokenAddress, amount: 0 }];
+      const order = [{ token: tokenAddress, weight: 0 }];
       await expect(vault.connect(curator).submitOrderIntent(order)).to.be.revertedWithCustomError(
         vault,
         "AmountMustBeGreaterThanZero",
@@ -314,10 +308,10 @@ describe("OrionVault", function () {
       const { vault, curator, config } = await loadFixture(deployVaultFixture);
       const tokenAddress = ethers.Wallet.createRandom().address;
       await config.addWhitelistedAsset(tokenAddress);
-      const order = [{ token: tokenAddress, amount: 500000 }];
+      const order = [{ token: tokenAddress, weight: 500000 }];
       await expect(vault.connect(curator).submitOrderIntent(order)).to.be.revertedWithCustomError(
         vault,
-        "InvalidTotalAmount",
+        "InvalidTotalWeight",
       );
     });
   });
