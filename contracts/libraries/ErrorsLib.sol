@@ -31,7 +31,7 @@ library ErrorsLib {
     error SynchronousRedemptionsDisabled();
     error SynchronousDepositsDisabled();
     error SynchronousWithdrawalsDisabled();
-    error InvalidTotalAmount();
+    error InvalidTotalWeight();
     error ZeroPrice();
     error OrderIntentCannotBeEmpty();
     error TokenAlreadyInOrder(address token);

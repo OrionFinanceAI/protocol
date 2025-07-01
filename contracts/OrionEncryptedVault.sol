@@ -34,17 +34,17 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
     /// --------- CURATOR FUNCTIONS ---------
 
     /// @notice Submit an encrypted portfolio intent.
-    /// @param order Order struct containing the tokens and encrypted amounts.
-    function submitOrderIntent(Order[] calldata order) external onlyCurator {
+    /// @param order EncryptedOrder struct containing the tokens and encrypted weights.
+    function submitOrderIntent(EncryptedOrder[] calldata order) external onlyCurator {
         if (order.length == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
         _orders.clear();
 
         for (uint256 i = 0; i < order.length; i++) {
             // slither-disable-start calls-loop
             address token = order[i].token;
-            euint32 amount = order[i].amount;
+            euint32 weight = order[i].weight;
             if (!config.isWhitelisted(token)) revert ErrorsLib.TokenNotWhitelisted(token);
-            bool inserted = _orders.set(token, euint32.unwrap(amount));
+            bool inserted = _orders.set(token, euint32.unwrap(weight));
             if (!inserted) revert ErrorsLib.TokenAlreadyInOrder(token);
             // slither-disable-end calls-loop
         }

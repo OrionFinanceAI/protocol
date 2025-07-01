@@ -154,9 +154,6 @@ contract InternalStatesOrchestrator is
     ) internal {
         for (uint256 i = 0; i < vaults.length; i++) {
             // slither-disable-start calls-loop
-            // Validate vault address before making external calls
-            if (vaults[i] == address(0)) revert ErrorsLib.ZeroAddress();
-
             IOrionVault vault = IOrionVault(vaults[i]);
 
             // TODO: compute vault absolute pnl performing dot product between

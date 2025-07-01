@@ -5,6 +5,11 @@ import "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import "./IOrionConfig.sol";
 
 interface IOrionVault is IERC4626 {
+    struct Position {
+        address token;
+        uint32 weight;
+    }
+
     function initialize(
         address curatorAddress,
         IOrionConfig configAddress,

@@ -664,11 +664,11 @@
             },
             {
               "internalType": "uint32",
-              "name": "amount",
+              "name": "weight",
               "type": "uint32"
             }
           ],
-          "internalType": "struct IOrionTransparentVault.Order[]",
+          "internalType": "struct IOrionVault.Position[]",
           "name": "order",
           "type": "tuple[]"
         }

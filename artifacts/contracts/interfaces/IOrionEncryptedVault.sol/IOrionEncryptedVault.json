@@ -664,11 +664,11 @@
             },
             {
               "internalType": "euint32",
-              "name": "amount",
+              "name": "weight",
               "type": "uint256"
             }
           ],
-          "internalType": "struct IOrionEncryptedVault.Order[]",
+          "internalType": "struct IOrionEncryptedVault.EncryptedOrder[]",
           "name": "order",
           "type": "tuple[]"
         }

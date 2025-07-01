@@ -33,26 +33,26 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     /// --------- CURATOR FUNCTIONS ---------
 
     /// @notice Submit a plaintext portfolio intent.
-    /// @param order Order struct containing the tokens and plaintext amounts.
-    function submitOrderIntent(Order[] calldata order) external onlyCurator {
+    /// @param order Position struct containing the tokens and plaintext weights.
+    function submitOrderIntent(Position[] calldata order) external onlyCurator {
         if (order.length == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
         _orders.clear();
 
-        uint256 totalAmount = 0;
+        uint256 totalWeight = 0;
         for (uint256 i = 0; i < order.length; i++) {
             // slither-disable-start calls-loop
             address token = order[i].token;
-            uint32 amount = order[i].amount;
+            uint32 weight = order[i].weight;
             if (!config.isWhitelisted(token)) revert ErrorsLib.TokenNotWhitelisted(token);
-            if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(token);
-            bool inserted = _orders.set(token, amount);
+            if (weight == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(token);
+            bool inserted = _orders.set(token, weight);
             if (!inserted) revert ErrorsLib.TokenAlreadyInOrder(token);
-            totalAmount += amount;
+            totalWeight += weight;
             // slither-disable-end calls-loop
         }
 
         uint8 curatorIntentDecimals = config.curatorIntentDecimals();
-        if (totalAmount != 10 ** curatorIntentDecimals) revert ErrorsLib.InvalidTotalAmount();
+        if (totalWeight != 10 ** curatorIntentDecimals) revert ErrorsLib.InvalidTotalWeight();
 
         emit EventsLib.OrderSubmitted(msg.sender);
     }

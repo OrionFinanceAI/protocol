@@ -94,6 +94,8 @@ abstract contract OrionVault is
         config = config_;
         sharePrice = 10 ** config.statesDecimals();
         _totalAssets = 0;
+        // TODO: how to deal with growing whitelist? Whitelist update to trigger update of portfolio with new keys and value associated to 0?
+        // portfolio = 0; // TODO: same type as transparent intent, bring that up in general ivault, used also by encrypted vault.
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyCurator {}

@@ -133,6 +133,10 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     // === Orion Vaults ===
 
     function addOrionVault(address vault) external onlyFactory {
+        // NOTE: could check the type of the vault with EIP-165, instead of only
+        // checking it's not a zero address.
+        // https://eips.ethereum.org/EIPS/eip-165
+        if (vault == address(0)) revert ErrorsLib.ZeroAddress();
         bool inserted = orionVaults.add(vault);
         if (!inserted) revert ErrorsLib.AlreadyAnOrionVault();
         emit EventsLib.OrionVaultAdded(vault);

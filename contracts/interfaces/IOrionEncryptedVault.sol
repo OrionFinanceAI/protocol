@@ -5,12 +5,12 @@ import { euint32 } from "fhevm/lib/TFHE.sol";
 import "./IOrionVault.sol";
 
 interface IOrionEncryptedVault is IOrionVault {
-    struct Order {
+    struct EncryptedOrder {
         address token;
-        euint32 amount;
+        euint32 weight;
     }
 
     /// @notice Submit an encrypted portfolio intent.
-    /// @param order Order struct containing the tokens and encrypted amounts.
-    function submitOrderIntent(Order[] calldata order) external;
+    /// @param order EncryptedOrder struct containing the tokens and encrypted weights.
+    function submitOrderIntent(EncryptedOrder[] calldata order) external;
 }
