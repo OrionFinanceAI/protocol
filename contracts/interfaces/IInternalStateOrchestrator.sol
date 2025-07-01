@@ -8,11 +8,6 @@ import "./IOrionConfig.sol";
 /// @notice Interface for the Internal States Orchestrator contract
 /// @dev Defines the external interface for orchestrating internal state transitions
 interface IInternalStateOrchestrator is AutomationCompatibleInterface {
-    struct PnL {
-        uint256 pctChange;
-        bool isPositive;
-    }
-
     // State variables
     function nextUpdateTime() external view returns (uint256);
     function UPDATE_INTERVAL() external view returns (uint256);

@@ -35,8 +35,9 @@ contract InternalStatesOrchestrator is
     /// @notice Orion Config contract address
     IOrionConfig public config;
 
-    /// @notice P&L array
-    PnL[] public pnlArray;
+    /// @notice P&L mappings - asset address to percentage change and sign
+    mapping(address => uint256) public pctChange;
+    mapping(address => bool) public isPositive;
 
     function initialize(address initialOwner, address automationRegistry_, address config_) public initializer {
         __Ownable2Step_init();
@@ -90,11 +91,7 @@ contract InternalStatesOrchestrator is
         // Update internal state BEFORE external calls (EFFECTS before INTERACTIONS)
         nextUpdateTime = _computeNextUpdateTime(block.timestamp);
         // Update oracle prices and calculate P&L
-        PnL[] memory pnlMemory = _updateOraclePricesAndCalculatePnL();
-        delete pnlArray;
-        for (uint256 i = 0; i < pnlMemory.length; i++) {
-            pnlArray.push(pnlMemory[i]);
-        }
+        _updateOraclePricesAndCalculatePnL();
 
         address[] memory transparentVaults = config.getAllOrionVaults(false);
         // address[] memory encryptedVaults = config.getAllOrionVaults(true); // TODO: add encrypted vaults support.
@@ -104,9 +101,7 @@ contract InternalStatesOrchestrator is
             IOrionTransparentVault vault = IOrionTransparentVault(transparentVaults[i]);
             uint256 t0 = vault.totalAssets();
             (address[] memory portfolioTokens, uint256[] memory portfolioWeights) = vault.getPortfolio();
-            // TODO: fix the following, use portfolioTokens and match with pnl entry of same asset, after fixing the
-            // pnlArray definition.
-            uint256 t1 = t0 * onePlusDotProduct(portfolioWeights, pnlArray);
+            uint256 t1 = t0 * onePlusDotProduct(portfolioTokens, portfolioWeights);
 
             // TODO: add input to convertToAssets function, so that we can pass intermediate total assets as input.
             // W_a = _convertToAssets(W, t_1) [assets]
@@ -136,7 +131,7 @@ contract InternalStatesOrchestrator is
     }
 
     /// @notice Update oracle prices and calculate P&L based on price changes
-    function _updateOraclePricesAndCalculatePnL() internal returns (PnL[] memory) {
+    function _updateOraclePricesAndCalculatePnL() internal {
         address[] memory universe = config.getAllWhitelistedAssets();
         IOracleRegistry registry = IOracleRegistry(config.oracleRegistry());
 
@@ -150,16 +145,15 @@ contract InternalStatesOrchestrator is
             // slither-disable-end calls-loop
         }
 
-        return _calculatePnL(previousPriceArray, currentPriceArray);
+        _calculatePnL(universe, previousPriceArray, currentPriceArray);
     }
 
     /// @notice Calculates the percentage change (P&L) between previous and current prices
+    /// @param assets_ Array of assets
     /// @param prev Array of previous prices
     /// @param curr Array of current prices
-    /// @return pnlMem Array of P&L percentages [%]
-    function _calculatePnL(uint256[] memory prev, uint256[] memory curr) internal view returns (PnL[] memory pnlMem) {
-        uint256 len = prev.length;
-        pnlMem = new PnL[](len);
+    function _calculatePnL(address[] memory assets_, uint256[] memory prev, uint256[] memory curr) internal {
+        uint256 len = assets_.length;
         uint8 statesDecimals = config.statesDecimals();
 
         for (uint256 i = 0; i < len; i++) {
@@ -170,17 +164,19 @@ contract InternalStatesOrchestrator is
             uint256 diff = isPos ? (newP - oldP) : (oldP - newP);
             uint256 pct = (diff * 10 ** statesDecimals) / oldP;
 
-            pnlMem[i] = PnL({ pctChange: pct, isPositive: isPos });
+            pctChange[assets_[i]] = pct;
+            isPositive[assets_[i]] = isPos;
         }
     }
     function onePlusDotProduct(
-        uint256[] memory portfolioWeights_,
-        PnL[] memory pnlArray_
+        address[] memory portfolioTokens_,
+        uint256[] memory portfolioWeights_
     ) internal view returns (uint256) {
         uint256 sum = config.statesDecimals();
         for (uint256 i = 0; i < portfolioWeights_.length; i++) {
-            uint256 product = portfolioWeights_[i] * pnlArray_[i].pctChange;
-            if (pnlArray_[i].isPositive) {
+            address token = portfolioTokens_[i];
+            uint256 product = portfolioWeights_[i] * pctChange[token];
+            if (isPositive[token]) {
                 sum += product;
             } else {
                 if (sum < product) revert ErrorsLib.Underflow();
