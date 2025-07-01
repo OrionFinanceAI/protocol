@@ -40,7 +40,8 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     EnumerableSet.AddressSet private whitelistedAssets;
 
     // Orion-specific configuration
-    EnumerableSet.AddressSet private orionVaults;
+    EnumerableSet.AddressSet private orionTransparentVaults;
+    EnumerableSet.AddressSet private orionEncryptedVaults;
 
     modifier onlyFactory() {
         if (msg.sender != vaultFactory) revert ErrorsLib.NotFactory();
@@ -132,61 +133,42 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
 
     // === Orion Vaults ===
 
-    function addOrionVault(address vault) external onlyFactory {
+    function addOrionVault(address vault, bool encrypted) external onlyFactory {
         // NOTE: could check the type of the vault with EIP-165, instead of only
         // checking it's not a zero address.
         // https://eips.ethereum.org/EIPS/eip-165
         if (vault == address(0)) revert ErrorsLib.ZeroAddress();
-        bool inserted = orionVaults.add(vault);
+
+        bool inserted;
+        if (encrypted) {
+            inserted = orionEncryptedVaults.add(vault);
+        } else {
+            inserted = orionTransparentVaults.add(vault);
+        }
+
         if (!inserted) revert ErrorsLib.AlreadyAnOrionVault();
         emit EventsLib.OrionVaultAdded(vault);
     }
 
-    function removeOrionVault(address vault) external onlyFactory {
-        bool removed = orionVaults.remove(vault);
+    function removeOrionVault(address vault, bool encrypted) external onlyFactory {
+        bool removed;
+        if (encrypted) {
+            removed = orionEncryptedVaults.remove(vault);
+        } else {
+            removed = orionTransparentVaults.remove(vault);
+        }
+
         if (!removed) revert ErrorsLib.NotAnOrionVault();
         emit EventsLib.OrionVaultRemoved(vault);
     }
 
-    function getAllOrionVaults() external view returns (address[] memory) {
-        uint256 length = orionVaults.length();
-        address[] memory vaults = new address[](length);
+    function getAllOrionVaults(bool encrypted) external view returns (address[] memory) {
+        EnumerableSet.AddressSet storage vaults = encrypted ? orionEncryptedVaults : orionTransparentVaults;
+        uint256 length = vaults.length();
+        address[] memory vaultArray = new address[](length);
         for (uint256 i = 0; i < length; ++i) {
-            vaults[i] = orionVaults.at(i);
+            vaultArray[i] = vaults.at(i);
         }
-        return vaults;
-    }
-
-    function getVaultStates()
-        external
-        view
-        returns (
-            address[] memory vaults,
-            uint256[] memory totalAssets,
-            uint256[] memory depositRequests,
-            uint256[] memory withdrawRequests
-        )
-    {
-        uint256 length = orionVaults.length();
-        vaults = new address[](length);
-        totalAssets = new uint256[](length);
-        depositRequests = new uint256[](length);
-        withdrawRequests = new uint256[](length);
-        // TODO: add portfolio weights.
-        // TODO: add orders.
-
-        for (uint256 i = 0; i < length; ++i) {
-            // slither-disable-start calls-loop
-            address vaultAddress = orionVaults.at(i);
-            vaults[i] = vaultAddress;
-
-            IOrionVault vault = IOrionVault(vaultAddress);
-            totalAssets[i] = vault.totalAssets();
-
-            // Get pending deposits and withdrawals
-            depositRequests[i] = vault.getPendingDeposits();
-            withdrawRequests[i] = vault.getPendingWithdrawals();
-            // slither-disable-end calls-loop
-        }
+        return vaultArray;
     }
 }
