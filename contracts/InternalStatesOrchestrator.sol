@@ -35,9 +35,8 @@ contract InternalStatesOrchestrator is
     /// @notice Orion Config contract address
     IOrionConfig public config;
 
-    /// @notice P&L mappings - asset address to percentage change and sign
-    mapping(address => uint256) public pctChange;
-    mapping(address => bool) public isPositive;
+    /// @notice P&L mapping - asset address to (signed) percentage change
+    mapping(address => int256) public pctChange;
 
     function initialize(address initialOwner, address automationRegistry_, address config_) public initializer {
         __Ownable2Step_init();
@@ -154,33 +153,54 @@ contract InternalStatesOrchestrator is
     /// @param curr Array of current prices
     function _calculatePnL(address[] memory assets_, uint256[] memory prev, uint256[] memory curr) internal {
         uint256 len = assets_.length;
-        uint8 statesDecimals = config.statesDecimals();
+        uint256 statesDecimals = config.statesDecimals();
+        uint256 precision = 10 ** statesDecimals;
 
         for (uint256 i = 0; i < len; i++) {
             uint256 oldP = prev[i];
             uint256 newP = curr[i];
 
-            bool isPos = newP >= oldP;
-            uint256 diff = isPos ? (newP - oldP) : (oldP - newP);
-            uint256 pct = (diff * 10 ** statesDecimals) / oldP;
-
-            pctChange[assets_[i]] = pct;
-            isPositive[assets_[i]] = isPos;
+            // Handle price changes with proper overflow protection
+            if (newP >= oldP) {
+                // Price increased or stayed the same
+                uint256 diff = newP - oldP;
+                int256 pct = int256((diff * precision) / oldP);
+                pctChange[assets_[i]] = pct;
+            } else {
+                // Price decreased - handle negative percentage
+                uint256 diff = oldP - newP;
+                int256 pct = -int256((diff * precision) / oldP);
+                pctChange[assets_[i]] = pct;
+            }
         }
     }
+
+    /// @notice Calculates 1 + dot product of portfolio weights and percentage changes
+    /// @param portfolioTokens_ Array of portfolio token addresses
+    /// @param portfolioWeights_ Array of portfolio weights
+    /// @return The result of 1 + dot product calculation
     function onePlusDotProduct(
         address[] memory portfolioTokens_,
         uint256[] memory portfolioWeights_
     ) internal view returns (uint256) {
-        uint256 sum = config.statesDecimals();
+        uint256 statesDecimals = config.statesDecimals();
+        uint256 precision = 10 ** statesDecimals;
+        uint256 sum = precision; // Start with 1 in the precision format
+
         for (uint256 i = 0; i < portfolioWeights_.length; i++) {
             address token = portfolioTokens_[i];
-            uint256 product = portfolioWeights_[i] * pctChange[token];
-            if (isPositive[token]) {
+            uint256 weight = portfolioWeights_[i];
+            int256 pctChangeValue = pctChange[token];
+
+            // Handle positive and negative percentage changes separately to keep sum unsigned.
+            if (pctChangeValue >= 0) {
+                uint256 product = weight * uint256(pctChangeValue);
                 sum += product;
             } else {
-                if (sum < product) revert ErrorsLib.Underflow();
-                sum -= product;
+                // Negative change - subtract from sum (but ensure we don't underflow)
+                uint256 absProduct = weight * uint256(-pctChangeValue);
+                if (sum < absProduct) revert ErrorsLib.Underflow();
+                sum -= absProduct;
             }
         }
         return sum;
