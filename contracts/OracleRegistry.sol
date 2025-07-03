@@ -27,7 +27,6 @@ contract OracleRegistry is Initializable, Ownable2StepUpgradeable, UUPSUpgradeab
         emit EventsLib.OracleRegistered(asset, address(oracle));
     }
 
-    /// @inheritdoc IOracleRegistry
     function price(address asset) external view returns (uint256) {
         address assetOracle = oracleOf[asset];
         if (assetOracle == address(0)) revert ErrorsLib.OracleNotSet();

@@ -50,13 +50,6 @@ async function main() {
 
       console.log(`✅ Oracle initialized successfully`);
 
-      // Force first price update
-      console.log(`🔄 Performing first price update...`);
-      const updateTx = await oracle.update();
-      await updateTx.wait();
-      const firstPrice = await oracle.price();
-      console.log(`✅ First price set: ${firstPrice}`);
-
       deployedOracles.push({
         asset: validatedAsset,
         oracle: oracleAddress,

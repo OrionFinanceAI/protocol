@@ -46,7 +46,13 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
     }
 
     // TODO: vault states t0, w_0 to be updated at the end of the execution.
+    // TODO: required to have the executed vault states (in shares) in the vault state.
+    // Overwrite this state from the liquidity orchestrator.
     // TODO: DepositRequest and WithdrawRequest in Vaults to be
     // processed (post t0 update) and removed from vault state as pending requests.
     // TODO: curator fees to be paid at the end of the execution.
+    // In the liquidity orchestrator, document that the post execution
+    // portfolio state is different from the intent one not only
+    // because of slippage, but also because the assets prices have
+    // evolved between the oracle call and the execution call.
 }

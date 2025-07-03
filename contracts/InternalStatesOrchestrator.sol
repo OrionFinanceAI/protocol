@@ -18,7 +18,6 @@ import { EventsLib } from "./libraries/EventsLib.sol";
 /// @notice Orchestrates state reading and estimation operations triggered by Chainlink Automation
 /// @dev This contract is responsible for:
 ///      - Reading current vault states and market data
-///      - Calculating P&L estimations based on oracle price updates
 ///      - Computing state estimations for Liquidity Orchestrator
 ///      - Emitting events to trigger the Liquidity Orchestrator
 ///
@@ -26,6 +25,7 @@ import { EventsLib } from "./libraries/EventsLib.sol";
 ///      It only performs read operations and calculations to estimate state changes.
 ///      Actual state modifications and transaction execution are handled by the
 ///      Liquidity Orchestrator contract.
+///      Variable naming distinguishes measurements (x) from estimations (x_hat).
 contract InternalStatesOrchestrator is
     Initializable,
     Ownable2StepUpgradeable,
@@ -44,10 +44,6 @@ contract InternalStatesOrchestrator is
 
     /// @notice Orion Config contract address
     IOrionConfig public config;
-
-    /// @notice P&L mapping - asset address to (signed) percentage change
-    /// @dev This stores estimated percentage changes based on oracle price updates
-    mapping(address => int256) public pctChange;
 
     function initialize(address initialOwner, address automationRegistry_, address config_) public initializer {
         __Ownable2Step_init();
@@ -100,35 +96,35 @@ contract InternalStatesOrchestrator is
 
     /// @notice Performs state reading and estimation operations
     /// @dev This function:
-    ///      - Reads current vault states and oracle prices
-    ///      - Calculates P&L estimations based on price changes
-    ///      - Computes estimated portfolio performance
+    ///      - Reads current vault states and oracle prices;
+    ///      - Computes estimated system states;
     ///      - Emits events to trigger the Liquidity Orchestrator
     function performUpkeep(bytes calldata) external override onlyAutomationRegistry nonReentrant {
         if (!_shouldTriggerUpkeep()) revert ErrorsLib.TooEarly();
         nextUpdateTime = _computeNextUpdateTime(block.timestamp);
 
-        // Update oracle prices and calculate P&L estimations
-        // _updateOraclePricesAndCalculatePnL();
-        // TODO: important, the oracle data here (and consequent state updates)
-        // should not be used to update vault states,
-        // only as an input to the liquidity orchestrator.
-        // One example is slippage in the liquidity orchestrator transaction,
-        // leading to an execution price different from the oracle price and
-        // therefore to a different P&L for the vault, therefore
-        // to a different total assets value update.
-        // Make this point clear in the naming of the variables distinguishing
-        // measurements (x) for estimations (x_hat).
+        IOracleRegistry registry = IOracleRegistry(config.oracleRegistry());
 
         address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
         for (uint256 i = 0; i < transparentVaults.length; i++) {
             IOrionTransparentVault vault = IOrionTransparentVault(transparentVaults[i]);
 
-            uint256 t0 = vault.totalAssets();
             (address[] memory portfolioTokens, uint256[] memory portfolioAmounts) = vault.getPortfolio();
 
-            // Calculate estimated total assets based on P&L
-            // uint256 t1Hat = t0 * onePlusDotProduct(portfolioTokens, portfolioWeights);
+            // TODO: refacto t1 and t2 computation into vault contract.
+            // Feat: curator to be able to call estimated current total supply (t2) to inform their trades,
+            // which is ALSO (not only) used by the internal state orchestrator
+            // to inform the trades of the liquidity orchestrator.
+
+            // Calculate estimated active total assets (t_1)
+            uint256 t1_hat = 0;
+            for (uint256 j = 0; j < portfolioTokens.length; j++) {
+                address token = portfolioTokens[j];
+                uint256 amount = portfolioAmounts[j];
+                t1_hat += registry.price(token) * amount;
+            }
+
+            // Calculate estimated (active and passive) total assets (t_2)
 
             // TODO: add input to convertToAssets function, so that we can pass intermediate total assets as input.
             // WR_a = _convertToAssets(WR, t_1) [assets]
@@ -142,10 +138,6 @@ contract InternalStatesOrchestrator is
             // _processVaultStates();
             // TODO. Be sure to remove unused functions across contracts,
             // there may be, given the current degree of refactoring.
-            // In the liquidity orchestrator, document that the post execution
-            // portfolio state is different from the intent one not only
-            // because of slippage, but also because the assets prices have
-            // evolved between the oracle call and the execution call.
         }
 
         address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
@@ -176,108 +168,4 @@ contract InternalStatesOrchestrator is
         // slither-disable-next-line timestamp
         return block.timestamp >= nextUpdateTime;
     }
-
-    /// @notice Updates oracle prices and calculates P&L estimations based on price changes
-    function _updateOraclePricesAndCalculatePnL() internal {
-        address[] memory universe = config.getAllWhitelistedAssets();
-        IOracleRegistry registry = IOracleRegistry(config.oracleRegistry());
-
-        uint256[] memory previousPriceArray = new uint256[](universe.length);
-        uint256[] memory currentPriceArray = new uint256[](universe.length);
-
-        // TODO: more gas efficient to loop over union of active assets in P0 and P1 only,
-        // not on all whitelisted assets. We want to pass such active universe as an input to this function.
-        for (uint256 i = 0; i < universe.length; i++) {
-            previousPriceArray[i] = registry.price(universe[i]);
-        }
-
-        // _calculatePnL(universe, previousPriceArray, currentPriceArray);
-    }
-
-    /// @notice Calculates the percentage change (P&L) between previous and current prices
-    /// @param assets_ Array of assets
-    /// @param prev Array of previous prices
-    /// @param curr Array of current prices
-    function _calculatePnL(address[] memory assets_, uint256[] memory prev, uint256[] memory curr) internal {
-        uint256 len = assets_.length;
-        uint256 statesDecimals = config.statesDecimals();
-        uint256 precision = 10 ** statesDecimals;
-
-        for (uint256 i = 0; i < len; i++) {
-            uint256 oldP = prev[i];
-            uint256 newP = curr[i];
-
-            // Handle price changes with proper overflow protection
-            if (newP >= oldP) {
-                // Price increased or stayed the same
-                uint256 diff = newP - oldP;
-                int256 pct = int256((diff * precision) / oldP);
-                pctChange[assets_[i]] = pct;
-            } else {
-                // Price decreased - handle negative percentage
-                uint256 diff = oldP - newP;
-                int256 pct = -int256((diff * precision) / oldP);
-                pctChange[assets_[i]] = pct;
-            }
-        }
-    }
-
-    /// @notice Calculates 1 + dot product of portfolio weights and percentage changes
-    /// @param portfolioTokens_ Array of portfolio token addresses
-    /// @param portfolioWeights_ Array of portfolio weights
-    /// @return The result of 1 + dot product calculation
-    function onePlusDotProduct(
-        address[] memory portfolioTokens_,
-        uint256[] memory portfolioWeights_
-    ) internal view returns (uint256) {
-        uint256 statesDecimals = config.statesDecimals();
-        uint256 precision = 10 ** statesDecimals;
-        uint256 sum = precision; // Start with 1 in the precision format
-
-        for (uint256 i = 0; i < portfolioWeights_.length; i++) {
-            address token = portfolioTokens_[i];
-            uint256 weight = portfolioWeights_[i];
-            int256 pctChangeValue = pctChange[token];
-
-            // Handle positive and negative percentage changes separately to keep sum unsigned.
-            if (pctChangeValue >= 0) {
-                uint256 product = weight * uint256(pctChangeValue);
-                sum += product;
-            } else {
-                // Negative change - subtract from sum (but ensure we don't underflow)
-                uint256 absProduct = weight * uint256(-pctChangeValue);
-                if (sum < absProduct) revert ErrorsLib.Underflow();
-                sum -= absProduct;
-            }
-        }
-        return sum;
-    }
-
-    /// @notice Update vault states based on market data and pending operations
-    // function _updateVaultStates(
-    //     address[] memory vaults,
-    //     uint256[] memory totalAssets,
-    //     uint256[] memory depositRequests,
-    //     uint256[] memory withdrawRequests,
-    //     PnL[] memory pnlMem
-    // ) internal {
-    //     for (uint256 i = 0; i < vaults.length; i++) {
-    //         IOrionVault vault = IOrionVault(vaults[i]);
-
-    //         // TODO: compute vault absolute pnl performing dot product between
-    //         // the vault's weights and the pnl amount array.
-    //         // Multiplied by the vault's total assets.
-    //         // TODO: this requires to have the executed vault weights in the vault state.
-    //         // Best to overwrite this state from the liquidity orchestrator.
-    //         // uint256 pnlAmount = pnlMem[i] * totalAssets[i]; // TODO: placeholder, to be removed
-
-    //         // // TODO: compute new deposit requests in shares? Needed for total supply calculation.
-    //         // // uint256 newDepositRequests = vault.convertToShares(depositRequests[i]);
-
-    //         // uint256 withdrawalAssets = vault.convertToAssets(withdrawRequests[i]);
-    //         // uint256 newTotalAssets = totalAssets[i] + depositRequests[i] - withdrawalAssets + pnlAmount;
-
-    //         // vault.updateVaultState(newTotalAssets);
-    //     }
-    // }
 }

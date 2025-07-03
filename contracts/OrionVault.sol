@@ -177,6 +177,9 @@ abstract contract OrionVault is
         uint8 statesDecimals = config.statesDecimals();
         return shares.mulDiv(_totalAssets + 1, supply + 10 ** statesDecimals, rounding);
     }
+    // TODO: compute new withdraw requests in assets? Needed for total supply calculation. In turns,
+    // requires estimated live market total supply, to be passed as an input to this vault function.
+    // uint256 newWithdrawRequests = vault.convertToAssets(withdrawRequests[i]);
 
     function _convertToShares(uint256 assets, Math.Rounding rounding) internal view override returns (uint256) {
         uint256 supply = totalSupply();
