@@ -8,6 +8,7 @@ import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol
 import "./interfaces/IOrionConfig.sol";
 import "./interfaces/IOrionVault.sol";
 import "./interfaces/IOrionTransparentVault.sol";
+import "./interfaces/IOrionEncryptedVault.sol";
 import "./interfaces/IOracleRegistry.sol";
 import "./interfaces/IInternalStateOrchestrator.sol";
 import { ErrorsLib } from "./libraries/ErrorsLib.sol";
@@ -122,10 +123,6 @@ contract InternalStatesOrchestrator is
         // measurements (x) for estimations (x_hat).
 
         address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
-        // TODO: add encrypted vaults support.
-        // address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
-        // TODO: add entry point for Zama coprocessor for both dot product and batching.
-
         for (uint256 i = 0; i < transparentVaults.length; i++) {
             IOrionTransparentVault vault = IOrionTransparentVault(transparentVaults[i]);
 
@@ -151,6 +148,14 @@ contract InternalStatesOrchestrator is
             // portfolio state is different from the intent one not only
             // because of slippage, but also because the assets prices have
             // evolved between the oracle call and the execution call.
+        }
+
+        address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
+        for (uint256 i = 0; i < encryptedVaults.length; i++) {
+            IOrionEncryptedVault vault = IOrionEncryptedVault(encryptedVaults[i]);
+
+            (address[] memory portfolioTokens, euint32[] memory portfolioWeights) = vault.getPortfolio();
+            // TODO: add entry point for Zama coprocessor for both dot product and batching operations.
         }
 
         emit EventsLib.InternalStateProcessed(block.timestamp);

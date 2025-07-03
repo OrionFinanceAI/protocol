@@ -19,6 +19,12 @@ import { EventsLib } from "./libraries/EventsLib.sol";
 contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
 
+    /// @notice Current portfolio weights (w_0) - mapping of token address to live allocation
+    EnumerableMap.AddressToUintMap internal _portfolio;
+
+    /// @notice Curator intent (w_1) - mapping of token address to target allocation
+    EnumerableMap.AddressToUintMap internal _portfolioIntent;
+
     function initialize(
         address curatorAddress,
         IOrionConfig configAddress,
@@ -34,7 +40,8 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     /// @param order Position struct containing the tokens and plaintext weights.
     function submitOrderIntent(Position[] calldata order) external onlyCurator {
         if (order.length == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
-        _orders.clear();
+
+        _portfolioIntent.clear();
 
         uint256 totalWeight = 0;
         for (uint256 i = 0; i < order.length; i++) {
@@ -42,7 +49,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
             uint32 weight = order[i].weight;
             if (!config.isWhitelisted(token)) revert ErrorsLib.TokenNotWhitelisted(token);
             if (weight == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(token);
-            bool inserted = _orders.set(token, weight);
+            bool inserted = _portfolioIntent.set(token, weight);
             if (!inserted) revert ErrorsLib.TokenAlreadyInOrder(token);
             totalWeight += weight;
         }
@@ -59,5 +66,10 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
         uint256 length = _portfolio.length();
         tokens = new address[](length);
         weights = new uint256[](length);
+        for (uint256 i = 0; i < length; i++) {
+            (address token, uint256 weight) = _portfolio.at(i);
+            tokens[i] = token;
+            weights[i] = weight;
+        }
     }
 }

@@ -13,4 +13,7 @@ interface IOrionEncryptedVault is IOrionVault {
     /// @notice Submit an encrypted portfolio intent.
     /// @param order EncryptedPosition struct containing the tokens and encrypted weights.
     function submitOrderIntent(EncryptedPosition[] calldata order) external;
+
+    /// @notice Returns the current portfolio (w_0)
+    function getPortfolio() external view returns (address[] memory tokens, euint32[] memory weights);
 }

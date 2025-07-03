@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
-import { euint32 } from "fhevm/lib/TFHE.sol";
+import { euint32, TFHE } from "fhevm/lib/TFHE.sol";
 import "./OrionVault.sol";
 import "./interfaces/IOrionConfig.sol";
 import "./interfaces/IOrionEncryptedVault.sol";
@@ -18,7 +17,13 @@ import { EventsLib } from "./libraries/EventsLib.sol";
  * privacy of the portfolio allocation strategy, while maintaining capital efficiency.
  */
 contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
-    using EnumerableMap for EnumerableMap.AddressToUintMap;
+    /// @notice Current portfolio weights (w_0) - mapping of token address to live allocation
+    mapping(address => euint32) internal _portfolio;
+    address[] internal _portfolioKeys;
+
+    /// @notice Curator intent (w_1) - mapping of token address to target allocation
+    mapping(address => euint32) internal _intent;
+    address[] internal _intentKeys;
 
     function initialize(
         address curatorAddress,
@@ -35,16 +40,34 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
     /// @param order EncryptedPosition struct containing the tokens and encrypted weights.
     function submitOrderIntent(EncryptedPosition[] calldata order) external onlyCurator {
         if (order.length == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
-        _orders.clear();
+
+        // Clear previous intent by setting weights to zero
+        for (uint256 i = 0; i < _intentKeys.length; i++) {
+            _intent[_intentKeys[i]] = TFHE.asEuint32(0);
+        }
+        delete _intentKeys;
 
         for (uint256 i = 0; i < order.length; i++) {
             address token = order[i].token;
             euint32 weight = order[i].weight;
             if (!config.isWhitelisted(token)) revert ErrorsLib.TokenNotWhitelisted(token);
-            bool inserted = _orders.set(token, euint32.unwrap(weight));
-            if (!inserted) revert ErrorsLib.TokenAlreadyInOrder(token);
+            _intent[token] = weight;
+            _intentKeys.push(token);
         }
 
         emit EventsLib.OrderSubmitted(msg.sender);
+    }
+
+    // --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
+
+    function getPortfolio() external view returns (address[] memory tokens, euint32[] memory weights) {
+        uint256 length = _portfolioKeys.length;
+        tokens = new address[](length);
+        weights = new euint32[](length);
+        for (uint256 i = 0; i < length; i++) {
+            address token = _portfolioKeys[i];
+            tokens[i] = token;
+            weights[i] = _portfolio[token];
+        }
     }
 }

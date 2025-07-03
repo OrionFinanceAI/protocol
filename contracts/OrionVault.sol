@@ -50,7 +50,6 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
  *    - Note: These are denominated in vault share units, not underlying assets
  *
  * 4. Portfolio Weights (w_0) [shares] - Current portfolio expressed as the number of shares per asset.
- *    - Stored in: _portfolio
  *    - Units: Number of shares
  *    - Using shares instead of percentages allows the estimated TVL to be derived by multiplying with estimated prices.
  *      This reduces reliance on on-chain price oracles and allows the oracle contract to remain stateless.
@@ -93,15 +92,6 @@ abstract contract OrionVault is
 
     /// @notice Array of users who have pending withdrawal requests
     address[] private _withdrawRequestors;
-
-    /// @notice Current portfolio weights (p_0) - mapping of token address to live allocation percentage
-    /// Units: Percentage points
-    EnumerableMap.AddressToUintMap internal _portfolio;
-
-    /// @notice Curator intent (p_1) - mapping of token address to target allocation percentage
-    /// Units: Percentage points
-    /// This stores the curator's target portfolio allocation
-    EnumerableMap.AddressToUintMap internal _orders;
 
     modifier onlyCurator() {
         if (msg.sender != curator) revert ErrorsLib.NotCurator();
