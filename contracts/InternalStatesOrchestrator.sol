@@ -135,14 +135,14 @@ contract InternalStatesOrchestrator is
             uint256 t1Hat = t0 * onePlusDotProduct(portfolioTokens, portfolioWeights);
 
             // TODO: add input to convertToAssets function, so that we can pass intermediate total assets as input.
-            // W_a = _convertToAssets(W, t_1) [assets]
+            // WR_a = _convertToAssets(WR, t_1) [assets]
 
-            // P_0 = sum(t_1 * p_0)
+            // W_0 = sum(t_1 * w_0)
 
-            // t_2 = t_1 + D - W_a
-            // P_1 = sum(t_2 * p_1)
+            // t_2 = t_1 + DR_a - WR_a
+            // W_1 = sum(t_2 * w_1)
 
-            // delta_P = P_1 - P_0
+            // delta_W = W_1 - W_0
             // _processVaultStates();
             // TODO. Be sure to remove unused functions across contracts,
             // there may be, given the current degree of refactoring.
@@ -156,7 +156,7 @@ contract InternalStatesOrchestrator is
         // TODO: have additional chainlink automation offchain process
         // triggered by this event and triggering liquidity orchestrator.
         // Move to liquidity orchestrator:
-        // Process delta_P, W, D. Here I use prices_t. // TODO: investigate D/W netting.
+        // Process delta_W, WR, DR. Here I use p_t. // TODO: investigate DR/W netting.
     }
 
     /// @notice Computes the next update time based on current timestamp
@@ -181,11 +181,11 @@ contract InternalStatesOrchestrator is
         uint256[] memory previousPriceArray = new uint256[](universe.length);
         uint256[] memory currentPriceArray = new uint256[](universe.length);
 
+        // TODO: more gas efficient to loop over union of active assets in P0 and P1 only,
+        // not on all whitelisted assets.
         for (uint256 i = 0; i < universe.length; i++) {
-            // slither-disable-start calls-loop
             previousPriceArray[i] = registry.price(universe[i]);
             currentPriceArray[i] = registry.update(universe[i]);
-            // slither-disable-end calls-loop
         }
 
         _calculatePnL(universe, previousPriceArray, currentPriceArray);
@@ -259,7 +259,6 @@ contract InternalStatesOrchestrator is
     //     PnL[] memory pnlMem
     // ) internal {
     //     for (uint256 i = 0; i < vaults.length; i++) {
-    //         // slither-disable-start calls-loop
     //         IOrionVault vault = IOrionVault(vaults[i]);
 
     //         // TODO: compute vault absolute pnl performing dot product between
@@ -276,7 +275,6 @@ contract InternalStatesOrchestrator is
     //         // uint256 newTotalAssets = totalAssets[i] + depositRequests[i] - withdrawalAssets + pnlAmount;
 
     //         // vault.updateVaultState(newTotalAssets);
-    //         // slither-disable-end calls-loop
     //     }
     // }
 }

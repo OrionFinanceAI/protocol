@@ -39,23 +39,28 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
  *    - Stored in: _totalAssets
  *    - Units: Asset tokens (e.g., USDC, ETH)
  *
- * 2. Deposit Requests (D) [assets] - Pending deposit requests from liquidity providers
+ * 2. Deposit Requests (DR_a) [assets] - Pending deposit requests from liquidity providers
  *    - Stored in: _depositRequests mapping
  *    - Units: Asset tokens (e.g., USDC, ETH)
  *    - Note: These are denominated in underlying asset units, not shares
  *
- * 3. Withdraw Requests (W) [shares] - Pending withdrawal requests from liquidity providers
+ * 3. Withdraw Requests (WR_s) [shares] - Pending withdrawal requests from liquidity providers
  *    - Stored in: _withdrawRequests mapping
  *    - Units: Vault share tokens
  *    - Note: These are denominated in vault share units, not underlying assets
  *
- * 4. Portfolio Weights (p_0) [%] - Current portfolio allocation weights
+ * 4. Portfolio Weights (w_0) [shares] - Current portfolio expressed as the number of shares per asset.
  *    - Stored in: _portfolio
- *    - Units: Percentage points
+ *    - Units: Number of shares
+ *    - Using shares instead of percentages allows the estimated TVL to be derived by multiplying with estimated prices.
+ *      This reduces reliance on on-chain price oracles and allows the oracle contract to remain stateless.
  *
- * 5. Curator Intent (p_1) [%] - Target portfolio allocation from curator
- *    - Implementation specific to derived contracts
+ * 5. Curator Intent (w_1) [%] - Target portfolio expressed in percentage of total assets.
  *    - Units: Percentage points
+ *    - This value must be specified in percentage of Total Value Locked (TVL) because
+ *      the curator does not know the exact amount of assets in the vault at the time of intent submission.
+ *      While the curator may estimate the vault’s contents, the actual value may vary due to external deposits,
+ *      withdrawals, or fluctuations.
  */
 abstract contract OrionVault is
     Initializable,
@@ -175,7 +180,7 @@ abstract contract OrionVault is
 
     /* ---------- INTERNAL ---------- */
 
-    // Defends with a “virtual offset”‑free formula recommended by OZ
+    // Defends with a "virtual offset"‑free formula recommended by OZ
     // https://docs.openzeppelin.com/contracts/5.x/erc4626#defending_with_a_virtual_offset
     function _convertToAssets(uint256 shares, Math.Rounding rounding) internal view override returns (uint256) {
         uint256 supply = totalSupply();
@@ -322,7 +327,6 @@ abstract contract OrionVault is
 
             _burn(address(this), shares);
             uint256 underlyingAmount = previewRedeem(shares);
-            // slither-disable-next-line calls-loop
             if (!IERC20(asset()).transfer(user, underlyingAmount)) revert ErrorsLib.TransferFailed();
 
             emit EventsLib.WithdrawProcessed(user, shares, i);

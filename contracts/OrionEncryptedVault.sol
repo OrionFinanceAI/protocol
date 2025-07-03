@@ -38,13 +38,11 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
         _orders.clear();
 
         for (uint256 i = 0; i < order.length; i++) {
-            // slither-disable-start calls-loop
             address token = order[i].token;
             euint32 weight = order[i].weight;
             if (!config.isWhitelisted(token)) revert ErrorsLib.TokenNotWhitelisted(token);
             bool inserted = _orders.set(token, euint32.unwrap(weight));
             if (!inserted) revert ErrorsLib.TokenAlreadyInOrder(token);
-            // slither-disable-end calls-loop
         }
 
         emit EventsLib.OrderSubmitted(msg.sender);

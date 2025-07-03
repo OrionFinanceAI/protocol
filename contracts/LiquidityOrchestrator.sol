@@ -13,7 +13,7 @@ import "./interfaces/ILiquidityOrchestrator.sol";
 ///      - Processing deposit and withdrawal requests from vaults
 ///      - Writing and updating vault states based on executed transactions
 ///      - Handling slippage and market execution differences from oracle estimates
-///      - Managing portfolio rebalancing and asset allocation changes
+///      - Managing curator fees.
 ///
 ///      IMPORTANT: This contract is triggered by events from the Internal States
 ///      Orchestrator and is responsible for all state-modifying operations.
@@ -31,6 +31,22 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         // Only the owner can upgrade the contract
     }
 
+    /// @notice Rebalance portfolio according to desired USD allocations
+    /// @dev Implementing a naive execution logic, accumulating error in last position.
+    function rebalancePortfolio() external onlyOwner {
+        // TODO:
+        // 1. Get current portfolio shares
+        // 2. Get desired USD target allocations
+        // 3. Calculate target shares for all but last asset (using priceOracle.getPrice)
+        // 4. Adjust last asset target shares post N-1 executions for rounding/trade error
+        // 5. Execute trades to reach target shares via executeTrade()
+        // 6. Update internal portfolio shares mapping
+        // 7. Emit PortfolioRebalanced event.
+        // emit PortfolioRebalanced();
+    }
+
     // TODO: DepositRequest and WithdrawRequest in Vaults to be
     // processed and removed from vault state as pending requests.
+
+    // TODO: vault states t0, w_0 to be updated at the end of the execution.
 }

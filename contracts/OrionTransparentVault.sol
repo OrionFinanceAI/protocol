@@ -38,7 +38,6 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
         uint256 totalWeight = 0;
         for (uint256 i = 0; i < order.length; i++) {
-            // slither-disable-start calls-loop
             address token = order[i].token;
             uint32 weight = order[i].weight;
             if (!config.isWhitelisted(token)) revert ErrorsLib.TokenNotWhitelisted(token);
@@ -46,7 +45,6 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
             bool inserted = _orders.set(token, weight);
             if (!inserted) revert ErrorsLib.TokenAlreadyInOrder(token);
             totalWeight += weight;
-            // slither-disable-end calls-loop
         }
 
         uint8 curatorIntentDecimals = config.curatorIntentDecimals();
