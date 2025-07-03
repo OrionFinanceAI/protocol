@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "../libraries/EventsLib.sol";
 
 interface IOrionConfig {
     /// @notice Returns the address of the internal states orchestrator contract
@@ -92,17 +93,17 @@ interface IOrionConfig {
     /// @notice Adds a new Orion vault to the protocol registry
     /// @dev Only callable by the vault factory contract
     /// @param vault The address of the vault to add to the registry
-    /// @param encrypted Whether the vault is encrypted or transparent
-    function addOrionVault(address vault, bool encrypted) external;
+    /// @param vaultType Whether the vault is encrypted or transparent
+    function addOrionVault(address vault, EventsLib.VaultType vaultType) external;
 
     /// @notice Removes an Orion vault from the protocol registry
     /// @dev Only callable by the vault factory contract
     /// @param vault The address of the vault to remove from the registry
-    /// @param encrypted Whether the vault is encrypted or transparent
-    function removeOrionVault(address vault, bool encrypted) external;
+    /// @param vaultType Whether the vault is encrypted or transparent
+    function removeOrionVault(address vault, EventsLib.VaultType vaultType) external;
 
     /// @notice Returns all Orion vault addresses
-    /// @param encrypted Whether to return encrypted or transparent vaults
+    /// @param vaultType Whether to return encrypted or transparent vaults
     /// @return An array of Orion vault addresses
-    function getAllOrionVaults(bool encrypted) external view returns (address[] memory);
+    function getAllOrionVaults(EventsLib.VaultType vaultType) external view returns (address[] memory);
 }

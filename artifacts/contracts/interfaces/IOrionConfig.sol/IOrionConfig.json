@@ -11,9 +11,9 @@
           "type": "address"
         },
         {
-          "internalType": "bool",
-          "name": "encrypted",
-          "type": "bool"
+          "internalType": "enum EventsLib.VaultType",
+          "name": "vaultType",
+          "type": "uint8"
         }
       ],
       "name": "addOrionVault",
@@ -50,9 +50,9 @@
     {
       "inputs": [
         {
-          "internalType": "bool",
-          "name": "encrypted",
-          "type": "bool"
+          "internalType": "enum EventsLib.VaultType",
+          "name": "vaultType",
+          "type": "uint8"
         }
       ],
       "name": "getAllOrionVaults",
@@ -164,9 +164,9 @@
           "type": "address"
         },
         {
-          "internalType": "bool",
-          "name": "encrypted",
-          "type": "bool"
+          "internalType": "enum EventsLib.VaultType",
+          "name": "vaultType",
+          "type": "uint8"
         }
       ],
       "name": "removeOrionVault",

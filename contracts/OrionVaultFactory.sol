@@ -59,7 +59,7 @@ contract OrionVaultFactory is Initializable, Ownable2StepUpgradeable, UUPSUpgrad
 
         ERC1967Proxy proxy = new ERC1967Proxy(transparentVaultImplementation, initData);
         vault = address(proxy);
-        config.addOrionVault(vault, false);
+        config.addOrionVault(vault, EventsLib.VaultType.Transparent);
 
         emit EventsLib.OrionVaultCreated(vault, curator, msg.sender, EventsLib.VaultType.Transparent);
     }
@@ -77,7 +77,7 @@ contract OrionVaultFactory is Initializable, Ownable2StepUpgradeable, UUPSUpgrad
 
         ERC1967Proxy proxy = new ERC1967Proxy(encryptedVaultImplementation, initData);
         vault = address(proxy);
-        config.addOrionVault(vault, true);
+        config.addOrionVault(vault, EventsLib.VaultType.Encrypted);
 
         emit EventsLib.OrionVaultCreated(vault, curator, msg.sender, EventsLib.VaultType.Encrypted);
     }

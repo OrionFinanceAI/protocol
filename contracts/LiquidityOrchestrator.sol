@@ -45,8 +45,8 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         // emit PortfolioRebalanced();
     }
 
-    // TODO: DepositRequest and WithdrawRequest in Vaults to be
-    // processed and removed from vault state as pending requests.
-
     // TODO: vault states t0, w_0 to be updated at the end of the execution.
+    // TODO: DepositRequest and WithdrawRequest in Vaults to be
+    // processed (post t0 update) and removed from vault state as pending requests.
+    // TODO: curator fees to be paid at the end of the execution.
 }
