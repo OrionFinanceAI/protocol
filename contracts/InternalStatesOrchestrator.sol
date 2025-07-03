@@ -106,12 +106,10 @@ contract InternalStatesOrchestrator is
     ///      - Emits events to trigger the Liquidity Orchestrator
     function performUpkeep(bytes calldata) external override onlyAutomationRegistry nonReentrant {
         if (!_shouldTriggerUpkeep()) revert ErrorsLib.TooEarly();
-
-        // Update internal state BEFORE external calls (EFFECTS before INTERACTIONS)
         nextUpdateTime = _computeNextUpdateTime(block.timestamp);
 
         // Update oracle prices and calculate P&L estimations
-        _updateOraclePricesAndCalculatePnL();
+        // _updateOraclePricesAndCalculatePnL();
         // TODO: important, the oracle data here (and consequent state updates)
         // should not be used to update vault states,
         // only as an input to the liquidity orchestrator.
@@ -127,10 +125,10 @@ contract InternalStatesOrchestrator is
             IOrionTransparentVault vault = IOrionTransparentVault(transparentVaults[i]);
 
             uint256 t0 = vault.totalAssets();
-            (address[] memory portfolioTokens, uint256[] memory portfolioWeights) = vault.getPortfolio();
+            (address[] memory portfolioTokens, uint256[] memory portfolioAmounts) = vault.getPortfolio();
 
             // Calculate estimated total assets based on P&L
-            uint256 t1Hat = t0 * onePlusDotProduct(portfolioTokens, portfolioWeights);
+            // uint256 t1Hat = t0 * onePlusDotProduct(portfolioTokens, portfolioWeights);
 
             // TODO: add input to convertToAssets function, so that we can pass intermediate total assets as input.
             // WR_a = _convertToAssets(WR, t_1) [assets]
@@ -154,7 +152,7 @@ contract InternalStatesOrchestrator is
         for (uint256 i = 0; i < encryptedVaults.length; i++) {
             IOrionEncryptedVault vault = IOrionEncryptedVault(encryptedVaults[i]);
 
-            (address[] memory portfolioTokens, euint32[] memory portfolioWeights) = vault.getPortfolio();
+            (address[] memory portfolioTokens, euint32[] memory portfolioAmounts) = vault.getPortfolio();
             // TODO: add entry point for Zama coprocessor for both dot product and batching operations.
         }
 
@@ -188,13 +186,12 @@ contract InternalStatesOrchestrator is
         uint256[] memory currentPriceArray = new uint256[](universe.length);
 
         // TODO: more gas efficient to loop over union of active assets in P0 and P1 only,
-        // not on all whitelisted assets.
+        // not on all whitelisted assets. We want to pass such active universe as an input to this function.
         for (uint256 i = 0; i < universe.length; i++) {
             previousPriceArray[i] = registry.price(universe[i]);
-            currentPriceArray[i] = registry.update(universe[i]);
         }
 
-        _calculatePnL(universe, previousPriceArray, currentPriceArray);
+        // _calculatePnL(universe, previousPriceArray, currentPriceArray);
     }
 
     /// @notice Calculates the percentage change (P&L) between previous and current prices

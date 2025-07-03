@@ -19,7 +19,7 @@ import { EventsLib } from "./libraries/EventsLib.sol";
 contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
 
-    /// @notice Current portfolio weights (w_0) - mapping of token address to live allocation
+    /// @notice Current portfolio amounts (w_0) - mapping of token address to live allocation
     EnumerableMap.AddressToUintMap internal _portfolio;
 
     /// @notice Curator intent (w_1) - mapping of token address to target allocation
@@ -62,14 +62,14 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
     // --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
 
-    function getPortfolio() external view returns (address[] memory tokens, uint256[] memory weights) {
+    function getPortfolio() external view returns (address[] memory tokens, uint256[] memory amounts) {
         uint256 length = _portfolio.length();
         tokens = new address[](length);
-        weights = new uint256[](length);
+        amounts = new uint256[](length);
         for (uint256 i = 0; i < length; i++) {
-            (address token, uint256 weight) = _portfolio.at(i);
+            (address token, uint256 amount) = _portfolio.at(i);
             tokens[i] = token;
-            weights[i] = weight;
+            amounts[i] = amount;
         }
     }
 }

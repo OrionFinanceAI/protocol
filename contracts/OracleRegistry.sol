@@ -18,28 +18,19 @@ contract OracleRegistry is Initializable, Ownable2StepUpgradeable, UUPSUpgradeab
         _transferOwnership(initialOwner);
     }
 
-    // solhint-disable-next-line no-empty-blocks
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {
-        // Only the owner can upgrade the contract
-    }
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
-    /// @notice Owner registers or replaces the oracle for an asset
+    /// @notice Register or replace the oracle for an asset.
     function setOracle(address asset, address oracle) external onlyOwner {
         if (asset == address(0) || address(oracle) == address(0)) revert ErrorsLib.ZeroAddress();
         oracleOf[asset] = oracle;
         emit EventsLib.OracleRegistered(asset, address(oracle));
     }
 
-    /// Pass through functions to the oracle
+    /// @inheritdoc IOracleRegistry
     function price(address asset) external view returns (uint256) {
         address assetOracle = oracleOf[asset];
         if (assetOracle == address(0)) revert ErrorsLib.OracleNotSet();
         return IAssetOracle(assetOracle).price();
-    }
-
-    function update(address asset) external returns (uint256 newPrice) {
-        address assetOracle = oracleOf[asset];
-        if (assetOracle == address(0)) revert ErrorsLib.OracleNotSet();
-        return IAssetOracle(assetOracle).update();
     }
 }

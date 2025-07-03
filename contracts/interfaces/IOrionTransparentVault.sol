@@ -14,5 +14,5 @@ interface IOrionTransparentVault is IOrionVault {
     function submitOrderIntent(Position[] calldata order) external;
 
     /// @notice Returns the current portfolio (w_0)
-    function getPortfolio() external view returns (address[] memory tokens, uint256[] memory weights);
+    function getPortfolio() external view returns (address[] memory tokens, uint256[] memory amounts);
 }

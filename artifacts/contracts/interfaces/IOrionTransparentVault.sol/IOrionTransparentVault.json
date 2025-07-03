@@ -365,7 +365,7 @@
         },
         {
           "internalType": "uint256[]",
-          "name": "weights",
+          "name": "amounts",
           "type": "uint256[]"
         }
       ],
