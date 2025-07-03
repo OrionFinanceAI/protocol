@@ -122,7 +122,8 @@ contract InternalStatesOrchestrator is
         // measurements (x) for estimations (x_hat).
 
         address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
-        // address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted); // TODO: add encrypted vaults support.
+        // TODO: add encrypted vaults support.
+        // address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
         // TODO: add entry point for Zama coprocessor for both dot product and batching.
 
         for (uint256 i = 0; i < transparentVaults.length; i++) {

@@ -20,8 +20,4 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     // Configuration functions
     function updateAutomationRegistry(address newAutomationRegistry) external;
     function updateConfig(address newConfig) external;
-
-    // Chainlink Automation functions
-    function checkUpkeep(bytes calldata) external view returns (bool upkeepNeeded, bytes memory performData);
-    function performUpkeep(bytes calldata) external;
 }

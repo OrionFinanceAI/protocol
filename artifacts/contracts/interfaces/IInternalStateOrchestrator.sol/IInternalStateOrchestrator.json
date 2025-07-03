@@ -20,7 +20,7 @@
       "inputs": [
         {
           "internalType": "bytes",
-          "name": "",
+          "name": "checkData",
           "type": "bytes"
         }
       ],
@@ -37,7 +37,7 @@
           "type": "bytes"
         }
       ],
-      "stateMutability": "view",
+      "stateMutability": "nonpayable",
       "type": "function"
     },
     {
@@ -93,7 +93,7 @@
       "inputs": [
         {
           "internalType": "bytes",
-          "name": "",
+          "name": "performData",
           "type": "bytes"
         }
       ],
