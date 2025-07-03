@@ -29,7 +29,10 @@ contract OrionVaultFactory is Initializable, Ownable2StepUpgradeable, UUPSUpgrad
         config = IOrionConfig(configAddress);
     }
 
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+    // solhint-disable-next-line no-empty-blocks
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {
+        // Only the owner can upgrade the contract
+    }
 
     function updateConfig(address newConfig) external onlyOwner {
         config = IOrionConfig(newConfig);

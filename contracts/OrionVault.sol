@@ -114,6 +114,7 @@ abstract contract OrionVault is
     }
 
     // slither-disable-next-line naming-convention
+    // solhint-disable-next-line func-name-mixedcase
     function __OrionVault_init(
         address curator_,
         IOrionConfig config_,
@@ -137,7 +138,10 @@ abstract contract OrionVault is
         _totalAssets = 0;
     }
 
-    function _authorizeUpgrade(address newImplementation) internal override onlyCurator {}
+    // solhint-disable-next-line no-empty-blocks
+    function _authorizeUpgrade(address newImplementation) internal override onlyCurator {
+        // Only the curator can upgrade the contract
+    }
 
     /// --------- PUBLIC FUNCTIONS ---------
     /// @notice Disable direct deposits and withdrawals on ERC4626 to enforce async only

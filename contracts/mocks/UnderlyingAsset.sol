@@ -5,10 +5,10 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 
 contract UnderlyingAsset is ERC20 {
-    address public immutable minter;
+    address public immutable MINTER;
 
     constructor() ERC20("USD Coin", "USDC") {
-        minter = msg.sender;
+        MINTER = msg.sender;
     }
 
     function decimals() public pure override returns (uint8) {
@@ -16,7 +16,7 @@ contract UnderlyingAsset is ERC20 {
     }
 
     function mint(address to, uint256 amount) external {
-        if (msg.sender != minter) revert ErrorsLib.NotAuthorized();
+        if (msg.sender != MINTER) revert ErrorsLib.NotAuthorized();
         _mint(to, amount);
     }
 }

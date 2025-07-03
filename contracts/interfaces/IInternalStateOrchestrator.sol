@@ -10,7 +10,7 @@ import "./IOrionConfig.sol";
 interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     // State variables
     function nextUpdateTime() external view returns (uint256);
-    function UPDATE_INTERVAL() external view returns (uint256);
+    function updateInterval() external view returns (uint256);
     function automationRegistry() external view returns (address);
     function config() external view returns (IOrionConfig);
 

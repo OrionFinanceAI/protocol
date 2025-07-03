@@ -14,8 +14,17 @@ import { ErrorsLib } from "./libraries/ErrorsLib.sol";
 import { EventsLib } from "./libraries/EventsLib.sol";
 
 /// @title Internal States Orchestrator
-/// @notice Orchestrates internal state transitions triggered by Chainlink Automation
-/// @dev This contract manages periodic updates of vault states and market data through Chainlink Automation
+/// @notice Orchestrates state reading and estimation operations triggered by Chainlink Automation
+/// @dev This contract is responsible for:
+///      - Reading current vault states and market data
+///      - Calculating P&L estimations based on oracle price updates
+///      - Computing state estimations for Liquidity Orchestrator
+///      - Emitting events to trigger the Liquidity Orchestrator
+///
+///      IMPORTANT: This contract does NOT execute transactions or write vault states.
+///      It only performs read operations and calculations to estimate state changes.
+///      Actual state modifications and transaction execution are handled by the
+///      Liquidity Orchestrator contract.
 contract InternalStatesOrchestrator is
     Initializable,
     Ownable2StepUpgradeable,
@@ -27,7 +36,7 @@ contract InternalStatesOrchestrator is
     uint256 public nextUpdateTime;
 
     /// @notice Interval in seconds between upkeeps
-    uint256 public constant UPDATE_INTERVAL = 1 minutes;
+    uint256 public constant updateInterval = 1 minutes;
 
     /// @notice Chainlink Automation Registry address
     address public automationRegistry;
@@ -36,6 +45,7 @@ contract InternalStatesOrchestrator is
     IOrionConfig public config;
 
     /// @notice P&L mapping - asset address to (signed) percentage change
+    /// @dev This stores estimated percentage changes based on oracle price updates
     mapping(address => int256) public pctChange;
 
     function initialize(address initialOwner, address automationRegistry_, address config_) public initializer {
@@ -51,7 +61,10 @@ contract InternalStatesOrchestrator is
         nextUpdateTime = _computeNextUpdateTime(block.timestamp);
     }
 
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+    // solhint-disable-next-line no-empty-blocks
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {
+        // Only the owner can upgrade the contract
+    }
 
     /// @dev Restricts function to only Chainlink Automation registry
     modifier onlyAutomationRegistry() {
@@ -73,6 +86,7 @@ contract InternalStatesOrchestrator is
         config = IOrionConfig(newConfig);
     }
 
+    /// @notice Checks if upkeep is needed based on time interval
     function checkUpkeep(bytes calldata) external view override returns (bool upkeepNeeded, bytes memory performData) {
         upkeepNeeded = _shouldTriggerUpkeep();
 
@@ -83,14 +97,29 @@ contract InternalStatesOrchestrator is
         return (upkeepNeeded, performData);
     }
 
-    /// @notice Called by Chainlink Automation to execute internal state logic
+    /// @notice Performs state reading and estimation operations
+    /// @dev This function:
+    ///      - Reads current vault states and oracle prices
+    ///      - Calculates P&L estimations based on price changes
+    ///      - Computes estimated portfolio performance
+    ///      - Emits events to trigger the Liquidity Orchestrator
     function performUpkeep(bytes calldata) external override onlyAutomationRegistry nonReentrant {
         if (!_shouldTriggerUpkeep()) revert ErrorsLib.TooEarly();
 
         // Update internal state BEFORE external calls (EFFECTS before INTERACTIONS)
         nextUpdateTime = _computeNextUpdateTime(block.timestamp);
-        // Update oracle prices and calculate P&L
+
+        // Update oracle prices and calculate P&L estimations
         _updateOraclePricesAndCalculatePnL();
+        // TODO: important, the oracle data here (and consequent state updates)
+        // should not be used to update vault states,
+        // only as an input to the liquidity orchestrator.
+        // One example is slippage in the liquidity orchestrator transaction,
+        // leading to an execution price different from the oracle price and
+        // therefore to a different P&L for the vault, therefore
+        // to a different total assets value update.
+        // Make this point clear in the naming of the variables distinguishing
+        // measurements (x) for estimations (x_hat).
 
         address[] memory transparentVaults = config.getAllOrionVaults(false);
         // address[] memory encryptedVaults = config.getAllOrionVaults(true); // TODO: add encrypted vaults support.
@@ -98,9 +127,12 @@ contract InternalStatesOrchestrator is
 
         for (uint256 i = 0; i < transparentVaults.length; i++) {
             IOrionTransparentVault vault = IOrionTransparentVault(transparentVaults[i]);
+
             uint256 t0 = vault.totalAssets();
             (address[] memory portfolioTokens, uint256[] memory portfolioWeights) = vault.getPortfolio();
-            uint256 t1 = t0 * onePlusDotProduct(portfolioTokens, portfolioWeights);
+
+            // Calculate estimated total assets based on P&L
+            uint256 t1Hat = t0 * onePlusDotProduct(portfolioTokens, portfolioWeights);
 
             // TODO: add input to convertToAssets function, so that we can pass intermediate total assets as input.
             // W_a = _convertToAssets(W, t_1) [assets]
@@ -112,24 +144,36 @@ contract InternalStatesOrchestrator is
 
             // delta_P = P_1 - P_0
             // _processVaultStates();
-            // TODO. Be sure to remove unused functions across contracts, there may be, given the degree of refactoring of today.
+            // TODO. Be sure to remove unused functions across contracts,
+            // there may be, given the current degree of refactoring.
+            // In the liquidity orchestrator, document that the post execution
+            // portfolio state is different from the intent one not only
+            // because of slippage, but also because the assets prices have
+            // evolved between the oracle call and the execution call.
         }
 
         emit EventsLib.InternalStateProcessed(block.timestamp);
-        // TODO: have additional chainlink automation offchain process triggered by this event and triggering liquidity orchestrator.
+        // TODO: have additional chainlink automation offchain process
+        // triggered by this event and triggering liquidity orchestrator.
         // Move to liquidity orchestrator:
         // Process delta_P, W, D. Here I use prices_t. // TODO: investigate D/W netting.
     }
 
+    /// @notice Computes the next update time based on current timestamp
+    /// @param currentTime Current block timestamp
+    /// @return Next update time
     function _computeNextUpdateTime(uint256 currentTime) internal pure returns (uint256) {
-        return currentTime + UPDATE_INTERVAL;
+        return currentTime + updateInterval;
     }
+
+    /// @notice Checks if upkeep should be triggered based on time
+    /// @return True if upkeep should be triggered
     function _shouldTriggerUpkeep() internal view returns (bool) {
         // slither-disable-next-line timestamp
         return block.timestamp >= nextUpdateTime;
     }
 
-    /// @notice Update oracle prices and calculate P&L based on price changes
+    /// @notice Updates oracle prices and calculates P&L estimations based on price changes
     function _updateOraclePricesAndCalculatePnL() internal {
         address[] memory universe = config.getAllWhitelistedAssets();
         IOracleRegistry registry = IOracleRegistry(config.oracleRegistry());

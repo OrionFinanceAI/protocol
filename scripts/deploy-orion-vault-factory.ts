@@ -53,8 +53,8 @@ async function main() {
 
   console.log("Using VaultImplementations at:", vaultImplementationsAddress);
   const VaultImplementations = await ethers.getContractAt("VaultImplementations", vaultImplementationsAddress);
-  const transparentImpl = await VaultImplementations.transparentVaultImplementation();
-  const encryptedImpl = await VaultImplementations.encryptedVaultImplementation();
+  const transparentImpl = await VaultImplementations.TRANSPARENT_VAULT_IMPLEMENTATION();
+  const encryptedImpl = await VaultImplementations.ENCRYPTED_VAULT_IMPLEMENTATION();
   console.log("Using TransparentVault at:", transparentImpl);
   console.log("Using EncryptedVault at:", encryptedImpl);
 

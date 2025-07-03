@@ -18,7 +18,10 @@ contract OracleRegistry is Initializable, Ownable2StepUpgradeable, UUPSUpgradeab
         _transferOwnership(initialOwner);
     }
 
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+    // solhint-disable-next-line no-empty-blocks
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {
+        // Only the owner can upgrade the contract
+    }
 
     /// @notice Owner registers or replaces the oracle for an asset
     function setOracle(address asset, address oracle) external onlyOwner {
