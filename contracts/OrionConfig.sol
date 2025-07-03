@@ -40,8 +40,8 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     EnumerableSet.AddressSet private whitelistedAssets;
 
     // Orion-specific configuration
-    EnumerableSet.AddressSet private orionTransparentVaults;
-    EnumerableSet.AddressSet private orionEncryptedVaults;
+    EnumerableSet.AddressSet private transparentVaults;
+    EnumerableSet.AddressSet private encryptedVaults;
 
     modifier onlyFactory() {
         if (msg.sender != vaultFactory) revert ErrorsLib.NotFactory();
@@ -144,9 +144,9 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
 
         bool inserted;
         if (vaultType == EventsLib.VaultType.Encrypted) {
-            inserted = orionEncryptedVaults.add(vault);
+            inserted = encryptedVaults.add(vault);
         } else {
-            inserted = orionTransparentVaults.add(vault);
+            inserted = transparentVaults.add(vault);
         }
 
         if (!inserted) revert ErrorsLib.AlreadyAnOrionVault();
@@ -156,9 +156,9 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     function removeOrionVault(address vault, EventsLib.VaultType vaultType) external onlyFactory {
         bool removed;
         if (vaultType == EventsLib.VaultType.Encrypted) {
-            removed = orionEncryptedVaults.remove(vault);
+            removed = encryptedVaults.remove(vault);
         } else {
-            removed = orionTransparentVaults.remove(vault);
+            removed = transparentVaults.remove(vault);
         }
 
         if (!removed) revert ErrorsLib.NotAnOrionVault();
@@ -167,8 +167,8 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
 
     function getAllOrionVaults(EventsLib.VaultType vaultType) external view returns (address[] memory) {
         EnumerableSet.AddressSet storage vaults = vaultType == EventsLib.VaultType.Encrypted
-            ? orionEncryptedVaults
-            : orionTransparentVaults;
+            ? encryptedVaults
+            : transparentVaults;
         uint256 length = vaults.length();
         address[] memory vaultArray = new address[](length);
         for (uint256 i = 0; i < length; ++i) {
