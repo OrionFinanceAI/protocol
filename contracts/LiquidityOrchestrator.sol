@@ -35,8 +35,8 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
     /// @dev Implementing a naive execution logic, accumulating error in last position.
     function rebalancePortfolio() external onlyOwner {
         // TODO:
-        // 1. Get current portfolio shares
-        // 2. Get desired USD target allocations
+        // 1. Get delta portfolio in underlying asset from inner state orchestrator.
+        // 2. Get desired USD target allocations (based on estimated prices)
         // 3. Calculate target shares for all but last asset (using priceOracle.getPrice)
         // 4. Adjust last asset target shares post N-1 executions for rounding/trade error
         // 5. Execute trades to reach target shares via executeTrade()
