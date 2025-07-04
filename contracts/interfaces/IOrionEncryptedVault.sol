@@ -18,5 +18,5 @@ interface IOrionEncryptedVault is IOrionVault {
     function getPortfolio() external view returns (address[] memory tokens, euint32[] memory sharesPerAsset);
 
     // TODO: add docstring once implemented.
-    function updateVaultState(EncryptedPosition[] calldata portfolio) external;
+    function updateVaultState(EncryptedPosition[] calldata portfolio, uint256 newTotalAssets) external;
 }

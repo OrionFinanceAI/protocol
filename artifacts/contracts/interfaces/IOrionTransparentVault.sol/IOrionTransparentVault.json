@@ -778,19 +778,6 @@
     {
       "inputs": [
         {
-          "internalType": "uint256",
-          "name": "newTotalAssets",
-          "type": "uint256"
-        }
-      ],
-      "name": "updateVaultState",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
           "components": [
             {
               "internalType": "address",
@@ -806,6 +793,11 @@
           "internalType": "struct IOrionTransparentVault.Position[]",
           "name": "portfolio",
           "type": "tuple[]"
+        },
+        {
+          "internalType": "uint256",
+          "name": "newTotalAssets",
+          "type": "uint256"
         }
       ],
       "name": "updateVaultState",

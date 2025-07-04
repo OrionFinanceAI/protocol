@@ -23,5 +23,5 @@ interface IOrionTransparentVault is IOrionVault {
     function getPortfolio() external view returns (address[] memory tokens, uint256[] memory sharesPerAsset);
 
     // TODO: add docstring once implemented.
-    function updateVaultState(Position[] calldata portfolio) external;
+    function updateVaultState(Position[] calldata portfolio, uint256 newTotalAssets) external;
 }

@@ -281,18 +281,6 @@ abstract contract OrionVault is
         return totalPending;
     }
 
-    /// @notice Update vault state based on market performance and pending operations
-    /// @param newTotalAssets The new total assets after processing deposits/withdrawals
-    function updateVaultState(uint256 newTotalAssets) external onlyInternalStatesOrchestrator {
-        if (newTotalAssets == 0) revert ErrorsLib.ZeroPrice();
-
-        // Update state variables
-        _totalAssets = newTotalAssets;
-
-        // Emit event for tracking state updates
-        emit EventsLib.VaultStateUpdated(newTotalAssets);
-    }
-
     /// --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
 
     /// @notice Process deposit requests from LPs and reset the requestor's request amount

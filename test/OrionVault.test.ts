@@ -36,7 +36,6 @@ describe("OrionVault", function () {
     const OrionTransparentVaultFactory = await ethers.getContractFactory("OrionTransparentVault");
     const vault = await OrionTransparentVaultFactory.deploy();
     await vault.waitForDeployment();
-    const vaultAddress = await vault.getAddress();
     await vault.initialize(curator.address, configAddress, "Test Vault", "TV");
 
     // Mint some underlying assets to LPs for testing
@@ -97,11 +96,12 @@ describe("OrionVault", function () {
         "NotCurator",
       );
     });
-    it("Should only allow internal states orchestrator to update vault state", async function () {
+    it("Should only allow liquidity orchestrator to update vault state", async function () {
       const { vault, unauthorized } = await loadFixture(deployVaultFixture);
+      const portfolio = [{ token: ethers.ZeroAddress, weight: 1000000 }];
       await expect(
-        vault.connect(unauthorized).updateVaultState(ethers.parseUnits("1.1", 6)),
-      ).to.be.revertedWithCustomError(vault, "NotInternalStatesOrchestrator");
+        vault.connect(unauthorized).updateVaultState(portfolio, ethers.parseUnits("1.1", 6)),
+      ).to.be.revertedWithCustomError(vault, "NotLiquidityOrchestrator");
     });
     it("Should only allow liquidity orchestrator to process deposit requests", async function () {
       const { vault, unauthorized } = await loadFixture(deployVaultFixture);
@@ -256,17 +256,6 @@ describe("OrionVault", function () {
     });
   });
 
-  describe("State Management", function () {
-    it("Should allow internal states orchestrator to update vault state", async function () {
-      const { vault, internalOrchestrator } = await loadFixture(deployVaultFixture);
-      const newTotalAssets = ethers.parseUnits("1200", 6);
-      await expect(vault.connect(internalOrchestrator).updateVaultState(newTotalAssets))
-        .to.emit(vault, "VaultStateUpdated")
-        .withArgs(newTotalAssets);
-      expect(await vault.totalAssets()).to.equal(newTotalAssets);
-    });
-  });
-
   describe("Curator Functions", function () {
     it("Should allow curator to submit order intent", async function () {
       const { vault, curator, config } = await loadFixture(deployVaultFixture);
@@ -322,7 +311,7 @@ describe("OrionVault", function () {
       await expect(vault.connect(liquidityOrchestrator).processDepositRequests()).to.not.be.reverted;
     });
     it("Should handle multiple state updates correctly", async function () {
-      const { vault, internalOrchestrator } = await loadFixture(deployVaultFixture);
+      const { vault, liquidityOrchestrator } = await loadFixture(deployVaultFixture);
       const updates = [
         {
           totalAssets: ethers.parseUnits("1100", 6),
@@ -335,14 +324,14 @@ describe("OrionVault", function () {
         },
       ];
       for (const update of updates) {
-        await vault.connect(internalOrchestrator).updateVaultState(update.totalAssets);
+        await vault.connect(liquidityOrchestrator).updateVaultState([], update.totalAssets);
       }
       expect(await vault.totalAssets()).to.equal(updates[2].totalAssets);
     });
     it("Should handle large numbers correctly", async function () {
-      const { vault, internalOrchestrator } = await loadFixture(deployVaultFixture);
+      const { vault, liquidityOrchestrator } = await loadFixture(deployVaultFixture);
       const largeTotalAssets = ethers.parseUnits("999999999999", 6);
-      await vault.connect(internalOrchestrator).updateVaultState(largeTotalAssets);
+      await vault.connect(liquidityOrchestrator).updateVaultState([], largeTotalAssets);
       expect(await vault.totalAssets()).to.equal(largeTotalAssets);
     });
   });

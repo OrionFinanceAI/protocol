@@ -74,7 +74,13 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
 
     // TODO: Get the encrypted sharesPerAsset executed by the liquidity orchestrator
     // and update the vault intent with an encrypted calibration error before storing it.
-    function updateVaultState(EncryptedPosition[] calldata portfolio) external onlyLiquidityOrchestrator {
+    /// @notice Update vault state based on market performance and pending operations
+    /// @param portfolio The new portfolio after processing pending transactions.
+    /// @param newTotalAssets The new total assets after processing pending transactions.
+    function updateVaultState(
+        EncryptedPosition[] calldata portfolio,
+        uint256 newTotalAssets
+    ) external onlyLiquidityOrchestrator {
         // Clear previous portfolio by setting weights to zero
         for (uint256 i = 0; i < _portfolioKeys.length; i++) {
             _portfolio[_portfolioKeys[i]] = TFHE.asEuint32(0);
@@ -87,6 +93,9 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
             _portfolioKeys.push(portfolio[i].token);
         }
 
-        // TODO: emit event.
+        _totalAssets = newTotalAssets;
+
+        // Emit event for tracking state updates
+        emit EventsLib.VaultStateUpdated(newTotalAssets);
     }
 }

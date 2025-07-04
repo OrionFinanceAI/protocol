@@ -793,15 +793,7 @@
           "internalType": "struct IOrionEncryptedVault.EncryptedPosition[]",
           "name": "portfolio",
           "type": "tuple[]"
-        }
-      ],
-      "name": "updateVaultState",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
+        },
         {
           "internalType": "uint256",
           "name": "newTotalAssets",

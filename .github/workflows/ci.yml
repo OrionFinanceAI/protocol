@@ -7,8 +7,8 @@ on:
     branches: [main]
 
 jobs:
-  setup:
-    name: "Setup Environment"
+  ci:
+    name: "Build, Lint and Test"
     runs-on: ubuntu-latest
 
     steps:
@@ -31,39 +31,13 @@ jobs:
       - name: "Install dependencies"
         run: pnpm install
 
-  build:
-    name: "Build Contracts and Generate Bindings"
-    runs-on: "ubuntu-latest"
-    needs: setup
-
-    steps:
-      - name: "Checkout repo"
-        uses: actions/checkout@v3
-        with:
-          submodules: recursive
-
       - name: "Build and typechain"
-        id: build
         run: pnpm typechain
         env:
           RPC_URL: ${{ secrets.RPC_URL }}
           DEPLOYER_PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
           LP_PRIVATE_KEY: ${{ secrets.LP_PRIVATE_KEY }}
           ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
-
-  lint:
-    name: "Lint Code"
-    runs-on: ubuntu-latest
-    needs: build
-
-    steps:
-      - name: "Checkout repo"
-        uses: actions/checkout@v3
-        with:
-          submodules: recursive
-
-      - name: "Install dependencies"
-        run: pnpm install
 
       - name: "Lint"
         run: pnpm lint
@@ -72,20 +46,6 @@ jobs:
         run: |
           echo "## Lint results" >> $GITHUB_STEP_SUMMARY
           echo "✅ Passed" >> $GITHUB_STEP_SUMMARY
-
-  test:
-    name: "Test Contracts and Generate Coverage Report"
-    runs-on: "ubuntu-latest"
-    needs: build
-
-    steps:
-      - name: "Checkout repo"
-        uses: actions/checkout@v3
-        with:
-          submodules: recursive
-
-      - name: "Install dependencies"
-        run: pnpm install
 
       - name: "Run tests and generate coverage report"
         run: pnpm coverage

@@ -27,10 +27,6 @@ interface IOrionVault is IERC4626 {
     function getPendingDeposits() external view returns (uint256);
     function getPendingWithdrawals() external view returns (uint256);
 
-    /// @notice Update vault state based on market performance and pending operations
-    /// @param newTotalAssets The new total assets after processing deposits/withdrawals
-    function updateVaultState(uint256 newTotalAssets) external;
-
     // Liquidity Orchestrator Functions
     function processDepositRequests() external;
     function processWithdrawRequests() external;

@@ -56,13 +56,13 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
         for (uint256 i = 0; i < transparentVaults.length; i++) {
             IOrionTransparentVault vault = IOrionTransparentVault(transparentVaults[i]);
-            vault.updateVaultState(new IOrionTransparentVault.Position[](0)); // TODO: implement.
+            vault.updateVaultState(new IOrionTransparentVault.Position[](0), 0); // TODO: implement.
         }
 
         address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
         for (uint256 i = 0; i < encryptedVaults.length; i++) {
             IOrionEncryptedVault vault = IOrionEncryptedVault(encryptedVaults[i]);
-            vault.updateVaultState(new IOrionEncryptedVault.EncryptedPosition[](0)); // TODO: implement.
+            vault.updateVaultState(new IOrionEncryptedVault.EncryptedPosition[](0), 0); // TODO: implement.
         }
     }
 

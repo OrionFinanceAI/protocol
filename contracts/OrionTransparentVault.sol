@@ -75,13 +75,19 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
     // --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
 
-    function updateVaultState(Position[] calldata portfolio) external onlyLiquidityOrchestrator {
+    function updateVaultState(
+        Position[] calldata portfolio,
+        uint256 newTotalAssets
+    ) external onlyLiquidityOrchestrator {
         _portfolio.clear();
 
         for (uint256 i = 0; i < portfolio.length; i++) {
             _portfolio.set(portfolio[i].token, portfolio[i].weight);
         }
 
-        // TODO: emit event.
+        _totalAssets = newTotalAssets;
+
+        // Emit event for tracking state updates
+        emit EventsLib.VaultStateUpdated(newTotalAssets);
     }
 }
