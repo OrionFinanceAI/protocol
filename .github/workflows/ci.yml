@@ -7,48 +7,94 @@ on:
     branches: [main]
 
 jobs:
-  ci:
-    name: "TypeScript & Contract CI"
-    runs-on: "ubuntu-latest"
+  setup:
+    name: "Setup Environment"
+    runs-on: ubuntu-latest
+    outputs:
+      cache-hit: ${{ steps.cache.outputs.cache-hit }}
 
     steps:
       - name: "Check out the repo"
-        uses: "actions/checkout@v3"
+        uses: actions/checkout@v3
         with:
           submodules: recursive
 
+      - name: "Setup Node.js"
+        uses: actions/setup-node@v3
+        with:
+          cache: pnpm
+          node-version: lts/*
+
       - name: "Install Pnpm"
-        uses: "pnpm/action-setup@v2"
+        uses: pnpm/action-setup@v2
         with:
           version: "8"
 
-      - name: "Install Node.js"
-        uses: "actions/setup-node@v3"
+      - name: "Install dependencies"
+        run: pnpm install
+
+  build:
+    name: "Build Contracts and Generate Bindings"
+    runs-on: "ubuntu-latest"
+    needs: setup
+    outputs:
+      build_status: ${{ steps.build.outcome }}
+
+    steps:
+      - name: "Checkout repo"
+        uses: actions/checkout@v3
         with:
-          cache: "pnpm"
-          node-version: "lts/*"
+          submodules: recursive
 
-      - name: "Install the dependencies"
-        run: "pnpm install"
-
-      - name: "Lint the code"
-        run: "pnpm lint"
-
-      - name: "Add lint summary"
-        run: |
-          echo "## Lint results" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Passed" >> $GITHUB_STEP_SUMMARY
-
-      - name: "Compile the contracts and generate the TypeChain bindings"
-        run: "pnpm typechain"
+      - name: "Build and typechain"
+        id: build
+        run: pnpm typechain
         env:
           RPC_URL: ${{ secrets.RPC_URL }}
           DEPLOYER_PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
           LP_PRIVATE_KEY: ${{ secrets.LP_PRIVATE_KEY }}
           ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
 
-      - name: "Test the contracts and generate the coverage report"
-        run: "pnpm coverage"
+  lint:
+    name: "Lint Code"
+    runs-on: ubuntu-latest
+    needs: build
+    outputs:
+      lint_status: ${{ steps.lint.outcome }}
+
+    steps:
+      - name: "Checkout repo"
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: "Install dependencies"
+        run: pnpm install
+
+      - name: "Lint"
+        run: pnpm lint
+
+      - name: "Add lint summary"
+        run: |
+          echo "## Lint results" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Passed" >> $GITHUB_STEP_SUMMARY
+
+  test:
+    name: "Test Contracts and Generate Coverage Report"
+    runs-on: "ubuntu-latest"
+    needs: build
+
+    steps:
+      - name: "Checkout repo"
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: "Install dependencies"
+        run: pnpm install
+
+      - name: "Run tests and generate coverage report"
+        run: pnpm coverage
         env:
           RPC_URL: ${{ secrets.RPC_URL }}
           DEPLOYER_PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
@@ -70,7 +116,7 @@ jobs:
   slither:
     name: "Slither Static Analysis"
     runs-on: "ubuntu-latest"
-    needs: ci
+    needs: build
 
     steps:
       - name: "Check out the repo"
