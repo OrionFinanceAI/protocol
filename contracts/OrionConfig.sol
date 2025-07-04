@@ -49,9 +49,9 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     }
 
     function initialize(address initialOwner) public initializer {
+        __Ownable_init(initialOwner);
         __Ownable2Step_init();
         __UUPSUpgradeable_init();
-        _transferOwnership(initialOwner);
     }
 
     // solhint-disable-next-line no-empty-blocks

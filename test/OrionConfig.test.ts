@@ -1,37 +1,38 @@
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
-import { ethers } from "hardhat";
+import { ethers, upgrades } from "hardhat";
+
+let OrionConfig: any;
+let orionConfig: any;
+let owner: SignerWithAddress,
+  vaultFactory: SignerWithAddress,
+  other: SignerWithAddress,
+  addr1: SignerWithAddress,
+  addr2: SignerWithAddress;
+let underlyingAsset: any;
+
+const ZERO = ethers.ZeroAddress;
+
+// VaultType enum as per EventsLib (assuming Encrypted=0, Transparent=1)
+const VaultType = { Encrypted: 0, Transparent: 1 };
+
+beforeEach(async function () {
+  [owner, vaultFactory, other, addr1, addr2] = await ethers.getSigners();
+
+  // Deploy UnderlyingAsset
+  const UnderlyingAssetFactory = await ethers.getContractFactory("UnderlyingAsset");
+  underlyingAsset = await UnderlyingAssetFactory.deploy();
+  await underlyingAsset.waitForDeployment();
+
+  // Deploy OrionConfig and initialize
+  const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
+  orionConfig = await OrionConfigFactory.deploy();
+  await orionConfig.waitForDeployment();
+
+  await orionConfig.initialize(owner.address);
+});
 
 describe("OrionConfig", function () {
-  let orionConfig: any;
-  let owner: SignerWithAddress,
-    vaultFactory: SignerWithAddress,
-    other: SignerWithAddress,
-    addr1: SignerWithAddress,
-    addr2: SignerWithAddress;
-  let underlyingAsset: any;
-
-  const ZERO = ethers.ZeroAddress;
-
-  // VaultType enum as per EventsLib (assuming Encrypted=0, Transparent=1)
-  const VaultType = { Encrypted: 0, Transparent: 1 };
-
-  beforeEach(async function () {
-    [owner, vaultFactory, other, addr1, addr2] = await ethers.getSigners();
-
-    // Deploy UnderlyingAsset
-    const UnderlyingAssetFactory = await ethers.getContractFactory("UnderlyingAsset");
-    underlyingAsset = await UnderlyingAssetFactory.deploy();
-    await underlyingAsset.waitForDeployment();
-
-    // Deploy OrionConfig and initialize
-    const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
-    orionConfig = await OrionConfigFactory.deploy();
-    await orionConfig.waitForDeployment();
-
-    await orionConfig.initialize(owner.address);
-  });
-
   describe("initialize", function () {
     it("sets owner correctly", async function () {
       expect(await orionConfig.owner()).to.equal(owner.address);
@@ -328,6 +329,32 @@ describe("OrionConfig", function () {
       await expect(orionConfig.connect(vaultFactory).removeOrionVault(addr2.address, VaultType.Transparent))
         .to.emit(orionConfig, "OrionVaultRemoved")
         .withArgs(addr2.address);
+    });
+  });
+
+  describe("OrionConfig UUPS upgradeability", function () {
+    let orionConfigProxy: any;
+
+    beforeEach(async function () {
+      OrionConfig = await ethers.getContractFactory("OrionConfig");
+      // Deploy behind a UUPS proxy
+      orionConfigProxy = await upgrades.deployProxy(OrionConfig, [owner.address], {
+        kind: "uups",
+        initializer: "initialize",
+      });
+      await orionConfigProxy.waitForDeployment();
+    });
+
+    it("only owner can upgrade (covers _authorizeUpgrade)", async function () {
+      // Deploy a new implementation for upgrade
+      const OrionConfigV2 = await ethers.getContractFactory("OrionConfig");
+      // Non-owner should fail
+      await expect(
+        upgrades.upgradeProxy(await orionConfigProxy.getAddress(), OrionConfigV2.connect(other)),
+      ).to.be.revertedWithCustomError(orionConfigProxy, "OwnableUnauthorizedAccount");
+
+      // Owner can upgrade (should succeed, but will be a no-op since it's the same code)
+      await upgrades.upgradeProxy(await orionConfigProxy.getAddress(), OrionConfigV2.connect(owner));
     });
   });
 });
