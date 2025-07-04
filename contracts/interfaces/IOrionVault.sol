@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import "./IOrionConfig.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 interface IOrionVault is IERC4626 {
     // Initialization
@@ -22,6 +23,13 @@ interface IOrionVault is IERC4626 {
     function requestDeposit(uint256 amount) external;
     function requestWithdraw(uint256 shares) external;
     function cancelDepositRequest(uint256 amount) external;
+
+    // Conversion Functions
+    function convertToAssetsWithPITTotalAssets(
+        uint256 shares,
+        uint256 pointInTimeTotalAssets,
+        Math.Rounding rounding
+    ) external view returns (uint256);
 
     // Internal States Orchestrator Functions
     function getPendingDeposits() external view returns (uint256);

@@ -138,7 +138,6 @@ abstract contract OrionVault is
         // Only the curator can upgrade the contract
     }
 
-    /// --------- PUBLIC FUNCTIONS ---------
     /// @notice Disable direct deposits and withdrawals on ERC4626 to enforce async only
     function deposit(uint256, address) public pure override(ERC4626Upgradeable, IERC4626) returns (uint256) {
         revert ErrorsLib.SynchronousDepositsDisabled();
@@ -160,6 +159,8 @@ abstract contract OrionVault is
         return _totalAssets;
     }
 
+    /* ---------- CONVERSION FUNCTIONS ---------- */
+
     function convertToShares(uint256 assets) public view override(ERC4626Upgradeable, IERC4626) returns (uint256) {
         return _convertToShares(assets, Math.Rounding.Floor);
     }
@@ -168,18 +169,21 @@ abstract contract OrionVault is
         return _convertToAssets(shares, Math.Rounding.Floor);
     }
 
-    /* ---------- INTERNAL ---------- */
-
     // Defends with a "virtual offset"‑free formula recommended by OZ
     // https://docs.openzeppelin.com/contracts/5.x/erc4626#defending_with_a_virtual_offset
     function _convertToAssets(uint256 shares, Math.Rounding rounding) internal view override returns (uint256) {
+        return convertToAssetsWithPITTotalAssets(shares, _totalAssets, rounding);
+    }
+
+    function convertToAssetsWithPITTotalAssets(
+        uint256 shares,
+        uint256 pointInTimeTotalAssets,
+        Math.Rounding rounding
+    ) public view returns (uint256) {
         uint256 supply = totalSupply();
         uint8 statesDecimals = config.statesDecimals();
-        return shares.mulDiv(_totalAssets + 1, supply + 10 ** statesDecimals, rounding);
+        return shares.mulDiv(pointInTimeTotalAssets + 1, supply + 10 ** statesDecimals, rounding);
     }
-    // TODO: compute new withdraw requests in assets? Needed for total supply calculation. In turns,
-    // requires estimated live market total supply, to be passed as an input to this vault function.
-    // uint256 newWithdrawRequests = vault.convertToAssets(withdrawRequests[i]);
 
     function _convertToShares(uint256 assets, Math.Rounding rounding) internal view override returns (uint256) {
         uint256 supply = totalSupply();
@@ -324,6 +328,9 @@ abstract contract OrionVault is
     }
 
     // TODO: add function for liquidity orchestrator to update portfolio weights.
+
+    // TODO: add fucntion for liquidity orchestrator to deposit assets in curator fee escrow?
+    // And therefore another for curator to withdraw assets from curator fee escrow?
 
     /// --------- ABSTRACT FUNCTIONS ---------
     /// @notice Derived contracts implement their specific submitOrderIntent functions

@@ -116,11 +116,6 @@ contract InternalStatesOrchestrator is
 
             (address[] memory portfolioTokens, uint256[] memory sharesPerAsset) = vault.getPortfolio();
 
-            // TODO: refacto t1 and t2 computation into vault contract.
-            // Feat: curator to be able to call estimated current total supply (t2) to inform their trades,
-            // which is ALSO (not only) used by the internal state orchestrator
-            // to inform the trades of the liquidity orchestrator.
-
             // Calculate estimated active total assets (t_1)
             uint256 t1Hat = 0;
             uint256 portfolioLength = portfolioTokens.length;
@@ -130,10 +125,14 @@ contract InternalStatesOrchestrator is
                 t1Hat += registry.price(token) * sharesPerAsset_;
             }
 
-            // Calculate estimated (active and passive) total assets (t_2)
+            uint256 PendingWithdrawalsHat = vault.convertToAssetsWithPITTotalAssets(
+                vault.getPendingWithdrawals(),
+                t1Hat,
+                Math.Rounding.Floor
+            );
 
-            // TODO: add input to convertToAssets function, so that we can pass intermediate total assets as input.
-            // WR_a = _convertToAssets(WR, t_1) [assets]
+            // Calculate estimated (active and passive) total assets (t_2)
+            uint256 t2Hat = t1Hat + vault.getPendingDeposits() - PendingWithdrawalsHat;
 
             // W_0 = sum(t_1 * w_0)
 
