@@ -110,7 +110,8 @@ contract InternalStatesOrchestrator is
         IOracleRegistry registry = IOracleRegistry(config.oracleRegistry());
 
         address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
-        for (uint256 i = 0; i < transparentVaults.length; i++) {
+        uint256 length = transparentVaults.length;
+        for (uint256 i = 0; i < length; i++) {
             IOrionTransparentVault vault = IOrionTransparentVault(transparentVaults[i]);
 
             (address[] memory portfolioTokens, uint256[] memory sharesPerAsset) = vault.getPortfolio();
@@ -122,7 +123,8 @@ contract InternalStatesOrchestrator is
 
             // Calculate estimated active total assets (t_1)
             uint256 t1Hat = 0;
-            for (uint256 j = 0; j < portfolioTokens.length; j++) {
+            uint256 portfolioLength = portfolioTokens.length;
+            for (uint256 j = 0; j < portfolioLength; j++) {
                 address token = portfolioTokens[j];
                 uint256 sharesPerAsset_ = sharesPerAsset[j];
                 t1Hat += registry.price(token) * sharesPerAsset_;
@@ -145,7 +147,8 @@ contract InternalStatesOrchestrator is
         }
 
         address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
-        for (uint256 i = 0; i < encryptedVaults.length; i++) {
+        length = encryptedVaults.length;
+        for (uint256 i = 0; i < length; i++) {
             IOrionEncryptedVault vault = IOrionEncryptedVault(encryptedVaults[i]);
 
             (address[] memory portfolioTokens, euint32[] memory sharesPerAsset) = vault.getPortfolio();

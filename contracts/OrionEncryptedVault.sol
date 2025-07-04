@@ -42,12 +42,15 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
         if (order.length == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
 
         // Clear previous intent by setting weights to zero
-        for (uint256 i = 0; i < _intentKeys.length; i++) {
-            _intent[_intentKeys[i]] = TFHE.asEuint32(0);
+        euint32 ezero = TFHE.asEuint32(0);
+        uint256 intentLength = _intentKeys.length;
+        for (uint256 i = 0; i < intentLength; i++) {
+            _intent[_intentKeys[i]] = ezero;
         }
         delete _intentKeys;
 
-        for (uint256 i = 0; i < order.length; i++) {
+        uint256 orderLength = order.length;
+        for (uint256 i = 0; i < orderLength; i++) {
             address token = order[i].token;
             if (!config.isWhitelisted(token)) revert ErrorsLib.TokenNotWhitelisted(token);
             _intent[token] = order[i].weight;
@@ -81,14 +84,17 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
         EncryptedPosition[] calldata portfolio,
         uint256 newTotalAssets
     ) external onlyLiquidityOrchestrator {
+        euint32 ezero = TFHE.asEuint32(0);
+
         // Clear previous portfolio by setting weights to zero
-        for (uint256 i = 0; i < _portfolioKeys.length; i++) {
-            _portfolio[_portfolioKeys[i]] = TFHE.asEuint32(0);
+        uint256 portfolioLength = _portfolioKeys.length;
+        for (uint256 i = 0; i < portfolioLength; i++) {
+            _portfolio[_portfolioKeys[i]] = ezero;
         }
         delete _portfolioKeys;
 
         // Update portfolio
-        for (uint256 i = 0; i < portfolio.length; i++) {
+        for (uint256 i = 0; i < portfolioLength; i++) {
             _portfolio[portfolio[i].token] = portfolio[i].weight;
             _portfolioKeys.push(portfolio[i].token);
         }

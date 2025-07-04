@@ -44,7 +44,8 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
         _portfolioIntent.clear();
 
         uint256 totalWeight = 0;
-        for (uint256 i = 0; i < order.length; i++) {
+        uint256 orderLength = order.length;
+        for (uint256 i = 0; i < orderLength; i++) {
             address token = order[i].token;
             uint32 weight = order[i].weight;
             if (!config.isWhitelisted(token)) revert ErrorsLib.TokenNotWhitelisted(token);
@@ -81,7 +82,9 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     ) external onlyLiquidityOrchestrator {
         _portfolio.clear();
 
-        for (uint256 i = 0; i < portfolio.length; i++) {
+        uint256 portfolioLength = portfolio.length;
+        for (uint256 i = 0; i < portfolioLength; i++) {
+            // slither-disable-next-line unused-return
             _portfolio.set(portfolio[i].token, portfolio[i].weight);
         }
 
