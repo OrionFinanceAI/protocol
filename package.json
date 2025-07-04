@@ -20,7 +20,7 @@
     "lint:sol": "solhint --max-warnings 25 \"contracts/**/*.sol\"",
     "prettier:check": "prettier --check \"**/*.{js,json,md,sol,ts,yml}\"",
     "prettier:write": "prettier --write \"**/*.{js,json,md,sol,ts,yml}\"",
-    "slither": "pnpm build && slither . --ignore-compile --filter-paths 'lib|node_modules|dependencies|contracts/mocks'"
+    "slither": "slither . --filter-paths 'lib|node_modules|dependencies|contracts/mocks'"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ethers": "^3.0.8",

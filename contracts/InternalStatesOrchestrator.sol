@@ -150,8 +150,6 @@ contract InternalStatesOrchestrator is
 
             (address[] memory portfolioTokens, euint32[] memory sharesPerAsset) = vault.getPortfolio();
             // TODO: add entry point for Zama coprocessor for both dot product and batching operations.
-            portfolioTokens;
-            sharesPerAsset;
         }
 
         emit EventsLib.InternalStateProcessed(epochCounter);
