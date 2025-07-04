@@ -29,8 +29,8 @@ import { EventsLib } from "./libraries/EventsLib.sol";
 contract InternalStatesOrchestrator is
     Initializable,
     Ownable2StepUpgradeable,
-    UUPSUpgradeable,
     ReentrancyGuardUpgradeable,
+    UUPSUpgradeable,
     IInternalStateOrchestrator
 {
     /// @notice Timestamp when the next upkeep is allowed
@@ -49,10 +49,10 @@ contract InternalStatesOrchestrator is
     uint256 public epochCounter;
 
     function initialize(address initialOwner, address automationRegistry_, address config_) public initializer {
+        __Ownable_init(initialOwner);
         __Ownable2Step_init();
-        __UUPSUpgradeable_init();
         __ReentrancyGuard_init();
-        _transferOwnership(initialOwner);
+        __UUPSUpgradeable_init();
 
         if (automationRegistry_ == address(0)) revert ErrorsLib.ZeroAddress();
         automationRegistry = automationRegistry_;

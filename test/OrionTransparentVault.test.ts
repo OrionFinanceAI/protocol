@@ -2,7 +2,7 @@ import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 
-describe("OrionVault", function () {
+describe("OrionTransparentVault", function () {
   // Test fixture setup
   async function deployVaultFixture() {
     const [owner, curator, lp1, lp2, internalOrchestrator, liquidityOrchestrator, unauthorized] =
@@ -291,6 +291,23 @@ describe("OrionVault", function () {
       await expect(vault.connect(curator).submitOrderIntent(order)).to.be.revertedWithCustomError(
         vault,
         "AmountMustBeGreaterThanZero",
+      );
+    });
+    it("Should revert when the same token appears twice in the order", async () => {
+      const { vault, curator, config } = await loadFixture(deployVaultFixture);
+
+      const tokenAddress = ethers.Wallet.createRandom().address;
+      await config.addWhitelistedAsset(tokenAddress);
+
+      // same token duplicated on purpose
+      const duplicated = [
+        { token: tokenAddress, weight: 500_000 },
+        { token: tokenAddress, weight: 500_000 },
+      ];
+
+      await expect(vault.connect(curator).submitOrderIntent(duplicated)).to.be.revertedWithCustomError(
+        vault,
+        "TokenAlreadyInOrder",
       );
     });
     it("Should revert order with invalid total amount", async function () {
