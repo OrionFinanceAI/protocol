@@ -29,9 +29,9 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
     IOrionConfig public config;
 
     function initialize(address initialOwner, address config_) external initializer {
+        __Ownable_init(initialOwner);
         __Ownable2Step_init();
         __UUPSUpgradeable_init();
-        _transferOwnership(initialOwner);
 
         if (config_ == address(0)) revert ErrorsLib.ZeroAddress();
         config = IOrionConfig(config_);

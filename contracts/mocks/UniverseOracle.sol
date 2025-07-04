@@ -16,12 +16,11 @@ contract UniverseOracle is Initializable, Ownable2StepUpgradeable, UUPSUpgradeab
     function initialize(address asset_, address initialOwner) external initializer {
         if (asset_ == address(0)) revert ErrorsLib.ZeroAddress();
 
+        __Ownable_init(initialOwner);
         __Ownable2Step_init();
         __UUPSUpgradeable_init();
 
         asset = asset_;
-
-        _transferOwnership(initialOwner);
     }
 
     // solhint-disable-next-line no-empty-blocks

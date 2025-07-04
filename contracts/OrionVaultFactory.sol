@@ -20,10 +20,10 @@ contract OrionVaultFactory is Initializable, Ownable2StepUpgradeable, UUPSUpgrad
     address public encryptedVaultImplementation;
 
     function initialize(address initialOwner, address configAddress) public initializer {
+        __Ownable_init(initialOwner);
         __Ownable2Step_init();
         __UUPSUpgradeable_init();
         __ReentrancyGuard_init();
-        _transferOwnership(initialOwner);
 
         deployer = msg.sender;
         config = IOrionConfig(configAddress);
