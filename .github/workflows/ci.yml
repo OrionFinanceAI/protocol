@@ -70,7 +70,6 @@ jobs:
   slither:
     name: "Slither Static Analysis"
     runs-on: "ubuntu-latest"
-    needs: ci
 
     steps:
       - name: "Check out the repo"
@@ -83,3 +82,8 @@ jobs:
         with:
           slither-args: "--filter-paths 'lib|node_modules|dependencies|contracts/mocks'"
           fail-on: low
+        env:
+          RPC_URL: ${{ secrets.RPC_URL }}
+          DEPLOYER_PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
+          LP_PRIVATE_KEY: ${{ secrets.LP_PRIVATE_KEY }}
+          ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
