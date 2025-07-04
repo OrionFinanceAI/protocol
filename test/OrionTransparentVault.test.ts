@@ -2,7 +2,7 @@ import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 
-describe("OrionVault", function () {
+describe("OrionTransparentVault", function () {
   // Test fixture setup
   async function deployVaultFixture() {
     const [owner, curator, lp1, lp2, internalOrchestrator, liquidityOrchestrator, unauthorized] =
@@ -26,6 +26,7 @@ describe("OrionVault", function () {
       underlyingAssetAddress,
       internalOrchestrator.address,
       liquidityOrchestrator.address,
+      18, // statesDecimals
       6, // curatorIntentDecimals
       owner.address, // factory
       owner.address, // oracleRegistry
@@ -35,7 +36,6 @@ describe("OrionVault", function () {
     const OrionTransparentVaultFactory = await ethers.getContractFactory("OrionTransparentVault");
     const vault = await OrionTransparentVaultFactory.deploy();
     await vault.waitForDeployment();
-    const vaultAddress = await vault.getAddress();
     await vault.initialize(curator.address, configAddress, "Test Vault", "TV");
 
     // Mint some underlying assets to LPs for testing
@@ -65,7 +65,6 @@ describe("OrionVault", function () {
       expect(await vault.name()).to.equal("Test Vault");
       expect(await vault.symbol()).to.equal("TV");
       expect(await vault.decimals()).to.equal(6);
-      expect(await vault.sharePrice()).to.equal(ethers.parseUnits("1", 6));
       expect(await vault.totalAssets()).to.equal(0);
     });
     it("Should revert if initialized with zero curator address", async function () {
@@ -91,17 +90,18 @@ describe("OrionVault", function () {
   describe("Access Control", function () {
     it("Should only allow curator to submit order intents", async function () {
       const { vault, unauthorized } = await loadFixture(deployVaultFixture);
-      const order = [{ token: ethers.ZeroAddress, amount: 1000000 }];
+      const order = [{ token: ethers.ZeroAddress, weight: 1000000 }];
       await expect(vault.connect(unauthorized).submitOrderIntent(order)).to.be.revertedWithCustomError(
         vault,
         "NotCurator",
       );
     });
-    it("Should only allow internal states orchestrator to update vault state", async function () {
+    it("Should only allow liquidity orchestrator to update vault state", async function () {
       const { vault, unauthorized } = await loadFixture(deployVaultFixture);
+      const portfolio = [{ token: ethers.ZeroAddress, weight: 1000000 }];
       await expect(
-        vault.connect(unauthorized).updateVaultState(ethers.parseUnits("1.1", 6), ethers.parseUnits("1000", 6)),
-      ).to.be.revertedWithCustomError(vault, "NotInternalStatesOrchestrator");
+        vault.connect(unauthorized).updateVaultState(portfolio, ethers.parseUnits("1.1", 6)),
+      ).to.be.revertedWithCustomError(vault, "NotLiquidityOrchestrator");
     });
     it("Should only allow liquidity orchestrator to process deposit requests", async function () {
       const { vault, unauthorized } = await loadFixture(deployVaultFixture);
@@ -181,8 +181,8 @@ describe("OrionVault", function () {
       await underlyingAsset.connect(lp1).approve(await vault.getAddress(), depositAmount);
       await vault.connect(lp1).requestDeposit(depositAmount);
       const balanceBefore = await underlyingAsset.balanceOf(lp1.address);
-      await expect(vault.connect(lp1).withdrawDepositRequest(withdrawAmount))
-        .to.emit(vault, "DepositRequestWithdrawn")
+      await expect(vault.connect(lp1).cancelDepositRequest(withdrawAmount))
+        .to.emit(vault, "DepositRequestCancelled")
         .withArgs(lp1.address, withdrawAmount, 1);
       const balanceAfter = await underlyingAsset.balanceOf(lp1.address);
       expect(balanceAfter - balanceBefore).to.equal(withdrawAmount);
@@ -193,23 +193,25 @@ describe("OrionVault", function () {
       const depositAmount = ethers.parseUnits("100", 6);
       await underlyingAsset.connect(lp1).approve(await vault.getAddress(), depositAmount);
       await vault.connect(lp1).requestDeposit(depositAmount);
-      await vault.connect(lp1).withdrawDepositRequest(depositAmount);
+      await vault.connect(lp1).cancelDepositRequest(depositAmount);
       expect(await vault.getPendingDeposits()).to.equal(0);
     });
     it("Should revert withdrawal of non-existent deposit request", async function () {
       const { vault, lp1 } = await loadFixture(deployVaultFixture);
-      await expect(
-        vault.connect(lp1).withdrawDepositRequest(ethers.parseUnits("100", 6)),
-      ).to.be.revertedWithCustomError(vault, "NotEnoughDepositRequest");
+      await expect(vault.connect(lp1).cancelDepositRequest(ethers.parseUnits("100", 6))).to.be.revertedWithCustomError(
+        vault,
+        "NotEnoughDepositRequest",
+      );
     });
     it("Should revert withdrawal of more than requested", async function () {
       const { vault, underlyingAsset, lp1 } = await loadFixture(deployVaultFixture);
       const depositAmount = ethers.parseUnits("100", 6);
       await underlyingAsset.connect(lp1).approve(await vault.getAddress(), depositAmount);
       await vault.connect(lp1).requestDeposit(depositAmount);
-      await expect(
-        vault.connect(lp1).withdrawDepositRequest(ethers.parseUnits("150", 6)),
-      ).to.be.revertedWithCustomError(vault, "NotEnoughDepositRequest");
+      await expect(vault.connect(lp1).cancelDepositRequest(ethers.parseUnits("150", 6))).to.be.revertedWithCustomError(
+        vault,
+        "NotEnoughDepositRequest",
+      );
     });
   });
 
@@ -254,31 +256,12 @@ describe("OrionVault", function () {
     });
   });
 
-  describe("State Management", function () {
-    it("Should allow internal states orchestrator to update vault state", async function () {
-      const { vault, internalOrchestrator } = await loadFixture(deployVaultFixture);
-      const newSharePrice = ethers.parseUnits("1.2", 6);
-      const newTotalAssets = ethers.parseUnits("1200", 6);
-      await expect(vault.connect(internalOrchestrator).updateVaultState(newSharePrice, newTotalAssets))
-        .to.emit(vault, "VaultStateUpdated")
-        .withArgs(newSharePrice, newTotalAssets);
-      expect(await vault.sharePrice()).to.equal(newSharePrice);
-      expect(await vault.totalAssets()).to.equal(newTotalAssets);
-    });
-    it("Should revert vault state update with zero share price", async function () {
-      const { vault, internalOrchestrator } = await loadFixture(deployVaultFixture);
-      await expect(
-        vault.connect(internalOrchestrator).updateVaultState(0, ethers.parseUnits("1000", 6)),
-      ).to.be.revertedWithCustomError(vault, "ZeroPrice");
-    });
-  });
-
   describe("Curator Functions", function () {
     it("Should allow curator to submit order intent", async function () {
       const { vault, curator, config } = await loadFixture(deployVaultFixture);
       const tokenAddress = ethers.Wallet.createRandom().address;
       await config.addWhitelistedAsset(tokenAddress);
-      const order = [{ token: tokenAddress, amount: 1000000 }];
+      const order = [{ token: tokenAddress, weight: 1000000 }];
       await expect(vault.connect(curator).submitOrderIntent(order))
         .to.emit(vault, "OrderSubmitted")
         .withArgs(curator.address);
@@ -294,7 +277,7 @@ describe("OrionVault", function () {
     it("Should revert order with non-whitelisted token", async function () {
       const { vault, curator } = await loadFixture(deployVaultFixture);
       const nonWhitelistedToken = ethers.Wallet.createRandom().address;
-      const order = [{ token: nonWhitelistedToken, amount: 1000000 }];
+      const order = [{ token: nonWhitelistedToken, weight: 1000000 }];
       await expect(vault.connect(curator).submitOrderIntent(order)).to.be.revertedWithCustomError(
         vault,
         "TokenNotWhitelisted",
@@ -304,20 +287,37 @@ describe("OrionVault", function () {
       const { vault, curator, config } = await loadFixture(deployVaultFixture);
       const tokenAddress = ethers.Wallet.createRandom().address;
       await config.addWhitelistedAsset(tokenAddress);
-      const order = [{ token: tokenAddress, amount: 0 }];
+      const order = [{ token: tokenAddress, weight: 0 }];
       await expect(vault.connect(curator).submitOrderIntent(order)).to.be.revertedWithCustomError(
         vault,
         "AmountMustBeGreaterThanZero",
+      );
+    });
+    it("Should revert when the same token appears twice in the order", async () => {
+      const { vault, curator, config } = await loadFixture(deployVaultFixture);
+
+      const tokenAddress = ethers.Wallet.createRandom().address;
+      await config.addWhitelistedAsset(tokenAddress);
+
+      // same token duplicated on purpose
+      const duplicated = [
+        { token: tokenAddress, weight: 500_000 },
+        { token: tokenAddress, weight: 500_000 },
+      ];
+
+      await expect(vault.connect(curator).submitOrderIntent(duplicated)).to.be.revertedWithCustomError(
+        vault,
+        "TokenAlreadyInOrder",
       );
     });
     it("Should revert order with invalid total amount", async function () {
       const { vault, curator, config } = await loadFixture(deployVaultFixture);
       const tokenAddress = ethers.Wallet.createRandom().address;
       await config.addWhitelistedAsset(tokenAddress);
-      const order = [{ token: tokenAddress, amount: 500000 }];
+      const order = [{ token: tokenAddress, weight: 500000 }];
       await expect(vault.connect(curator).submitOrderIntent(order)).to.be.revertedWithCustomError(
         vault,
-        "InvalidTotalAmount",
+        "InvalidTotalWeight",
       );
     });
   });
@@ -328,33 +328,27 @@ describe("OrionVault", function () {
       await expect(vault.connect(liquidityOrchestrator).processDepositRequests()).to.not.be.reverted;
     });
     it("Should handle multiple state updates correctly", async function () {
-      const { vault, internalOrchestrator } = await loadFixture(deployVaultFixture);
+      const { vault, liquidityOrchestrator } = await loadFixture(deployVaultFixture);
       const updates = [
         {
-          sharePrice: ethers.parseUnits("1.1", 6),
           totalAssets: ethers.parseUnits("1100", 6),
         },
         {
-          sharePrice: ethers.parseUnits("1.2", 6),
           totalAssets: ethers.parseUnits("1200", 6),
         },
         {
-          sharePrice: ethers.parseUnits("0.9", 6),
           totalAssets: ethers.parseUnits("900", 6),
         },
       ];
       for (const update of updates) {
-        await vault.connect(internalOrchestrator).updateVaultState(update.sharePrice, update.totalAssets);
+        await vault.connect(liquidityOrchestrator).updateVaultState([], update.totalAssets);
       }
-      expect(await vault.sharePrice()).to.equal(updates[2].sharePrice);
       expect(await vault.totalAssets()).to.equal(updates[2].totalAssets);
     });
     it("Should handle large numbers correctly", async function () {
-      const { vault, internalOrchestrator } = await loadFixture(deployVaultFixture);
-      const largeSharePrice = ethers.parseUnits("999999.999999", 6);
+      const { vault, liquidityOrchestrator } = await loadFixture(deployVaultFixture);
       const largeTotalAssets = ethers.parseUnits("999999999999", 6);
-      await vault.connect(internalOrchestrator).updateVaultState(largeSharePrice, largeTotalAssets);
-      expect(await vault.sharePrice()).to.equal(largeSharePrice);
+      await vault.connect(liquidityOrchestrator).updateVaultState([], largeTotalAssets);
       expect(await vault.totalAssets()).to.equal(largeTotalAssets);
     });
   });

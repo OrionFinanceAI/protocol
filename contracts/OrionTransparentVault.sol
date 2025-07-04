@@ -19,7 +19,11 @@ import { EventsLib } from "./libraries/EventsLib.sol";
 contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
 
-    EnumerableMap.AddressToUintMap private _orders;
+    /// @notice Current portfolio shares per asset (w_0) - mapping of token address to live allocation
+    EnumerableMap.AddressToUintMap internal _portfolio;
+
+    /// @notice Curator intent (w_1) - mapping of token address to target allocation
+    EnumerableMap.AddressToUintMap internal _portfolioIntent;
 
     function initialize(
         address curatorAddress,
@@ -33,27 +37,60 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     /// --------- CURATOR FUNCTIONS ---------
 
     /// @notice Submit a plaintext portfolio intent.
-    /// @param order Order struct containing the tokens and plaintext amounts.
-    function submitOrderIntent(Order[] calldata order) external onlyCurator {
+    /// @param order Position struct containing the tokens and plaintext weights.
+    function submitOrderIntent(Position[] calldata order) external onlyCurator {
         if (order.length == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
-        _orders.clear();
 
-        uint256 totalAmount = 0;
-        for (uint256 i = 0; i < order.length; i++) {
-            // slither-disable-start calls-loop
+        _portfolioIntent.clear();
+
+        uint256 totalWeight = 0;
+        uint256 orderLength = order.length;
+        for (uint256 i = 0; i < orderLength; i++) {
             address token = order[i].token;
-            uint32 amount = order[i].amount;
+            uint32 weight = order[i].weight;
             if (!config.isWhitelisted(token)) revert ErrorsLib.TokenNotWhitelisted(token);
-            if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(token);
-            bool inserted = _orders.set(token, amount);
+            if (weight == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(token);
+            bool inserted = _portfolioIntent.set(token, weight);
             if (!inserted) revert ErrorsLib.TokenAlreadyInOrder(token);
-            totalAmount += amount;
-            // slither-disable-end calls-loop
+            totalWeight += weight;
         }
 
         uint8 curatorIntentDecimals = config.curatorIntentDecimals();
-        if (totalAmount != 10 ** curatorIntentDecimals) revert ErrorsLib.InvalidTotalAmount();
+        if (totalWeight != 10 ** curatorIntentDecimals) revert ErrorsLib.InvalidTotalWeight();
 
         emit EventsLib.OrderSubmitted(msg.sender);
+    }
+
+    // --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
+
+    function getPortfolio() external view returns (address[] memory tokens, uint256[] memory sharesPerAsset) {
+        uint256 length = _portfolio.length();
+        tokens = new address[](length);
+        sharesPerAsset = new uint256[](length);
+        for (uint256 i = 0; i < length; i++) {
+            (address token, uint256 sharesPerAsset_) = _portfolio.at(i);
+            tokens[i] = token;
+            sharesPerAsset[i] = sharesPerAsset_;
+        }
+    }
+
+    // --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
+
+    function updateVaultState(
+        Position[] calldata portfolio,
+        uint256 newTotalAssets
+    ) external onlyLiquidityOrchestrator {
+        _portfolio.clear();
+
+        uint256 portfolioLength = portfolio.length;
+        for (uint256 i = 0; i < portfolioLength; i++) {
+            // slither-disable-next-line unused-return
+            _portfolio.set(portfolio[i].token, portfolio[i].weight);
+        }
+
+        _totalAssets = newTotalAssets;
+
+        // Emit event for tracking state updates
+        emit EventsLib.VaultStateUpdated(newTotalAssets);
     }
 }

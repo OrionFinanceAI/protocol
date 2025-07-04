@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.20;
 
-import { euint32 } from "fhevm/lib/TFHE.sol";
-import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
+import { euint32, TFHE } from "fhevm/lib/TFHE.sol";
 import "./OrionVault.sol";
 import "./interfaces/IOrionConfig.sol";
 import "./interfaces/IOrionEncryptedVault.sol";
@@ -18,9 +17,13 @@ import { EventsLib } from "./libraries/EventsLib.sol";
  * privacy of the portfolio allocation strategy, while maintaining capital efficiency.
  */
 contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
-    using EnumerableMap for EnumerableMap.AddressToUintMap;
+    /// @notice Current portfolio shares per asset (w_0) - mapping of token address to live allocation
+    mapping(address => euint32) internal _portfolio;
+    address[] internal _portfolioKeys;
 
-    EnumerableMap.AddressToUintMap private _orders;
+    /// @notice Curator intent (w_1) - mapping of token address to target allocation
+    mapping(address => euint32) internal _intent;
+    address[] internal _intentKeys;
 
     function initialize(
         address curatorAddress,
@@ -34,21 +37,71 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
     /// --------- CURATOR FUNCTIONS ---------
 
     /// @notice Submit an encrypted portfolio intent.
-    /// @param order Order struct containing the tokens and encrypted amounts.
-    function submitOrderIntent(Order[] calldata order) external onlyCurator {
+    /// @param order EncryptedPosition struct containing the tokens and encrypted weights.
+    function submitOrderIntent(EncryptedPosition[] calldata order) external onlyCurator {
         if (order.length == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
-        _orders.clear();
 
-        for (uint256 i = 0; i < order.length; i++) {
-            // slither-disable-start calls-loop
+        // Clear previous intent by setting weights to zero
+        euint32 ezero = TFHE.asEuint32(0);
+        uint256 intentLength = _intentKeys.length;
+        for (uint256 i = 0; i < intentLength; i++) {
+            _intent[_intentKeys[i]] = ezero;
+        }
+        delete _intentKeys;
+
+        uint256 orderLength = order.length;
+        for (uint256 i = 0; i < orderLength; i++) {
             address token = order[i].token;
-            euint32 amount = order[i].amount;
             if (!config.isWhitelisted(token)) revert ErrorsLib.TokenNotWhitelisted(token);
-            bool inserted = _orders.set(token, euint32.unwrap(amount));
-            if (!inserted) revert ErrorsLib.TokenAlreadyInOrder(token);
-            // slither-disable-end calls-loop
+            _intent[token] = order[i].weight;
+            _intentKeys.push(token);
         }
 
         emit EventsLib.OrderSubmitted(msg.sender);
+    }
+
+    // --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
+
+    function getPortfolio() external view returns (address[] memory tokens, euint32[] memory sharesPerAsset) {
+        uint256 length = _portfolioKeys.length;
+        tokens = new address[](length);
+        sharesPerAsset = new euint32[](length);
+        for (uint256 i = 0; i < length; i++) {
+            address token = _portfolioKeys[i];
+            tokens[i] = token;
+            sharesPerAsset[i] = _portfolio[token];
+        }
+    }
+
+    // --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
+
+    // TODO: Get the encrypted sharesPerAsset executed by the liquidity orchestrator
+    // and update the vault intent with an encrypted calibration error before storing it.
+    /// @notice Update vault state based on market performance and pending operations
+    /// @param portfolio The new portfolio after processing pending transactions.
+    /// @param newTotalAssets The new total assets after processing pending transactions.
+    function updateVaultState(
+        EncryptedPosition[] calldata portfolio,
+        uint256 newTotalAssets
+    ) external onlyLiquidityOrchestrator {
+        euint32 ezero = TFHE.asEuint32(0);
+
+        // Clear previous portfolio by setting weights to zero
+        uint256 portfolioLength = _portfolioKeys.length;
+        for (uint256 i = 0; i < portfolioLength; i++) {
+            _portfolio[_portfolioKeys[i]] = ezero;
+        }
+        delete _portfolioKeys;
+
+        // Update portfolio
+        for (uint256 i = 0; i < portfolioLength; i++) {
+            _portfolio[portfolio[i].token] = portfolio[i].weight;
+            _portfolioKeys.push(portfolio[i].token);
+        }
+
+        _totalAssets = newTotalAssets;
+
+        // Emit event for tracking state updates
+        emit EventsLib.VaultStateUpdated(newTotalAssets);
     }
 }

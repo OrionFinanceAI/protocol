@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "../libraries/EventsLib.sol";
 
 interface IOrionConfig {
     /// @notice Returns the address of the internal states orchestrator contract
@@ -25,6 +26,12 @@ interface IOrionConfig {
     /// @return True if the asset is whitelisted, false otherwise
     function isWhitelisted(address asset) external view returns (bool);
 
+    /// @notice Returns the number of decimal places used for states calculations
+    /// @dev This value is used to scale state values for precision
+    /// (e.g. inflation resistant conversions, P&L calculations).
+    /// @return The number of decimal places for states
+    function statesDecimals() external view returns (uint8);
+
     /// @notice Returns the number of decimal places used for curator intent calculations
     /// @dev This value is used to scale curator intent values for precision
     /// @return The number of decimal places for curator intents
@@ -46,6 +53,7 @@ interface IOrionConfig {
     /// @param _internalStatesOrchestrator The address of the internal states orchestrator
     /// @param _liquidityOrchestrator The address of the liquidity orchestrator
     /// @param _curatorIntentDecimals The number of decimal places for curator intents
+    /// @param _statesDecimals The number of decimal places for states
     /// @param _factory The address of the vault factory
     /// @param _oracleRegistry The address of the oracle registry
     function setProtocolParams(
@@ -53,6 +61,7 @@ interface IOrionConfig {
         address _internalStatesOrchestrator,
         address _liquidityOrchestrator,
         uint8 _curatorIntentDecimals,
+        uint8 _statesDecimals,
         address _factory,
         address _oracleRegistry
     ) external;
@@ -84,31 +93,17 @@ interface IOrionConfig {
     /// @notice Adds a new Orion vault to the protocol registry
     /// @dev Only callable by the vault factory contract
     /// @param vault The address of the vault to add to the registry
-    function addOrionVault(address vault) external;
+    /// @param vaultType Whether the vault is encrypted or transparent
+    function addOrionVault(address vault, EventsLib.VaultType vaultType) external;
 
     /// @notice Removes an Orion vault from the protocol registry
     /// @dev Only callable by the vault factory contract
     /// @param vault The address of the vault to remove from the registry
-    function removeOrionVault(address vault) external;
+    /// @param vaultType Whether the vault is encrypted or transparent
+    function removeOrionVault(address vault, EventsLib.VaultType vaultType) external;
 
     /// @notice Returns all Orion vault addresses
+    /// @param vaultType Whether to return encrypted or transparent vaults
     /// @return An array of Orion vault addresses
-    function getAllOrionVaults() external view returns (address[] memory);
-
-    /// @notice Returns aggregated vault states for all registered vaults
-    /// @return vaults Array of vault addresses
-    /// @return sharePrices Array of share prices for each vault
-    /// @return totalAssets Array of total assets for each vault
-    /// @return depositRequests Array of pending deposit amounts for each vault
-    /// @return withdrawRequests Array of pending withdrawal shares for each vault
-    function getVaultStates()
-        external
-        view
-        returns (
-            address[] memory vaults,
-            uint256[] memory sharePrices,
-            uint256[] memory totalAssets,
-            uint256[] memory depositRequests,
-            uint256[] memory withdrawRequests
-        );
+    function getAllOrionVaults(EventsLib.VaultType vaultType) external view returns (address[] memory);
 }

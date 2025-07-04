@@ -9,13 +9,8 @@ interface IOracleRegistry {
     /// @param oracle The address of the oracle to register
     function setOracle(address asset, address oracle) external;
 
-    /// @notice Gets the current price for an asset from its oracle
+    /// @notice Return the price of the given whitelisted asset with respect to the base asset
     /// @param asset The address of the asset
-    /// @return The current price from the oracle
+    /// @return price The price of the asset
     function price(address asset) external view returns (uint256);
-
-    /// @notice Updates and returns the new price for an asset from its oracle
-    /// @param asset The address of the asset
-    /// @return newPrice The updated price from the oracle
-    function update(address asset) external returns (uint256 newPrice);
 }

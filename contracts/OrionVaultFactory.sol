@@ -20,16 +20,19 @@ contract OrionVaultFactory is Initializable, Ownable2StepUpgradeable, UUPSUpgrad
     address public encryptedVaultImplementation;
 
     function initialize(address initialOwner, address configAddress) public initializer {
+        __Ownable_init(initialOwner);
         __Ownable2Step_init();
         __UUPSUpgradeable_init();
         __ReentrancyGuard_init();
-        _transferOwnership(initialOwner);
 
         deployer = msg.sender;
         config = IOrionConfig(configAddress);
     }
 
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+    // solhint-disable-next-line no-empty-blocks
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {
+        // Only the owner can upgrade the contract
+    }
 
     function updateConfig(address newConfig) external onlyOwner {
         config = IOrionConfig(newConfig);
@@ -56,7 +59,7 @@ contract OrionVaultFactory is Initializable, Ownable2StepUpgradeable, UUPSUpgrad
 
         ERC1967Proxy proxy = new ERC1967Proxy(transparentVaultImplementation, initData);
         vault = address(proxy);
-        config.addOrionVault(vault);
+        config.addOrionVault(vault, EventsLib.VaultType.Transparent);
 
         emit EventsLib.OrionVaultCreated(vault, curator, msg.sender, EventsLib.VaultType.Transparent);
     }
@@ -74,7 +77,7 @@ contract OrionVaultFactory is Initializable, Ownable2StepUpgradeable, UUPSUpgrad
 
         ERC1967Proxy proxy = new ERC1967Proxy(encryptedVaultImplementation, initData);
         vault = address(proxy);
-        config.addOrionVault(vault);
+        config.addOrionVault(vault, EventsLib.VaultType.Encrypted);
 
         emit EventsLib.OrionVaultCreated(vault, curator, msg.sender, EventsLib.VaultType.Encrypted);
     }

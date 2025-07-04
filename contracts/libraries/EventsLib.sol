@@ -13,7 +13,8 @@ library EventsLib {
         address underlyingAsset,
         address internalStatesOrchestrator,
         address liquidityOrchestrator,
-        uint256 curatorIntentDecimals,
+        uint8 statesDecimals,
+        uint8 curatorIntentDecimals,
         address factory,
         address oracleRegistry
     );
@@ -24,15 +25,15 @@ library EventsLib {
     event WithdrawRequested(address indexed user, uint256 shares, uint256 requestId);
     event DepositProcessed(address indexed user, uint256 amount, uint256 requestId);
     event WithdrawProcessed(address indexed user, uint256 shares, uint256 requestId);
-    event DepositRequestWithdrawn(address indexed user, uint256 amount, uint256 requestId);
-    event VaultStateUpdated(uint256 newSharePrice, uint256 newTotalAssets);
+    event DepositRequestCancelled(address indexed user, uint256 amount, uint256 depositorCount);
+    event VaultStateUpdated(uint256 newTotalAssets);
 
     // Internal States Orchestrator Events
-    /// @notice Emitted when internal states are processed
-    event InternalStateProcessed(uint256 timestamp);
-
-    /// @notice Emitted when the Chainlink Automation Registry address is updated
+    event InternalStateProcessed(uint256 epochCounter);
     event AutomationRegistryUpdated(address indexed newAutomationRegistry);
+
+    // Liquidity Orchestrator Events
+    event PortfolioRebalanced();
 
     // Oracle Registry Events
     event OracleRegistered(address indexed asset, address indexed oracle);

@@ -14,7 +14,6 @@ library ErrorsLib {
     error NotInWhitelist();
     error IndexOutOfBounds();
     error VaultNotFound();
-    error OrionVaultNotFound();
     error AlreadyAnOrionVault();
     error NotAnOrionVault();
     error InvalidCuratorAddress();
@@ -31,7 +30,7 @@ library ErrorsLib {
     error SynchronousRedemptionsDisabled();
     error SynchronousDepositsDisabled();
     error SynchronousWithdrawalsDisabled();
-    error InvalidTotalAmount();
+    error InvalidTotalWeight();
     error ZeroPrice();
     error OrderIntentCannotBeEmpty();
     error TokenAlreadyInOrder(address token);
@@ -42,4 +41,7 @@ library ErrorsLib {
     error WithdrawRequestFailed();
     error NotEnoughDepositRequest();
     error OracleNotSet();
+    error OracleNotInitialized();
+    error InvalidStatesDecimals();
+    error Underflow();
 }

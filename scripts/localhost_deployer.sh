@@ -14,3 +14,5 @@ pnpm hardhat run scripts/deploy-oracle-registry.ts --network localhost
 pnpm hardhat run scripts/deploy-implementations.ts --network localhost
 pnpm hardhat run scripts/deploy-orion-vault-factory.ts --network localhost
 pnpm hardhat run scripts/populate-config.ts --network localhost
+pnpm hardhat run scripts/deploy-oracles.ts --network localhost
+pnpm hardhat run scripts/populate-oracle-registry.ts --network localhost

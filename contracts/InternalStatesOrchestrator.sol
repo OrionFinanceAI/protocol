@@ -5,28 +5,39 @@ import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
-import "@chainlink/contracts/src/v0.8/automation/AutomationCompatible.sol";
 import "./interfaces/IOrionConfig.sol";
 import "./interfaces/IOrionVault.sol";
+import "./interfaces/IOrionTransparentVault.sol";
+import "./interfaces/IOrionEncryptedVault.sol";
 import "./interfaces/IOracleRegistry.sol";
+import "./interfaces/IInternalStateOrchestrator.sol";
 import { ErrorsLib } from "./libraries/ErrorsLib.sol";
 import { EventsLib } from "./libraries/EventsLib.sol";
 
 /// @title Internal States Orchestrator
-/// @notice Orchestrates internal state transitions triggered by Chainlink Automation
-/// @dev This contract manages periodic updates of vault states and market data through Chainlink Automation
+/// @notice Orchestrates state reading and estimation operations triggered by Chainlink Automation
+/// @dev This contract is responsible for:
+///      - Reading current vault states and market data
+///      - Computing state estimations for Liquidity Orchestrator
+///      - Emitting events to trigger the Liquidity Orchestrator
+///
+///      IMPORTANT: This contract does NOT execute transactions or write vault states.
+///      It only performs read operations and calculations to estimate state changes.
+///      Actual state modifications and transaction execution are handled by the
+///      Liquidity Orchestrator contract.
+///      Variable naming distinguishes measurements (x) from estimations (x_hat).
 contract InternalStatesOrchestrator is
     Initializable,
     Ownable2StepUpgradeable,
+    ReentrancyGuardUpgradeable,
     UUPSUpgradeable,
-    AutomationCompatibleInterface,
-    ReentrancyGuardUpgradeable
+    IInternalStateOrchestrator
 {
     /// @notice Timestamp when the next upkeep is allowed
     uint256 public nextUpdateTime;
 
     /// @notice Interval in seconds between upkeeps
-    uint256 public constant UPDATE_INTERVAL = 1 minutes;
+    uint256 public constant updateInterval = 1 minutes;
 
     /// @notice Chainlink Automation Registry address
     address public automationRegistry;
@@ -34,20 +45,27 @@ contract InternalStatesOrchestrator is
     /// @notice Orion Config contract address
     IOrionConfig public config;
 
+    /// @notice Counter for tracking processing cycles
+    uint256 public epochCounter;
+
     function initialize(address initialOwner, address automationRegistry_, address config_) public initializer {
+        __Ownable_init(initialOwner);
         __Ownable2Step_init();
-        __UUPSUpgradeable_init();
         __ReentrancyGuard_init();
-        _transferOwnership(initialOwner);
+        __UUPSUpgradeable_init();
 
         if (automationRegistry_ == address(0)) revert ErrorsLib.ZeroAddress();
         automationRegistry = automationRegistry_;
         config = IOrionConfig(config_);
 
         nextUpdateTime = _computeNextUpdateTime(block.timestamp);
+        epochCounter = 0;
     }
 
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+    // solhint-disable-next-line no-empty-blocks
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {
+        // Only the owner can upgrade the contract
+    }
 
     /// @dev Restricts function to only Chainlink Automation registry
     modifier onlyAutomationRegistry() {
@@ -69,92 +87,92 @@ contract InternalStatesOrchestrator is
         config = IOrionConfig(newConfig);
     }
 
+    /// @notice Checks if upkeep is needed based on time interval
     function checkUpkeep(bytes calldata) external view override returns (bool upkeepNeeded, bytes memory performData) {
         upkeepNeeded = _shouldTriggerUpkeep();
 
         performData = bytes("");
-        // TODO: compute here all read-only states to generate payload to then pass to performUpkeep
+        // NOTE: we can compute here all read-only states to generate payload to then pass to performUpkeep
         // https://docs.chain.link/chainlink-automation/reference/automation-interfaces
-        // Losing atomicity, not sure if best approach.
-        return (upkeepNeeded, performData);
+        // Losing atomicity, but better for scalability.
     }
 
-    /// @notice Called by Chainlink Automation to execute internal state logic
+    /// @notice Performs state reading and estimation operations
+    /// @dev This function:
+    ///      - Reads current vault states and oracle prices;
+    ///      - Computes estimated system states;
+    ///      - Emits events to trigger the Liquidity Orchestrator
     function performUpkeep(bytes calldata) external override onlyAutomationRegistry nonReentrant {
         if (!_shouldTriggerUpkeep()) revert ErrorsLib.TooEarly();
-
-        // Collect read-only states from all Orion vaults
-        (
-            address[] memory vaults,
-            uint256[] memory sharePrices,
-            uint256[] memory totalAssets,
-            uint256[] memory depositRequests,
-            uint256[] memory withdrawRequests
-        ) = config.getVaultStates();
-
-        // Update internal state BEFORE external calls (EFFECTS before INTERACTIONS)
         nextUpdateTime = _computeNextUpdateTime(block.timestamp);
+        epochCounter++;
 
-        // Collect read-write states from market oracle
-        address[] memory universe = config.getAllWhitelistedAssets();
         IOracleRegistry registry = IOracleRegistry(config.oracleRegistry());
 
-        uint256[] memory previousPriceArray = new uint256[](universe.length);
-        uint256[] memory currentPriceArray = new uint256[](universe.length);
-        for (uint256 i = 0; i < universe.length; i++) {
-            // slither-disable-start calls-loop
-            previousPriceArray[i] = registry.price(universe[i]);
-            currentPriceArray[i] = registry.update(universe[i]);
-            // slither-disable-end calls-loop
+        address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
+        uint256 length = transparentVaults.length;
+        for (uint256 i = 0; i < length; i++) {
+            IOrionTransparentVault vault = IOrionTransparentVault(transparentVaults[i]);
+
+            (address[] memory portfolioTokens, uint256[] memory sharesPerAsset) = vault.getPortfolio();
+
+            // TODO: refacto t1 and t2 computation into vault contract.
+            // Feat: curator to be able to call estimated current total supply (t2) to inform their trades,
+            // which is ALSO (not only) used by the internal state orchestrator
+            // to inform the trades of the liquidity orchestrator.
+
+            // Calculate estimated active total assets (t_1)
+            uint256 t1Hat = 0;
+            uint256 portfolioLength = portfolioTokens.length;
+            for (uint256 j = 0; j < portfolioLength; j++) {
+                address token = portfolioTokens[j];
+                uint256 sharesPerAsset_ = sharesPerAsset[j];
+                t1Hat += registry.price(token) * sharesPerAsset_;
+            }
+
+            // Calculate estimated (active and passive) total assets (t_2)
+
+            // TODO: add input to convertToAssets function, so that we can pass intermediate total assets as input.
+            // WR_a = _convertToAssets(WR, t_1) [assets]
+
+            // W_0 = sum(t_1 * w_0)
+
+            // t_2 = t_1 + DR_a - WR_a
+            // W_1 = sum(t_2 * w_1)
+
+            // delta_W = W_1 - W_0
+            // _processVaultStates();
+            // TODO. Be sure to remove unused functions across contracts,
+            // there may be, given the current degree of refactoring.
         }
 
-        // Calculate P&L based on price changes
-        uint256[] memory pnlAmountArray = _calculatePnL(previousPriceArray, currentPriceArray);
+        address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
+        length = encryptedVaults.length;
+        for (uint256 i = 0; i < length; i++) {
+            IOrionEncryptedVault vault = IOrionEncryptedVault(encryptedVaults[i]);
 
-        // Calculate P&L and update vault states based on market data
-        for (uint256 i = 0; i < vaults.length; i++) {
-            // slither-disable-start calls-loop
-            // Validate vault address before making external calls
-            if (vaults[i] == address(0)) revert ErrorsLib.ZeroAddress();
-
-            IOrionVault vault = IOrionVault(vaults[i]);
-
-            uint256 pnlAmount = pnlAmountArray[i];
-
-            // Calculate new total assets: current + deposits - withdrawals + P&L
-            uint256 newTotalAssets = totalAssets[i] + depositRequests[i] - withdrawRequests[i] + pnlAmount;
-
-            // Calculate new share price based on P&L
-            uint256 newSharePrice = sharePrices[i] * (1 + pnlAmount);
-
-            vault.updateVaultState(newSharePrice, newTotalAssets);
-            // slither-disable-end calls-loop
+            (address[] memory portfolioTokens, euint32[] memory sharesPerAsset) = vault.getPortfolio();
+            // TODO: add entry point for Zama coprocessor for both dot product and batching operations.
         }
 
-        emit EventsLib.InternalStateProcessed(block.timestamp);
-
-        // TODO: have another chainlink automation offchain process
-        // listening to this event and updating the liquidity positions
-        //in another transaction based on the updated internal states.
-        // No atomicity, but better for scalability.
+        emit EventsLib.InternalStateProcessed(epochCounter);
+        // TODO: have additional chainlink automation offchain process
+        // triggered by this event and triggering liquidity orchestrator.
+        // Move to liquidity orchestrator:
+        // Process delta_W, WR, DR. Here I use p_t. // TODO: investigate DR/W netting.
     }
 
+    /// @notice Computes the next update time based on current timestamp
+    /// @param currentTime Current block timestamp
+    /// @return Next update time
+    function _computeNextUpdateTime(uint256 currentTime) internal pure returns (uint256) {
+        return currentTime + updateInterval;
+    }
+
+    /// @notice Checks if upkeep should be triggered based on time
+    /// @return True if upkeep should be triggered
     function _shouldTriggerUpkeep() internal view returns (bool) {
         // slither-disable-next-line timestamp
         return block.timestamp >= nextUpdateTime;
-    }
-
-    function _computeNextUpdateTime(uint256 currentTime) internal pure returns (uint256) {
-        return currentTime + UPDATE_INTERVAL;
-    }
-
-    function _calculatePnL(
-        uint256[] memory previousPriceArray,
-        uint256[] memory currentPriceArray
-    ) internal pure returns (uint256[] memory pnlAmountArray) {
-        pnlAmountArray = new uint256[](previousPriceArray.length);
-        for (uint256 i = 0; i < previousPriceArray.length; i++) {
-            pnlAmountArray[i] = (currentPriceArray[i] - previousPriceArray[i]) / previousPriceArray[i];
-        }
     }
 }

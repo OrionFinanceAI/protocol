@@ -202,6 +202,19 @@
       "type": "function"
     },
     {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "cancelDepositRequest",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
       "inputs": [],
       "name": "config",
       "outputs": [
@@ -336,6 +349,24 @@
           "internalType": "uint256",
           "name": "",
           "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getPortfolio",
+      "outputs": [
+        {
+          "internalType": "address[]",
+          "name": "tokens",
+          "type": "address[]"
+        },
+        {
+          "internalType": "euint32[]",
+          "name": "sharesPerAsset",
+          "type": "uint256[]"
         }
       ],
       "stateMutability": "view",
@@ -628,19 +659,6 @@
       "type": "function"
     },
     {
-      "inputs": [],
-      "name": "sharePrice",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
       "inputs": [
         {
           "components": [
@@ -651,11 +669,11 @@
             },
             {
               "internalType": "euint32",
-              "name": "amount",
+              "name": "weight",
               "type": "uint256"
             }
           ],
-          "internalType": "struct IOrionEncryptedVault.Order[]",
+          "internalType": "struct IOrionEncryptedVault.EncryptedPosition[]",
           "name": "order",
           "type": "tuple[]"
         }
@@ -760,9 +778,21 @@
     {
       "inputs": [
         {
-          "internalType": "uint256",
-          "name": "newSharePrice",
-          "type": "uint256"
+          "components": [
+            {
+              "internalType": "address",
+              "name": "token",
+              "type": "address"
+            },
+            {
+              "internalType": "euint32",
+              "name": "weight",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct IOrionEncryptedVault.EncryptedPosition[]",
+          "name": "portfolio",
+          "type": "tuple[]"
         },
         {
           "internalType": "uint256",
@@ -801,19 +831,6 @@
           "type": "uint256"
         }
       ],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "amount",
-          "type": "uint256"
-        }
-      ],
-      "name": "withdrawDepositRequest",
-      "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
     }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.20;
 
+import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
@@ -11,6 +12,7 @@ import "./interfaces/IOrionConfig.sol";
 import "./interfaces/IOrionVault.sol";
 import { ErrorsLib } from "./libraries/ErrorsLib.sol";
 import { EventsLib } from "./libraries/EventsLib.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
  * @title OrionVault
@@ -30,6 +32,34 @@ import { EventsLib } from "./libraries/EventsLib.sol";
  *
  * Derived contracts implement the specific intent submission and interpretation logic, either in plaintext
  * (OrionTransparentVault) or encrypted form (OrionEncryptedVault) for privacy-preserving vaults.
+ *
+ * The vault maintains the following key states that the orchestrators must track and manage:
+ *
+ * 1. Total Assets (t_0) [assets] - The total value of assets under management in the vault
+ *    - Stored in: _totalAssets
+ *    - Units: Asset tokens (e.g., USDC, ETH)
+ *
+ * 2. Deposit Requests (DR_a) [assets] - Pending deposit requests from liquidity providers
+ *    - Stored in: _depositRequests mapping
+ *    - Units: Asset tokens (e.g., USDC, ETH)
+ *    - Note: These are denominated in underlying asset units, not shares
+ *
+ * 3. Withdraw Requests (WR_s) [shares] - Pending withdrawal requests from liquidity providers
+ *    - Stored in: _withdrawRequests mapping
+ *    - Units: Vault share tokens
+ *    - Note: These are denominated in vault share units, not underlying assets
+ *
+ * 4. Portfolio Weights (w_0) [shares] - Current portfolio expressed as the number of shares per asset.
+ *    - Units: Number of shares
+ *    - Using shares instead of percentages allows the estimated TVL to be derived by multiplying with estimated prices.
+ *      This reduces reliance on on-chain price oracles and allows the oracle contract to remain stateless.
+ *
+ * 5. Curator Intent (w_1) [%] - Target portfolio expressed in percentage of total assets.
+ *    - Units: Percentage points
+ *    - This value must be specified in percentage of total supply because
+ *      the curator does not know the point-in-time amount of assets in the vault at the time of intent submission.
+ *      While the curator can estimate this value reading the vault’s state and oracle prices,
+ *      the actual value at time of execution may differ.
  */
 abstract contract OrionVault is
     Initializable,
@@ -39,18 +69,28 @@ abstract contract OrionVault is
     UUPSUpgradeable,
     IOrionVault
 {
+    using Math for uint256;
+    using EnumerableMap for EnumerableMap.AddressToUintMap;
+
     IOrionConfig public config;
     address public curator;
     address public deployer;
 
-    uint256 public sharePrice;
+    /// @notice Total assets under management (t_0) - denominated in underlying asset units
     uint256 internal _totalAssets;
 
-    // Queues of async requests from LPs
+    /// @notice Deposit requests queue (D) - mapping of user address to requested asset amount
+    /// Units: Asset tokens (e.g., USDC, ETH), not shares
     mapping(address => uint256) private _depositRequests;
+
+    /// @notice Withdraw requests queue (W) - mapping of user address to requested share amount
+    /// Units: Vault share tokens, not underlying assets
     mapping(address => uint256) private _withdrawRequests;
 
+    /// @notice Array of users who have pending deposit requests
     address[] private _depositRequestors;
+
+    /// @notice Array of users who have pending withdrawal requests
     address[] private _withdrawRequestors;
 
     modifier onlyCurator() {
@@ -69,6 +109,7 @@ abstract contract OrionVault is
     }
 
     // slither-disable-next-line naming-convention
+    // solhint-disable-next-line func-name-mixedcase
     function __OrionVault_init(
         address curator_,
         IOrionConfig config_,
@@ -82,18 +123,20 @@ abstract contract OrionVault is
         __ERC4626_init(config_.underlyingAsset());
         __ReentrancyGuard_init();
 
+        __Ownable_init(curator_);
         __Ownable2Step_init();
         __UUPSUpgradeable_init();
-        _transferOwnership(curator_);
 
         deployer = msg.sender;
         curator = curator_;
         config = config_;
-        sharePrice = 10 ** decimals();
         _totalAssets = 0;
     }
 
-    function _authorizeUpgrade(address newImplementation) internal override onlyCurator {}
+    // solhint-disable-next-line no-empty-blocks
+    function _authorizeUpgrade(address newImplementation) internal override onlyCurator {
+        // Only the curator can upgrade the contract
+    }
 
     /// --------- PUBLIC FUNCTIONS ---------
     /// @notice Disable direct deposits and withdrawals on ERC4626 to enforce async only
@@ -118,17 +161,39 @@ abstract contract OrionVault is
     }
 
     function convertToShares(uint256 assets) public view override(ERC4626Upgradeable, IERC4626) returns (uint256) {
-        return (assets * decimals()) / sharePrice;
+        return _convertToShares(assets, Math.Rounding.Floor);
     }
 
     function convertToAssets(uint256 shares) public view override(ERC4626Upgradeable, IERC4626) returns (uint256) {
-        return (shares * sharePrice) / decimals();
+        return _convertToAssets(shares, Math.Rounding.Floor);
+    }
+
+    /* ---------- INTERNAL ---------- */
+
+    // Defends with a "virtual offset"‑free formula recommended by OZ
+    // https://docs.openzeppelin.com/contracts/5.x/erc4626#defending_with_a_virtual_offset
+    function _convertToAssets(uint256 shares, Math.Rounding rounding) internal view override returns (uint256) {
+        uint256 supply = totalSupply();
+        uint8 statesDecimals = config.statesDecimals();
+        return shares.mulDiv(_totalAssets + 1, supply + 10 ** statesDecimals, rounding);
+    }
+    // TODO: compute new withdraw requests in assets? Needed for total supply calculation. In turns,
+    // requires estimated live market total supply, to be passed as an input to this vault function.
+    // uint256 newWithdrawRequests = vault.convertToAssets(withdrawRequests[i]);
+
+    function _convertToShares(uint256 assets, Math.Rounding rounding) internal view override returns (uint256) {
+        uint256 supply = totalSupply();
+        uint8 statesDecimals = config.statesDecimals();
+        return assets.mulDiv(supply + 10 ** statesDecimals, _totalAssets + 1, rounding);
     }
 
     /// --------- LP FUNCTIONS ---------
 
-    /// @notice LPs submits async deposit request; no share tokens minted yet,
-    /// while underlying tokens are transferred to the vault contract as escrow.
+    /// @notice Submit an asynchronous deposit request.
+    /// @dev No share tokens are minted immediately. The specified amount of underlying tokens
+    ///      is transferred to the vault as escrow. LPs can later cancel this request to withdraw
+    ///      their escrowed tokens before any minting occurs.
+    /// @param amount The amount of the underlying asset to deposit into escrow.
     function requestDeposit(uint256 amount) external nonReentrant {
         // Checks first
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
@@ -147,9 +212,11 @@ abstract contract OrionVault is
         emit EventsLib.DepositRequested(msg.sender, amount, _depositRequestors.length);
     }
 
-    /// @notice Allow LPs to withdraw their escrowed tokens before minting, making the system more trustless
-    /// @param amount The amount of underlying tokens to withdraw from escrow
-    function withdrawDepositRequest(uint256 amount) external nonReentrant {
+    /// @notice Cancel a previously submitted deposit request.
+    /// @dev Allows LPs to withdraw their escrowed tokens before any share tokens are minted.
+    ///      The request must still have enough balance remaining to cover the cancellation.
+    /// @param amount The amount of escrowed tokens to withdraw.
+    function cancelDepositRequest(uint256 amount) external nonReentrant {
         // Checks first
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
         if (_depositRequests[msg.sender] < amount) revert ErrorsLib.NotEnoughDepositRequest();
@@ -158,11 +225,14 @@ abstract contract OrionVault is
         _depositRequests[msg.sender] -= amount;
         uint256 depositorCount = _depositRequestors.length;
 
+        // TODO: treat case in which _depositRequests[msg.sender] == 0 now, and remove from _depositRequestors.
+        // do same in cancelWithdrawRequest.
+
         // Interactions - external calls last
         bool success = IERC20(asset()).transfer(msg.sender, amount);
         if (!success) revert ErrorsLib.TransferFailed();
 
-        emit EventsLib.DepositRequestWithdrawn(msg.sender, amount, depositorCount);
+        emit EventsLib.DepositRequestCancelled(msg.sender, amount, depositorCount);
     }
 
     /// @notice LPs submits async withdrawal request; shares locked until processed
@@ -183,23 +253,13 @@ abstract contract OrionVault is
         emit EventsLib.WithdrawRequested(msg.sender, shares, _withdrawRequestors.length);
     }
 
+    // TODO: cancelWithdrawRequest.
+
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
 
-    /// @notice Update vault state based on market performance and pending operations
-    /// @param newSharePrice The new share price after P&L calculation
-    /// @param newTotalAssets The new total assets after processing deposits/withdrawals
-    function updateVaultState(uint256 newSharePrice, uint256 newTotalAssets) external onlyInternalStatesOrchestrator {
-        if (newSharePrice == 0) revert ErrorsLib.ZeroPrice();
-
-        // Update state variables
-        sharePrice = newSharePrice;
-        _totalAssets = newTotalAssets;
-
-        // Emit event for tracking state updates
-        emit EventsLib.VaultStateUpdated(newSharePrice, newTotalAssets);
-    }
-
     /// @notice Get total pending deposit amount across all users
+    /// @return Total pending deposits denominated in underlying asset units (e.g., USDC, ETH)
+    /// Note: This returns asset amounts, not share amounts
     function getPendingDeposits() external view returns (uint256) {
         uint256 totalPending = 0;
         uint256 length = _depositRequestors.length;
@@ -210,6 +270,8 @@ abstract contract OrionVault is
     }
 
     /// @notice Get total pending withdrawal shares across all users
+    /// @return Total pending withdrawals denominated in vault share units
+    /// Note: This returns share amounts, not underlying asset amounts
     function getPendingWithdrawals() external view returns (uint256) {
         uint256 totalPending = 0;
         uint256 length = _withdrawRequestors.length;
@@ -226,6 +288,8 @@ abstract contract OrionVault is
     // after successful transaction processed
     // In a second step by the liquidity orchestrator. There are risks in this, need to identify an alternative
     // solution.
+    // Solution seems to be processing share price update only based on portfolio weights and PNL and then use that
+    // to perform the deposit/withdrawals from liquidity orchestrator, updating internal ledger + total assets.
     function processDepositRequests() external onlyLiquidityOrchestrator nonReentrant {
         uint256 length = _depositRequestors.length;
         for (uint256 i = 0; i < length; i++) {
@@ -242,7 +306,7 @@ abstract contract OrionVault is
     }
 
     /// @notice Process withdrawal requests from LPs
-    // TODO: same as above. Fix.
+    // TODO: same as processDepositRequests. Fix.
     function processWithdrawRequests() external onlyLiquidityOrchestrator nonReentrant {
         uint256 length = _withdrawRequestors.length;
         for (uint256 i = 0; i < length; i++) {
@@ -253,12 +317,13 @@ abstract contract OrionVault is
 
             _burn(address(this), shares);
             uint256 underlyingAmount = previewRedeem(shares);
-            // slither-disable-next-line calls-loop
             if (!IERC20(asset()).transfer(user, underlyingAmount)) revert ErrorsLib.TransferFailed();
 
             emit EventsLib.WithdrawProcessed(user, shares, i);
         }
     }
+
+    // TODO: add function for liquidity orchestrator to update portfolio weights.
 
     /// --------- ABSTRACT FUNCTIONS ---------
     /// @notice Derived contracts implement their specific submitOrderIntent functions

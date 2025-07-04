@@ -59,11 +59,11 @@
         {
           "indexed": false,
           "internalType": "uint256",
-          "name": "requestId",
+          "name": "depositorCount",
           "type": "uint256"
         }
       ],
-      "name": "DepositRequestProcessed",
+      "name": "DepositRequestCancelled",
       "type": "event"
     },
     {
@@ -88,7 +88,7 @@
           "type": "uint256"
         }
       ],
-      "name": "DepositRequestWithdrawn",
+      "name": "DepositRequestProcessed",
       "type": "event"
     },
     {
@@ -122,7 +122,7 @@
         {
           "indexed": false,
           "internalType": "uint256",
-          "name": "timestamp",
+          "name": "epochCounter",
           "type": "uint256"
         }
       ],
@@ -220,6 +220,12 @@
     },
     {
       "anonymous": false,
+      "inputs": [],
+      "name": "PortfolioRebalanced",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
       "inputs": [
         {
           "indexed": false,
@@ -241,9 +247,15 @@
         },
         {
           "indexed": false,
-          "internalType": "uint256",
+          "internalType": "uint8",
+          "name": "statesDecimals",
+          "type": "uint8"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint8",
           "name": "curatorIntentDecimals",
-          "type": "uint256"
+          "type": "uint8"
         },
         {
           "indexed": false,
@@ -264,12 +276,6 @@
     {
       "anonymous": false,
       "inputs": [
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "newSharePrice",
-          "type": "uint256"
-        },
         {
           "indexed": false,
           "internalType": "uint256",
@@ -382,8 +388,8 @@
       "type": "event"
     }
   ],
-  "bytecode": "0x60556032600b8282823980515f1a607314602657634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f80fdfea26469706673582212205a1b146caaa8779db28a81be524af89c5fea9197dd7ac321ad80072312f7187064736f6c634300081a0033",
-  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f80fdfea26469706673582212205a1b146caaa8779db28a81be524af89c5fea9197dd7ac321ad80072312f7187064736f6c634300081a0033",
+  "bytecode": "0x60556032600b8282823980515f1a607314602657634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f80fdfea26469706673582212205e55997432ae4fabe931570f10216b3c15abc2fd7ca3221d901c9f3963f3db2364736f6c634300081a0033",
+  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f80fdfea26469706673582212205e55997432ae4fabe931570f10216b3c15abc2fd7ca3221d901c9f3963f3db2364736f6c634300081a0033",
   "linkReferences": {},
   "deployedLinkReferences": {}
 }

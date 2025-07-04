@@ -18,13 +18,11 @@ async function main() {
   console.log("Upkeep needed?", upkeepNeeded);
 
   if (upkeepNeeded) {
-    console.log("Performing upkeep...");
-
     const [deployer] = await ethers.getSigners();
     console.log("Using deployer address:", await deployer.getAddress());
 
     // Impersonate Chainlink Registry on Hardhat network
-    const registryAddress = await orchestrator.registry();
+    const registryAddress = await orchestrator.automationRegistry();
 
     await hre.network.provider.request({
       method: "hardhat_impersonateAccount",
@@ -32,6 +30,8 @@ async function main() {
     });
 
     const registrySigner = await ethers.getSigner(registryAddress);
+
+    console.log("Performing upkeep...");
 
     // Send performUpkeep tx from impersonated registry address
     const tx = await orchestrator.connect(registrySigner).performUpkeep(performData);

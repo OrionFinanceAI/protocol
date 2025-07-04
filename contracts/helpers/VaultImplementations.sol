@@ -10,12 +10,12 @@ import "../OrionEncryptedVault.sol";
  * This reduces the OrionVaultFactory contract size (spurious dragon) by not embedding implementation bytecode.
  */
 contract VaultImplementations {
-    address public immutable transparentVaultImplementation;
-    address public immutable encryptedVaultImplementation;
+    address public immutable TRANSPARENT_VAULT_IMPLEMENTATION;
+    address public immutable ENCRYPTED_VAULT_IMPLEMENTATION;
 
     constructor() {
         // Deploy implementation contracts
-        transparentVaultImplementation = address(new OrionTransparentVault());
-        encryptedVaultImplementation = address(new OrionEncryptedVault());
+        TRANSPARENT_VAULT_IMPLEMENTATION = address(new OrionTransparentVault());
+        ENCRYPTED_VAULT_IMPLEMENTATION = address(new OrionEncryptedVault());
     }
 }

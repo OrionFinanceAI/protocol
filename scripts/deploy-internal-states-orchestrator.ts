@@ -1,6 +1,5 @@
 import * as dotenv from "dotenv";
-
-const { ethers, upgrades, network } = require("hardhat");
+import { ethers, network, upgrades } from "hardhat";
 
 dotenv.config();
 
