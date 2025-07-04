@@ -54,29 +54,6 @@
       "type": "function"
     },
     {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "initialOwner",
-          "type": "address"
-        },
-        {
-          "internalType": "address",
-          "name": "automationRegistry_",
-          "type": "address"
-        },
-        {
-          "internalType": "address",
-          "name": "config_",
-          "type": "address"
-        }
-      ],
-      "name": "initialize",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
       "inputs": [],
       "name": "nextUpdateTime",
       "outputs": [

@@ -14,9 +14,6 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     function automationRegistry() external view returns (address);
     function config() external view returns (IOrionConfig);
 
-    // Initialization
-    function initialize(address initialOwner, address automationRegistry_, address config_) external;
-
     // Configuration functions
     function updateAutomationRegistry(address newAutomationRegistry) external;
     function updateConfig(address newConfig) external;

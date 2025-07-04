@@ -17,7 +17,7 @@ import { EventsLib } from "./libraries/EventsLib.sol";
  * privacy of the portfolio allocation strategy, while maintaining capital efficiency.
  */
 contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
-    /// @notice Current portfolio amounts (w_0) - mapping of token address to live allocation
+    /// @notice Current portfolio shares per asset (w_0) - mapping of token address to live allocation
     mapping(address => euint32) internal _portfolio;
     address[] internal _portfolioKeys;
 
@@ -60,14 +60,14 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
 
     // --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
 
-    function getPortfolio() external view returns (address[] memory tokens, euint32[] memory amounts) {
+    function getPortfolio() external view returns (address[] memory tokens, euint32[] memory sharesPerAsset) {
         uint256 length = _portfolioKeys.length;
         tokens = new address[](length);
-        amounts = new euint32[](length);
+        sharesPerAsset = new euint32[](length);
         for (uint256 i = 0; i < length; i++) {
             address token = _portfolioKeys[i];
             tokens[i] = token;
-            amounts[i] = _portfolio[token];
+            sharesPerAsset[i] = _portfolio[token];
         }
     }
 }

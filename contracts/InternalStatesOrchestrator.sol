@@ -45,6 +45,9 @@ contract InternalStatesOrchestrator is
     /// @notice Orion Config contract address
     IOrionConfig public config;
 
+    /// @notice Counter for tracking processing cycles
+    uint256 public epochCounter;
+
     function initialize(address initialOwner, address automationRegistry_, address config_) public initializer {
         __Ownable2Step_init();
         __UUPSUpgradeable_init();
@@ -56,6 +59,7 @@ contract InternalStatesOrchestrator is
         config = IOrionConfig(config_);
 
         nextUpdateTime = _computeNextUpdateTime(block.timestamp);
+        epochCounter = 0;
     }
 
     // solhint-disable-next-line no-empty-blocks
@@ -91,7 +95,6 @@ contract InternalStatesOrchestrator is
         // NOTE: we can compute here all read-only states to generate payload to then pass to performUpkeep
         // https://docs.chain.link/chainlink-automation/reference/automation-interfaces
         // Losing atomicity, but better for scalability.
-        return (upkeepNeeded, performData);
     }
 
     /// @notice Performs state reading and estimation operations
@@ -102,6 +105,7 @@ contract InternalStatesOrchestrator is
     function performUpkeep(bytes calldata) external override onlyAutomationRegistry nonReentrant {
         if (!_shouldTriggerUpkeep()) revert ErrorsLib.TooEarly();
         nextUpdateTime = _computeNextUpdateTime(block.timestamp);
+        epochCounter++;
 
         IOracleRegistry registry = IOracleRegistry(config.oracleRegistry());
 
@@ -109,7 +113,7 @@ contract InternalStatesOrchestrator is
         for (uint256 i = 0; i < transparentVaults.length; i++) {
             IOrionTransparentVault vault = IOrionTransparentVault(transparentVaults[i]);
 
-            (address[] memory portfolioTokens, uint256[] memory portfolioAmounts) = vault.getPortfolio();
+            (address[] memory portfolioTokens, uint256[] memory sharesPerAsset) = vault.getPortfolio();
 
             // TODO: refacto t1 and t2 computation into vault contract.
             // Feat: curator to be able to call estimated current total supply (t2) to inform their trades,
@@ -120,8 +124,8 @@ contract InternalStatesOrchestrator is
             uint256 t1_hat = 0;
             for (uint256 j = 0; j < portfolioTokens.length; j++) {
                 address token = portfolioTokens[j];
-                uint256 amount = portfolioAmounts[j];
-                t1_hat += registry.price(token) * amount;
+                uint256 sharesPerAsset_ = sharesPerAsset[j];
+                t1_hat += registry.price(token) * sharesPerAsset_;
             }
 
             // Calculate estimated (active and passive) total assets (t_2)
@@ -144,11 +148,11 @@ contract InternalStatesOrchestrator is
         for (uint256 i = 0; i < encryptedVaults.length; i++) {
             IOrionEncryptedVault vault = IOrionEncryptedVault(encryptedVaults[i]);
 
-            (address[] memory portfolioTokens, euint32[] memory portfolioAmounts) = vault.getPortfolio();
+            (address[] memory portfolioTokens, euint32[] memory sharesPerAsset) = vault.getPortfolio();
             // TODO: add entry point for Zama coprocessor for both dot product and batching operations.
         }
 
-        emit EventsLib.InternalStateProcessed(block.timestamp);
+        emit EventsLib.InternalStateProcessed(epochCounter);
         // TODO: have additional chainlink automation offchain process
         // triggered by this event and triggering liquidity orchestrator.
         // Move to liquidity orchestrator:

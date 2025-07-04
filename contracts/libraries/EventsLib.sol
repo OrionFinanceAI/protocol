@@ -30,7 +30,7 @@ library EventsLib {
 
     // Internal States Orchestrator Events
     /// @notice Emitted when internal states are processed
-    event InternalStateProcessed(uint256 timestamp);
+    event InternalStateProcessed(uint256 epochCounter);
 
     /// @notice Emitted when the Chainlink Automation Registry address is updated
     event AutomationRegistryUpdated(address indexed newAutomationRegistry);

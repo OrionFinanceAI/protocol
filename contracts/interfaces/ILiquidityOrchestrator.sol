@@ -8,6 +8,4 @@ pragma solidity ^0.8.20;
 ///      This interface defines the functions that the Liquidity Orchestrator will implement
 ///      to handle actual transaction execution and state writing operations, in contrast
 ///      to the Internal States Orchestrator which only performs read operations and estimations.
-interface ILiquidityOrchestrator {
-    function initialize(address initialOwner) external;
-}
+interface ILiquidityOrchestrator {}

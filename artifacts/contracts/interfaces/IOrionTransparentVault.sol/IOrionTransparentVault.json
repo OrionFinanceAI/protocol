@@ -365,7 +365,7 @@
         },
         {
           "internalType": "uint256[]",
-          "name": "amounts",
+          "name": "sharesPerAsset",
           "type": "uint256[]"
         }
       ],

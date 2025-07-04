@@ -56,10 +56,10 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
  *
  * 5. Curator Intent (w_1) [%] - Target portfolio expressed in percentage of total assets.
  *    - Units: Percentage points
- *    - This value must be specified in percentage of Total Value Locked (TVL) because
- *      the curator does not know the exact amount of assets in the vault at the time of intent submission.
- *      While the curator may estimate the vault’s contents, the actual value may vary due to external deposits,
- *      withdrawals, or fluctuations.
+ *    - This value must be specified in percentage of total supply because
+ *      the curator does not know the point-in-time amount of assets in the vault at the time of intent submission.
+ *      While the curator can estimate this value reading the vault’s state and oracle prices,
+ *      the actual value at time of execution may differ.
  */
 abstract contract OrionVault is
     Initializable,
@@ -189,8 +189,11 @@ abstract contract OrionVault is
 
     /// --------- LP FUNCTIONS ---------
 
-    /// @notice LPs submits async deposit request; no share tokens minted yet,
-    /// while underlying tokens are transferred to the vault contract as escrow.
+    /// @notice Submit an asynchronous deposit request.
+    /// @dev No share tokens are minted immediately. The specified amount of underlying tokens
+    ///      is transferred to the vault as escrow. LPs can later cancel this request to withdraw
+    ///      their escrowed tokens before any minting occurs.
+    /// @param amount The amount of the underlying asset to deposit into escrow.
     function requestDeposit(uint256 amount) external nonReentrant {
         // Checks first
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
@@ -209,9 +212,10 @@ abstract contract OrionVault is
         emit EventsLib.DepositRequested(msg.sender, amount, _depositRequestors.length);
     }
 
-    /// @notice Allow LPs to cancel their deposit request, withdrawing their escrowed tokens before minting,
-    /// this makes the system more trustless.
-    /// @param amount The amount of underlying tokens to withdraw from escrow
+    /// @notice Cancel a previously submitted deposit request.
+    /// @dev Allows LPs to withdraw their escrowed tokens before any share tokens are minted.
+    ///      The request must still have enough balance remaining to cover the cancellation.
+    /// @param amount The amount of escrowed tokens to withdraw.
     function cancelDepositRequest(uint256 amount) external nonReentrant {
         // Checks first
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
@@ -220,6 +224,9 @@ abstract contract OrionVault is
         // Effects - update internal state before external interactions
         _depositRequests[msg.sender] -= amount;
         uint256 depositorCount = _depositRequestors.length;
+
+        // TODO: treat case in which _depositRequests[msg.sender] == 0 now, and remove from _depositRequestors.
+        // do same in cancelWithdrawRequest.
 
         // Interactions - external calls last
         bool success = IERC20(asset()).transfer(msg.sender, amount);
@@ -245,6 +252,8 @@ abstract contract OrionVault is
 
         emit EventsLib.WithdrawRequested(msg.sender, shares, _withdrawRequestors.length);
     }
+
+    // TODO: cancelWithdrawRequest.
 
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
 
