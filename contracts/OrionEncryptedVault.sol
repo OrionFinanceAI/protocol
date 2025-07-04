@@ -49,9 +49,8 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
 
         for (uint256 i = 0; i < order.length; i++) {
             address token = order[i].token;
-            euint32 weight = order[i].weight;
             if (!config.isWhitelisted(token)) revert ErrorsLib.TokenNotWhitelisted(token);
-            _intent[token] = weight;
+            _intent[token] = order[i].weight;
             _intentKeys.push(token);
         }
 
@@ -69,5 +68,25 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
             tokens[i] = token;
             sharesPerAsset[i] = _portfolio[token];
         }
+    }
+
+    // --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
+
+    // TODO: Get the encrypted sharesPerAsset executed by the liquidity orchestrator
+    // and update the vault intent with an encrypted calibration error before storing it.
+    function updateVaultState(EncryptedPosition[] calldata portfolio) external onlyLiquidityOrchestrator {
+        // Clear previous portfolio by setting weights to zero
+        for (uint256 i = 0; i < _portfolioKeys.length; i++) {
+            _portfolio[_portfolioKeys[i]] = TFHE.asEuint32(0);
+        }
+        delete _portfolioKeys;
+
+        // Update portfolio
+        for (uint256 i = 0; i < portfolio.length; i++) {
+            _portfolio[portfolio[i].token] = portfolio[i].weight;
+            _portfolioKeys.push(portfolio[i].token);
+        }
+
+        // TODO: emit event.
     }
 }

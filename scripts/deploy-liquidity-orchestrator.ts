@@ -1,9 +1,18 @@
+import * as dotenv from "dotenv";
 import { ethers, network, upgrades } from "hardhat";
+
+dotenv.config();
 
 async function main() {
   const [deployer] = await ethers.getSigners();
   console.log("Deploying LiquidityOrchestrator with:", await deployer.getAddress());
   console.log("Network:", network.name);
+
+  const configAddress = process.env.CONFIG_ADDRESS;
+  if (!configAddress) {
+    throw new Error("Please set CONFIG_ADDRESS in your .env file");
+  }
+  console.log("Using OrionConfig at:", configAddress);
 
   const LiquidityOrchestrator = await ethers.getContractFactory("LiquidityOrchestrator");
   const ERC1967Proxy = await ethers.getContractFactory("ERC1967Proxy");
@@ -18,13 +27,16 @@ async function main() {
     console.log("Implementation deployed at:", implementationAddress);
 
     console.log("Deploying proxy...");
-    const initData = LiquidityOrchestrator.interface.encodeFunctionData("initialize", [deployer.address]);
+    const initData = LiquidityOrchestrator.interface.encodeFunctionData("initialize", [
+      deployer.address,
+      configAddress,
+    ]);
     const proxy = await ERC1967Proxy.deploy(implementationAddress, initData);
     await proxy.waitForDeployment();
 
     liquidityOrchestratorProxy = await ethers.getContractAt("LiquidityOrchestrator", await proxy.getAddress());
   } else {
-    liquidityOrchestratorProxy = await upgrades.deployProxy(LiquidityOrchestrator, [deployer.address], {
+    liquidityOrchestratorProxy = await upgrades.deployProxy(LiquidityOrchestrator, [deployer.address, configAddress], {
       initializer: "initialize",
     });
     await liquidityOrchestratorProxy.waitForDeployment();

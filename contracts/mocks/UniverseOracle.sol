@@ -24,7 +24,10 @@ contract UniverseOracle is Initializable, Ownable2StepUpgradeable, UUPSUpgradeab
         _transferOwnership(initialOwner);
     }
 
-    function _authorizeUpgrade(address) internal override onlyOwner {}
+    // solhint-disable-next-line no-empty-blocks
+    function _authorizeUpgrade(address) internal override onlyOwner {
+        // Only the owner can upgrade the contract
+    }
 
     /// @inheritdoc IAssetOracle
     function price() external view returns (uint256) {

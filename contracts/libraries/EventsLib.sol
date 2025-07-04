@@ -29,11 +29,11 @@ library EventsLib {
     event VaultStateUpdated(uint256 newTotalAssets);
 
     // Internal States Orchestrator Events
-    /// @notice Emitted when internal states are processed
     event InternalStateProcessed(uint256 epochCounter);
-
-    /// @notice Emitted when the Chainlink Automation Registry address is updated
     event AutomationRegistryUpdated(address indexed newAutomationRegistry);
+
+    // Liquidity Orchestrator Events
+    event PortfolioRebalanced();
 
     // Oracle Registry Events
     event OracleRegistered(address indexed asset, address indexed oracle);

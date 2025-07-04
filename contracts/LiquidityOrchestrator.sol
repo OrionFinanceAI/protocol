@@ -5,6 +5,11 @@ import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "./interfaces/ILiquidityOrchestrator.sol";
+import "./interfaces/IOrionConfig.sol";
+import "./libraries/EventsLib.sol";
+import "./interfaces/IOrionTransparentVault.sol";
+import "./interfaces/IOrionEncryptedVault.sol";
+import { ErrorsLib } from "./libraries/ErrorsLib.sol";
 
 /// @title Liquidity Orchestrator
 /// @notice Orchestrates transaction execution and vault state modifications
@@ -20,10 +25,16 @@ import "./interfaces/ILiquidityOrchestrator.sol";
 ///      The Internal States Orchestrator only reads states and performs estimations.
 ///      This contract handles the actual execution and state writing.
 contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable, ILiquidityOrchestrator {
-    function initialize(address initialOwner) external initializer {
+    /// @notice Orion Config contract address
+    IOrionConfig public config;
+
+    function initialize(address initialOwner, address config_) external initializer {
         __Ownable2Step_init();
         __UUPSUpgradeable_init();
         _transferOwnership(initialOwner);
+
+        if (config_ == address(0)) revert ErrorsLib.ZeroAddress();
+        config = IOrionConfig(config_);
     }
 
     // solhint-disable-next-line no-empty-blocks
@@ -40,9 +51,19 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         // 3. Calculate target shares for all but last asset (using priceOracle.getPrice)
         // 4. Adjust last asset target shares post N-1 executions for rounding/trade error
         // 5. Execute trades to reach target shares via executeTrade()
-        // 6. Update internal portfolio shares mapping
-        // 7. Emit PortfolioRebalanced event.
-        // emit PortfolioRebalanced();
+        emit EventsLib.PortfolioRebalanced();
+
+        address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
+        for (uint256 i = 0; i < transparentVaults.length; i++) {
+            IOrionTransparentVault vault = IOrionTransparentVault(transparentVaults[i]);
+            vault.updateVaultState(new IOrionTransparentVault.Position[](0)); // TODO: implement.
+        }
+
+        address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
+        for (uint256 i = 0; i < encryptedVaults.length; i++) {
+            IOrionEncryptedVault vault = IOrionEncryptedVault(encryptedVaults[i]);
+            vault.updateVaultState(new IOrionEncryptedVault.EncryptedPosition[](0)); // TODO: implement.
+        }
     }
 
     // TODO: vault states t0, w_0 to be updated at the end of the execution.

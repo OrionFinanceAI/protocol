@@ -121,11 +121,11 @@ contract InternalStatesOrchestrator is
             // to inform the trades of the liquidity orchestrator.
 
             // Calculate estimated active total assets (t_1)
-            uint256 t1_hat = 0;
+            uint256 t1Hat = 0;
             for (uint256 j = 0; j < portfolioTokens.length; j++) {
                 address token = portfolioTokens[j];
                 uint256 sharesPerAsset_ = sharesPerAsset[j];
-                t1_hat += registry.price(token) * sharesPerAsset_;
+                t1Hat += registry.price(token) * sharesPerAsset_;
             }
 
             // Calculate estimated (active and passive) total assets (t_2)
@@ -150,6 +150,8 @@ contract InternalStatesOrchestrator is
 
             (address[] memory portfolioTokens, euint32[] memory sharesPerAsset) = vault.getPortfolio();
             // TODO: add entry point for Zama coprocessor for both dot product and batching operations.
+            portfolioTokens;
+            sharesPerAsset;
         }
 
         emit EventsLib.InternalStateProcessed(epochCounter);

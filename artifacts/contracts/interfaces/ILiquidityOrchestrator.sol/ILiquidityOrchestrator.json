@@ -2,7 +2,15 @@
   "_format": "hh-sol-artifact-1",
   "contractName": "ILiquidityOrchestrator",
   "sourceName": "contracts/interfaces/ILiquidityOrchestrator.sol",
-  "abi": [],
+  "abi": [
+    {
+      "inputs": [],
+      "name": "rebalancePortfolio",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
   "bytecode": "0x",
   "deployedBytecode": "0x",
   "linkReferences": {},
