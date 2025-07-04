@@ -1,0 +1,25 @@
+coverage:
+  status:
+    project:
+      default:
+        target: 90%
+        threshold: 0%
+        branches:
+          - main
+        informational: false
+    patch:
+      default:
+        target: 100%
+        threshold: 0%
+        informational: false
+
+  ignore:
+    - "test/**"
+    - "**/mocks/**"
+    - "**/*.t.sol"
+    - "artifacts/**"
+    - "scripts/**"
+    - "audits/**"
+    - "*.config.ts"
+    - "*.md"
+    - "assets/**"
