@@ -38,7 +38,7 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
 
     /// @notice Submit an encrypted portfolio intent.
     /// @param order EncryptedPosition struct containing the tokens and encrypted weights.
-    function submitOrderIntent(EncryptedPosition[] calldata order) external onlyCurator {
+    function submitIntent(EncryptedPosition[] calldata order) external onlyCurator {
         if (order.length == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
 
         // Clear previous intent by setting weights to zero

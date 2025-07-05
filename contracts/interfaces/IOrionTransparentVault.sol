@@ -17,10 +17,13 @@ interface IOrionTransparentVault is IOrionVault {
 
     /// @notice Submit a plaintext portfolio intent.
     /// @param order Position structs array containing the tokens and plaintext weights.
-    function submitOrderIntent(Position[] calldata order) external;
+    function submitIntent(Position[] calldata order) external;
 
     /// @notice Returns the current portfolio (w_0).
     function getPortfolio() external view returns (address[] memory tokens, uint256[] memory sharesPerAsset);
+
+    /// @notice Returns the current portfolio intent (w_1).
+    function getIntent() external view returns (address[] memory tokens, uint256[] memory weights);
 
     // TODO: add docstring once implemented.
     function updateVaultState(Position[] calldata portfolio, uint256 newTotalAssets) external;

@@ -38,7 +38,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
     /// @notice Submit a plaintext portfolio intent.
     /// @param order Position struct containing the tokens and plaintext weights.
-    function submitOrderIntent(Position[] calldata order) external onlyCurator {
+    function submitIntent(Position[] calldata order) external onlyCurator {
         if (order.length == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
 
         _portfolioIntent.clear();
@@ -71,6 +71,17 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
             (address token, uint256 sharesPerAsset_) = _portfolio.at(i);
             tokens[i] = token;
             sharesPerAsset[i] = sharesPerAsset_;
+        }
+    }
+
+    function getIntent() external view returns (address[] memory tokens, uint256[] memory weights) {
+        uint256 length = _portfolioIntent.length();
+        tokens = new address[](length);
+        weights = new uint256[](length);
+        for (uint256 i = 0; i < length; i++) {
+            (address token, uint256 weight) = _portfolioIntent.at(i);
+            tokens[i] = token;
+            weights[i] = weight;
         }
     }
 
