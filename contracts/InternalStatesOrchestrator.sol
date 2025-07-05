@@ -5,6 +5,8 @@ import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
+import "@openzeppelin/contracts/utils/math/Math.sol";
 import "./interfaces/IOrionConfig.sol";
 import "./interfaces/IOrionVault.sol";
 import "./interfaces/IOrionTransparentVault.sol";
@@ -33,6 +35,8 @@ contract InternalStatesOrchestrator is
     UUPSUpgradeable,
     IInternalStateOrchestrator
 {
+    using EnumerableMap for EnumerableMap.AddressToUintMap;
+
     /// @notice Timestamp when the next upkeep is allowed
     uint256 public nextUpdateTime;
 
@@ -47,6 +51,15 @@ contract InternalStatesOrchestrator is
 
     /// @notice Counter for tracking processing cycles
     uint256 public epochCounter;
+
+    /// @notice Initial batch portfolio (w_0) - mapping of token address to estimated value [assets]
+    EnumerableMap.AddressToUintMap internal _initialBatchPortfolioHat;
+
+    /// @notice Final batch portfolio (w_1) - mapping of token address to estimated value [assets]
+    EnumerableMap.AddressToUintMap internal _finalBatchPortfolioHat;
+
+    // TODO: encrypted batched portfolio to be summed up in Zama coprocessor and then added to the batchPortfolio.
+    // mapping(address => euint32) internal _encryptedBatchPortfolio;
 
     function initialize(address initialOwner, address automationRegistry_, address config_) public initializer {
         __Ownable_init(initialOwner);
@@ -109,6 +122,10 @@ contract InternalStatesOrchestrator is
 
         IOracleRegistry registry = IOracleRegistry(config.oracleRegistry());
 
+        // Reset the batch portfolios (remove all previous entries)
+        _initialBatchPortfolioHat.clear();
+        _finalBatchPortfolioHat.clear();
+
         address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
         uint256 length = transparentVaults.length;
         for (uint256 i = 0; i < length; i++) {
@@ -116,33 +133,48 @@ contract InternalStatesOrchestrator is
 
             (address[] memory portfolioTokens, uint256[] memory sharesPerAsset) = vault.getPortfolio();
 
-            // Calculate estimated active total assets (t_1)
+            // Calculate estimated active total assets (t_1) and populate batch portfolio
             uint256 t1Hat = 0;
             uint256 portfolioLength = portfolioTokens.length;
             for (uint256 j = 0; j < portfolioLength; j++) {
                 address token = portfolioTokens[j];
-                uint256 sharesPerAsset_ = sharesPerAsset[j];
-                t1Hat += registry.price(token) * sharesPerAsset_;
+                uint256 price = registry.price(token);
+                uint256 value = price * sharesPerAsset[j];
+                t1Hat += value;
+
+                // Update existing value or insert if not present
+                (bool exists, uint256 currentValue) = _initialBatchPortfolioHat.tryGet(token);
+                if (exists) {
+                    _initialBatchPortfolioHat.set(token, currentValue + value);
+                } else {
+                    _initialBatchPortfolioHat.set(token, value);
+                }
             }
 
-            uint256 PendingWithdrawalsHat = vault.convertToAssetsWithPITTotalAssets(
+            uint256 pendingWithdrawalsHat = vault.convertToAssetsWithPITTotalAssets(
                 vault.getPendingWithdrawals(),
                 t1Hat,
                 Math.Rounding.Floor
             );
 
             // Calculate estimated (active and passive) total assets (t_2)
-            uint256 t2Hat = t1Hat + vault.getPendingDeposits() - PendingWithdrawalsHat;
+            uint256 t2Hat = t1Hat + vault.getPendingDeposits() - pendingWithdrawalsHat;
 
-            // W_0 = sum(t_1 * w_0)
+            (address[] memory intentTokens, uint256[] memory intentWeights) = vault.getIntent();
 
-            // t_2 = t_1 + DR_a - WR_a
-            // W_1 = sum(t_2 * w_1)
+            uint256 intentLength = intentTokens.length;
+            for (uint256 j = 0; j < intentLength; j++) {
+                address token = intentTokens[j];
+                uint256 weight = intentWeights[j];
+                uint256 value = t2Hat * weight;
 
-            // delta_W = W_1 - W_0
-            // _processVaultStates();
-            // TODO. Be sure to remove unused functions across contracts,
-            // there may be, given the current degree of refactoring.
+                (bool exists, uint256 currentValue) = _finalBatchPortfolioHat.tryGet(token);
+                if (exists) {
+                    _finalBatchPortfolioHat.set(token, currentValue + value);
+                } else {
+                    _finalBatchPortfolioHat.set(token, value);
+                }
+            }
         }
 
         address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
@@ -159,6 +191,22 @@ contract InternalStatesOrchestrator is
         // triggered by this event and triggering liquidity orchestrator.
         // Move to liquidity orchestrator:
         // Process delta_W, WR, DR. Here I use p_t. // TODO: investigate DR/W netting.
+        // delta_W = W_1 - W_0
+        // _processVaultStates();
+        // TODO. Be sure to remove unused functions across contracts,
+        // there may be, given the current degree of refactoring.
+    }
+
+    function getInitialBatchPortfolioHat() external view returns (address[] memory tokens, uint256[] memory values) {
+        uint256 length = _initialBatchPortfolioHat.length();
+        address[] memory tokens_ = new address[](length);
+        uint256[] memory values_ = new uint256[](length);
+        for (uint256 i = 0; i < length; i++) {
+            (address key, uint256 value) = _initialBatchPortfolioHat.at(i);
+            tokens_[i] = key;
+            values_[i] = value;
+        }
+        return (tokens_, values_);
     }
 
     /// @notice Computes the next update time based on current timestamp

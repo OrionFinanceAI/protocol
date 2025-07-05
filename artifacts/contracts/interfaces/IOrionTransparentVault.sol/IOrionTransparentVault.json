@@ -359,6 +359,24 @@
     },
     {
       "inputs": [],
+      "name": "getIntent",
+      "outputs": [
+        {
+          "internalType": "address[]",
+          "name": "tokens",
+          "type": "address[]"
+        },
+        {
+          "internalType": "uint256[]",
+          "name": "weights",
+          "type": "uint256[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
       "name": "getPendingDeposits",
       "outputs": [
         {
@@ -707,7 +725,7 @@
           "type": "tuple[]"
         }
       ],
-      "name": "submitOrderIntent",
+      "name": "submitIntent",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

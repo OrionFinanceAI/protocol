@@ -333,5 +333,5 @@ abstract contract OrionVault is
     // And therefore another for curator to withdraw assets from curator fee escrow?
 
     /// --------- ABSTRACT FUNCTIONS ---------
-    /// @notice Derived contracts implement their specific submitOrderIntent functions
+    /// @notice Derived contracts implement their specific submitIntent functions
 }

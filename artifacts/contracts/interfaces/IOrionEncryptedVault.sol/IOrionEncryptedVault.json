@@ -707,7 +707,7 @@
           "type": "tuple[]"
         }
       ],
-      "name": "submitOrderIntent",
+      "name": "submitIntent",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
