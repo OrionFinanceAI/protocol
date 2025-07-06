@@ -189,7 +189,10 @@ contract InternalStatesOrchestrator is
             IOrionEncryptedVault vault = IOrionEncryptedVault(encryptedVaults[i]);
 
             (address[] memory portfolioTokens, euint32[] memory sharesPerAsset) = vault.getPortfolio();
+
             // TODO: add entry point for Zama coprocessor for both dot product and batching operations.
+
+            (address[] memory intentTokens, euint32[] memory intentWeights) = vault.getIntent();
         }
 
         emit EventsLib.InternalStateProcessed(epochCounter);

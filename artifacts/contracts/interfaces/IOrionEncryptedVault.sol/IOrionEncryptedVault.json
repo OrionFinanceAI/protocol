@@ -359,6 +359,24 @@
     },
     {
       "inputs": [],
+      "name": "getIntent",
+      "outputs": [
+        {
+          "internalType": "address[]",
+          "name": "tokens",
+          "type": "address[]"
+        },
+        {
+          "internalType": "euint32[]",
+          "name": "weights",
+          "type": "uint256[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
       "name": "getPendingDeposits",
       "outputs": [
         {

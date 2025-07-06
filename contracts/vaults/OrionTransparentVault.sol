@@ -63,6 +63,9 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
     // --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
 
+    /// @notice Get the transparent portfolio.
+    /// @return tokens The tokens in the portfolio.
+    /// @return sharesPerAsset The shares per asset in the portfolio.
     function getPortfolio() external view returns (address[] memory tokens, uint256[] memory sharesPerAsset) {
         uint256 length = _portfolio.length();
         tokens = new address[](length);
@@ -74,6 +77,9 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
         }
     }
 
+    /// @notice Get the transparent intent.
+    /// @return tokens The tokens in the intent.
+    /// @return weights The weights in the intent.
     function getIntent() external view returns (address[] memory tokens, uint256[] memory weights) {
         uint256 length = _portfolioIntent.length();
         tokens = new address[](length);

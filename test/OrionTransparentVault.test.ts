@@ -319,6 +319,172 @@ describe("OrionTransparentVault", function () {
     });
   });
 
+  describe("Portfolio and Intent View Functions", function () {
+    it("Should return empty portfolio initially", async function () {
+      const { vault } = await loadFixture(deployVaultFixture);
+      const [tokens, sharesPerAsset] = await vault.getPortfolio();
+      expect(tokens.length).to.equal(0);
+      expect(sharesPerAsset.length).to.equal(0);
+    });
+
+    it("Should return empty intent initially", async function () {
+      const { vault } = await loadFixture(deployVaultFixture);
+      const [tokens, weights] = await vault.getIntent();
+      expect(tokens.length).to.equal(0);
+      expect(weights.length).to.equal(0);
+    });
+
+    it("Should return correct intent after curator submits order", async function () {
+      const { vault, curator, config } = await loadFixture(deployVaultFixture);
+
+      // Add whitelisted tokens
+      const token1 = ethers.Wallet.createRandom().address;
+      const token2 = ethers.Wallet.createRandom().address;
+      await config.addWhitelistedAsset(token1);
+      await config.addWhitelistedAsset(token2);
+
+      // Submit intent
+      const order = [
+        { token: token1, weight: 600000 },
+        { token: token2, weight: 400000 },
+      ];
+      await vault.connect(curator).submitIntent(order);
+
+      // Get intent and verify
+      const [tokens, weights] = await vault.getIntent();
+      expect(tokens.length).to.equal(2);
+      expect(weights.length).to.equal(2);
+
+      // Check that both tokens are included (order might be different)
+      expect(tokens).to.include(token1);
+      expect(tokens).to.include(token2);
+
+      // Find indices and check weights
+      const token1Index = tokens.indexOf(token1);
+      const token2Index = tokens.indexOf(token2);
+      expect(weights[token1Index]).to.equal(600000);
+      expect(weights[token2Index]).to.equal(400000);
+    });
+
+    it("Should return correct portfolio after liquidity orchestrator updates state", async function () {
+      const { vault, liquidityOrchestrator } = await loadFixture(deployVaultFixture);
+
+      // Create portfolio update
+      const token1 = ethers.Wallet.createRandom().address;
+      const token2 = ethers.Wallet.createRandom().address;
+      const portfolio = [
+        { token: token1, weight: 750000 },
+        { token: token2, weight: 250000 },
+      ];
+      const totalAssets = ethers.parseUnits("1000", 6);
+
+      // Update vault state
+      await vault.connect(liquidityOrchestrator).updateVaultState(portfolio, totalAssets);
+
+      // Get portfolio and verify
+      const [tokens, sharesPerAsset] = await vault.getPortfolio();
+      expect(tokens.length).to.equal(2);
+      expect(sharesPerAsset.length).to.equal(2);
+
+      // Check that both tokens are included
+      expect(tokens).to.include(token1);
+      expect(tokens).to.include(token2);
+
+      // Find indices and check shares
+      const token1Index = tokens.indexOf(token1);
+      const token2Index = tokens.indexOf(token2);
+      expect(sharesPerAsset[token1Index]).to.equal(750000);
+      expect(sharesPerAsset[token2Index]).to.equal(250000);
+    });
+
+    it("Should handle single token intent", async function () {
+      const { vault, curator, config } = await loadFixture(deployVaultFixture);
+
+      const token = ethers.Wallet.createRandom().address;
+      await config.addWhitelistedAsset(token);
+
+      const order = [{ token: token, weight: 1000000 }];
+      await vault.connect(curator).submitIntent(order);
+
+      const [tokens, weights] = await vault.getIntent();
+      expect(tokens.length).to.equal(1);
+      expect(weights.length).to.equal(1);
+      expect(tokens[0]).to.equal(token);
+      expect(weights[0]).to.equal(1000000);
+    });
+
+    it("Should handle single token portfolio", async function () {
+      const { vault, liquidityOrchestrator } = await loadFixture(deployVaultFixture);
+
+      const token = ethers.Wallet.createRandom().address;
+      const portfolio = [{ token: token, weight: 1000000 }];
+      const totalAssets = ethers.parseUnits("500", 6);
+
+      await vault.connect(liquidityOrchestrator).updateVaultState(portfolio, totalAssets);
+
+      const [tokens, sharesPerAsset] = await vault.getPortfolio();
+      expect(tokens.length).to.equal(1);
+      expect(sharesPerAsset.length).to.equal(1);
+      expect(tokens[0]).to.equal(token);
+      expect(sharesPerAsset[0]).to.equal(1000000);
+    });
+
+    it("Should clear previous intent when new intent is submitted", async function () {
+      const { vault, curator, config } = await loadFixture(deployVaultFixture);
+
+      // Add whitelisted tokens
+      const token1 = ethers.Wallet.createRandom().address;
+      const token2 = ethers.Wallet.createRandom().address;
+      const token3 = ethers.Wallet.createRandom().address;
+      await config.addWhitelistedAsset(token1);
+      await config.addWhitelistedAsset(token2);
+      await config.addWhitelistedAsset(token3);
+
+      // Submit first intent
+      const order1 = [
+        { token: token1, weight: 500000 },
+        { token: token2, weight: 500000 },
+      ];
+      await vault.connect(curator).submitIntent(order1);
+
+      // Submit second intent with different tokens
+      const order2 = [{ token: token3, weight: 1000000 }];
+      await vault.connect(curator).submitIntent(order2);
+
+      // Verify only the new intent is returned
+      const [tokens, weights] = await vault.getIntent();
+      expect(tokens.length).to.equal(1);
+      expect(weights.length).to.equal(1);
+      expect(tokens[0]).to.equal(token3);
+      expect(weights[0]).to.equal(1000000);
+    });
+
+    it("Should clear previous portfolio when new portfolio is updated", async function () {
+      const { vault, liquidityOrchestrator } = await loadFixture(deployVaultFixture);
+
+      // First portfolio update
+      const token1 = ethers.Wallet.createRandom().address;
+      const token2 = ethers.Wallet.createRandom().address;
+      const portfolio1 = [
+        { token: token1, weight: 600000 },
+        { token: token2, weight: 400000 },
+      ];
+      await vault.connect(liquidityOrchestrator).updateVaultState(portfolio1, ethers.parseUnits("1000", 6));
+
+      // Second portfolio update with different tokens
+      const token3 = ethers.Wallet.createRandom().address;
+      const portfolio2 = [{ token: token3, weight: 1000000 }];
+      await vault.connect(liquidityOrchestrator).updateVaultState(portfolio2, ethers.parseUnits("1500", 6));
+
+      // Verify only the new portfolio is returned
+      const [tokens, sharesPerAsset] = await vault.getPortfolio();
+      expect(tokens.length).to.equal(1);
+      expect(sharesPerAsset.length).to.equal(1);
+      expect(tokens[0]).to.equal(token3);
+      expect(sharesPerAsset[0]).to.equal(1000000);
+    });
+  });
+
   describe("Edge Cases and Error Handling", function () {
     it("Should handle reentrancy protection", async function () {
       const { vault, liquidityOrchestrator } = await loadFixture(deployVaultFixture);

@@ -62,6 +62,9 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
 
     // --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
 
+    /// @notice Get the encrypted portfolio.
+    /// @return tokens The tokens in the portfolio.
+    /// @return sharesPerAsset The shares per asset in the portfolio.
     function getPortfolio() external view returns (address[] memory tokens, euint32[] memory sharesPerAsset) {
         uint256 length = _portfolioKeys.length;
         tokens = new address[](length);
@@ -70,6 +73,16 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
             address token = _portfolioKeys[i];
             tokens[i] = token;
             sharesPerAsset[i] = _portfolio[token];
+        }
+    }
+
+    function getIntent() external view returns (address[] memory tokens, euint32[] memory weights) {
+        uint256 length = _intentKeys.length;
+        tokens = new address[](length);
+        weights = new euint32[](length);
+        for (uint256 i = 0; i < length; i++) {
+            tokens[i] = _intentKeys[i];
+            weights[i] = _intent[_intentKeys[i]];
         }
     }
 
