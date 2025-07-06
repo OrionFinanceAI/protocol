@@ -13,8 +13,16 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     function updateInterval() external view returns (uint256);
     function automationRegistry() external view returns (address);
     function config() external view returns (IOrionConfig);
+    function epochCounter() external view returns (uint256);
 
     // Configuration functions
     function updateAutomationRegistry(address newAutomationRegistry) external;
     function updateConfig(address newConfig) external;
+
+    // Price functions
+    function getPriceEstimates() external view returns (address[] memory, uint256[] memory);
+
+    // Portfolio functions
+    function getInitialBatchPortfolioHat() external view returns (address[] memory, uint256[] memory);
+    function getFinalBatchPortfolioHat() external view returns (address[] memory, uint256[] memory);
 }

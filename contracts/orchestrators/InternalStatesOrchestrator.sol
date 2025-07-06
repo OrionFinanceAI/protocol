@@ -52,13 +52,16 @@ contract InternalStatesOrchestrator is
     /// @notice Counter for tracking processing cycles
     uint256 public epochCounter;
 
+    /// @notice Price hat (p_t) - mapping of token address to estimated price [USD]
+    EnumerableMap.AddressToUintMap internal _priceHat;
+
     /// @notice Initial batch portfolio (w_0) - mapping of token address to estimated value [assets]
     EnumerableMap.AddressToUintMap internal _initialBatchPortfolioHat;
 
     /// @notice Final batch portfolio (w_1) - mapping of token address to estimated value [assets]
     EnumerableMap.AddressToUintMap internal _finalBatchPortfolioHat;
 
-    // TODO: encrypted batched portfolio to be summed up in Zama coprocessor and then added to the batchPortfolio.
+    // TODO: encrypted batched portfolio to be summed up in Zama coprocessor and then added to the two batchPortfolio.
     // mapping(address => euint32) internal _encryptedBatchPortfolio;
 
     function initialize(address initialOwner, address automationRegistry_, address config_) public initializer {
@@ -68,6 +71,8 @@ contract InternalStatesOrchestrator is
         __UUPSUpgradeable_init();
 
         if (automationRegistry_ == address(0)) revert ErrorsLib.ZeroAddress();
+        if (config_ == address(0)) revert ErrorsLib.ZeroAddress();
+
         automationRegistry = automationRegistry_;
         config = IOrionConfig(config_);
 
@@ -97,6 +102,7 @@ contract InternalStatesOrchestrator is
     /// @notice Updates the Orion Config contract address
     /// @param newConfig The new config address
     function updateConfig(address newConfig) external onlyOwner {
+        if (newConfig == address(0)) revert ErrorsLib.ZeroAddress();
         config = IOrionConfig(newConfig);
     }
 
@@ -122,9 +128,12 @@ contract InternalStatesOrchestrator is
 
         IOracleRegistry registry = IOracleRegistry(config.oracleRegistry());
 
-        // Reset the batch portfolios (remove all previous entries)
+        // Previous Epoch Variables
+        _priceHat.clear();
         _initialBatchPortfolioHat.clear();
         _finalBatchPortfolioHat.clear();
+
+        // Transparent Vaults
 
         address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
         uint256 length = transparentVaults.length;
@@ -138,18 +147,31 @@ contract InternalStatesOrchestrator is
             uint256 portfolioLength = portfolioTokens.length;
             for (uint256 j = 0; j < portfolioLength; j++) {
                 address token = portfolioTokens[j];
-                uint256 price = registry.getPrice(token);
+
+                // Get price from cache or from registry.
+                // Avoid re-fetching price if already cached.
+                uint256 price;
+                (bool priceExists, uint256 cachedPrice) = _priceHat.tryGet(token);
+                if (priceExists) {
+                    price = cachedPrice;
+                } else {
+                    price = registry.getPrice(token);
+                    // slither-disable-next-line unused-return
+                    _priceHat.set(token, price);
+                }
+
+                // Calculate estimated value of the asset.
                 uint256 value = price * sharesPerAsset[j];
+
                 t1Hat += value;
 
-                // Update existing value or insert if not present
-                (bool exists, uint256 currentValue) = _initialBatchPortfolioHat.tryGet(token);
-                if (exists) {
-                    bool success = _initialBatchPortfolioHat.set(token, currentValue + value);
-                    assert(success);
+                (bool initialValueExists, uint256 currentValue) = _initialBatchPortfolioHat.tryGet(token);
+                if (initialValueExists) {
+                    // slither-disable-next-line unused-return
+                    _initialBatchPortfolioHat.set(token, currentValue + value);
                 } else {
-                    bool success = _initialBatchPortfolioHat.set(token, value);
-                    assert(success);
+                    // slither-disable-next-line unused-return
+                    _initialBatchPortfolioHat.set(token, value);
                 }
             }
 
@@ -170,18 +192,18 @@ contract InternalStatesOrchestrator is
                 uint256 weight = intentWeights[j];
                 uint256 value = t2Hat * weight;
 
-                (bool exists, uint256 currentValue) = _finalBatchPortfolioHat.tryGet(token);
-                if (exists) {
+                (bool finalValueExists, uint256 currentValue) = _finalBatchPortfolioHat.tryGet(token);
+                if (finalValueExists) {
                     bool success = _finalBatchPortfolioHat.set(token, currentValue + value);
-                    // Set operation should always succeed for existing keys
                     assert(success);
                 } else {
                     bool success = _finalBatchPortfolioHat.set(token, value);
-                    // Set operation should always succeed for new keys
                     assert(success);
                 }
             }
         }
+
+        // Encrypted Vaults
 
         address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
         length = encryptedVaults.length;
@@ -202,20 +224,6 @@ contract InternalStatesOrchestrator is
         // Process delta_W, WR, DR. Here I use p_t. // TODO: investigate DR/W netting.
         // delta_W = W_1 - W_0
         // _processVaultStates();
-        // TODO. Be sure to remove unused functions across contracts,
-        // there may be, given the current degree of refactoring.
-    }
-
-    function getInitialBatchPortfolioHat() external view returns (address[] memory tokens, uint256[] memory values) {
-        uint256 length = _initialBatchPortfolioHat.length();
-        address[] memory tokens_ = new address[](length);
-        uint256[] memory values_ = new uint256[](length);
-        for (uint256 i = 0; i < length; i++) {
-            (address key, uint256 value) = _initialBatchPortfolioHat.at(i);
-            tokens_[i] = key;
-            values_[i] = value;
-        }
-        return (tokens_, values_);
     }
 
     /// @notice Computes the next update time based on current timestamp
@@ -230,5 +238,49 @@ contract InternalStatesOrchestrator is
     function _shouldTriggerUpkeep() internal view returns (bool) {
         // slither-disable-next-line timestamp
         return block.timestamp >= nextUpdateTime;
+    }
+
+    /* ---------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------- */
+
+    function getPriceEstimates() external view returns (address[] memory, uint256[] memory) {
+        uint256 length = _priceHat.length();
+        address[] memory tokens = new address[](length);
+        uint256[] memory values = new uint256[](length);
+        for (uint256 i = 0; i < length; i++) {
+            (address key, uint256 value) = _priceHat.at(i);
+            tokens[i] = key;
+            values[i] = value;
+        }
+        return (tokens, values);
+    }
+
+    /// @notice Get the initial batch portfolio hat
+    /// @return tokens The tokens in the batch portfolio
+    /// @return values The values in the batch portfolio
+    function getInitialBatchPortfolioHat() external view returns (address[] memory, uint256[] memory) {
+        uint256 length = _initialBatchPortfolioHat.length();
+        address[] memory tokens = new address[](length);
+        uint256[] memory values = new uint256[](length);
+        for (uint256 i = 0; i < length; i++) {
+            (address key, uint256 value) = _initialBatchPortfolioHat.at(i);
+            tokens[i] = key;
+            values[i] = value;
+        }
+        return (tokens, values);
+    }
+
+    /// @notice Get the final batch portfolio hat
+    /// @return tokens The tokens in the batch portfolio
+    /// @return values The values in the batch portfolio
+    function getFinalBatchPortfolioHat() external view returns (address[] memory, uint256[] memory) {
+        uint256 length = _finalBatchPortfolioHat.length();
+        address[] memory tokens = new address[](length);
+        uint256[] memory values = new uint256[](length);
+        for (uint256 i = 0; i < length; i++) {
+            (address key, uint256 value) = _finalBatchPortfolioHat.at(i);
+            tokens[i] = key;
+            values[i] = value;
+        }
+        return (tokens, values);
     }
 }

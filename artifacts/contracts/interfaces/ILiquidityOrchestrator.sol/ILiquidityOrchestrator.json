@@ -4,8 +4,64 @@
   "sourceName": "contracts/interfaces/ILiquidityOrchestrator.sol",
   "abi": [
     {
-      "inputs": [],
-      "name": "rebalancePortfolio",
+      "inputs": [
+        {
+          "internalType": "bytes",
+          "name": "checkData",
+          "type": "bytes"
+        }
+      ],
+      "name": "checkUpkeep",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "upkeepNeeded",
+          "type": "bool"
+        },
+        {
+          "internalType": "bytes",
+          "name": "performData",
+          "type": "bytes"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes",
+          "name": "performData",
+          "type": "bytes"
+        }
+      ],
+      "name": "performUpkeep",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "newAutomationRegistry",
+          "type": "address"
+        }
+      ],
+      "name": "updateAutomationRegistry",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "newConfig",
+          "type": "address"
+        }
+      ],
+      "name": "updateConfig",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
