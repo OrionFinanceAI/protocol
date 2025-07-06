@@ -11,6 +11,8 @@ import "../libraries/EventsLib.sol";
 import "../interfaces/IOrionTransparentVault.sol";
 import "../interfaces/IOrionEncryptedVault.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "../interfaces/IOrionVault.sol";
 
 /// @title Liquidity Orchestrator
 /// @notice Orchestrates transaction execution and vault state modifications
@@ -83,6 +85,45 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         config = IOrionConfig(newConfig);
     }
 
+    /// @notice Return deposit funds to a user who cancelled their deposit request
+    /// @dev Called by vault contracts when users cancel deposit requests
+    /// @param user The user to return funds to
+    /// @param amount The amount to return
+    function returnDepositFunds(address user, uint256 amount) external {
+        // Verify the caller is a registered vault by checking both vault types
+        address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
+        address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
+
+        bool isRegisteredVault = false;
+
+        // Check transparent vaults
+        for (uint256 i = 0; i < transparentVaults.length; i++) {
+            if (transparentVaults[i] == msg.sender) {
+                isRegisteredVault = true;
+                break;
+            }
+        }
+
+        // Check encrypted vaults if not found in transparent
+        if (!isRegisteredVault) {
+            for (uint256 i = 0; i < encryptedVaults.length; i++) {
+                if (encryptedVaults[i] == msg.sender) {
+                    isRegisteredVault = true;
+                    break;
+                }
+            }
+        }
+
+        if (!isRegisteredVault) revert ErrorsLib.NotAuthorized();
+
+        // Get the underlying asset from the vault
+        address underlyingAsset = IOrionVault(msg.sender).asset();
+
+        // Transfer funds back to the user
+        bool success = IERC20(underlyingAsset).transfer(user, amount);
+        if (!success) revert ErrorsLib.TransferFailed();
+    }
+
     /// @notice Checks if upkeep is needed by comparing epoch counters
     /// @return upkeepNeeded True if rebalancing is needed
     /// @return performData Data to pass to performUpkeep
@@ -107,9 +148,20 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
 
         (address[] memory sellingTokens, uint256[] memory sellingAmounts) = internalStatesOrchestrator
             .getSellingOrders();
+
+        for (uint256 i = 0; i < sellingTokens.length; i++) {
+            address token = sellingTokens[i];
+            uint256 amount = sellingAmounts[i];
+            // TODO: process selling order using execution module.
+        }
+
         (address[] memory buyingTokens, uint256[] memory buyingAmounts) = internalStatesOrchestrator.getBuyingOrders();
 
-        // TODO: process selling and buying orders using execution module.
+        for (uint256 i = 0; i < buyingTokens.length; i++) {
+            address token = buyingTokens[i];
+            uint256 amount = buyingAmounts[i];
+            // TODO: process buying order using execution module.
+        }
 
         // TODO: DepositRequest and WithdrawRequest in Vaults to be
         // processed (post t0 update) and removed from vault state as pending requests.

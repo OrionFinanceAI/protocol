@@ -21,11 +21,11 @@ library EventsLib {
 
     // Vault Events
     event OrderSubmitted(address indexed curator);
-    event DepositRequested(address indexed user, uint256 amount, uint256 requestId);
-    event WithdrawRequested(address indexed user, uint256 shares, uint256 requestId);
-    event DepositProcessed(address indexed user, uint256 amount, uint256 requestId);
-    event WithdrawProcessed(address indexed user, uint256 shares, uint256 requestId);
-    event DepositRequestCancelled(address indexed user, uint256 amount, uint256 depositorCount);
+    event DepositRequested(address indexed user, uint256 amount);
+    event WithdrawRequested(address indexed user, uint256 shares);
+    event DepositProcessed(address indexed user, uint256 amount);
+    event WithdrawProcessed(address indexed user, uint256 shares);
+    event DepositRequestCancelled(address indexed user, uint256 amount);
     event VaultStateUpdated(uint256 newTotalAssets);
 
     // Internal States Orchestrator Events
@@ -50,8 +50,4 @@ library EventsLib {
         address indexed deployer,
         VaultType vaultType
     );
-
-    // Liquidity Orchestrator Events
-    event DepositRequestProcessed(address indexed user, uint256 amount, uint256 requestId);
-    event WithdrawRequestProcessed(address indexed user, uint256 shares, uint256 requestId);
 }

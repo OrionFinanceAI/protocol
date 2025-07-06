@@ -384,12 +384,6 @@
           "internalType": "uint256",
           "name": "amount",
           "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "requestId",
-          "type": "uint256"
         }
       ],
       "name": "DepositProcessed",
@@ -409,12 +403,6 @@
           "internalType": "uint256",
           "name": "amount",
           "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "depositorCount",
-          "type": "uint256"
         }
       ],
       "name": "DepositRequestCancelled",
@@ -433,12 +421,6 @@
           "indexed": false,
           "internalType": "uint256",
           "name": "amount",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "requestId",
           "type": "uint256"
         }
       ],
@@ -585,12 +567,6 @@
           "internalType": "uint256",
           "name": "shares",
           "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "requestId",
-          "type": "uint256"
         }
       ],
       "name": "WithdrawProcessed",
@@ -609,12 +585,6 @@
           "indexed": false,
           "internalType": "uint256",
           "name": "shares",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "requestId",
           "type": "uint256"
         }
       ],

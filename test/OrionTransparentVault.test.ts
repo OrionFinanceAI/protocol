@@ -152,7 +152,7 @@ describe("OrionTransparentVault", function () {
       await underlyingAsset.connect(lp1).approve(await vault.getAddress(), depositAmount);
       await expect(vault.connect(lp1).requestDeposit(depositAmount))
         .to.emit(vault, "DepositRequested")
-        .withArgs(lp1.address, depositAmount, 1);
+        .withArgs(lp1.address, depositAmount);
       expect(await vault.getPendingDeposits()).to.equal(depositAmount);
     });
     it("Should revert deposit request with zero amount", async function () {
@@ -180,7 +180,7 @@ describe("OrionTransparentVault", function () {
       const balanceBefore = await underlyingAsset.balanceOf(lp1.address);
       await expect(vault.connect(lp1).cancelDepositRequest(withdrawAmount))
         .to.emit(vault, "DepositRequestCancelled")
-        .withArgs(lp1.address, withdrawAmount, 1);
+        .withArgs(lp1.address, withdrawAmount);
       const balanceAfter = await underlyingAsset.balanceOf(lp1.address);
       expect(balanceAfter - balanceBefore).to.equal(withdrawAmount);
       expect(await vault.getPendingDeposits()).to.equal(depositAmount - withdrawAmount);
@@ -222,7 +222,7 @@ describe("OrionTransparentVault", function () {
       const shares = ethers.parseUnits("100", 6);
       await expect(vault.connect(lp1).requestWithdraw(shares))
         .to.emit(vault, "WithdrawRequested")
-        .withArgs(lp1.address, shares, 1);
+        .withArgs(lp1.address, shares);
       expect(await vault.getPendingWithdrawals()).to.equal(shares);
     });
     it("Should revert withdrawal request with zero shares", async function () {

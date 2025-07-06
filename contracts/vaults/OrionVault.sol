@@ -10,6 +10,7 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "../interfaces/IOrionConfig.sol";
 import "../interfaces/IOrionVault.sol";
+import "../interfaces/ILiquidityOrchestrator.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { EventsLib } from "../libraries/EventsLib.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -195,9 +196,9 @@ abstract contract OrionVault is
 
     /// @notice Submit an asynchronous deposit request.
     /// @dev No share tokens are minted immediately. The specified amount of underlying tokens
-    ///      is transferred to the vault as escrow. LPs can later cancel this request to withdraw
-    ///      their escrowed tokens before any minting occurs.
-    /// @param amount The amount of the underlying asset to deposit into escrow.
+    ///      is transferred to the liquidity orchestrator for centralized liquidity management.
+    ///      LPs can later cancel this request to withdraw their funds before any minting occurs.
+    /// @param amount The amount of the underlying asset to deposit.
     function requestDeposit(uint256 amount) external nonReentrant {
         // Checks first
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
@@ -209,17 +210,18 @@ abstract contract OrionVault is
         // Effects - update internal state before external interactions
         _depositRequests[msg.sender] += amount;
 
-        // Interactions - external calls last
-        bool success = IERC20(asset()).transferFrom(msg.sender, address(this), amount);
+        // Interactions - transfer funds directly to liquidity orchestrator
+        bool success = IERC20(asset()).transferFrom(msg.sender, config.liquidityOrchestrator(), amount);
         if (!success) revert ErrorsLib.TransferFailed();
 
-        emit EventsLib.DepositRequested(msg.sender, amount, _depositRequestors.length);
+        emit EventsLib.DepositRequested(msg.sender, amount);
     }
 
     /// @notice Cancel a previously submitted deposit request.
-    /// @dev Allows LPs to withdraw their escrowed tokens before any share tokens are minted.
+    /// @dev Allows LPs to withdraw their funds before any share tokens are minted.
     ///      The request must still have enough balance remaining to cover the cancellation.
-    /// @param amount The amount of escrowed tokens to withdraw.
+    ///      Funds are returned from the liquidity orchestrator.
+    /// @param amount The amount of funds to withdraw.
     function cancelDepositRequest(uint256 amount) external nonReentrant {
         // Checks first
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
@@ -227,16 +229,11 @@ abstract contract OrionVault is
 
         // Effects - update internal state before external interactions
         _depositRequests[msg.sender] -= amount;
-        uint256 depositorCount = _depositRequestors.length;
 
-        // TODO: treat case in which _depositRequests[msg.sender] == 0 now, and remove from _depositRequestors.
-        // do same in cancelWithdrawRequest.
+        // Interactions - request funds from liquidity orchestrator
+        ILiquidityOrchestrator(config.liquidityOrchestrator()).returnDepositFunds(msg.sender, amount);
 
-        // Interactions - external calls last
-        bool success = IERC20(asset()).transfer(msg.sender, amount);
-        if (!success) revert ErrorsLib.TransferFailed();
-
-        emit EventsLib.DepositRequestCancelled(msg.sender, amount, depositorCount);
+        emit EventsLib.DepositRequestCancelled(msg.sender, amount);
     }
 
     /// @notice LPs submits async withdrawal request; shares locked until processed
@@ -254,10 +251,8 @@ abstract contract OrionVault is
         // Interactions - lock shares by transferring them to contract as escrow
         _transfer(msg.sender, address(this), shares);
 
-        emit EventsLib.WithdrawRequested(msg.sender, shares, _withdrawRequestors.length);
+        emit EventsLib.WithdrawRequested(msg.sender, shares);
     }
-
-    // TODO: cancelWithdrawRequest.
 
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
 
@@ -288,12 +283,6 @@ abstract contract OrionVault is
     /// --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
 
     /// @notice Process deposit requests from LPs and reset the requestor's request amount
-    // TODO: consider risks of using internal states to update share price and total assets and then reset them
-    // after successful transaction processed
-    // In a second step by the liquidity orchestrator. There are risks in this, need to identify an alternative
-    // solution.
-    // Solution seems to be processing share price update only based on portfolio weights and PNL and then use that
-    // to perform the deposit/withdrawals from liquidity orchestrator, updating internal ledger + total assets.
     function processDepositRequests() external onlyLiquidityOrchestrator nonReentrant {
         uint256 length = _depositRequestors.length;
         for (uint256 i = 0; i < length; i++) {
@@ -305,12 +294,11 @@ abstract contract OrionVault is
 
             _mint(user, shares);
 
-            emit EventsLib.DepositProcessed(user, amount, i);
+            emit EventsLib.DepositProcessed(user, amount);
         }
     }
 
     /// @notice Process withdrawal requests from LPs
-    // TODO: same as processDepositRequests. Fix.
     function processWithdrawRequests() external onlyLiquidityOrchestrator nonReentrant {
         uint256 length = _withdrawRequestors.length;
         for (uint256 i = 0; i < length; i++) {
@@ -323,14 +311,14 @@ abstract contract OrionVault is
             uint256 underlyingAmount = previewRedeem(shares);
             if (!IERC20(asset()).transfer(user, underlyingAmount)) revert ErrorsLib.TransferFailed();
 
-            emit EventsLib.WithdrawProcessed(user, shares, i);
+            emit EventsLib.WithdrawProcessed(user, shares);
         }
     }
 
     // TODO: add function for liquidity orchestrator to update portfolio weights.
 
-    // TODO: add fucntion for liquidity orchestrator to deposit assets in curator fee escrow?
-    // And therefore another for curator to withdraw assets from curator fee escrow?
+    // TODO: add function for liquidity orchestrator to deposit assets in curator fee escrow?
+    // And therefore another for curator to withdraw assets from curator fee escrow? Or pay curator fee directly?
 
     /// --------- ABSTRACT FUNCTIONS ---------
     /// @notice Derived contracts implement their specific submitIntent functions
