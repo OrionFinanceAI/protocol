@@ -13,6 +13,7 @@ import "../interfaces/IOrionEncryptedVault.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../interfaces/IOrionVault.sol";
+import "../interfaces/IRebalancingEngine.sol";
 
 /// @title Liquidity Orchestrator
 /// @notice Orchestrates transaction execution and vault state modifications
@@ -41,6 +42,9 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
     /// @notice Internal States Orchestrator contract address
     IInternalStateOrchestrator public internalStatesOrchestrator;
 
+    /// @notice Rebalancing Engine contract address
+    IRebalancingEngine public rebalancingEngine;
+
     /// @notice Last processed epoch counter from Internal States Orchestrator
     uint256 public lastProcessedEpoch;
 
@@ -55,6 +59,7 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         automationRegistry = automationRegistry_;
         config = IOrionConfig(config_);
         internalStatesOrchestrator = IInternalStateOrchestrator(config.internalStatesOrchestrator());
+        rebalancingEngine = IRebalancingEngine(config.rebalancingEngine());
 
         lastProcessedEpoch = 0;
     }
@@ -152,7 +157,7 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         for (uint256 i = 0; i < sellingTokens.length; i++) {
             address token = sellingTokens[i];
             uint256 amount = sellingAmounts[i];
-            // TODO: process selling order using execution module.
+            rebalancingEngine.executeSell(token, amount);
         }
 
         (address[] memory buyingTokens, uint256[] memory buyingAmounts) = internalStatesOrchestrator.getBuyingOrders();
@@ -160,7 +165,7 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         for (uint256 i = 0; i < buyingTokens.length; i++) {
             address token = buyingTokens[i];
             uint256 amount = buyingAmounts[i];
-            // TODO: process buying order using execution module.
+            rebalancingEngine.executeBuy(token, amount);
         }
 
         // TODO: DepositRequest and WithdrawRequest in Vaults to be

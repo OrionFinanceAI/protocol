@@ -8,8 +8,6 @@ library ErrorsLib {
     error NotFactory();
     error ZeroAddress();
     error InvalidAsset();
-    error InvalidInternalOrchestrator();
-    error InvalidLiquidityOrchestrator();
     error AlreadyWhitelisted();
     error NotInWhitelist();
     error IndexOutOfBounds();

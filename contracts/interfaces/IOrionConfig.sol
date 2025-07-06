@@ -15,6 +15,11 @@ interface IOrionConfig {
     /// @return The address of the liquidity orchestrator
     function liquidityOrchestrator() external view returns (address);
 
+    /// @notice Returns the address of the rebalancing engine contract
+    /// @dev This engine manages the rebalancing of the protocol
+    /// @return The address of the rebalancing engine
+    function rebalancingEngine() external view returns (address);
+
     /// @notice Returns the address of the vault factory contract
     /// @dev This factory is responsible for creating new Orion vaults
     /// @return The address of the vault factory
@@ -52,6 +57,7 @@ interface IOrionConfig {
     /// @param _underlyingAsset The address of the underlying asset contract
     /// @param _internalStatesOrchestrator The address of the internal states orchestrator
     /// @param _liquidityOrchestrator The address of the liquidity orchestrator
+    /// @param _rebalancingEngine The address of the rebalancing engine
     /// @param _curatorIntentDecimals The number of decimal places for curator intents
     /// @param _statesDecimals The number of decimal places for states
     /// @param _factory The address of the vault factory
@@ -60,6 +66,7 @@ interface IOrionConfig {
         address _underlyingAsset,
         address _internalStatesOrchestrator,
         address _liquidityOrchestrator,
+        address _rebalancingEngine,
         uint8 _curatorIntentDecimals,
         uint8 _statesDecimals,
         address _factory,

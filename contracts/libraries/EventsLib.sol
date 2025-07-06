@@ -9,15 +9,7 @@ library EventsLib {
     event WhitelistedAssetRemoved(address indexed asset);
     event OrionVaultAdded(address indexed vault);
     event OrionVaultRemoved(address indexed vault);
-    event ProtocolParamsUpdated(
-        address underlyingAsset,
-        address internalStatesOrchestrator,
-        address liquidityOrchestrator,
-        uint8 statesDecimals,
-        uint8 curatorIntentDecimals,
-        address factory,
-        address oracleRegistry
-    );
+    event ProtocolParamsUpdated();
 
     // Vault Events
     event OrderSubmitted(address indexed curator);

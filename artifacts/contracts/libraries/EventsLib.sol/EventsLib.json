@@ -183,50 +183,7 @@
     },
     {
       "anonymous": false,
-      "inputs": [
-        {
-          "indexed": false,
-          "internalType": "address",
-          "name": "underlyingAsset",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "address",
-          "name": "internalStatesOrchestrator",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "address",
-          "name": "liquidityOrchestrator",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint8",
-          "name": "statesDecimals",
-          "type": "uint8"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint8",
-          "name": "curatorIntentDecimals",
-          "type": "uint8"
-        },
-        {
-          "indexed": false,
-          "internalType": "address",
-          "name": "factory",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "address",
-          "name": "oracleRegistry",
-          "type": "address"
-        }
-      ],
+      "inputs": [],
       "name": "ProtocolParamsUpdated",
       "type": "event"
     },
@@ -308,8 +265,8 @@
       "type": "event"
     }
   ],
-  "bytecode": "0x60556032600b8282823980515f1a607314602657634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f5ffdfea26469706673582212205ecdff5111e56aee732df82097ceecdc51d3fb5e86648a8459f5f9c4b93887e664736f6c634300081c0033",
-  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f5ffdfea26469706673582212205ecdff5111e56aee732df82097ceecdc51d3fb5e86648a8459f5f9c4b93887e664736f6c634300081c0033",
+  "bytecode": "0x60556032600b8282823980515f1a607314602657634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f5ffdfea26469706673582212209f49b4dd97a8167b34a5927623cd853b5f6e5fe04b4bb7a8d6cf479dc90a892964736f6c634300081c0033",
+  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f5ffdfea26469706673582212209f49b4dd97a8167b34a5927623cd853b5f6e5fe04b4bb7a8d6cf479dc90a892964736f6c634300081c0033",
   "linkReferences": {},
   "deployedLinkReferences": {}
 }
