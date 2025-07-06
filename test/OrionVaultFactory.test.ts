@@ -142,7 +142,7 @@ describe("OrionVaultFactory", function () {
       const vaultSymbol = "TTV";
 
       const tx = await orionVaultFactory
-        .connect(user)
+        .connect(owner)
         .createOrionTransparentVault(curator.address, vaultName, vaultSymbol);
 
       const receipt = await tx.wait();
@@ -158,7 +158,7 @@ describe("OrionVaultFactory", function () {
       expect(event).to.not.be.undefined;
       const decodedEvent = orionVaultFactory.interface.parseLog(event);
       expect(decodedEvent.args.curator).to.equal(curator.address);
-      expect(decodedEvent.args.deployer).to.equal(user.address);
+      expect(decodedEvent.args.deployer).to.equal(owner.address);
       expect(decodedEvent.args.vaultType).to.equal(VaultType.Transparent);
 
       const vaultAddress = decodedEvent.args.vault;
@@ -170,7 +170,7 @@ describe("OrionVaultFactory", function () {
 
     it("Should revert if curator is zero address", async function () {
       await expect(
-        orionVaultFactory.connect(user).createOrionTransparentVault(ZERO_ADDRESS, "Test Vault", "TV"),
+        orionVaultFactory.connect(owner).createOrionTransparentVault(ZERO_ADDRESS, "Test Vault", "TV"),
       ).to.be.revertedWithCustomError(orionVaultFactory, "ZeroAddress");
     });
 
@@ -182,7 +182,7 @@ describe("OrionVaultFactory", function () {
       const newFactoryTyped = await ethers.getContractAt("OrionVaultFactory", await newFactoryInstance.getAddress());
 
       await expect(
-        newFactoryTyped.connect(user).createOrionTransparentVault(curator.address, "Test Vault", "TV"),
+        newFactoryTyped.connect(owner).createOrionTransparentVault(curator.address, "Test Vault", "TV"),
       ).to.be.revertedWithCustomError(newFactoryTyped, "ZeroAddress");
     });
   });
@@ -199,7 +199,7 @@ describe("OrionVaultFactory", function () {
       const vaultSymbol = "TEV";
 
       const tx = await orionVaultFactory
-        .connect(user)
+        .connect(owner)
         .createOrionEncryptedVault(curator.address, vaultName, vaultSymbol);
 
       const receipt = await tx.wait();
@@ -215,7 +215,7 @@ describe("OrionVaultFactory", function () {
       expect(event).to.not.be.undefined;
       const decodedEvent = orionVaultFactory.interface.parseLog(event);
       expect(decodedEvent.args.curator).to.equal(curator.address);
-      expect(decodedEvent.args.deployer).to.equal(user.address);
+      expect(decodedEvent.args.deployer).to.equal(owner.address);
       expect(decodedEvent.args.vaultType).to.equal(VaultType.Encrypted);
 
       // Verify the vault was created with correct parameters
@@ -228,7 +228,7 @@ describe("OrionVaultFactory", function () {
 
     it("Should revert if curator is zero address", async function () {
       await expect(
-        orionVaultFactory.connect(user).createOrionEncryptedVault(ZERO_ADDRESS, "Test Vault", "TV"),
+        orionVaultFactory.connect(owner).createOrionEncryptedVault(ZERO_ADDRESS, "Test Vault", "TV"),
       ).to.be.revertedWithCustomError(orionVaultFactory, "ZeroAddress");
     });
 
@@ -240,7 +240,7 @@ describe("OrionVaultFactory", function () {
       const newFactoryTyped = await ethers.getContractAt("OrionVaultFactory", await newFactoryInstance.getAddress());
 
       await expect(
-        newFactoryTyped.connect(user).createOrionEncryptedVault(curator.address, "Test Vault", "TV"),
+        newFactoryTyped.connect(owner).createOrionEncryptedVault(curator.address, "Test Vault", "TV"),
       ).to.be.revertedWithCustomError(newFactoryTyped, "ZeroAddress");
     });
   });
@@ -263,7 +263,9 @@ describe("OrionVaultFactory", function () {
     });
 
     it("Should call addOrionVault on config when creating vaults", async function () {
-      const tx = await orionVaultFactory.connect(user).createOrionTransparentVault(curator.address, "Test Vault", "TV");
+      const tx = await orionVaultFactory
+        .connect(owner)
+        .createOrionTransparentVault(curator.address, "Test Vault", "TV");
 
       expect(tx).to.not.be.undefined;
     });

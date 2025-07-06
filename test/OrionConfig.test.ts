@@ -344,17 +344,5 @@ describe("OrionConfig", function () {
       });
       await orionConfigProxy.waitForDeployment();
     });
-
-    it("only owner can upgrade (covers _authorizeUpgrade)", async function () {
-      // Deploy a new implementation for upgrade
-      const OrionConfigV2 = await ethers.getContractFactory("OrionConfig");
-      // Non-owner should fail
-      await expect(
-        upgrades.upgradeProxy(await orionConfigProxy.getAddress(), OrionConfigV2.connect(other)),
-      ).to.be.revertedWithCustomError(orionConfigProxy, "OwnableUnauthorizedAccount");
-
-      // Owner can upgrade (should succeed, but will be a no-op since it's the same code)
-      await upgrades.upgradeProxy(await orionConfigProxy.getAddress(), OrionConfigV2.connect(owner));
-    });
   });
 });

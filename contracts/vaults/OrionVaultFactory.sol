@@ -50,7 +50,7 @@ contract OrionVaultFactory is Initializable, Ownable2StepUpgradeable, UUPSUpgrad
         address curator,
         string calldata name,
         string calldata symbol
-    ) external nonReentrant returns (address vault) {
+    ) external nonReentrant onlyOwner returns (address vault) {
         if (curator == address(0)) revert ErrorsLib.ZeroAddress();
         if (transparentVaultImplementation == address(0)) revert ErrorsLib.ZeroAddress();
 
@@ -68,7 +68,7 @@ contract OrionVaultFactory is Initializable, Ownable2StepUpgradeable, UUPSUpgrad
         address curator,
         string calldata name,
         string calldata symbol
-    ) external nonReentrant returns (address vault) {
+    ) external nonReentrant onlyOwner returns (address vault) {
         if (curator == address(0)) revert ErrorsLib.ZeroAddress();
         if (encryptedVaultImplementation == address(0)) revert ErrorsLib.ZeroAddress();
 
