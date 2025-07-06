@@ -145,9 +145,11 @@ contract InternalStatesOrchestrator is
                 // Update existing value or insert if not present
                 (bool exists, uint256 currentValue) = _initialBatchPortfolioHat.tryGet(token);
                 if (exists) {
-                    _initialBatchPortfolioHat.set(token, currentValue + value);
+                    bool success = _initialBatchPortfolioHat.set(token, currentValue + value);
+                    assert(success);
                 } else {
-                    _initialBatchPortfolioHat.set(token, value);
+                    bool success = _initialBatchPortfolioHat.set(token, value);
+                    assert(success);
                 }
             }
 
@@ -170,9 +172,13 @@ contract InternalStatesOrchestrator is
 
                 (bool exists, uint256 currentValue) = _finalBatchPortfolioHat.tryGet(token);
                 if (exists) {
-                    _finalBatchPortfolioHat.set(token, currentValue + value);
+                    bool success = _finalBatchPortfolioHat.set(token, currentValue + value);
+                    // Set operation should always succeed for existing keys
+                    assert(success);
                 } else {
-                    _finalBatchPortfolioHat.set(token, value);
+                    bool success = _finalBatchPortfolioHat.set(token, value);
+                    // Set operation should always succeed for new keys
+                    assert(success);
                 }
             }
         }
