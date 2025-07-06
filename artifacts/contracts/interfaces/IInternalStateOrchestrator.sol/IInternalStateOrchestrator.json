@@ -68,7 +68,7 @@
     },
     {
       "inputs": [],
-      "name": "getFinalBatchPortfolioHat",
+      "name": "getBuyingOrders",
       "outputs": [
         {
           "internalType": "address[]",
@@ -86,25 +86,7 @@
     },
     {
       "inputs": [],
-      "name": "getInitialBatchPortfolioHat",
-      "outputs": [
-        {
-          "internalType": "address[]",
-          "name": "",
-          "type": "address[]"
-        },
-        {
-          "internalType": "uint256[]",
-          "name": "",
-          "type": "uint256[]"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "getPriceEstimates",
+      "name": "getSellingOrders",
       "outputs": [
         {
           "internalType": "address[]",

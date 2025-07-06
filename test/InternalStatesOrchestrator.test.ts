@@ -277,59 +277,6 @@ describe("InternalStatesOrchestrator", function () {
     });
 
     describe("Batch Portfolio Processing", function () {
-      it("Should correctly process _initialBatchPortfolioHat with single vault portfolio", async function () {
-        const {
-          orchestrator,
-          automationRegistry,
-          vault1,
-          curator1,
-          liquidityOrchestrator,
-          oracleRegistry,
-          underlyingAsset,
-        } = await loadFixture(deployOrchestratorFixture);
-
-        // Set up oracle for underlying asset
-        const MockPriceAdapterFactory = await ethers.getContractFactory("MockPriceAdapter");
-        const oracle = await MockPriceAdapterFactory.deploy();
-        await oracle.waitForDeployment();
-        await oracle.initialize(await underlyingAsset.getAddress(), curator1.address);
-        await oracleRegistry.setAdapter(await underlyingAsset.getAddress(), await oracle.getAddress());
-
-        // Set up vault portfolio with some assets
-        const portfolioTokens = [await underlyingAsset.getAddress()];
-        await vault1
-          .connect(liquidityOrchestrator)
-          .updateVaultState([{ token: portfolioTokens[0], weight: 1000 }], ethers.parseEther("100000"));
-
-        // Set up vault intent
-        const intentTokens = [await underlyingAsset.getAddress()];
-        await vault1.connect(curator1).submitIntent([{ token: intentTokens[0], weight: 1000000 }]);
-
-        await underlyingAsset.connect(curator1).approve(await vault1.getAddress(), ethers.parseEther("1000"));
-        await vault1.connect(curator1).requestDeposit(ethers.parseEther("1000"));
-        await ethers.provider.send("evm_increaseTime", [1e18]);
-        await ethers.provider.send("evm_mine", []);
-
-        // Perform upkeep
-        await expect(orchestrator.connect(automationRegistry).performUpkeep("0x"))
-          .to.emit(orchestrator, "InternalStateProcessed")
-          .withArgs(1);
-
-        // Check that _initialBatchPortfolioHat function works and can be called
-        const [tokens, values] = await orchestrator.getInitialBatchPortfolioHat();
-
-        expect(tokens).to.be.an("array");
-        expect(values).to.be.an("array");
-        expect(tokens.length).to.equal(values.length);
-
-        await ethers.provider.send("evm_increaseTime", [1e18]);
-        await ethers.provider.send("evm_mine", []);
-
-        await expect(orchestrator.connect(automationRegistry).performUpkeep("0x"))
-          .to.emit(orchestrator, "InternalStateProcessed")
-          .withArgs(2);
-      });
-
       it("Should correctly process _finalBatchPortfolioHat with multiple vault intents", async function () {
         const {
           orchestrator,

@@ -61,6 +61,12 @@ contract InternalStatesOrchestrator is
     /// @notice Final batch portfolio (w_1) - mapping of token address to estimated value [assets]
     EnumerableMap.AddressToUintMap internal _finalBatchPortfolioHat;
 
+    /// @notice Selling orders - mapping of token address to amount that needs to be sold [assets]
+    EnumerableMap.AddressToUintMap internal _sellingOrders;
+
+    /// @notice Buying orders - mapping of token address to amount that needs to be bought [assets]
+    EnumerableMap.AddressToUintMap internal _buyingOrders;
+
     // TODO: encrypted batched portfolio to be summed up in Zama coprocessor and then added to the two batchPortfolio.
     // mapping(address => euint32) internal _encryptedBatchPortfolio;
 
@@ -132,6 +138,8 @@ contract InternalStatesOrchestrator is
         _priceHat.clear();
         _initialBatchPortfolioHat.clear();
         _finalBatchPortfolioHat.clear();
+        _sellingOrders.clear();
+        _buyingOrders.clear();
 
         // Transparent Vaults
 
@@ -211,19 +219,14 @@ contract InternalStatesOrchestrator is
             IOrionEncryptedVault vault = IOrionEncryptedVault(encryptedVaults[i]);
 
             (address[] memory portfolioTokens, euint32[] memory sharesPerAsset) = vault.getPortfolio();
-
-            // TODO: add entry point for Zama coprocessor for both dot product and batching operations.
-
             (address[] memory intentTokens, euint32[] memory intentWeights) = vault.getIntent();
+            // TODO: add entry point for Zama coprocessor for both dot product and batching operations.
         }
 
+        // Compute selling and buying orders based on portfolio differences
+        _computeRebalancingOrders();
+
         emit EventsLib.InternalStateProcessed(epochCounter);
-        // TODO: have additional chainlink automation offchain process
-        // triggered by this event and triggering liquidity orchestrator.
-        // Move to liquidity orchestrator:
-        // Process delta_W, WR, DR. Here I use p_t. // TODO: investigate DR/W netting.
-        // delta_W = W_1 - W_0
-        // _processVaultStates();
     }
 
     /// @notice Computes the next update time based on current timestamp
@@ -240,47 +243,75 @@ contract InternalStatesOrchestrator is
         return block.timestamp >= nextUpdateTime;
     }
 
+    /// @notice Compute selling and buying orders based on portfolio differences
+    /// @dev Compares _finalBatchPortfolioHat with _initialBatchPortfolioHat to determine rebalancing needs
+    function _computeRebalancingOrders() internal {
+        uint256 initialLength = _initialBatchPortfolioHat.length();
+
+        for (uint256 i = 0; i < initialLength; i++) {
+            (address token, uint256 initialValue) = _initialBatchPortfolioHat.at(i);
+            (bool finalValueExists, uint256 finalValue) = _finalBatchPortfolioHat.tryGet(token);
+
+            if (!finalValueExists) {
+                // If token is not in final portfolio, it means it needs to be sold fully.
+                // slither-disable-next-line unused-return
+                _sellingOrders.set(token, initialValue);
+                continue;
+            }
+
+            // If token is in final portfolio, check if it needs to be sold or bought.
+            if (initialValue > finalValue) {
+                uint256 sellAmount = initialValue - finalValue;
+                // slither-disable-next-line unused-return
+                _sellingOrders.set(token, sellAmount);
+            } else if (finalValue > initialValue) {
+                uint256 buyAmount = finalValue - initialValue;
+                // slither-disable-next-line unused-return
+                _buyingOrders.set(token, buyAmount);
+            }
+        }
+
+        uint256 finalLength = _finalBatchPortfolioHat.length();
+        for (uint256 i = 0; i < finalLength; i++) {
+            (address token, uint256 finalValue) = _finalBatchPortfolioHat.at(i);
+            // slither-disable-next-line unused-return
+            (bool initialValueExists, ) = _initialBatchPortfolioHat.tryGet(token);
+
+            if (!initialValueExists) {
+                // If token is not in initial portfolio, it means it needs to be bought fully.
+                // slither-disable-next-line unused-return
+                _buyingOrders.set(token, finalValue);
+            }
+        }
+    }
+
     /* ---------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------- */
 
-    function getPriceEstimates() external view returns (address[] memory, uint256[] memory) {
-        uint256 length = _priceHat.length();
-        address[] memory tokens = new address[](length);
-        uint256[] memory values = new uint256[](length);
+    /// @notice Get the selling orders
+    /// @return tokens The tokens to sell
+    /// @return amounts The amounts to sell
+    function getSellingOrders() external view returns (address[] memory tokens, uint256[] memory amounts) {
+        uint256 length = _sellingOrders.length();
+        tokens = new address[](length);
+        amounts = new uint256[](length);
         for (uint256 i = 0; i < length; i++) {
-            (address key, uint256 value) = _priceHat.at(i);
+            (address key, uint256 value) = _sellingOrders.at(i);
             tokens[i] = key;
-            values[i] = value;
+            amounts[i] = value;
         }
-        return (tokens, values);
     }
 
-    /// @notice Get the initial batch portfolio hat
-    /// @return tokens The tokens in the batch portfolio
-    /// @return values The values in the batch portfolio
-    function getInitialBatchPortfolioHat() external view returns (address[] memory, uint256[] memory) {
-        uint256 length = _initialBatchPortfolioHat.length();
-        address[] memory tokens = new address[](length);
-        uint256[] memory values = new uint256[](length);
+    /// @notice Get the buying orders
+    /// @return tokens The tokens to buy
+    /// @return amounts The amounts to buy
+    function getBuyingOrders() external view returns (address[] memory tokens, uint256[] memory amounts) {
+        uint256 length = _buyingOrders.length();
+        tokens = new address[](length);
+        amounts = new uint256[](length);
         for (uint256 i = 0; i < length; i++) {
-            (address key, uint256 value) = _initialBatchPortfolioHat.at(i);
+            (address key, uint256 value) = _buyingOrders.at(i);
             tokens[i] = key;
-            values[i] = value;
+            amounts[i] = value;
         }
-        return (tokens, values);
-    }
-
-    /// @notice Get the final batch portfolio hat
-    /// @return tokens The tokens in the batch portfolio
-    /// @return values The values in the batch portfolio
-    function getFinalBatchPortfolioHat() external view returns (address[] memory, uint256[] memory) {
-        uint256 length = _finalBatchPortfolioHat.length();
-        address[] memory tokens = new address[](length);
-        uint256[] memory values = new uint256[](length);
-        for (uint256 i = 0; i < length; i++) {
-            (address key, uint256 value) = _finalBatchPortfolioHat.at(i);
-            tokens[i] = key;
-            values[i] = value;
-        }
-        return (tokens, values);
     }
 }

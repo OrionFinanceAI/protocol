@@ -19,10 +19,7 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     function updateAutomationRegistry(address newAutomationRegistry) external;
     function updateConfig(address newConfig) external;
 
-    // Price functions
-    function getPriceEstimates() external view returns (address[] memory, uint256[] memory);
-
-    // Portfolio functions
-    function getInitialBatchPortfolioHat() external view returns (address[] memory, uint256[] memory);
-    function getFinalBatchPortfolioHat() external view returns (address[] memory, uint256[] memory);
+    // Rebalancing orders functions
+    function getSellingOrders() external view returns (address[] memory, uint256[] memory);
+    function getBuyingOrders() external view returns (address[] memory, uint256[] memory);
 }

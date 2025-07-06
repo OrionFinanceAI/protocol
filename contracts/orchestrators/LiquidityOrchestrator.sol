@@ -25,6 +25,10 @@ import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 ///      and is responsible for all state-modifying operations.
 ///      The Internal States Orchestrator only reads states and performs estimations.
 ///      This contract handles the actual execution and state writing.
+///
+///      Note: The post execution portfolio state may differ from the intent
+///      not only due to slippage, but also because asset prices can evolve
+///      between the oracle call and execution.
 contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable, ILiquidityOrchestrator {
     /// @notice Chainlink Automation Registry address
     address public automationRegistry;
@@ -101,30 +105,25 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         }
         lastProcessedEpoch = currentEpoch;
 
-        // TODO:
-        // 1. Get delta portfolio in underlying asset from inner state orchestrator.
-        // 2. Get desired USD target allocations (based on estimated prices)
-        // 3. Calculate target shares for all but last asset (using priceOracle.getPrice)
-        // 4. Adjust last asset target shares post N-1 executions for rounding/trade error
-        // 5. Execute trades to reach target shares via executeTrade()
+        (address[] memory sellingTokens, uint256[] memory sellingAmounts) = internalStatesOrchestrator
+            .getSellingOrders();
+        (address[] memory buyingTokens, uint256[] memory buyingAmounts) = internalStatesOrchestrator.getBuyingOrders();
 
-        // TODO: vault states t0, w_0 to be updated at the end of the execution.
-        // TODO: required to have the executed vault states (in shares) in the vault state.
-        // Overwrite this state from the liquidity orchestrator.
+        // TODO: process selling and buying orders using execution module.
+
         // TODO: DepositRequest and WithdrawRequest in Vaults to be
         // processed (post t0 update) and removed from vault state as pending requests.
-        // TODO: curator fees to be paid at the end of the execution.
-        // In the liquidity orchestrator, document that the post execution
-        // portfolio state is different from the intent one not only
-        // because of slippage, but also because the assets prices have
-        // evolved between the oracle call and the execution call.
 
-        (address[] memory tokens, uint256[] memory values) = internalStatesOrchestrator.getPriceEstimates();
+        // TODO: investigate DR/W netting.
 
-        (address[] memory initialTokens, uint256[] memory initialValues) = internalStatesOrchestrator
-            .getInitialBatchPortfolioHat();
-        (address[] memory finalTokens, uint256[] memory finalValues) = internalStatesOrchestrator
-            .getFinalBatchPortfolioHat();
+        // Execute sequentially the trades to reach target state
+        // (consider having the standing orders as a trigger of a set of chainlink automation jobs).
+
+        // TODO: For last trade, adjust asset target amount post N-1 executions to deal with rounding/trade error.
+
+        // TODO: vault states t0, w_0 to be updated at the end of the execution.
+
+        // TODO: curator/protocol fees to be paid during execution.
 
         address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
         uint256 length = transparentVaults.length;
