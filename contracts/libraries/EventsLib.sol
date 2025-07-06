@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.28;
 
 /// @title EventsLib
 /// @notice Library for protocol events
@@ -36,7 +36,7 @@ library EventsLib {
     event PortfolioRebalanced();
 
     // Oracle Registry Events
-    event OracleRegistered(address indexed asset, address indexed oracle);
+    event AdapterSet(address indexed asset, address indexed adapter);
 
     // Orion Vault Factory Events
     enum VaultType {

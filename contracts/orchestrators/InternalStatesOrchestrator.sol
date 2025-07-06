@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
@@ -7,14 +7,14 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
-import "./interfaces/IOrionConfig.sol";
-import "./interfaces/IOrionVault.sol";
-import "./interfaces/IOrionTransparentVault.sol";
-import "./interfaces/IOrionEncryptedVault.sol";
-import "./interfaces/IOracleRegistry.sol";
-import "./interfaces/IInternalStateOrchestrator.sol";
-import { ErrorsLib } from "./libraries/ErrorsLib.sol";
-import { EventsLib } from "./libraries/EventsLib.sol";
+import "../interfaces/IOrionConfig.sol";
+import "../interfaces/IOrionVault.sol";
+import "../interfaces/IOrionTransparentVault.sol";
+import "../interfaces/IOrionEncryptedVault.sol";
+import "../interfaces/IOracleRegistry.sol";
+import "../interfaces/IInternalStateOrchestrator.sol";
+import { ErrorsLib } from "../libraries/ErrorsLib.sol";
+import { EventsLib } from "../libraries/EventsLib.sol";
 
 /// @title Internal States Orchestrator
 /// @notice Orchestrates state reading and estimation operations triggered by Chainlink Automation
@@ -138,7 +138,7 @@ contract InternalStatesOrchestrator is
             uint256 portfolioLength = portfolioTokens.length;
             for (uint256 j = 0; j < portfolioLength; j++) {
                 address token = portfolioTokens[j];
-                uint256 price = registry.price(token);
+                uint256 price = registry.getPrice(token);
                 uint256 value = price * sharesPerAsset[j];
                 t1Hat += value;
 

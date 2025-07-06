@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.28;
 
-import "../OrionTransparentVault.sol";
-import "../OrionEncryptedVault.sol";
+import "../vaults/OrionTransparentVault.sol";
+import "../vaults/OrionEncryptedVault.sol";
 
 /**
  * @title VaultImplementations

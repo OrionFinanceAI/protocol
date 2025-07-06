@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import { IAssetOracle } from "../interfaces/IAssetOracle.sol";
+import { IPriceAdapter } from "../interfaces/IPriceAdapter.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 
-/// @title UniverseOracle (mock)
+/// @title Price Adapter mock
 /// @notice One instance per asset. Produces pseudo‑random prices for testing.
-contract UniverseOracle is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable, IAssetOracle {
-    /// @notice Asset this oracle is bound to.
+contract MockPriceAdapter is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable, IPriceAdapter {
+    /// @notice Asset this price adapter is bound to.
     address public asset;
 
     function initialize(address asset_, address initialOwner) external initializer {
@@ -28,7 +28,7 @@ contract UniverseOracle is Initializable, Ownable2StepUpgradeable, UUPSUpgradeab
         // Only the owner can upgrade the contract
     }
 
-    /// @inheritdoc IAssetOracle
+    /// @inheritdoc IPriceAdapter
     function price() external view returns (uint256) {
         // *** Mock randomness *** — DO NOT use in production, returning values between 1 and 100
         return (uint256(keccak256(abi.encodePacked(blockhash(block.number - 1), block.timestamp, asset))) % 100) + 1;

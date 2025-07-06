@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.28;
 
 /// @title ErrorsLib
 /// @notice Library exposing error messages.
@@ -18,7 +18,7 @@ library ErrorsLib {
     error NotAnOrionVault();
     error InvalidCuratorAddress();
     error InvalidConfigAddress();
-    error UnderlyingAssetNotSet();
+    error MockUnderlyingAssetNotSet();
     error NotCurator();
     error NotLiquidityOrchestrator();
     error NotInternalStatesOrchestrator();
@@ -40,8 +40,7 @@ library ErrorsLib {
     error DepositRequestFailed();
     error WithdrawRequestFailed();
     error NotEnoughDepositRequest();
-    error OracleNotSet();
-    error OracleNotInitialized();
+    error AdapterNotSet();
     error InvalidStatesDecimals();
     error Underflow();
 }
