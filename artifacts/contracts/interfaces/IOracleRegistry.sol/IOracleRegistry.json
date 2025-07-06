@@ -11,7 +11,7 @@
           "type": "address"
         }
       ],
-      "name": "price",
+      "name": "getPrice",
       "outputs": [
         {
           "internalType": "uint256",
@@ -30,12 +30,12 @@
           "type": "address"
         },
         {
-          "internalType": "address",
-          "name": "oracle",
+          "internalType": "contract IPriceAdapter",
+          "name": "adapter",
           "type": "address"
         }
       ],
-      "name": "setOracle",
+      "name": "setAdapter",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

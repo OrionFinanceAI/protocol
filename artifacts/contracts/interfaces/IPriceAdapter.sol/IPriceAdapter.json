@@ -1,7 +1,7 @@
 {
   "_format": "hh-sol-artifact-1",
-  "contractName": "IAssetOracle",
-  "sourceName": "contracts/interfaces/IAssetOracle.sol",
+  "contractName": "IPriceAdapter",
+  "sourceName": "contracts/interfaces/IPriceAdapter.sol",
   "abi": [
     {
       "inputs": [],

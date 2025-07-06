@@ -48,9 +48,9 @@ async function main() {
   /* loop serially (clearer logs) */
   for (let i = 0; i < assets.length; i++) {
     const [asset, oracle] = [assets[i], oracles[i]];
-    console.log(`🔧  setOracle(${asset}, ${oracle}) …`);
+    console.log(`🔧  setAdapter(${asset}, ${oracle}) …`);
 
-    const tx = await OracleRegistry.setOracle(asset, oracle);
+    const tx = await OracleRegistry.setAdapter(asset, oracle);
     await tx.wait();
 
     console.log(`✅  registered (tx: ${tx.hash})`);

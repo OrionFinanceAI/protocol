@@ -11,8 +11,8 @@ async function main() {
   const vaultAddress = process.env.ORION_VAULT_ADDRESS;
   if (!vaultAddress) throw new Error("Missing ORION_VAULT_ADDRESS in .env");
 
-  const UnderlyingAssetAddress = process.env.UNDERLYING_ASSET;
-  if (!UnderlyingAssetAddress) {
+  const MockUnderlyingAssetAddress = process.env.UNDERLYING_ASSET;
+  if (!MockUnderlyingAssetAddress) {
     throw new Error("Please set UNDERLYING_ASSET in your .env file");
   }
 
@@ -22,7 +22,7 @@ async function main() {
   const vault = OrionTransparentVault.attach(vaultAddress);
   const iface = OrionTransparentVault.interface;
 
-  const ERC20 = await ethers.getContractAt("IERC20", UnderlyingAssetAddress);
+  const ERC20 = await ethers.getContractAt("IERC20", MockUnderlyingAssetAddress);
   const lpAddress = await lp.getAddress();
   const balance = await ERC20.balanceOf(lpAddress);
 

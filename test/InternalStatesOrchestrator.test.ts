@@ -33,8 +33,8 @@ describe("InternalStatesOrchestrator", function () {
     ] = await ethers.getSigners();
 
     // Deploy mock underlying asset
-    const UnderlyingAssetFactory = await ethers.getContractFactory("UnderlyingAsset");
-    const underlyingAsset = (await UnderlyingAssetFactory.deploy()) as UnderlyingAsset;
+    const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
+    const underlyingAsset = (await MockUnderlyingAssetFactory.deploy()) as MockUnderlyingAsset;
     await underlyingAsset.waitForDeployment();
     const underlyingAssetAddress = await underlyingAsset.getAddress();
 
@@ -289,11 +289,11 @@ describe("InternalStatesOrchestrator", function () {
         } = await loadFixture(deployOrchestratorFixture);
 
         // Set up oracle for underlying asset
-        const UniverseOracleFactory = await ethers.getContractFactory("UniverseOracle");
-        const oracle = await UniverseOracleFactory.deploy();
+        const MockPriceAdapterFactory = await ethers.getContractFactory("MockPriceAdapter");
+        const oracle = await MockPriceAdapterFactory.deploy();
         await oracle.waitForDeployment();
         await oracle.initialize(await underlyingAsset.getAddress(), curator1.address);
-        await oracleRegistry.setOracle(await underlyingAsset.getAddress(), await oracle.getAddress());
+        await oracleRegistry.setAdapter(await underlyingAsset.getAddress(), await oracle.getAddress());
 
         // Set up vault portfolio with some assets
         const portfolioTokens = [await underlyingAsset.getAddress()];
@@ -344,11 +344,11 @@ describe("InternalStatesOrchestrator", function () {
         } = await loadFixture(deployOrchestratorFixture);
 
         // Set up oracle for underlying asset
-        const UniverseOracleFactory = await ethers.getContractFactory("UniverseOracle");
-        const oracle = await UniverseOracleFactory.deploy();
+        const MockPriceAdapterFactory = await ethers.getContractFactory("MockPriceAdapter");
+        const oracle = await MockPriceAdapterFactory.deploy();
         await oracle.waitForDeployment();
         await oracle.initialize(await underlyingAsset.getAddress(), curator1.address);
-        await oracleRegistry.setOracle(await underlyingAsset.getAddress(), await oracle.getAddress());
+        await oracleRegistry.setAdapter(await underlyingAsset.getAddress(), await oracle.getAddress());
 
         // Set up vault1 portfolio and intent
         const portfolioTokens1 = [await underlyingAsset.getAddress()];
@@ -389,21 +389,21 @@ describe("InternalStatesOrchestrator", function () {
         } = await loadFixture(deployOrchestratorFixture);
 
         // Deploy second token
-        const UnderlyingAssetFactory = await ethers.getContractFactory("UnderlyingAsset");
-        const token2 = await UnderlyingAssetFactory.deploy();
+        const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
+        const token2 = await MockUnderlyingAssetFactory.deploy();
         await token2.waitForDeployment();
 
         // Set up oracles for both tokens
-        const UniverseOracleFactory = await ethers.getContractFactory("UniverseOracle");
-        const oracle1 = await UniverseOracleFactory.deploy();
+        const MockPriceAdapterFactory = await ethers.getContractFactory("MockPriceAdapter");
+        const oracle1 = await MockPriceAdapterFactory.deploy();
         await oracle1.waitForDeployment();
         await oracle1.initialize(await underlyingAsset.getAddress(), curator1.address);
-        await oracleRegistry.setOracle(await underlyingAsset.getAddress(), await oracle1.getAddress());
+        await oracleRegistry.setAdapter(await underlyingAsset.getAddress(), await oracle1.getAddress());
 
-        const oracle2 = await UniverseOracleFactory.deploy();
+        const oracle2 = await MockPriceAdapterFactory.deploy();
         await oracle2.waitForDeployment();
         await oracle2.initialize(await token2.getAddress(), curator1.address);
-        await oracleRegistry.setOracle(await token2.getAddress(), await oracle2.getAddress());
+        await oracleRegistry.setAdapter(await token2.getAddress(), await oracle2.getAddress());
 
         // Add token2 to whitelist
         await orionConfig.addWhitelistedAsset(await token2.getAddress());
@@ -443,11 +443,11 @@ describe("InternalStatesOrchestrator", function () {
         } = await loadFixture(deployOrchestratorFixture);
 
         // Set up oracle
-        const UniverseOracleFactory = await ethers.getContractFactory("UniverseOracle");
-        const oracle = await UniverseOracleFactory.deploy();
+        const MockPriceAdapterFactory = await ethers.getContractFactory("MockPriceAdapter");
+        const oracle = await MockPriceAdapterFactory.deploy();
         await oracle.waitForDeployment();
         await oracle.initialize(await underlyingAsset.getAddress(), curator1.address);
-        await oracleRegistry.setOracle(await underlyingAsset.getAddress(), await oracle.getAddress());
+        await oracleRegistry.setAdapter(await underlyingAsset.getAddress(), await oracle.getAddress());
 
         // Set up vault portfolio
         await vault1
@@ -485,21 +485,21 @@ describe("InternalStatesOrchestrator", function () {
         } = await loadFixture(deployOrchestratorFixture);
 
         // Deploy second token
-        const UnderlyingAssetFactory = await ethers.getContractFactory("UnderlyingAsset");
-        const token2 = await UnderlyingAssetFactory.deploy();
+        const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
+        const token2 = await MockUnderlyingAssetFactory.deploy();
         await token2.waitForDeployment();
 
         // Set up oracles for both tokens
-        const UniverseOracleFactory = await ethers.getContractFactory("UniverseOracle");
-        const oracle1 = await UniverseOracleFactory.deploy();
+        const MockPriceAdapterFactory = await ethers.getContractFactory("MockPriceAdapter");
+        const oracle1 = await MockPriceAdapterFactory.deploy();
         await oracle1.waitForDeployment();
         await oracle1.initialize(await underlyingAsset.getAddress(), curator1.address);
-        await oracleRegistry.setOracle(await underlyingAsset.getAddress(), await oracle1.getAddress());
+        await oracleRegistry.setAdapter(await underlyingAsset.getAddress(), await oracle1.getAddress());
 
-        const oracle2 = await UniverseOracleFactory.deploy();
+        const oracle2 = await MockPriceAdapterFactory.deploy();
         await oracle2.waitForDeployment();
         await oracle2.initialize(await token2.getAddress(), curator1.address);
-        await oracleRegistry.setOracle(await token2.getAddress(), await oracle2.getAddress());
+        await oracleRegistry.setAdapter(await token2.getAddress(), await oracle2.getAddress());
 
         // Add token2 to whitelist
         await orionConfig.addWhitelistedAsset(await token2.getAddress());
@@ -538,21 +538,21 @@ describe("InternalStatesOrchestrator", function () {
         } = await loadFixture(deployOrchestratorFixture);
 
         // Deploy second token
-        const UnderlyingAssetFactory = await ethers.getContractFactory("UnderlyingAsset");
-        const token2 = await UnderlyingAssetFactory.deploy();
+        const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
+        const token2 = await MockUnderlyingAssetFactory.deploy();
         await token2.waitForDeployment();
 
         // Set up oracles for both tokens
-        const UniverseOracleFactory = await ethers.getContractFactory("UniverseOracle");
-        const oracle1 = await UniverseOracleFactory.deploy();
+        const MockPriceAdapterFactory = await ethers.getContractFactory("MockPriceAdapter");
+        const oracle1 = await MockPriceAdapterFactory.deploy();
         await oracle1.waitForDeployment();
         await oracle1.initialize(await underlyingAsset.getAddress(), curator1.address);
-        await oracleRegistry.setOracle(await underlyingAsset.getAddress(), await oracle1.getAddress());
+        await oracleRegistry.setAdapter(await underlyingAsset.getAddress(), await oracle1.getAddress());
 
-        const oracle2 = await UniverseOracleFactory.deploy();
+        const oracle2 = await MockPriceAdapterFactory.deploy();
         await oracle2.waitForDeployment();
         await oracle2.initialize(await token2.getAddress(), curator1.address);
-        await oracleRegistry.setOracle(await token2.getAddress(), await oracle2.getAddress());
+        await oracleRegistry.setAdapter(await token2.getAddress(), await oracle2.getAddress());
 
         // Add token2 to whitelist
         await orionConfig.addWhitelistedAsset(await token2.getAddress());
@@ -594,11 +594,11 @@ describe("InternalStatesOrchestrator", function () {
         } = await loadFixture(deployOrchestratorFixture);
 
         // Set up oracle
-        const UniverseOracleFactory = await ethers.getContractFactory("UniverseOracle");
-        const oracle = await UniverseOracleFactory.deploy();
+        const MockPriceAdapterFactory = await ethers.getContractFactory("MockPriceAdapter");
+        const oracle = await MockPriceAdapterFactory.deploy();
         await oracle.waitForDeployment();
         await oracle.initialize(await underlyingAsset.getAddress(), curator1.address);
-        await oracleRegistry.setOracle(await underlyingAsset.getAddress(), await oracle.getAddress());
+        await oracleRegistry.setAdapter(await underlyingAsset.getAddress(), await oracle.getAddress());
 
         // Set up vault portfolio and intent
         await vault1

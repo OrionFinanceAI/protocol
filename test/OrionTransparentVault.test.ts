@@ -9,8 +9,8 @@ describe("OrionTransparentVault", function () {
       await ethers.getSigners();
 
     // Deploy mock underlying asset
-    const UnderlyingAssetFactory = await ethers.getContractFactory("UnderlyingAsset");
-    const underlyingAsset = await UnderlyingAssetFactory.deploy();
+    const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
+    const underlyingAsset = await MockUnderlyingAssetFactory.deploy();
     await underlyingAsset.waitForDeployment();
     const underlyingAssetAddress = await underlyingAsset.getAddress();
 

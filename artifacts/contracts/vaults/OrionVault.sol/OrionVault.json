@@ -1,7 +1,7 @@
 {
   "_format": "hh-sol-artifact-1",
   "contractName": "OrionVault",
-  "sourceName": "contracts/OrionVault.sol",
+  "sourceName": "contracts/vaults/OrionVault.sol",
   "abi": [
     {
       "inputs": [

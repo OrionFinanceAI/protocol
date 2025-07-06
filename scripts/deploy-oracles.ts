@@ -32,15 +32,15 @@ async function main() {
       // Validate the asset address
       const validatedAsset = validateAddress(asset, "asset");
 
-      console.log(`\n📊 Deploying UniverseOracle for asset: ${validatedAsset}`);
+      console.log(`\n📊 Deploying MockPriceAdapter for asset: ${validatedAsset}`);
 
-      // Deploy the UniverseOracle contract
-      const UniverseOracle = await ethers.getContractFactory("UniverseOracle");
-      const oracle = await UniverseOracle.deploy();
+      // Deploy the MockPriceAdapter contract
+      const MockPriceAdapter = await ethers.getContractFactory("MockPriceAdapter");
+      const oracle = await MockPriceAdapter.deploy();
       await oracle.waitForDeployment();
 
       const oracleAddress = await oracle.getAddress();
-      console.log(`✅ UniverseOracle deployed at: ${oracleAddress}`);
+      console.log(`✅ MockPriceAdapter deployed at: ${oracleAddress}`);
 
       const deployerAddress = await deployer.getAddress();
 

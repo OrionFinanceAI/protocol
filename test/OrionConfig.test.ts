@@ -19,9 +19,9 @@ const VaultType = { Encrypted: 0, Transparent: 1 };
 beforeEach(async function () {
   [owner, vaultFactory, other, addr1, addr2] = await ethers.getSigners();
 
-  // Deploy UnderlyingAsset
-  const UnderlyingAssetFactory = await ethers.getContractFactory("UnderlyingAsset");
-  underlyingAsset = await UnderlyingAssetFactory.deploy();
+  // Deploy MockUnderlyingAsset
+  const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
+  underlyingAsset = await MockUnderlyingAssetFactory.deploy();
   await underlyingAsset.waitForDeployment();
 
   // Deploy OrionConfig and initialize
@@ -88,7 +88,7 @@ describe("OrionConfig", function () {
     });
 
     it("reverts if statesDecimals < underlying decimals", async function () {
-      // UnderlyingAsset decimals is 6, try 5 < 6
+      // MockUnderlyingAsset decimals is 6, try 5 < 6
       await expect(
         orionConfig
           .connect(owner)

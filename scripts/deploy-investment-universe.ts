@@ -7,13 +7,13 @@ async function main() {
   const [deployer] = await ethers.getSigners();
   console.log("Deploying Investment Universe with:", await deployer.getAddress());
 
-  const UnderlyingAssetAddress = process.env.UNDERLYING_ASSET;
-  if (!UnderlyingAssetAddress) {
+  const MockUnderlyingAssetAddress = process.env.UNDERLYING_ASSET;
+  if (!MockUnderlyingAssetAddress) {
     throw new Error("Please set UNDERLYING_ASSET in your .env file");
   }
-  console.log("Using UnderlyingAsset at:", UnderlyingAssetAddress);
+  console.log("Using MockUnderlyingAsset at:", MockUnderlyingAssetAddress);
 
-  const VaultFactory = await ethers.getContractFactory("UniverseERC4626Vault");
+  const VaultFactory = await ethers.getContractFactory("MockERC4626Asset");
 
   const vaults: string[] = [];
 
@@ -21,7 +21,7 @@ async function main() {
     const name = `Vault Token ${i}`;
     const symbol = `VT${i}`;
 
-    const vault = await VaultFactory.deploy(UnderlyingAssetAddress, name, symbol);
+    const vault = await VaultFactory.deploy(MockUnderlyingAssetAddress, name, symbol);
     await vault.waitForDeployment();
 
     console.log(`Vault ${i} deployed to: ${vault.target}`);
