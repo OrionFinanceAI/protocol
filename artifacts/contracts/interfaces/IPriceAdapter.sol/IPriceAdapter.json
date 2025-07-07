@@ -4,7 +4,13 @@
   "sourceName": "contracts/interfaces/IPriceAdapter.sol",
   "abi": [
     {
-      "inputs": [],
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "asset",
+          "type": "address"
+        }
+      ],
       "name": "price",
       "outputs": [
         {

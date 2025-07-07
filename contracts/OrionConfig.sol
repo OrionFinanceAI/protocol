@@ -105,7 +105,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
 
     function removeWhitelistedAsset(address asset) external onlyOwner {
         bool removed = whitelistedAssets.remove(asset);
-        if (!removed) revert ErrorsLib.NotInWhitelist();
+        if (!removed) revert ErrorsLib.TokenNotWhitelisted(asset);
         emit EventsLib.WhitelistedAssetRemoved(asset);
     }
 

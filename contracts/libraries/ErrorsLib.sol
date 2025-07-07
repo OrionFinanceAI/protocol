@@ -4,19 +4,14 @@ pragma solidity ^0.8.28;
 /// @title ErrorsLib
 /// @notice Library exposing error messages.
 library ErrorsLib {
-    error NotOwner();
     error NotFactory();
     error ZeroAddress();
     error InvalidAsset();
     error AlreadyWhitelisted();
-    error NotInWhitelist();
-    error IndexOutOfBounds();
-    error VaultNotFound();
     error AlreadyAnOrionVault();
     error NotAnOrionVault();
     error InvalidCuratorAddress();
     error InvalidConfigAddress();
-    error MockUnderlyingAssetNotSet();
     error NotCurator();
     error NotLiquidityOrchestrator();
     error NotInternalStatesOrchestrator();
@@ -25,20 +20,13 @@ library ErrorsLib {
     error AmountMustBeGreaterThanZero(address asset);
     error SharesMustBeGreaterThanZero();
     error NotEnoughShares();
-    error SynchronousRedemptionsDisabled();
-    error SynchronousDepositsDisabled();
-    error SynchronousWithdrawalsDisabled();
+    error SynchronousCallDisabled();
     error InvalidTotalWeight();
-    error ZeroPrice();
     error OrderIntentCannotBeEmpty();
     error TokenAlreadyInOrder(address token);
-    error CuratorCannotBeZeroAddress();
     error NotAuthorized();
     error TooEarly();
-    error DepositRequestFailed();
-    error WithdrawRequestFailed();
     error NotEnoughDepositRequest();
     error AdapterNotSet();
     error InvalidStatesDecimals();
-    error Underflow();
 }

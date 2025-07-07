@@ -55,9 +55,9 @@ describe("OracleRegistry", function () {
     await mockPriceAdapter2.waitForDeployment();
     await mockPriceAdapter3.waitForDeployment();
 
-    await mockPriceAdapter1.initialize(await mockAsset1.getAddress(), owner.address);
-    await mockPriceAdapter2.initialize(await mockAsset2.getAddress(), owner.address);
-    await mockPriceAdapter3.initialize(await mockAsset3.getAddress(), owner.address);
+    await mockPriceAdapter1.initialize(owner.address);
+    await mockPriceAdapter2.initialize(owner.address);
+    await mockPriceAdapter3.initialize(owner.address);
 
     // Deploy ERC4626PriceAdapter contracts
     const ERC4626PriceAdapterFactory = await ethers.getContractFactory("ERC4626PriceAdapter");
@@ -67,8 +67,8 @@ describe("OracleRegistry", function () {
     await erc4626PriceAdapter1.waitForDeployment();
     await erc4626PriceAdapter2.waitForDeployment();
 
-    await erc4626PriceAdapter1.initialize(await mockAsset1.getAddress(), owner.address);
-    await erc4626PriceAdapter2.initialize(await mockAsset2.getAddress(), owner.address);
+    await erc4626PriceAdapter1.initialize(owner.address);
+    await erc4626PriceAdapter2.initialize(owner.address);
   });
 
   describe("setAdapter", function () {
@@ -262,13 +262,13 @@ describe("OracleRegistry", function () {
           const MockPriceAdapterFactory = await ethers.getContractFactory("MockPriceAdapter");
           const adapter = await MockPriceAdapterFactory.deploy();
           await adapter.waitForDeployment();
-          await adapter.initialize(await asset.getAddress(), owner.address);
+          await adapter.initialize(owner.address);
           adapters.push(await adapter.getAddress());
         } else {
           const ERC4626PriceAdapterFactory = await ethers.getContractFactory("ERC4626PriceAdapter");
           const adapter = await ERC4626PriceAdapterFactory.deploy();
           await adapter.waitForDeployment();
-          await adapter.initialize(await asset.getAddress(), owner.address);
+          await adapter.initialize(owner.address);
           adapters.push(await adapter.getAddress());
         }
 

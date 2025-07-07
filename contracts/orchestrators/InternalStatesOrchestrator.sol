@@ -128,18 +128,10 @@ contract InternalStatesOrchestrator is
     ///      - Computes estimated system states;
     ///      - Emits events to trigger the Liquidity Orchestrator
     function performUpkeep(bytes calldata) external override onlyAutomationRegistry nonReentrant {
-        if (!_shouldTriggerUpkeep()) revert ErrorsLib.TooEarly();
-        nextUpdateTime = _computeNextUpdateTime(block.timestamp);
-        epochCounter++;
+        _checkAndCountEpoch();
+        _resetEpochState();
 
         IOracleRegistry registry = IOracleRegistry(config.oracleRegistry());
-
-        // Previous Epoch Variables
-        _priceHat.clear();
-        _initialBatchPortfolioHat.clear();
-        _finalBatchPortfolioHat.clear();
-        _sellingOrders.clear();
-        _buyingOrders.clear();
 
         // Transparent Vaults
 
@@ -229,6 +221,17 @@ contract InternalStatesOrchestrator is
         emit EventsLib.InternalStateProcessed(epochCounter);
     }
 
+    /* -------------------------------------------------------------------------- */
+    /*                               INTERNAL LOGIC                               */
+    /* -------------------------------------------------------------------------- */
+
+    /// -------- 1. housekeeping --------------------------------------------------
+    function _checkAndCountEpoch() internal {
+        if (!_shouldTriggerUpkeep()) revert ErrorsLib.TooEarly();
+        nextUpdateTime = _computeNextUpdateTime(block.timestamp);
+        epochCounter++;
+    }
+
     /// @notice Computes the next update time based on current timestamp
     /// @param currentTime Current block timestamp
     /// @return Next update time
@@ -241,6 +244,15 @@ contract InternalStatesOrchestrator is
     function _shouldTriggerUpkeep() internal view returns (bool) {
         // slither-disable-next-line timestamp
         return block.timestamp >= nextUpdateTime;
+    }
+
+    /// @notice Resets the previous epoch state variables
+    function _resetEpochState() internal {
+        _priceHat.clear();
+        _initialBatchPortfolioHat.clear();
+        _finalBatchPortfolioHat.clear();
+        _sellingOrders.clear();
+        _buyingOrders.clear();
     }
 
     /// @notice Compute selling and buying orders based on portfolio differences
@@ -285,7 +297,9 @@ contract InternalStatesOrchestrator is
         }
     }
 
-    /* ---------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------- */
+    /* -------------------------------------------------------------------------- */
+    /*                      LIQUIDITY ORCHESTRATOR FUNCTIONS                      */
+    /* -------------------------------------------------------------------------- */
 
     /// @notice Get the selling orders
     /// @return tokens The tokens to sell

@@ -5,24 +5,14 @@ import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "../interfaces/IPriceAdapter.sol";
-import "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
 contract ERC4626PriceAdapter is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable, IPriceAdapter {
-    /// @notice Asset this price adapter is bound to.
-    IERC4626 public asset;
-
-    uint8 public shareDecimals;
-    uint8 public assetDecimals;
-
-    function initialize(IERC4626 asset_, address initialOwner) public initializer {
+    function initialize(address initialOwner) public initializer {
         __Ownable_init(initialOwner);
         __Ownable2Step_init();
         __UUPSUpgradeable_init();
-
-        asset = asset_;
-        shareDecimals = asset.decimals();
-        assetDecimals = IERC20Metadata(asset.asset()).decimals();
     }
 
     // solhint-disable-next-line no-empty-blocks
@@ -30,9 +20,11 @@ contract ERC4626PriceAdapter is Initializable, Ownable2StepUpgradeable, UUPSUpgr
         // Only the owner can upgrade the contract
     }
 
-    function price() external view returns (uint256) {
+    function price(address asset) external view returns (uint256) {
+        uint8 shareDecimals = IERC20Metadata(asset).decimals();
+        uint8 assetDecimals = IERC20Metadata(IERC4626(asset).asset()).decimals();
         uint256 oneShare = 10 ** shareDecimals;
-        uint256 assetAmount = asset.convertToAssets(oneShare);
+        uint256 assetAmount = IERC4626(asset).convertToAssets(oneShare);
         // Normalize the price to 18 decimals regardless of asset decimals
         if (assetDecimals == 18) {
             return assetAmount;

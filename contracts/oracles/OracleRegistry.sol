@@ -33,6 +33,6 @@ contract OracleRegistry is Initializable, Ownable2StepUpgradeable, UUPSUpgradeab
     function getPrice(address asset) external view returns (uint256) {
         IPriceAdapter adapter = adapterOf[asset];
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
-        return adapter.price();
+        return adapter.price(asset);
     }
 }

@@ -141,19 +141,19 @@ abstract contract OrionVault is
 
     /// @notice Disable direct deposits and withdrawals on ERC4626 to enforce async only
     function deposit(uint256, address) public pure override(ERC4626Upgradeable, IERC4626) returns (uint256) {
-        revert ErrorsLib.SynchronousDepositsDisabled();
+        revert ErrorsLib.SynchronousCallDisabled();
     }
 
     function mint(uint256, address) public pure override(ERC4626Upgradeable, IERC4626) returns (uint256) {
-        revert ErrorsLib.SynchronousDepositsDisabled();
+        revert ErrorsLib.SynchronousCallDisabled();
     }
 
     function withdraw(uint256, address, address) public pure override(ERC4626Upgradeable, IERC4626) returns (uint256) {
-        revert ErrorsLib.SynchronousWithdrawalsDisabled();
+        revert ErrorsLib.SynchronousCallDisabled();
     }
 
     function redeem(uint256, address, address) public pure override(ERC4626Upgradeable, IERC4626) returns (uint256) {
-        revert ErrorsLib.SynchronousRedemptionsDisabled();
+        revert ErrorsLib.SynchronousCallDisabled();
     }
 
     function totalAssets() public view override(ERC4626Upgradeable, IERC4626) returns (uint256) {

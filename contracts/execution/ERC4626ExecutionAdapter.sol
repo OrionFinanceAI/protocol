@@ -16,16 +16,16 @@ contract ERC4626ExecutionAdapter is IExecutionAdapter {
     using SafeERC20 for IERC20;
 
     /// @notice The ERC4626 vault this adapter interacts with
-    IERC4626 public immutable vault;
+    IERC4626 public immutable VAULT;
 
     /// @notice The underlying asset of the vault
-    IERC20 public immutable underlyingAsset;
+    IERC20 public immutable UNDERLYING_ASSET;
 
     /// @param _vault The ERC4626 vault address
     constructor(address _vault) {
         if (_vault == address(0)) revert ErrorsLib.ZeroAddress();
-        vault = IERC4626(_vault);
-        underlyingAsset = IERC20(vault.asset());
+        VAULT = IERC4626(_vault);
+        UNDERLYING_ASSET = IERC20(VAULT.asset());
     }
 
     /// @notice Executes a buy operation by depositing underlying assets to get vault shares
@@ -34,23 +34,24 @@ contract ERC4626ExecutionAdapter is IExecutionAdapter {
     /// @dev The caller (RebalancingEngine) should have approved this contract to spend the underlying assets
     ///      The resulting shares will be held by this contract and can be transferred to the caller
     function buy(address asset, uint256 amount) external override {
-        if (asset != address(vault)) revert ErrorsLib.InvalidAsset();
-        if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(address(underlyingAsset));
+        if (asset != address(VAULT)) revert ErrorsLib.InvalidAsset();
+        if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(address(UNDERLYING_ASSET));
 
         // Transfer underlying assets from caller to this contract
-        underlyingAsset.safeTransferFrom(msg.sender, address(this), amount);
+        UNDERLYING_ASSET.safeTransferFrom(msg.sender, address(this), amount);
+        // TODO: message sender is engine, not liquidity orchestrator, how to handle this?
 
         // Approve vault to spend underlying assets
-        underlyingAsset.forceApprove(address(vault), amount);
+        UNDERLYING_ASSET.forceApprove(address(VAULT), amount);
 
         // Deposit underlying assets to get vault shares
-        uint256 shares = vault.deposit(amount, msg.sender);
+        uint256 shares = VAULT.deposit(amount, msg.sender);
 
         // Clean up approval
-        underlyingAsset.forceApprove(address(vault), 0);
+        UNDERLYING_ASSET.forceApprove(address(VAULT), 0);
 
-        // Note: shares are sent directly to the caller (msg.sender)
-        // The vault's deposit function handles the share minting to the specified receiver
+        // TODO: shares are sent directly to the caller (msg.sender),
+        // how to handle internal accounting and share liquidity?
     }
 
     /// @notice Executes a sell operation by redeeming vault shares to get underlying assets
@@ -59,16 +60,18 @@ contract ERC4626ExecutionAdapter is IExecutionAdapter {
     /// @dev The caller (RebalancingEngine) should have approved this contract to spend the vault shares
     ///      The resulting underlying assets will be transferred to the caller
     function sell(address asset, uint256 amount) external override {
-        if (asset != address(vault)) revert ErrorsLib.InvalidAsset();
+        if (asset != address(VAULT)) revert ErrorsLib.InvalidAsset();
         if (amount == 0) revert ErrorsLib.SharesMustBeGreaterThanZero();
 
         // Transfer vault shares from caller to this contract
-        vault.transferFrom(msg.sender, address(this), amount);
+        bool success = VAULT.transferFrom(msg.sender, address(this), amount);
+        if (!success) revert ErrorsLib.TransferFailed();
+        // TODO: message sender is engine, not liquidity orchestrator, how to handle this?
 
         // Redeem shares to get underlying assets
-        uint256 assets = vault.redeem(amount, msg.sender, address(this));
+        uint256 assets = VAULT.redeem(amount, msg.sender, address(this));
 
-        // Note: underlying assets are sent directly to the caller (msg.sender)
-        // The vault's redeem function handles the asset transfer to the specified receiver
+        // TODO: underlying assets are sent directly to the caller (msg.sender),
+        // how to handle internal accounting and underlying asset liquidity?
     }
 }

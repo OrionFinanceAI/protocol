@@ -280,17 +280,7 @@
     },
     {
       "inputs": [],
-      "name": "SynchronousDepositsDisabled",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "SynchronousRedemptionsDisabled",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "SynchronousWithdrawalsDisabled",
+      "name": "SynchronousCallDisabled",
       "type": "error"
     },
     {

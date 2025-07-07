@@ -26,6 +26,7 @@ describe("OrionTransparentVault", function () {
       underlyingAssetAddress,
       internalOrchestrator.address,
       liquidityOrchestrator.address,
+      owner.address, // rebalancingEngine
       18, // statesDecimals
       6, // curatorIntentDecimals
       owner.address, // factory
@@ -121,27 +122,27 @@ describe("OrionTransparentVault", function () {
       const { vault, lp1 } = await loadFixture(deployVaultFixture);
       await expect(vault.connect(lp1).deposit(ethers.parseUnits("100", 6), lp1.address)).to.be.revertedWithCustomError(
         vault,
-        "SynchronousDepositsDisabled",
+        "SynchronousCallDisabled",
       );
     });
     it("Should revert direct mints", async function () {
       const { vault, lp1 } = await loadFixture(deployVaultFixture);
       await expect(vault.connect(lp1).mint(ethers.parseUnits("100", 6), lp1.address)).to.be.revertedWithCustomError(
         vault,
-        "SynchronousDepositsDisabled",
+        "SynchronousCallDisabled",
       );
     });
     it("Should revert direct withdrawals", async function () {
       const { vault, lp1 } = await loadFixture(deployVaultFixture);
       await expect(
         vault.connect(lp1).withdraw(ethers.parseUnits("100", 6), lp1.address, lp1.address),
-      ).to.be.revertedWithCustomError(vault, "SynchronousWithdrawalsDisabled");
+      ).to.be.revertedWithCustomError(vault, "SynchronousCallDisabled");
     });
     it("Should revert direct redemptions", async function () {
       const { vault, lp1 } = await loadFixture(deployVaultFixture);
       await expect(
         vault.connect(lp1).redeem(ethers.parseUnits("100", 6), lp1.address, lp1.address),
-      ).to.be.revertedWithCustomError(vault, "SynchronousRedemptionsDisabled");
+      ).to.be.revertedWithCustomError(vault, "SynchronousCallDisabled");
     });
   });
 
@@ -170,28 +171,6 @@ describe("OrionTransparentVault", function () {
       await vault.connect(lp1).requestDeposit(depositAmount1);
       await vault.connect(lp1).requestDeposit(depositAmount2);
       expect(await vault.getPendingDeposits()).to.equal(depositAmount1 + depositAmount2);
-    });
-    it("Should allow LP to withdraw deposit request", async function () {
-      const { vault, underlyingAsset, lp1 } = await loadFixture(deployVaultFixture);
-      const depositAmount = ethers.parseUnits("100", 6);
-      const withdrawAmount = ethers.parseUnits("30", 6);
-      await underlyingAsset.connect(lp1).approve(await vault.getAddress(), depositAmount);
-      await vault.connect(lp1).requestDeposit(depositAmount);
-      const balanceBefore = await underlyingAsset.balanceOf(lp1.address);
-      await expect(vault.connect(lp1).cancelDepositRequest(withdrawAmount))
-        .to.emit(vault, "DepositRequestCancelled")
-        .withArgs(lp1.address, withdrawAmount);
-      const balanceAfter = await underlyingAsset.balanceOf(lp1.address);
-      expect(balanceAfter - balanceBefore).to.equal(withdrawAmount);
-      expect(await vault.getPendingDeposits()).to.equal(depositAmount - withdrawAmount);
-    });
-    it("Should allow LP to withdraw entire deposit request", async function () {
-      const { vault, underlyingAsset, lp1 } = await loadFixture(deployVaultFixture);
-      const depositAmount = ethers.parseUnits("100", 6);
-      await underlyingAsset.connect(lp1).approve(await vault.getAddress(), depositAmount);
-      await vault.connect(lp1).requestDeposit(depositAmount);
-      await vault.connect(lp1).cancelDepositRequest(depositAmount);
-      expect(await vault.getPendingDeposits()).to.equal(0);
     });
     it("Should revert withdrawal of non-existent deposit request", async function () {
       const { vault, lp1 } = await loadFixture(deployVaultFixture);

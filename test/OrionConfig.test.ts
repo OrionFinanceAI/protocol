@@ -51,31 +51,67 @@ describe("OrionConfig", function () {
       await expect(
         orionConfig
           .connect(owner)
-          .setProtocolParams(ZERO, other.address, other.address, 18, 8, vaultFactory.address, other.address),
-      ).to.be.revertedWithCustomError(orionConfig, "InvalidAsset");
+          .setProtocolParams(
+            ZERO,
+            other.address,
+            other.address,
+            other.address,
+            18,
+            8,
+            vaultFactory.address,
+            other.address,
+          ),
+      ).to.be.revertedWithCustomError(orionConfig, "ZeroAddress");
     });
 
     it("reverts if internalStatesOrchestrator is zero", async function () {
       await expect(
         orionConfig
           .connect(owner)
-          .setProtocolParams(underlyingAsset.target, ZERO, other.address, 18, 8, vaultFactory.address, other.address),
-      ).to.be.revertedWithCustomError(orionConfig, "InvalidInternalOrchestrator");
+          .setProtocolParams(
+            underlyingAsset.target,
+            ZERO,
+            other.address,
+            other.address,
+            18,
+            8,
+            vaultFactory.address,
+            other.address,
+          ),
+      ).to.be.revertedWithCustomError(orionConfig, "ZeroAddress");
     });
 
     it("reverts if liquidityOrchestrator is zero", async function () {
       await expect(
         orionConfig
           .connect(owner)
-          .setProtocolParams(underlyingAsset.target, other.address, ZERO, 18, 8, vaultFactory.address, other.address),
-      ).to.be.revertedWithCustomError(orionConfig, "InvalidLiquidityOrchestrator");
+          .setProtocolParams(
+            underlyingAsset.target,
+            other.address,
+            ZERO,
+            other.address,
+            18,
+            8,
+            vaultFactory.address,
+            other.address,
+          ),
+      ).to.be.revertedWithCustomError(orionConfig, "ZeroAddress");
     });
 
     it("reverts if factory is zero", async function () {
       await expect(
         orionConfig
           .connect(owner)
-          .setProtocolParams(underlyingAsset.target, other.address, other.address, 18, 8, ZERO, other.address),
+          .setProtocolParams(
+            underlyingAsset.target,
+            other.address,
+            other.address,
+            other.address,
+            18,
+            8,
+            ZERO,
+            other.address,
+          ),
       ).to.be.revertedWithCustomError(orionConfig, "ZeroAddress");
     });
 
@@ -83,7 +119,16 @@ describe("OrionConfig", function () {
       await expect(
         orionConfig
           .connect(owner)
-          .setProtocolParams(underlyingAsset.target, other.address, other.address, 18, 8, vaultFactory.address, ZERO),
+          .setProtocolParams(
+            underlyingAsset.target,
+            other.address,
+            other.address,
+            other.address,
+            18,
+            8,
+            vaultFactory.address,
+            ZERO,
+          ),
       ).to.be.revertedWithCustomError(orionConfig, "ZeroAddress");
     });
 
@@ -94,6 +139,7 @@ describe("OrionConfig", function () {
           .connect(owner)
           .setProtocolParams(
             underlyingAsset.target,
+            other.address,
             other.address,
             other.address,
             5,
@@ -112,22 +158,13 @@ describe("OrionConfig", function () {
             underlyingAsset.target,
             other.address,
             vaultFactory.address,
+            other.address,
             6,
             10,
             vaultFactory.address,
             other.address,
           ),
-      )
-        .to.emit(orionConfig, "ProtocolParamsUpdated")
-        .withArgs(
-          underlyingAsset.target,
-          other.address,
-          vaultFactory.address,
-          6,
-          10,
-          vaultFactory.address,
-          other.address,
-        );
+      ).to.emit(orionConfig, "ProtocolParamsUpdated");
 
       expect(await orionConfig.underlyingAsset()).to.equal(underlyingAsset.target);
       expect(await orionConfig.internalStatesOrchestrator()).to.equal(other.address);
@@ -146,6 +183,7 @@ describe("OrionConfig", function () {
             underlyingAsset.target,
             other.address,
             vaultFactory.address,
+            other.address,
             6,
             10,
             vaultFactory.address,
@@ -184,10 +222,9 @@ describe("OrionConfig", function () {
       expect(await orionConfig.whitelistedAssetsLength()).to.equal(0);
 
       // Removing non-existing asset reverts
-      await expect(orionConfig.connect(owner).removeWhitelistedAsset(addr1.address)).to.be.revertedWithCustomError(
-        orionConfig,
-        "NotInWhitelist",
-      );
+      await expect(orionConfig.connect(owner).removeWhitelistedAsset(addr1.address))
+        .to.be.revertedWithCustomError(orionConfig, "TokenNotWhitelisted")
+        .withArgs(addr1.address);
     });
 
     it("getAllWhitelistedAssets returns all added assets", async function () {
@@ -224,6 +261,7 @@ describe("OrionConfig", function () {
           underlyingAsset.target,
           other.address,
           vaultFactory.address,
+          other.address,
           6,
           10,
           vaultFactory.address,
@@ -249,6 +287,7 @@ describe("OrionConfig", function () {
           underlyingAsset.target,
           other.address,
           vaultFactory.address,
+          other.address,
           6,
           10,
           vaultFactory.address,
@@ -267,6 +306,7 @@ describe("OrionConfig", function () {
           underlyingAsset.target,
           other.address,
           vaultFactory.address,
+          other.address,
           6,
           10,
           vaultFactory.address,
@@ -287,6 +327,7 @@ describe("OrionConfig", function () {
           underlyingAsset.target,
           other.address,
           vaultFactory.address,
+          other.address,
           6,
           10,
           vaultFactory.address,
@@ -305,6 +346,7 @@ describe("OrionConfig", function () {
           underlyingAsset.target,
           other.address,
           vaultFactory.address,
+          other.address,
           6,
           10,
           vaultFactory.address,
