@@ -43,5 +43,6 @@ artifacts/@chainlink/
 artifacts/build-info/
 artifacts/lib/
 artifacts/fhevm/
+artifacts/hardhat/
 !artifacts/contracts/**/*.json
 artifacts/contracts/**/*.dbg.json

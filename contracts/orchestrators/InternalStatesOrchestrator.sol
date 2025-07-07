@@ -137,6 +137,7 @@ contract InternalStatesOrchestrator is
 
         address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
         uint256 length = transparentVaults.length;
+
         for (uint256 i = 0; i < length; i++) {
             IOrionTransparentVault vault = IOrionTransparentVault(transparentVaults[i]);
 
@@ -187,18 +188,19 @@ contract InternalStatesOrchestrator is
             (address[] memory intentTokens, uint256[] memory intentWeights) = vault.getIntent();
 
             uint256 intentLength = intentTokens.length;
+
             for (uint256 j = 0; j < intentLength; j++) {
                 address token = intentTokens[j];
                 uint256 weight = intentWeights[j];
-                uint256 value = t2Hat * weight;
+                uint256 value = (t2Hat * weight) / (10 ** config.curatorIntentDecimals());
 
                 (bool finalValueExists, uint256 currentValue) = _finalBatchPortfolioHat.tryGet(token);
                 if (finalValueExists) {
-                    bool success = _finalBatchPortfolioHat.set(token, currentValue + value);
-                    assert(success);
+                    // slither-disable-next-line unused-return
+                    _finalBatchPortfolioHat.set(token, currentValue + value);
                 } else {
-                    bool success = _finalBatchPortfolioHat.set(token, value);
-                    assert(success);
+                    // slither-disable-next-line unused-return
+                    _finalBatchPortfolioHat.set(token, value);
                 }
             }
         }

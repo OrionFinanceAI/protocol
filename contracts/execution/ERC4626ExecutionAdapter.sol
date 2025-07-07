@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
+import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "../interfaces/IExecutionAdapter.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import "@openzeppelin/contracts/interfaces/IERC4626.sol";
@@ -14,20 +17,19 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 ///      - Sell: Redeems shares from the vault to receive underlying assets
 ///      The adapter expects funds to be transferred to it before executing trades
 ///      and returns the results to the caller (LiquidityOrchestrator).
-contract ERC4626ExecutionAdapter is IExecutionAdapter {
+contract ERC4626ExecutionAdapter is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable, IExecutionAdapter {
     using SafeERC20 for IERC20;
 
-    /// @notice The ERC4626 vault this adapter interacts with
-    IERC4626 public immutable VAULT;
+    /// @param initialOwner The address of the initial owner
+    function initialize(address initialOwner) public initializer {
+        __Ownable_init(initialOwner);
+        __Ownable2Step_init();
+        __UUPSUpgradeable_init();
+    }
 
-    /// @notice The underlying asset of the vault
-    IERC20 public immutable UNDERLYING_ASSET;
-
-    /// @param _vault The ERC4626 vault address
-    constructor(address _vault) {
-        if (_vault == address(0)) revert ErrorsLib.ZeroAddress();
-        VAULT = IERC4626(_vault);
-        UNDERLYING_ASSET = IERC20(VAULT.asset());
+    // solhint-disable-next-line no-empty-blocks
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {
+        // Only the owner can upgrade the contract
     }
 
     /// @notice Executes a buy operation by depositing underlying assets to get vault shares
@@ -37,24 +39,25 @@ contract ERC4626ExecutionAdapter is IExecutionAdapter {
     ///      to this contract before calling this function. The resulting shares will be
     ///      transferred back to the caller.
     function buy(address asset, uint256 amount) external override {
-        if (asset != address(VAULT)) revert ErrorsLib.InvalidAsset();
-        if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(address(UNDERLYING_ASSET));
+        if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset);
+        IERC4626 vault = IERC4626(asset);
+        IERC20 underlyingAsset = IERC20(vault.asset());
 
         // Verify we have the expected underlying assets
-        uint256 contractBalance = UNDERLYING_ASSET.balanceOf(address(this));
-        if (contractBalance < amount) revert ErrorsLib.AmountMustBeGreaterThanZero(address(UNDERLYING_ASSET));
+        uint256 contractBalance = underlyingAsset.balanceOf(address(this));
+        if (contractBalance < amount) revert ErrorsLib.AmountMustBeGreaterThanZero(address(underlyingAsset));
 
         // Approve vault to spend underlying assets
-        UNDERLYING_ASSET.forceApprove(address(VAULT), amount);
+        underlyingAsset.forceApprove(address(vault), amount);
 
         // Deposit underlying assets to get vault shares
-        uint256 shares = VAULT.deposit(amount, address(this));
+        uint256 shares = vault.deposit(amount, address(this));
 
         // Clean up approval
-        UNDERLYING_ASSET.forceApprove(address(VAULT), 0);
+        underlyingAsset.forceApprove(address(vault), 0);
 
         // Transfer the received shares back to the caller (LiquidityOrchestrator)
-        bool success = VAULT.transfer(msg.sender, shares);
+        bool success = vault.transfer(msg.sender, shares);
         if (!success) revert ErrorsLib.TransferFailed();
     }
 
@@ -65,18 +68,23 @@ contract ERC4626ExecutionAdapter is IExecutionAdapter {
     ///      to this contract before calling this function. The resulting underlying assets
     ///      will be transferred back to the caller.
     function sell(address asset, uint256 amount) external override {
-        if (asset != address(VAULT)) revert ErrorsLib.InvalidAsset();
         if (amount == 0) revert ErrorsLib.SharesMustBeGreaterThanZero();
 
         // Verify we have the expected vault shares
-        uint256 contractBalance = VAULT.balanceOf(address(this));
+        uint256 contractBalance = IERC20(asset).balanceOf(address(this));
         if (contractBalance < amount) revert ErrorsLib.SharesMustBeGreaterThanZero();
 
+        // Approve vault to spend shares
+        IERC20(asset).forceApprove(asset, amount);
+
         // Redeem shares to get underlying assets
-        uint256 assets = VAULT.redeem(amount, address(this), address(this));
+        uint256 assets = IERC4626(asset).redeem(amount, address(this), address(this));
+
+        // Clean up approval
+        IERC20(asset).forceApprove(asset, 0);
 
         // Transfer the received underlying assets back to the caller (LiquidityOrchestrator)
-        bool success = UNDERLYING_ASSET.transfer(msg.sender, assets);
+        bool success = IERC20(asset).transfer(msg.sender, assets);
         if (!success) revert ErrorsLib.TransferFailed();
     }
 }
