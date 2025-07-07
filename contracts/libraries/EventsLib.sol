@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.28;
 
 /// @title EventsLib
 /// @notice Library for protocol events
@@ -9,23 +9,15 @@ library EventsLib {
     event WhitelistedAssetRemoved(address indexed asset);
     event OrionVaultAdded(address indexed vault);
     event OrionVaultRemoved(address indexed vault);
-    event ProtocolParamsUpdated(
-        address underlyingAsset,
-        address internalStatesOrchestrator,
-        address liquidityOrchestrator,
-        uint8 statesDecimals,
-        uint8 curatorIntentDecimals,
-        address factory,
-        address oracleRegistry
-    );
+    event ProtocolParamsUpdated();
 
     // Vault Events
     event OrderSubmitted(address indexed curator);
-    event DepositRequested(address indexed user, uint256 amount, uint256 requestId);
-    event WithdrawRequested(address indexed user, uint256 shares, uint256 requestId);
-    event DepositProcessed(address indexed user, uint256 amount, uint256 requestId);
-    event WithdrawProcessed(address indexed user, uint256 shares, uint256 requestId);
-    event DepositRequestCancelled(address indexed user, uint256 amount, uint256 depositorCount);
+    event DepositRequested(address indexed user, uint256 amount);
+    event WithdrawRequested(address indexed user, uint256 shares);
+    event DepositProcessed(address indexed user, uint256 amount);
+    event WithdrawProcessed(address indexed user, uint256 shares);
+    event DepositRequestCancelled(address indexed user, uint256 amount);
     event VaultStateUpdated(uint256 newTotalAssets);
 
     // Internal States Orchestrator Events
@@ -36,7 +28,7 @@ library EventsLib {
     event PortfolioRebalanced();
 
     // Oracle Registry Events
-    event OracleRegistered(address indexed asset, address indexed oracle);
+    event AdapterSet(address indexed asset, address indexed adapter);
 
     // Orion Vault Factory Events
     enum VaultType {
@@ -50,8 +42,4 @@ library EventsLib {
         address indexed deployer,
         VaultType vaultType
     );
-
-    // Liquidity Orchestrator Events
-    event DepositRequestProcessed(address indexed user, uint256 amount, uint256 requestId);
-    event WithdrawRequestProcessed(address indexed user, uint256 shares, uint256 requestId);
 }

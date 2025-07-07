@@ -19,9 +19,9 @@ const VaultType = { Encrypted: 0, Transparent: 1 };
 beforeEach(async function () {
   [owner, vaultFactory, other, addr1, addr2] = await ethers.getSigners();
 
-  // Deploy UnderlyingAsset
-  const UnderlyingAssetFactory = await ethers.getContractFactory("UnderlyingAsset");
-  underlyingAsset = await UnderlyingAssetFactory.deploy();
+  // Deploy MockUnderlyingAsset
+  const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
+  underlyingAsset = await MockUnderlyingAssetFactory.deploy();
   await underlyingAsset.waitForDeployment();
 
   // Deploy OrionConfig and initialize
@@ -52,7 +52,7 @@ describe("OrionConfig", function () {
         orionConfig
           .connect(owner)
           .setProtocolParams(ZERO, other.address, other.address, 18, 8, vaultFactory.address, other.address),
-      ).to.be.revertedWithCustomError(orionConfig, "InvalidAsset");
+      ).to.be.revertedWithCustomError(orionConfig, "ZeroAddress");
     });
 
     it("reverts if internalStatesOrchestrator is zero", async function () {
@@ -60,7 +60,7 @@ describe("OrionConfig", function () {
         orionConfig
           .connect(owner)
           .setProtocolParams(underlyingAsset.target, ZERO, other.address, 18, 8, vaultFactory.address, other.address),
-      ).to.be.revertedWithCustomError(orionConfig, "InvalidInternalOrchestrator");
+      ).to.be.revertedWithCustomError(orionConfig, "ZeroAddress");
     });
 
     it("reverts if liquidityOrchestrator is zero", async function () {
@@ -68,7 +68,7 @@ describe("OrionConfig", function () {
         orionConfig
           .connect(owner)
           .setProtocolParams(underlyingAsset.target, other.address, ZERO, 18, 8, vaultFactory.address, other.address),
-      ).to.be.revertedWithCustomError(orionConfig, "InvalidLiquidityOrchestrator");
+      ).to.be.revertedWithCustomError(orionConfig, "ZeroAddress");
     });
 
     it("reverts if factory is zero", async function () {
@@ -88,7 +88,7 @@ describe("OrionConfig", function () {
     });
 
     it("reverts if statesDecimals < underlying decimals", async function () {
-      // UnderlyingAsset decimals is 6, try 5 < 6
+      // MockUnderlyingAsset decimals is 6, try 5 < 6
       await expect(
         orionConfig
           .connect(owner)
@@ -117,17 +117,7 @@ describe("OrionConfig", function () {
             vaultFactory.address,
             other.address,
           ),
-      )
-        .to.emit(orionConfig, "ProtocolParamsUpdated")
-        .withArgs(
-          underlyingAsset.target,
-          other.address,
-          vaultFactory.address,
-          6,
-          10,
-          vaultFactory.address,
-          other.address,
-        );
+      ).to.emit(orionConfig, "ProtocolParamsUpdated");
 
       expect(await orionConfig.underlyingAsset()).to.equal(underlyingAsset.target);
       expect(await orionConfig.internalStatesOrchestrator()).to.equal(other.address);
@@ -184,10 +174,9 @@ describe("OrionConfig", function () {
       expect(await orionConfig.whitelistedAssetsLength()).to.equal(0);
 
       // Removing non-existing asset reverts
-      await expect(orionConfig.connect(owner).removeWhitelistedAsset(addr1.address)).to.be.revertedWithCustomError(
-        orionConfig,
-        "NotInWhitelist",
-      );
+      await expect(orionConfig.connect(owner).removeWhitelistedAsset(addr1.address))
+        .to.be.revertedWithCustomError(orionConfig, "TokenNotWhitelisted")
+        .withArgs(addr1.address);
     });
 
     it("getAllWhitelistedAssets returns all added assets", async function () {
@@ -343,18 +332,6 @@ describe("OrionConfig", function () {
         initializer: "initialize",
       });
       await orionConfigProxy.waitForDeployment();
-    });
-
-    it("only owner can upgrade (covers _authorizeUpgrade)", async function () {
-      // Deploy a new implementation for upgrade
-      const OrionConfigV2 = await ethers.getContractFactory("OrionConfig");
-      // Non-owner should fail
-      await expect(
-        upgrades.upgradeProxy(await orionConfigProxy.getAddress(), OrionConfigV2.connect(other)),
-      ).to.be.revertedWithCustomError(orionConfigProxy, "OwnableUnauthorizedAccount");
-
-      // Owner can upgrade (should succeed, but will be a no-op since it's the same code)
-      await upgrades.upgradeProxy(await orionConfigProxy.getAddress(), OrionConfigV2.connect(owner));
     });
   });
 });

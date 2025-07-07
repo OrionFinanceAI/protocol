@@ -38,21 +38,3 @@ source .venv/bin/activate
 uv pip install slither-analyzer==0.11.3
 pnpm install
 ```
-
-## Examples of Usage
-
-```bash
-./scripts/localhost_deployer.sh
-```
-
-```bash
-pnpm hardhat run scripts/request-vault-deposit.ts --network localhost
-pnpm hardhat run scripts/simulate-chainlink-automation.ts --network localhost
-# pnpm hardhat run scripts/request-vault-withdrawal.ts --network localhost
-```
-
-## Processes
-
-```bash
-pnpm hardhat run scripts/advance-time.ts --network localhost
-```

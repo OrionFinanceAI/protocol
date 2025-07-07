@@ -1,16 +1,11 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.28;
 
 /// @title IOracleRegistry
 /// @notice Interface for managing asset price oracles
 interface IOracleRegistry {
-    /// @notice Owner registers or replaces the oracle for an asset
+    /// @notice Return the price of the given asset
     /// @param asset The address of the asset
-    /// @param oracle The address of the oracle to register
-    function setOracle(address asset, address oracle) external;
-
-    /// @notice Return the price of the given whitelisted asset with respect to the base asset
-    /// @param asset The address of the asset
-    /// @return price The price of the asset
-    function price(address asset) external view returns (uint256);
+    /// @dev The asset shall be whitelisted in the OrionConfig contract.
+    function getPrice(address asset) external view returns (uint256);
 }

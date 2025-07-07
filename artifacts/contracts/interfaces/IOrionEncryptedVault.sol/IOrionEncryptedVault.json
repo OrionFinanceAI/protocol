@@ -250,6 +250,35 @@
       "inputs": [
         {
           "internalType": "uint256",
+          "name": "shares",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "pointInTimeTotalAssets",
+          "type": "uint256"
+        },
+        {
+          "internalType": "enum Math.Rounding",
+          "name": "rounding",
+          "type": "uint8"
+        }
+      ],
+      "name": "convertToAssetsWithPITTotalAssets",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
           "name": "assets",
           "type": "uint256"
         }
@@ -326,6 +355,24 @@
         }
       ],
       "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getIntent",
+      "outputs": [
+        {
+          "internalType": "address[]",
+          "name": "tokens",
+          "type": "address[]"
+        },
+        {
+          "internalType": "euint32[]",
+          "name": "weights",
+          "type": "uint256[]"
+        }
+      ],
+      "stateMutability": "view",
       "type": "function"
     },
     {
@@ -678,7 +725,7 @@
           "type": "tuple[]"
         }
       ],
-      "name": "submitOrderIntent",
+      "name": "submitIntent",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

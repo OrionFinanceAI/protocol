@@ -11,7 +11,7 @@
           "type": "address"
         }
       ],
-      "name": "price",
+      "name": "getPrice",
       "outputs": [
         {
           "internalType": "uint256",
@@ -20,24 +20,6 @@
         }
       ],
       "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "asset",
-          "type": "address"
-        },
-        {
-          "internalType": "address",
-          "name": "oracle",
-          "type": "address"
-        }
-      ],
-      "name": "setOracle",
-      "outputs": [],
-      "stateMutability": "nonpayable",
       "type": "function"
     }
   ],

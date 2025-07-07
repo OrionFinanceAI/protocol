@@ -9,6 +9,25 @@
         {
           "indexed": true,
           "internalType": "address",
+          "name": "asset",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "adapter",
+          "type": "address"
+        }
+      ],
+      "name": "AdapterSet",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
           "name": "newAutomationRegistry",
           "type": "address"
         }
@@ -30,12 +49,6 @@
           "internalType": "uint256",
           "name": "amount",
           "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "requestId",
-          "type": "uint256"
         }
       ],
       "name": "DepositProcessed",
@@ -54,12 +67,6 @@
           "indexed": false,
           "internalType": "uint256",
           "name": "amount",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "depositorCount",
           "type": "uint256"
         }
       ],
@@ -80,37 +87,6 @@
           "internalType": "uint256",
           "name": "amount",
           "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "requestId",
-          "type": "uint256"
-        }
-      ],
-      "name": "DepositRequestProcessed",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "user",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "amount",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "requestId",
-          "type": "uint256"
         }
       ],
       "name": "DepositRequested",
@@ -127,25 +103,6 @@
         }
       ],
       "name": "InternalStateProcessed",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "asset",
-          "type": "address"
-        },
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "oracle",
-          "type": "address"
-        }
-      ],
-      "name": "OracleRegistered",
       "type": "event"
     },
     {
@@ -226,50 +183,7 @@
     },
     {
       "anonymous": false,
-      "inputs": [
-        {
-          "indexed": false,
-          "internalType": "address",
-          "name": "underlyingAsset",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "address",
-          "name": "internalStatesOrchestrator",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "address",
-          "name": "liquidityOrchestrator",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint8",
-          "name": "statesDecimals",
-          "type": "uint8"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint8",
-          "name": "curatorIntentDecimals",
-          "type": "uint8"
-        },
-        {
-          "indexed": false,
-          "internalType": "address",
-          "name": "factory",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "address",
-          "name": "oracleRegistry",
-          "type": "address"
-        }
-      ],
+      "inputs": [],
       "name": "ProtocolParamsUpdated",
       "type": "event"
     },
@@ -326,12 +240,6 @@
           "internalType": "uint256",
           "name": "shares",
           "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "requestId",
-          "type": "uint256"
         }
       ],
       "name": "WithdrawProcessed",
@@ -351,45 +259,14 @@
           "internalType": "uint256",
           "name": "shares",
           "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "requestId",
-          "type": "uint256"
-        }
-      ],
-      "name": "WithdrawRequestProcessed",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "user",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "shares",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "requestId",
-          "type": "uint256"
         }
       ],
       "name": "WithdrawRequested",
       "type": "event"
     }
   ],
-  "bytecode": "0x60556032600b8282823980515f1a607314602657634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f80fdfea26469706673582212205e55997432ae4fabe931570f10216b3c15abc2fd7ca3221d901c9f3963f3db2364736f6c634300081a0033",
-  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f80fdfea26469706673582212205e55997432ae4fabe931570f10216b3c15abc2fd7ca3221d901c9f3963f3db2364736f6c634300081a0033",
+  "bytecode": "0x60556032600b8282823980515f1a607314602657634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f5ffdfea26469706673582212209f49b4dd97a8167b34a5927623cd853b5f6e5fe04b4bb7a8d6cf479dc90a892964736f6c634300081c0033",
+  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f5ffdfea26469706673582212209f49b4dd97a8167b34a5927623cd853b5f6e5fe04b4bb7a8d6cf479dc90a892964736f6c634300081c0033",
   "linkReferences": {},
   "deployedLinkReferences": {}
 }

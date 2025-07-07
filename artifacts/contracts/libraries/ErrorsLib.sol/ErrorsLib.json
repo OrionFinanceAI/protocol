@@ -5,6 +5,11 @@
   "abi": [
     {
       "inputs": [],
+      "name": "AdapterNotSet",
+      "type": "error"
+    },
+    {
+      "inputs": [],
       "name": "AlreadyAnOrionVault",
       "type": "error"
     },
@@ -26,21 +31,6 @@
     },
     {
       "inputs": [],
-      "name": "CuratorCannotBeZeroAddress",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "DepositRequestFailed",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "IndexOutOfBounds",
-      "type": "error"
-    },
-    {
-      "inputs": [],
       "name": "InvalidAsset",
       "type": "error"
     },
@@ -52,16 +42,6 @@
     {
       "inputs": [],
       "name": "InvalidCuratorAddress",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "InvalidInternalOrchestrator",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "InvalidLiquidityOrchestrator",
       "type": "error"
     },
     {
@@ -106,32 +86,12 @@
     },
     {
       "inputs": [],
-      "name": "NotInWhitelist",
-      "type": "error"
-    },
-    {
-      "inputs": [],
       "name": "NotInternalStatesOrchestrator",
       "type": "error"
     },
     {
       "inputs": [],
       "name": "NotLiquidityOrchestrator",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "NotOwner",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "OracleNotInitialized",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "OracleNotSet",
       "type": "error"
     },
     {
@@ -146,17 +106,7 @@
     },
     {
       "inputs": [],
-      "name": "SynchronousDepositsDisabled",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "SynchronousRedemptionsDisabled",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "SynchronousWithdrawalsDisabled",
+      "name": "SynchronousCallDisabled",
       "type": "error"
     },
     {
@@ -193,37 +143,12 @@
     },
     {
       "inputs": [],
-      "name": "Underflow",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "UnderlyingAssetNotSet",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "VaultNotFound",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "WithdrawRequestFailed",
-      "type": "error"
-    },
-    {
-      "inputs": [],
       "name": "ZeroAddress",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "ZeroPrice",
       "type": "error"
     }
   ],
-  "bytecode": "0x60556032600b8282823980515f1a607314602657634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f80fdfea26469706673582212202d6b04f98653720879cd59241d74b54ca33a8bf40fb66da528132bb9771ea7d364736f6c634300081a0033",
-  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f80fdfea26469706673582212202d6b04f98653720879cd59241d74b54ca33a8bf40fb66da528132bb9771ea7d364736f6c634300081a0033",
+  "bytecode": "0x60556032600b8282823980515f1a607314602657634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f5ffdfea26469706673582212200750966086747d7a5e88b2b780fc5a6ecc271f7772e6e1ccadfd5e18b8ff650964736f6c634300081c0033",
+  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f5ffdfea26469706673582212200750966086747d7a5e88b2b780fc5a6ecc271f7772e6e1ccadfd5e18b8ff650964736f6c634300081c0033",
   "linkReferences": {},
   "deployedLinkReferences": {}
 }

@@ -9,8 +9,8 @@ describe("OrionTransparentVault", function () {
       await ethers.getSigners();
 
     // Deploy mock underlying asset
-    const UnderlyingAssetFactory = await ethers.getContractFactory("UnderlyingAsset");
-    const underlyingAsset = await UnderlyingAssetFactory.deploy();
+    const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
+    const underlyingAsset = await MockUnderlyingAssetFactory.deploy();
     await underlyingAsset.waitForDeployment();
     const underlyingAssetAddress = await underlyingAsset.getAddress();
 
@@ -91,10 +91,7 @@ describe("OrionTransparentVault", function () {
     it("Should only allow curator to submit order intents", async function () {
       const { vault, unauthorized } = await loadFixture(deployVaultFixture);
       const order = [{ token: ethers.ZeroAddress, weight: 1000000 }];
-      await expect(vault.connect(unauthorized).submitOrderIntent(order)).to.be.revertedWithCustomError(
-        vault,
-        "NotCurator",
-      );
+      await expect(vault.connect(unauthorized).submitIntent(order)).to.be.revertedWithCustomError(vault, "NotCurator");
     });
     it("Should only allow liquidity orchestrator to update vault state", async function () {
       const { vault, unauthorized } = await loadFixture(deployVaultFixture);
@@ -124,27 +121,27 @@ describe("OrionTransparentVault", function () {
       const { vault, lp1 } = await loadFixture(deployVaultFixture);
       await expect(vault.connect(lp1).deposit(ethers.parseUnits("100", 6), lp1.address)).to.be.revertedWithCustomError(
         vault,
-        "SynchronousDepositsDisabled",
+        "SynchronousCallDisabled",
       );
     });
     it("Should revert direct mints", async function () {
       const { vault, lp1 } = await loadFixture(deployVaultFixture);
       await expect(vault.connect(lp1).mint(ethers.parseUnits("100", 6), lp1.address)).to.be.revertedWithCustomError(
         vault,
-        "SynchronousDepositsDisabled",
+        "SynchronousCallDisabled",
       );
     });
     it("Should revert direct withdrawals", async function () {
       const { vault, lp1 } = await loadFixture(deployVaultFixture);
       await expect(
         vault.connect(lp1).withdraw(ethers.parseUnits("100", 6), lp1.address, lp1.address),
-      ).to.be.revertedWithCustomError(vault, "SynchronousWithdrawalsDisabled");
+      ).to.be.revertedWithCustomError(vault, "SynchronousCallDisabled");
     });
     it("Should revert direct redemptions", async function () {
       const { vault, lp1 } = await loadFixture(deployVaultFixture);
       await expect(
         vault.connect(lp1).redeem(ethers.parseUnits("100", 6), lp1.address, lp1.address),
-      ).to.be.revertedWithCustomError(vault, "SynchronousRedemptionsDisabled");
+      ).to.be.revertedWithCustomError(vault, "SynchronousCallDisabled");
     });
   });
 
@@ -155,7 +152,7 @@ describe("OrionTransparentVault", function () {
       await underlyingAsset.connect(lp1).approve(await vault.getAddress(), depositAmount);
       await expect(vault.connect(lp1).requestDeposit(depositAmount))
         .to.emit(vault, "DepositRequested")
-        .withArgs(lp1.address, depositAmount, 1);
+        .withArgs(lp1.address, depositAmount);
       expect(await vault.getPendingDeposits()).to.equal(depositAmount);
     });
     it("Should revert deposit request with zero amount", async function () {
@@ -173,28 +170,6 @@ describe("OrionTransparentVault", function () {
       await vault.connect(lp1).requestDeposit(depositAmount1);
       await vault.connect(lp1).requestDeposit(depositAmount2);
       expect(await vault.getPendingDeposits()).to.equal(depositAmount1 + depositAmount2);
-    });
-    it("Should allow LP to withdraw deposit request", async function () {
-      const { vault, underlyingAsset, lp1 } = await loadFixture(deployVaultFixture);
-      const depositAmount = ethers.parseUnits("100", 6);
-      const withdrawAmount = ethers.parseUnits("30", 6);
-      await underlyingAsset.connect(lp1).approve(await vault.getAddress(), depositAmount);
-      await vault.connect(lp1).requestDeposit(depositAmount);
-      const balanceBefore = await underlyingAsset.balanceOf(lp1.address);
-      await expect(vault.connect(lp1).cancelDepositRequest(withdrawAmount))
-        .to.emit(vault, "DepositRequestCancelled")
-        .withArgs(lp1.address, withdrawAmount, 1);
-      const balanceAfter = await underlyingAsset.balanceOf(lp1.address);
-      expect(balanceAfter - balanceBefore).to.equal(withdrawAmount);
-      expect(await vault.getPendingDeposits()).to.equal(depositAmount - withdrawAmount);
-    });
-    it("Should allow LP to withdraw entire deposit request", async function () {
-      const { vault, underlyingAsset, lp1 } = await loadFixture(deployVaultFixture);
-      const depositAmount = ethers.parseUnits("100", 6);
-      await underlyingAsset.connect(lp1).approve(await vault.getAddress(), depositAmount);
-      await vault.connect(lp1).requestDeposit(depositAmount);
-      await vault.connect(lp1).cancelDepositRequest(depositAmount);
-      expect(await vault.getPendingDeposits()).to.equal(0);
     });
     it("Should revert withdrawal of non-existent deposit request", async function () {
       const { vault, lp1 } = await loadFixture(deployVaultFixture);
@@ -225,7 +200,7 @@ describe("OrionTransparentVault", function () {
       const shares = ethers.parseUnits("100", 6);
       await expect(vault.connect(lp1).requestWithdraw(shares))
         .to.emit(vault, "WithdrawRequested")
-        .withArgs(lp1.address, shares, 1);
+        .withArgs(lp1.address, shares);
       expect(await vault.getPendingWithdrawals()).to.equal(shares);
     });
     it("Should revert withdrawal request with zero shares", async function () {
@@ -262,14 +237,14 @@ describe("OrionTransparentVault", function () {
       const tokenAddress = ethers.Wallet.createRandom().address;
       await config.addWhitelistedAsset(tokenAddress);
       const order = [{ token: tokenAddress, weight: 1000000 }];
-      await expect(vault.connect(curator).submitOrderIntent(order))
+      await expect(vault.connect(curator).submitIntent(order))
         .to.emit(vault, "OrderSubmitted")
         .withArgs(curator.address);
     });
     it("Should revert empty order intent", async function () {
       const { vault, curator } = await loadFixture(deployVaultFixture);
       const order: { token: string; amount: number }[] = [];
-      await expect(vault.connect(curator).submitOrderIntent(order)).to.be.revertedWithCustomError(
+      await expect(vault.connect(curator).submitIntent(order)).to.be.revertedWithCustomError(
         vault,
         "OrderIntentCannotBeEmpty",
       );
@@ -278,7 +253,7 @@ describe("OrionTransparentVault", function () {
       const { vault, curator } = await loadFixture(deployVaultFixture);
       const nonWhitelistedToken = ethers.Wallet.createRandom().address;
       const order = [{ token: nonWhitelistedToken, weight: 1000000 }];
-      await expect(vault.connect(curator).submitOrderIntent(order)).to.be.revertedWithCustomError(
+      await expect(vault.connect(curator).submitIntent(order)).to.be.revertedWithCustomError(
         vault,
         "TokenNotWhitelisted",
       );
@@ -288,7 +263,7 @@ describe("OrionTransparentVault", function () {
       const tokenAddress = ethers.Wallet.createRandom().address;
       await config.addWhitelistedAsset(tokenAddress);
       const order = [{ token: tokenAddress, weight: 0 }];
-      await expect(vault.connect(curator).submitOrderIntent(order)).to.be.revertedWithCustomError(
+      await expect(vault.connect(curator).submitIntent(order)).to.be.revertedWithCustomError(
         vault,
         "AmountMustBeGreaterThanZero",
       );
@@ -305,7 +280,7 @@ describe("OrionTransparentVault", function () {
         { token: tokenAddress, weight: 500_000 },
       ];
 
-      await expect(vault.connect(curator).submitOrderIntent(duplicated)).to.be.revertedWithCustomError(
+      await expect(vault.connect(curator).submitIntent(duplicated)).to.be.revertedWithCustomError(
         vault,
         "TokenAlreadyInOrder",
       );
@@ -315,10 +290,176 @@ describe("OrionTransparentVault", function () {
       const tokenAddress = ethers.Wallet.createRandom().address;
       await config.addWhitelistedAsset(tokenAddress);
       const order = [{ token: tokenAddress, weight: 500000 }];
-      await expect(vault.connect(curator).submitOrderIntent(order)).to.be.revertedWithCustomError(
+      await expect(vault.connect(curator).submitIntent(order)).to.be.revertedWithCustomError(
         vault,
         "InvalidTotalWeight",
       );
+    });
+  });
+
+  describe("Portfolio and Intent View Functions", function () {
+    it("Should return empty portfolio initially", async function () {
+      const { vault } = await loadFixture(deployVaultFixture);
+      const [tokens, sharesPerAsset] = await vault.getPortfolio();
+      expect(tokens.length).to.equal(0);
+      expect(sharesPerAsset.length).to.equal(0);
+    });
+
+    it("Should return empty intent initially", async function () {
+      const { vault } = await loadFixture(deployVaultFixture);
+      const [tokens, weights] = await vault.getIntent();
+      expect(tokens.length).to.equal(0);
+      expect(weights.length).to.equal(0);
+    });
+
+    it("Should return correct intent after curator submits order", async function () {
+      const { vault, curator, config } = await loadFixture(deployVaultFixture);
+
+      // Add whitelisted tokens
+      const token1 = ethers.Wallet.createRandom().address;
+      const token2 = ethers.Wallet.createRandom().address;
+      await config.addWhitelistedAsset(token1);
+      await config.addWhitelistedAsset(token2);
+
+      // Submit intent
+      const order = [
+        { token: token1, weight: 600000 },
+        { token: token2, weight: 400000 },
+      ];
+      await vault.connect(curator).submitIntent(order);
+
+      // Get intent and verify
+      const [tokens, weights] = await vault.getIntent();
+      expect(tokens.length).to.equal(2);
+      expect(weights.length).to.equal(2);
+
+      // Check that both tokens are included (order might be different)
+      expect(tokens).to.include(token1);
+      expect(tokens).to.include(token2);
+
+      // Find indices and check weights
+      const token1Index = tokens.indexOf(token1);
+      const token2Index = tokens.indexOf(token2);
+      expect(weights[token1Index]).to.equal(600000);
+      expect(weights[token2Index]).to.equal(400000);
+    });
+
+    it("Should return correct portfolio after liquidity orchestrator updates state", async function () {
+      const { vault, liquidityOrchestrator } = await loadFixture(deployVaultFixture);
+
+      // Create portfolio update
+      const token1 = ethers.Wallet.createRandom().address;
+      const token2 = ethers.Wallet.createRandom().address;
+      const portfolio = [
+        { token: token1, weight: 750000 },
+        { token: token2, weight: 250000 },
+      ];
+      const totalAssets = ethers.parseUnits("1000", 6);
+
+      // Update vault state
+      await vault.connect(liquidityOrchestrator).updateVaultState(portfolio, totalAssets);
+
+      // Get portfolio and verify
+      const [tokens, sharesPerAsset] = await vault.getPortfolio();
+      expect(tokens.length).to.equal(2);
+      expect(sharesPerAsset.length).to.equal(2);
+
+      // Check that both tokens are included
+      expect(tokens).to.include(token1);
+      expect(tokens).to.include(token2);
+
+      // Find indices and check shares
+      const token1Index = tokens.indexOf(token1);
+      const token2Index = tokens.indexOf(token2);
+      expect(sharesPerAsset[token1Index]).to.equal(750000);
+      expect(sharesPerAsset[token2Index]).to.equal(250000);
+    });
+
+    it("Should handle single token intent", async function () {
+      const { vault, curator, config } = await loadFixture(deployVaultFixture);
+
+      const token = ethers.Wallet.createRandom().address;
+      await config.addWhitelistedAsset(token);
+
+      const order = [{ token: token, weight: 1000000 }];
+      await vault.connect(curator).submitIntent(order);
+
+      const [tokens, weights] = await vault.getIntent();
+      expect(tokens.length).to.equal(1);
+      expect(weights.length).to.equal(1);
+      expect(tokens[0]).to.equal(token);
+      expect(weights[0]).to.equal(1000000);
+    });
+
+    it("Should handle single token portfolio", async function () {
+      const { vault, liquidityOrchestrator } = await loadFixture(deployVaultFixture);
+
+      const token = ethers.Wallet.createRandom().address;
+      const portfolio = [{ token: token, weight: 1000000 }];
+      const totalAssets = ethers.parseUnits("500", 6);
+
+      await vault.connect(liquidityOrchestrator).updateVaultState(portfolio, totalAssets);
+
+      const [tokens, sharesPerAsset] = await vault.getPortfolio();
+      expect(tokens.length).to.equal(1);
+      expect(sharesPerAsset.length).to.equal(1);
+      expect(tokens[0]).to.equal(token);
+      expect(sharesPerAsset[0]).to.equal(1000000);
+    });
+
+    it("Should clear previous intent when new intent is submitted", async function () {
+      const { vault, curator, config } = await loadFixture(deployVaultFixture);
+
+      // Add whitelisted tokens
+      const token1 = ethers.Wallet.createRandom().address;
+      const token2 = ethers.Wallet.createRandom().address;
+      const token3 = ethers.Wallet.createRandom().address;
+      await config.addWhitelistedAsset(token1);
+      await config.addWhitelistedAsset(token2);
+      await config.addWhitelistedAsset(token3);
+
+      // Submit first intent
+      const order1 = [
+        { token: token1, weight: 500000 },
+        { token: token2, weight: 500000 },
+      ];
+      await vault.connect(curator).submitIntent(order1);
+
+      // Submit second intent with different tokens
+      const order2 = [{ token: token3, weight: 1000000 }];
+      await vault.connect(curator).submitIntent(order2);
+
+      // Verify only the new intent is returned
+      const [tokens, weights] = await vault.getIntent();
+      expect(tokens.length).to.equal(1);
+      expect(weights.length).to.equal(1);
+      expect(tokens[0]).to.equal(token3);
+      expect(weights[0]).to.equal(1000000);
+    });
+
+    it("Should clear previous portfolio when new portfolio is updated", async function () {
+      const { vault, liquidityOrchestrator } = await loadFixture(deployVaultFixture);
+
+      // First portfolio update
+      const token1 = ethers.Wallet.createRandom().address;
+      const token2 = ethers.Wallet.createRandom().address;
+      const portfolio1 = [
+        { token: token1, weight: 600000 },
+        { token: token2, weight: 400000 },
+      ];
+      await vault.connect(liquidityOrchestrator).updateVaultState(portfolio1, ethers.parseUnits("1000", 6));
+
+      // Second portfolio update with different tokens
+      const token3 = ethers.Wallet.createRandom().address;
+      const portfolio2 = [{ token: token3, weight: 1000000 }];
+      await vault.connect(liquidityOrchestrator).updateVaultState(portfolio2, ethers.parseUnits("1500", 6));
+
+      // Verify only the new portfolio is returned
+      const [tokens, sharesPerAsset] = await vault.getPortfolio();
+      expect(tokens.length).to.equal(1);
+      expect(sharesPerAsset.length).to.equal(1);
+      expect(tokens[0]).to.equal(token3);
+      expect(sharesPerAsset[0]).to.equal(1000000);
     });
   });
 

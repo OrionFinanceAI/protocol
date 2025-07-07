@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.28;
 
 import "./interfaces/IOrionConfig.sol";
 import "./interfaces/IOrionVault.sol";
@@ -70,9 +70,9 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         address factory_,
         address oracleRegistry_
     ) external onlyOwner {
-        if (underlyingAsset_ == address(0)) revert ErrorsLib.InvalidAsset();
-        if (internalStatesOrchestrator_ == address(0)) revert ErrorsLib.InvalidInternalOrchestrator();
-        if (liquidityOrchestrator_ == address(0)) revert ErrorsLib.InvalidLiquidityOrchestrator();
+        if (underlyingAsset_ == address(0)) revert ErrorsLib.ZeroAddress();
+        if (internalStatesOrchestrator_ == address(0)) revert ErrorsLib.ZeroAddress();
+        if (liquidityOrchestrator_ == address(0)) revert ErrorsLib.ZeroAddress();
         if (factory_ == address(0)) revert ErrorsLib.ZeroAddress();
         if (oracleRegistry_ == address(0)) revert ErrorsLib.ZeroAddress();
 
@@ -88,15 +88,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         vaultFactory = factory_;
         oracleRegistry = oracleRegistry_;
 
-        emit EventsLib.ProtocolParamsUpdated(
-            underlyingAsset_,
-            internalStatesOrchestrator_,
-            liquidityOrchestrator_,
-            statesDecimals_,
-            curatorIntentDecimals_,
-            factory_,
-            oracleRegistry_
-        );
+        emit EventsLib.ProtocolParamsUpdated();
     }
 
     // === Whitelist Functions ===
@@ -109,7 +101,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
 
     function removeWhitelistedAsset(address asset) external onlyOwner {
         bool removed = whitelistedAssets.remove(asset);
-        if (!removed) revert ErrorsLib.NotInWhitelist();
+        if (!removed) revert ErrorsLib.TokenNotWhitelisted(asset);
         emit EventsLib.WhitelistedAssetRemoved(asset);
     }
 
