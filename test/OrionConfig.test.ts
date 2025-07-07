@@ -51,16 +51,7 @@ describe("OrionConfig", function () {
       await expect(
         orionConfig
           .connect(owner)
-          .setProtocolParams(
-            ZERO,
-            other.address,
-            other.address,
-            other.address,
-            18,
-            8,
-            vaultFactory.address,
-            other.address,
-          ),
+          .setProtocolParams(ZERO, other.address, other.address, 18, 8, vaultFactory.address, other.address),
       ).to.be.revertedWithCustomError(orionConfig, "ZeroAddress");
     });
 
@@ -68,16 +59,7 @@ describe("OrionConfig", function () {
       await expect(
         orionConfig
           .connect(owner)
-          .setProtocolParams(
-            underlyingAsset.target,
-            ZERO,
-            other.address,
-            other.address,
-            18,
-            8,
-            vaultFactory.address,
-            other.address,
-          ),
+          .setProtocolParams(underlyingAsset.target, ZERO, other.address, 18, 8, vaultFactory.address, other.address),
       ).to.be.revertedWithCustomError(orionConfig, "ZeroAddress");
     });
 
@@ -85,16 +67,7 @@ describe("OrionConfig", function () {
       await expect(
         orionConfig
           .connect(owner)
-          .setProtocolParams(
-            underlyingAsset.target,
-            other.address,
-            ZERO,
-            other.address,
-            18,
-            8,
-            vaultFactory.address,
-            other.address,
-          ),
+          .setProtocolParams(underlyingAsset.target, other.address, ZERO, 18, 8, vaultFactory.address, other.address),
       ).to.be.revertedWithCustomError(orionConfig, "ZeroAddress");
     });
 
@@ -102,16 +75,7 @@ describe("OrionConfig", function () {
       await expect(
         orionConfig
           .connect(owner)
-          .setProtocolParams(
-            underlyingAsset.target,
-            other.address,
-            other.address,
-            other.address,
-            18,
-            8,
-            ZERO,
-            other.address,
-          ),
+          .setProtocolParams(underlyingAsset.target, other.address, other.address, 18, 8, ZERO, other.address),
       ).to.be.revertedWithCustomError(orionConfig, "ZeroAddress");
     });
 
@@ -119,16 +83,7 @@ describe("OrionConfig", function () {
       await expect(
         orionConfig
           .connect(owner)
-          .setProtocolParams(
-            underlyingAsset.target,
-            other.address,
-            other.address,
-            other.address,
-            18,
-            8,
-            vaultFactory.address,
-            ZERO,
-          ),
+          .setProtocolParams(underlyingAsset.target, other.address, other.address, 18, 8, vaultFactory.address, ZERO),
       ).to.be.revertedWithCustomError(orionConfig, "ZeroAddress");
     });
 
@@ -139,7 +94,6 @@ describe("OrionConfig", function () {
           .connect(owner)
           .setProtocolParams(
             underlyingAsset.target,
-            other.address,
             other.address,
             other.address,
             5,
@@ -158,7 +112,6 @@ describe("OrionConfig", function () {
             underlyingAsset.target,
             other.address,
             vaultFactory.address,
-            other.address,
             6,
             10,
             vaultFactory.address,
@@ -183,7 +136,6 @@ describe("OrionConfig", function () {
             underlyingAsset.target,
             other.address,
             vaultFactory.address,
-            other.address,
             6,
             10,
             vaultFactory.address,
@@ -261,7 +213,6 @@ describe("OrionConfig", function () {
           underlyingAsset.target,
           other.address,
           vaultFactory.address,
-          other.address,
           6,
           10,
           vaultFactory.address,
@@ -287,7 +238,6 @@ describe("OrionConfig", function () {
           underlyingAsset.target,
           other.address,
           vaultFactory.address,
-          other.address,
           6,
           10,
           vaultFactory.address,
@@ -306,7 +256,6 @@ describe("OrionConfig", function () {
           underlyingAsset.target,
           other.address,
           vaultFactory.address,
-          other.address,
           6,
           10,
           vaultFactory.address,
@@ -327,7 +276,6 @@ describe("OrionConfig", function () {
           underlyingAsset.target,
           other.address,
           vaultFactory.address,
-          other.address,
           6,
           10,
           vaultFactory.address,
@@ -346,7 +294,6 @@ describe("OrionConfig", function () {
           underlyingAsset.target,
           other.address,
           vaultFactory.address,
-          other.address,
           6,
           10,
           vaultFactory.address,

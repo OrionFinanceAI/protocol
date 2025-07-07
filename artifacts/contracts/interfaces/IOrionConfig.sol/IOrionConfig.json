@@ -157,19 +157,6 @@
       "type": "function"
     },
     {
-      "inputs": [],
-      "name": "rebalancingEngine",
-      "outputs": [
-        {
-          "internalType": "address",
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
       "inputs": [
         {
           "internalType": "address",
@@ -215,11 +202,6 @@
         {
           "internalType": "address",
           "name": "_liquidityOrchestrator",
-          "type": "address"
-        },
-        {
-          "internalType": "address",
-          "name": "_rebalancingEngine",
           "type": "address"
         },
         {

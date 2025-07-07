@@ -13,7 +13,8 @@ import "../interfaces/IOrionEncryptedVault.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../interfaces/IOrionVault.sol";
-import "../interfaces/IRebalancingEngine.sol";
+import "../interfaces/IExecutionAdapter.sol";
+import "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
 /// @title Liquidity Orchestrator
 /// @notice Orchestrates transaction execution and vault state modifications
@@ -42,8 +43,8 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
     /// @notice Internal States Orchestrator contract address
     IInternalStateOrchestrator public internalStatesOrchestrator;
 
-    /// @notice Rebalancing Engine contract address
-    IRebalancingEngine public rebalancingEngine;
+    /// @notice Execution adapters mapping for assets
+    mapping(address => IExecutionAdapter) public executionAdapterOf;
 
     /// @notice Last processed epoch counter from Internal States Orchestrator
     uint256 public lastProcessedEpoch;
@@ -59,7 +60,6 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         automationRegistry = automationRegistry_;
         config = IOrionConfig(config_);
         internalStatesOrchestrator = IInternalStateOrchestrator(config.internalStatesOrchestrator());
-        rebalancingEngine = IRebalancingEngine(config.rebalancingEngine());
 
         lastProcessedEpoch = 0;
     }
@@ -88,6 +88,15 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
     function updateConfig(address newConfig) external onlyOwner {
         if (newConfig == address(0)) revert ErrorsLib.ZeroAddress();
         config = IOrionConfig(newConfig);
+    }
+
+    /// @notice Register or replace the adapter for an asset.
+    /// @param asset The address of the asset
+    /// @param adapter The execution adapter for the asset
+    function setAdapter(address asset, IExecutionAdapter adapter) external onlyOwner {
+        if (asset == address(0) || address(adapter) == address(0)) revert ErrorsLib.ZeroAddress();
+        executionAdapterOf[asset] = adapter;
+        emit EventsLib.AdapterSet(asset, address(adapter));
     }
 
     /// @notice Return deposit funds to a user who cancelled their deposit request
@@ -151,51 +160,93 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         }
         lastProcessedEpoch = currentEpoch;
 
+        // Execute sequentially the trades to reach target state
+        // (consider having the number of standing orders as a trigger of a set of chainlink automation jobs).
+        // for more scalable market interactions.
         (address[] memory sellingTokens, uint256[] memory sellingAmounts) = internalStatesOrchestrator
             .getSellingOrders();
 
         for (uint256 i = 0; i < sellingTokens.length; i++) {
             address token = sellingTokens[i];
             uint256 amount = sellingAmounts[i];
-            rebalancingEngine.executeSell(token, amount);
+            _executeSell(token, amount);
         }
+
+        // Here I have all the liquidity from depositors + from selling orders.
+        // I cannot yet mint shares to depositors and burn shares/give assets to withdrawers as I don't have the
+        // exchange rate yet. To get it, I need to execute all the buying orders.
+        // I necessarily have enough liquidity for this at this point.
 
         (address[] memory buyingTokens, uint256[] memory buyingAmounts) = internalStatesOrchestrator.getBuyingOrders();
 
         for (uint256 i = 0; i < buyingTokens.length; i++) {
             address token = buyingTokens[i];
             uint256 amount = buyingAmounts[i];
-            rebalancingEngine.executeBuy(token, amount);
+            _executeBuy(token, amount);
+            // TODO: For last trade, adjust asset target amount post N-1
+            // executions to deal with rounding/trade error.
+            // Needed to have a measurement of the rebalancing error to compute this offset.
         }
 
-        // TODO: DepositRequest and WithdrawRequest in Vaults to be
-        // processed (post t0 update) and removed from vault state as pending requests.
+        // Here possible to compute the real T0 (sum total assets).
+        // TODO: how to backpropagate this to the vaults? Ideally we need to compute an array of tracking errors,
+        // one per vault. This gives up privacy. Can we have a different approach?
+        // Distribute tracking error proportionally to starting total assets?
 
-        // TODO: investigate DR/W netting.
-
-        // Execute sequentially the trades to reach target state
-        // (consider having the standing orders as a trigger of a set of chainlink automation jobs).
-
-        // TODO: For last trade, adjust asset target amount post N-1 executions to deal with rounding/trade error.
-
-        // TODO: vault states t0, w_0 to be updated at the end of the execution.
-
-        // TODO: curator/protocol fees to be paid during execution.
-
+        // Same issue as T0 on W0, after execution we have it, but we need to backpropagate it to the vaults.
+        // TODO: how to do this maintaining privacy?
         address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
         uint256 length = transparentVaults.length;
         for (uint256 i = 0; i < length; i++) {
             IOrionTransparentVault vault = IOrionTransparentVault(transparentVaults[i]);
-            vault.updateVaultState(new IOrionTransparentVault.Position[](0), 0); // TODO: implement.
+            // TODO: implement.
+            // vault.updateVaultState(?, ?);
         }
 
         address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
         length = encryptedVaults.length;
         for (uint256 i = 0; i < length; i++) {
             IOrionEncryptedVault vault = IOrionEncryptedVault(encryptedVaults[i]);
-            vault.updateVaultState(new IOrionEncryptedVault.EncryptedPosition[](0), 0); // TODO: implement.
+            // TODO: implement.
+            // vault.updateVaultState(?, ?);
         }
 
+        // TODO: DepositRequest and WithdrawRequest in Vaults to be processed post t0 update, and removed from
+        // vault state as pending requests.
+
         emit EventsLib.PortfolioRebalanced();
+    }
+
+    /// @notice Internal function to execute a sell order directly through the adapter
+    /// @param asset The address of the asset to sell
+    /// @param amount The amount of shares to sell
+    function _executeSell(address asset, uint256 amount) internal {
+        IExecutionAdapter adapter = executionAdapterOf[asset];
+        if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
+
+        // Transfer shares to adapter for selling
+        bool success = IERC20(asset).transfer(address(adapter), amount);
+        if (!success) revert ErrorsLib.TransferFailed();
+
+        // Execute sell through adapter
+        adapter.sell(asset, amount);
+    }
+
+    /// @notice Internal function to execute a buy order directly through the adapter
+    /// @param asset The address of the asset to buy
+    /// @param amount The amount of underlying assets to use for buying
+    function _executeBuy(address asset, uint256 amount) internal {
+        IExecutionAdapter adapter = executionAdapterOf[asset];
+        if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
+
+        // Get the underlying asset from the adapter (assumes it's an ERC4626 adapter)
+        address underlyingAsset = IERC4626(asset).asset();
+
+        // Transfer underlying assets to adapter for buying
+        bool success = IERC20(underlyingAsset).transfer(address(adapter), amount);
+        if (!success) revert ErrorsLib.TransferFailed();
+
+        // Execute buy through adapter
+        adapter.buy(asset, amount);
     }
 }

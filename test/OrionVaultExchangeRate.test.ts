@@ -26,7 +26,6 @@ describe("OrionVault Exchange Rate Tests", function () {
       underlyingAssetAddress,
       internalOrchestrator.address,
       liquidityOrchestrator.address,
-      owner.address, // rebalancingEngine
       18, // statesDecimals
       6, // curatorIntentDecimals
       owner.address, // factory

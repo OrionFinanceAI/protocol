@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import "@chainlink/contracts/src/v0.8/automation/AutomationCompatible.sol";
+import "./IExecutionAdapter.sol";
 
 /// @title Liquidity Orchestrator Interface
 /// @notice Interface for the Liquidity Orchestrator contract
@@ -17,4 +18,8 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
 
     // Deposit management functions
     function returnDepositFunds(address user, uint256 amount) external;
+
+    // Adapter management functions
+    function setAdapter(address asset, IExecutionAdapter adapter) external;
+    function executionAdapterOf(address asset) external view returns (IExecutionAdapter);
 }

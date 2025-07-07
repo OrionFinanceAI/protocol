@@ -30,6 +30,25 @@
     {
       "inputs": [
         {
+          "internalType": "address",
+          "name": "asset",
+          "type": "address"
+        }
+      ],
+      "name": "executionAdapterOf",
+      "outputs": [
+        {
+          "internalType": "contract IExecutionAdapter",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
           "internalType": "bytes",
           "name": "performData",
           "type": "bytes"
@@ -54,6 +73,24 @@
         }
       ],
       "name": "returnDepositFunds",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "asset",
+          "type": "address"
+        },
+        {
+          "internalType": "contract IExecutionAdapter",
+          "name": "adapter",
+          "type": "address"
+        }
+      ],
+      "name": "setAdapter",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

@@ -12,6 +12,8 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 /// @dev This adapter handles the conversion between underlying assets and vault shares
 ///      - Buy: Deposits underlying assets into the vault to receive shares
 ///      - Sell: Redeems shares from the vault to receive underlying assets
+///      The adapter expects funds to be transferred to it before executing trades
+///      and returns the results to the caller (LiquidityOrchestrator).
 contract ERC4626ExecutionAdapter is IExecutionAdapter {
     using SafeERC20 for IERC20;
 
@@ -31,47 +33,50 @@ contract ERC4626ExecutionAdapter is IExecutionAdapter {
     /// @notice Executes a buy operation by depositing underlying assets to get vault shares
     /// @param asset The address of the asset to buy (should be the vault address)
     /// @param amount The amount of underlying assets to deposit
-    /// @dev The caller (RebalancingEngine) should have approved this contract to spend the underlying assets
-    ///      The resulting shares will be held by this contract and can be transferred to the caller
+    /// @dev The caller (LiquidityOrchestrator) should have transferred the underlying assets
+    ///      to this contract before calling this function. The resulting shares will be
+    ///      transferred back to the caller.
     function buy(address asset, uint256 amount) external override {
         if (asset != address(VAULT)) revert ErrorsLib.InvalidAsset();
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(address(UNDERLYING_ASSET));
 
-        // Transfer underlying assets from caller to this contract
-        UNDERLYING_ASSET.safeTransferFrom(msg.sender, address(this), amount);
-        // TODO: message sender is engine, not liquidity orchestrator, how to handle this?
+        // Verify we have the expected underlying assets
+        uint256 contractBalance = UNDERLYING_ASSET.balanceOf(address(this));
+        if (contractBalance < amount) revert ErrorsLib.AmountMustBeGreaterThanZero(address(UNDERLYING_ASSET));
 
         // Approve vault to spend underlying assets
         UNDERLYING_ASSET.forceApprove(address(VAULT), amount);
 
         // Deposit underlying assets to get vault shares
-        uint256 shares = VAULT.deposit(amount, msg.sender);
+        uint256 shares = VAULT.deposit(amount, address(this));
 
         // Clean up approval
         UNDERLYING_ASSET.forceApprove(address(VAULT), 0);
 
-        // TODO: shares are sent directly to the caller (msg.sender),
-        // how to handle internal accounting and share liquidity?
+        // Transfer the received shares back to the caller (LiquidityOrchestrator)
+        bool success = VAULT.transfer(msg.sender, shares);
+        if (!success) revert ErrorsLib.TransferFailed();
     }
 
     /// @notice Executes a sell operation by redeeming vault shares to get underlying assets
     /// @param asset The address of the asset to sell (should be the vault address)
     /// @param amount The amount of vault shares to redeem
-    /// @dev The caller (RebalancingEngine) should have approved this contract to spend the vault shares
-    ///      The resulting underlying assets will be transferred to the caller
+    /// @dev The caller (LiquidityOrchestrator) should have transferred the vault shares
+    ///      to this contract before calling this function. The resulting underlying assets
+    ///      will be transferred back to the caller.
     function sell(address asset, uint256 amount) external override {
         if (asset != address(VAULT)) revert ErrorsLib.InvalidAsset();
         if (amount == 0) revert ErrorsLib.SharesMustBeGreaterThanZero();
 
-        // Transfer vault shares from caller to this contract
-        bool success = VAULT.transferFrom(msg.sender, address(this), amount);
-        if (!success) revert ErrorsLib.TransferFailed();
-        // TODO: message sender is engine, not liquidity orchestrator, how to handle this?
+        // Verify we have the expected vault shares
+        uint256 contractBalance = VAULT.balanceOf(address(this));
+        if (contractBalance < amount) revert ErrorsLib.SharesMustBeGreaterThanZero();
 
         // Redeem shares to get underlying assets
-        uint256 assets = VAULT.redeem(amount, msg.sender, address(this));
+        uint256 assets = VAULT.redeem(amount, address(this), address(this));
 
-        // TODO: underlying assets are sent directly to the caller (msg.sender),
-        // how to handle internal accounting and underlying asset liquidity?
+        // Transfer the received underlying assets back to the caller (LiquidityOrchestrator)
+        bool success = UNDERLYING_ASSET.transfer(msg.sender, assets);
+        if (!success) revert ErrorsLib.TransferFailed();
     }
 }

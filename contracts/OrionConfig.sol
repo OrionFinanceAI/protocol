@@ -28,7 +28,6 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     IERC20 public underlyingAsset;
     address public internalStatesOrchestrator;
     address public liquidityOrchestrator;
-    address public rebalancingEngine;
     address public vaultFactory;
     address public oracleRegistry;
     uint8 public statesDecimals;
@@ -66,7 +65,6 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         address underlyingAsset_,
         address internalStatesOrchestrator_,
         address liquidityOrchestrator_,
-        address rebalancingEngine_,
         uint8 statesDecimals_,
         uint8 curatorIntentDecimals_,
         address factory_,
@@ -75,14 +73,12 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         if (underlyingAsset_ == address(0)) revert ErrorsLib.ZeroAddress();
         if (internalStatesOrchestrator_ == address(0)) revert ErrorsLib.ZeroAddress();
         if (liquidityOrchestrator_ == address(0)) revert ErrorsLib.ZeroAddress();
-        if (rebalancingEngine_ == address(0)) revert ErrorsLib.ZeroAddress();
         if (factory_ == address(0)) revert ErrorsLib.ZeroAddress();
         if (oracleRegistry_ == address(0)) revert ErrorsLib.ZeroAddress();
 
         underlyingAsset = IERC20(underlyingAsset_);
         internalStatesOrchestrator = internalStatesOrchestrator_;
         liquidityOrchestrator = liquidityOrchestrator_;
-        rebalancingEngine = rebalancingEngine_;
 
         uint8 underlyingDecimals = IERC20Metadata(underlyingAsset_).decimals();
         if (statesDecimals_ < underlyingDecimals) revert ErrorsLib.InvalidStatesDecimals();

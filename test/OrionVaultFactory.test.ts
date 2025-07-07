@@ -35,7 +35,6 @@ beforeEach(async function () {
     await underlyingAsset.getAddress(),
     other.address, // internalStatesOrchestrator
     other.address, // liquidityOrchestrator
-    other.address, // rebalancingEngine
     18, // statesDecimals
     6, // curatorIntentDecimals
     await orionVaultFactory.getAddress(), // factory

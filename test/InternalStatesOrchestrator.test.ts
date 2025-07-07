@@ -52,13 +52,6 @@ describe("InternalStatesOrchestrator", function () {
     await oracleRegistryContract.initialize(owner.address);
     const oracleRegistryAddress = await oracleRegistryContract.getAddress();
 
-    // Deploy RebalancingEngine
-    const RebalancingEngineFactory = await ethers.getContractFactory("RebalancingEngine");
-    const rebalancingEngine = await RebalancingEngineFactory.deploy();
-    await rebalancingEngine.waitForDeployment();
-    await rebalancingEngine.initialize(owner.address);
-    const rebalancingEngineAddress = await rebalancingEngine.getAddress();
-
     // Deploy InternalStatesOrchestrator
     const InternalStatesOrchestratorFactory = await ethers.getContractFactory("InternalStatesOrchestrator");
     const orchestrator = await InternalStatesOrchestratorFactory.deploy();
@@ -71,7 +64,6 @@ describe("InternalStatesOrchestrator", function () {
       underlyingAssetAddress,
       orchestratorAddress,
       liquidityOrchestrator.address,
-      rebalancingEngineAddress, // rebalancingEngine
       18, // statesDecimals
       6, // curatorIntentDecimals
       vaultFactory.address, // factory
