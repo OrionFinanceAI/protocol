@@ -186,7 +186,7 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
 
         // Here possible to compute the real T0 (sum total assets).
         // TODO: how to backpropagate this to the vaults? Ideally we need to compute an array of tracking errors,
-        // one per vault. This gives up privacy. Can we have a different approach?
+        // one per vault. Can we have a different approach?
         // Distribute tracking error proportionally to starting total assets?
 
         // Same issue as T0 on W0, after execution we have it, but we need to backpropagate it to the vaults.
@@ -203,7 +203,6 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         // orchestrator and update the vault intent with an encrypted calibration error before storing it.
         // Not trivial how to backpropagate the calibration error to each vault.
         // Identify metodology to do this maintaining privacy.
-        // TODO: how to do this maintaining privacy?
 
         address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
         length = encryptedVaults.length;
@@ -215,7 +214,9 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
 
         // TODO: DepositRequest and WithdrawRequest in Vaults to be processed post t0 update, and removed from
         // vault state as pending requests.
-        // Also process curators and protocol fees.
+        // Opportunity to net transaction? Perform minting and burning operation at the same time.
+
+        // TODO: process curators and protocol fees.
 
         emit EventsLib.PortfolioRebalanced();
     }
