@@ -276,6 +276,8 @@ contract InternalStatesOrchestrator is
 
     /// @notice Compute selling and buying orders based on portfolio differences
     /// @dev Compares _finalBatchPortfolioHat with _initialBatchPortfolioHat to determine rebalancing needs
+    ///      Selling orders are converted from underlying assets to shares for the LiquidityOrchestrator
+    ///      Buying orders remain in underlying assets as expected by the LiquidityOrchestrator
     function _computeRebalancingOrders() internal {
         address[] memory tokens = _currentEpoch.tokens;
         uint256 length = tokens.length;
@@ -286,14 +288,17 @@ contract InternalStatesOrchestrator is
             uint256 finalValue = _currentEpoch.finalBatchPortfolioHat[token];
 
             if (initialValue > finalValue) {
-                uint256 sellAmount = initialValue - finalValue;
-                // TODO: amounts are in underlying assets now. As they are consumed by _executeSell in liquidity
-                // orchestrator, they need to be converted to shares.
-                // Fix using the inverse transform of internal state orchestrator _calculateTokenValue.
-                // How to minimize the back and forth?
-                _currentEpoch.sellingOrders[token] = sellAmount;
+                uint256 sellAmountInUnderlying = initialValue - finalValue;
+                // Convert from underlying assets to shares for LiquidityOrchestrator._executeSell
+                uint256 sellAmountInShares = _calculateTokenShares(
+                    _currentEpoch.priceHat[token],
+                    sellAmountInUnderlying,
+                    token
+                );
+                _currentEpoch.sellingOrders[token] = sellAmountInShares;
             } else if (finalValue > initialValue) {
                 uint256 buyAmount = finalValue - initialValue;
+                // Keep buying orders in underlying assets as expected by LiquidityOrchestrator._executeBuy
                 _currentEpoch.buyingOrders[token] = buyAmount;
             }
         }
@@ -325,13 +330,42 @@ contract InternalStatesOrchestrator is
         }
     }
 
+    /// @notice Calculates token shares from underlying asset value (inverse of _calculateTokenValue)
+    /// @dev Handles decimal conversion from underlying asset decimals to token decimals
+    ///      Formula: shares = (value * ORACLE_PRECISION) / (price * 10^(underlyingDecimals - tokenDecimals))
+    ///      This safely handles cases where underlying has more or fewer decimals than the token
+    /// @param price The price of the token in underlying asset (18 decimals)
+    /// @param value The value in underlying asset decimals
+    /// @param token The token address to get decimals from
+    /// @return shares The amount of token shares (in token decimals)
+    function _calculateTokenShares(uint256 price, uint256 value, address token) internal view returns (uint256 shares) {
+        if (price == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(token);
+
+        // Get token and underlying decimals
+        uint8 tokenDecimals = IERC20Metadata(token).decimals();
+        uint8 underlyingDecimals = IERC20Metadata(address(config.underlyingAsset())).decimals();
+
+        // Convert value from underlying decimals to token decimals scale
+        uint256 scaledValue;
+        if (underlyingDecimals >= tokenDecimals) {
+            // Scale down: divide by the difference (underlying has more decimals)
+            scaledValue = value / (10 ** (underlyingDecimals - tokenDecimals));
+        } else {
+            // Scale up: multiply by the difference (underlying has fewer decimals)
+            scaledValue = value * (10 ** (tokenDecimals - underlyingDecimals));
+        }
+
+        // Calculate shares: shares = (scaledValue * ORACLE_PRECISION) / price
+        shares = (scaledValue * ORACLE_PRECISION) / price;
+    }
+
     /* -------------------------------------------------------------------------- */
     /*                      LIQUIDITY ORCHESTRATOR FUNCTIONS                      */
     /* -------------------------------------------------------------------------- */
 
     /// @notice Get the selling orders
     /// @return tokens The tokens to sell
-    /// @return amounts The amounts to sell in underlying assets
+    /// @return amounts The amounts to sell in shares (converted from underlying assets)
     function getSellingOrders() external view returns (address[] memory tokens, uint256[] memory amounts) {
         address[] memory allTokens = _currentEpoch.tokens;
         uint256 allTokensLength = allTokens.length;
@@ -363,7 +397,7 @@ contract InternalStatesOrchestrator is
 
     /// @notice Get the buying orders
     /// @return tokens The tokens to buy
-    /// @return amounts The amounts to buy in underlying assets
+    /// @return amounts The amounts to buy in underlying assets (as expected by LiquidityOrchestrator)
     function getBuyingOrders() external view returns (address[] memory tokens, uint256[] memory amounts) {
         address[] memory allTokens = _currentEpoch.tokens;
         uint256 allTokensLength = allTokens.length;
