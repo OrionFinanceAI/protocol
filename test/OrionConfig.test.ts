@@ -21,7 +21,7 @@ beforeEach(async function () {
 
   // Deploy MockUnderlyingAsset
   const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
-  underlyingAsset = await MockUnderlyingAssetFactory.deploy();
+  underlyingAsset = await MockUnderlyingAssetFactory.deploy(6);
   await underlyingAsset.waitForDeployment();
 
   // Deploy OrionConfig and initialize

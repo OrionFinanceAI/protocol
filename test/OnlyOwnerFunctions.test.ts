@@ -32,11 +32,11 @@ describe("OnlyOwner Functions - Comprehensive Test Suite", function () {
 
     // Deploy mock contracts first
     const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
-    mockUnderlyingAsset = await MockUnderlyingAssetFactory.deploy();
+    mockUnderlyingAsset = await MockUnderlyingAssetFactory.deploy(6);
     await mockUnderlyingAsset.waitForDeployment();
 
     const MockERC4626AssetFactory = await ethers.getContractFactory("MockERC4626Asset");
-    mockERC4626Asset = await MockERC4626AssetFactory.deploy(mockUnderlyingAsset.target, "Mock Vault", "MVAULT");
+    mockERC4626Asset = await MockERC4626AssetFactory.deploy(mockUnderlyingAsset.target, "Mock Vault", "MVAULT", 18);
     await mockERC4626Asset.waitForDeployment();
 
     // Deploy OrionConfig

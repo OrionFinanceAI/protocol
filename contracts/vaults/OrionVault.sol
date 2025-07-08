@@ -88,6 +88,14 @@ abstract contract OrionVault is
     /// Units: Vault share tokens, not underlying assets
     EnumerableMap.AddressToUintMap private _withdrawRequests;
 
+    /// @notice Cached total pending deposits - updated incrementally for gas efficiency
+    /// Units: Asset tokens (e.g., USDC, ETH), not shares
+    uint256 private _totalPendingDeposits;
+
+    /// @notice Cached total pending withdrawals - updated incrementally for gas efficiency
+    /// Units: Vault share tokens, not underlying assets
+    uint256 private _totalPendingWithdrawals;
+
     modifier onlyCurator() {
         if (msg.sender != curator) revert ErrorsLib.NotCurator();
         _;
@@ -126,6 +134,8 @@ abstract contract OrionVault is
         curator = curator_;
         config = config_;
         _totalAssets = 0;
+        _totalPendingDeposits = 0;
+        _totalPendingWithdrawals = 0;
     }
 
     // solhint-disable-next-line no-empty-blocks
@@ -206,6 +216,7 @@ abstract contract OrionVault is
         // Effects - now safe to update internal state
         (, uint256 currentAmount) = _depositRequests.tryGet(msg.sender);
         _depositRequests.set(msg.sender, currentAmount + amount);
+        _totalPendingDeposits += amount;
 
         emit EventsLib.DepositRequested(msg.sender, amount);
     }
@@ -231,6 +242,7 @@ abstract contract OrionVault is
         } else {
             _depositRequests.set(msg.sender, newAmount);
         }
+        _totalPendingDeposits -= amount;
 
         emit EventsLib.DepositRequestCancelled(msg.sender, amount);
     }
@@ -253,6 +265,7 @@ abstract contract OrionVault is
         // Effects - now safe to update internal state
         (, uint256 currentShares) = _withdrawRequests.tryGet(msg.sender);
         _withdrawRequests.set(msg.sender, currentShares + shares);
+        _totalPendingWithdrawals += shares;
 
         emit EventsLib.WithdrawRequested(msg.sender, shares);
     }
@@ -278,6 +291,7 @@ abstract contract OrionVault is
         } else {
             _withdrawRequests.set(msg.sender, newShares);
         }
+        _totalPendingWithdrawals -= shares;
 
         emit EventsLib.WithdrawRequestCancelled(msg.sender, shares);
     }
@@ -288,26 +302,14 @@ abstract contract OrionVault is
     /// @return Total pending deposits denominated in underlying asset units (e.g., USDC, ETH)
     /// Note: This returns asset amounts, not share amounts
     function getPendingDeposits() external view returns (uint256) {
-        uint256 totalPending = 0;
-        uint256 length = _depositRequests.length();
-        for (uint256 i = 0; i < length; i++) {
-            (, uint256 amount) = _depositRequests.at(i);
-            totalPending += amount;
-        }
-        return totalPending;
+        return _totalPendingDeposits;
     }
 
     /// @notice Get total pending withdrawal shares across all users
     /// @return Total pending withdrawals denominated in vault share units
     /// Note: This returns share amounts, not underlying asset amounts
     function getPendingWithdrawals() external view returns (uint256) {
-        uint256 totalPending = 0;
-        uint256 length = _withdrawRequests.length();
-        for (uint256 i = 0; i < length; i++) {
-            (, uint256 shares) = _withdrawRequests.at(i);
-            totalPending += shares;
-        }
-        return totalPending;
+        return _totalPendingWithdrawals;
     }
 
     /// --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
@@ -337,6 +339,9 @@ abstract contract OrionVault is
 
             emit EventsLib.DepositProcessed(user, amount);
         }
+
+        // Reset the cached total since all requests were processed
+        _totalPendingDeposits = 0;
     }
 
     /// @notice Process withdrawal requests from LPs
@@ -365,6 +370,9 @@ abstract contract OrionVault is
 
             emit EventsLib.WithdrawProcessed(user, shares);
         }
+
+        // Reset the cached total since all requests were processed
+        _totalPendingWithdrawals = 0;
     }
 
     /// --------- ABSTRACT FUNCTIONS ---------

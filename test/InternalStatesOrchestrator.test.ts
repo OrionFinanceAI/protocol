@@ -34,7 +34,7 @@ describe("InternalStatesOrchestrator", function () {
 
     // Deploy mock underlying asset
     const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
-    const underlyingAsset = await MockUnderlyingAssetFactory.deploy();
+    const underlyingAsset = await MockUnderlyingAssetFactory.deploy(6);
     await underlyingAsset.waitForDeployment();
     const underlyingAssetAddress = await underlyingAsset.getAddress();
 
@@ -337,7 +337,7 @@ describe("InternalStatesOrchestrator", function () {
 
         // Deploy second token
         const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
-        const token2 = await MockUnderlyingAssetFactory.deploy();
+        const token2 = await MockUnderlyingAssetFactory.deploy(6);
         await token2.waitForDeployment();
 
         // Set up oracles for both tokens
@@ -432,7 +432,7 @@ describe("InternalStatesOrchestrator", function () {
 
         // Deploy second token
         const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
-        const token2 = await MockUnderlyingAssetFactory.deploy();
+        const token2 = await MockUnderlyingAssetFactory.deploy(6);
         await token2.waitForDeployment();
 
         // Set up oracles for both tokens
@@ -485,7 +485,7 @@ describe("InternalStatesOrchestrator", function () {
 
         // Deploy second token
         const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
-        const token2 = await MockUnderlyingAssetFactory.deploy();
+        const token2 = await MockUnderlyingAssetFactory.deploy(6);
         await token2.waitForDeployment();
 
         // Set up oracles for both tokens

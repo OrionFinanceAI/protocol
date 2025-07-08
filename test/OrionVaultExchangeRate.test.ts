@@ -10,7 +10,7 @@ describe("OrionVault Exchange Rate Tests", function () {
 
     // Deploy mock underlying asset (6 decimals)
     const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
-    const underlyingAsset = await MockUnderlyingAssetFactory.deploy();
+    const underlyingAsset = await MockUnderlyingAssetFactory.deploy(6);
     await underlyingAsset.waitForDeployment();
     const underlyingAssetAddress = await underlyingAsset.getAddress();
 

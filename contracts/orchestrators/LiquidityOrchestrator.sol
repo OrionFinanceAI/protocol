@@ -104,31 +104,8 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
     /// @param user The user to return funds to
     /// @param amount The amount to return
     function returnDepositFunds(address user, uint256 amount) external {
-        // Verify the caller is a registered vault by checking both vault types
-        address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
-        address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
-
-        bool isRegisteredVault = false;
-
-        // Check transparent vaults
-        for (uint256 i = 0; i < transparentVaults.length; i++) {
-            if (transparentVaults[i] == msg.sender) {
-                isRegisteredVault = true;
-                break;
-            }
-        }
-
-        // Check encrypted vaults if not found in transparent
-        if (!isRegisteredVault) {
-            for (uint256 i = 0; i < encryptedVaults.length; i++) {
-                if (encryptedVaults[i] == msg.sender) {
-                    isRegisteredVault = true;
-                    break;
-                }
-            }
-        }
-
-        if (!isRegisteredVault) revert ErrorsLib.NotAuthorized();
+        // Verify the caller is a registered vault
+        if (!config.isOrionVault(msg.sender)) revert ErrorsLib.NotAuthorized();
 
         // Get the underlying asset from the vault
         address underlyingAsset = IOrionVault(msg.sender).asset();
@@ -143,31 +120,8 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
     /// @param user The user to return shares to
     /// @param shares The amount of shares to return
     function returnWithdrawShares(address user, uint256 shares) external {
-        // Verify the caller is a registered vault by checking both vault types
-        address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
-        address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
-
-        bool isRegisteredVault = false;
-
-        // Check transparent vaults
-        for (uint256 i = 0; i < transparentVaults.length; i++) {
-            if (transparentVaults[i] == msg.sender) {
-                isRegisteredVault = true;
-                break;
-            }
-        }
-
-        // Check encrypted vaults if not found in transparent
-        if (!isRegisteredVault) {
-            for (uint256 i = 0; i < encryptedVaults.length; i++) {
-                if (encryptedVaults[i] == msg.sender) {
-                    isRegisteredVault = true;
-                    break;
-                }
-            }
-        }
-
-        if (!isRegisteredVault) revert ErrorsLib.NotAuthorized();
+        // Verify the caller is a registered vault
+        if (!config.isOrionVault(msg.sender)) revert ErrorsLib.NotAuthorized();
 
         // Get the vault's share token address
         address shareToken = address(msg.sender);

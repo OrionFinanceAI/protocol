@@ -9,12 +9,12 @@ describe("ERC4626ExecutionAdapter", function () {
 
     // Deploy underlying asset (USDC-like, 6 decimals)
     const UnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
-    const underlyingAsset: any = await UnderlyingAssetFactory.deploy();
+    const underlyingAsset: any = await UnderlyingAssetFactory.deploy(6);
     await underlyingAsset.waitForDeployment();
 
     // Deploy ERC4626 vault
     const ERC4626AssetFactory = await ethers.getContractFactory("MockERC4626Asset");
-    const erc4626Vault: any = await ERC4626AssetFactory.deploy(underlyingAsset, "Vault Token", "VT");
+    const erc4626Vault: any = await ERC4626AssetFactory.deploy(underlyingAsset, "Vault Token", "VT", 6);
     await erc4626Vault.waitForDeployment();
 
     // Deploy ERC4626ExecutionAdapter

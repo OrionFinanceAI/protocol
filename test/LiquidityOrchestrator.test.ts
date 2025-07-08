@@ -10,15 +10,25 @@ describe("LiquidityOrchestrator", function () {
 
     // Deploy underlying asset (USDC-like, 6 decimals)
     const UnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
-    const underlyingAsset = await UnderlyingAssetFactory.deploy();
+    const underlyingAsset = await UnderlyingAssetFactory.deploy(6);
     await underlyingAsset.waitForDeployment();
 
     // Deploy ERC4626 assets
     const ERC4626AssetFactory = await ethers.getContractFactory("MockERC4626Asset");
 
-    const erc4626Asset1 = await ERC4626AssetFactory.deploy(underlyingAsset, "Vault Token 1", "VT1");
+    const erc4626Asset1 = await ERC4626AssetFactory.deploy(
+      await underlyingAsset.getAddress(),
+      "Vault Token 1",
+      "VT1",
+      18,
+    );
     await erc4626Asset1.waitForDeployment();
-    const erc4626Asset2 = await ERC4626AssetFactory.deploy(underlyingAsset, "Vault Token 2", "VT2");
+    const erc4626Asset2 = await ERC4626AssetFactory.deploy(
+      await underlyingAsset.getAddress(),
+      "Vault Token 2",
+      "VT2",
+      18,
+    );
     await erc4626Asset2.waitForDeployment();
 
     // Deploy OrionConfig
