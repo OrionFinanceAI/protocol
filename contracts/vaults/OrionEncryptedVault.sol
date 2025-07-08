@@ -25,6 +25,9 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
     mapping(address => euint32) internal _intent;
     address[] internal _intentKeys;
 
+    /// @notice Temporary mapping to track seen tokens during submitIntent to check for duplicates
+    mapping(address => bool) internal _seenTokens;
+
     function initialize(
         address curatorAddress,
         IOrionConfig configAddress,
@@ -49,12 +52,32 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
         }
         delete _intentKeys;
 
+        euint32 totalWeight = ezero;
         uint256 orderLength = order.length;
         for (uint256 i = 0; i < orderLength; i++) {
             address token = order[i].token;
+            euint32 weight = order[i].weight;
             if (!config.isWhitelisted(token)) revert ErrorsLib.TokenNotWhitelisted(token);
-            _intent[token] = order[i].weight;
+
+            // Check for duplicate tokens in the order
+            if (_seenTokens[token]) {
+                revert ErrorsLib.TokenAlreadyInOrder(token);
+            }
+            _seenTokens[token] = true;
+
+            // TODO: Zama coprocessor to check weight > 0, see OrionTransparentVault implementation.
+
+            _intent[token] = weight;
             _intentKeys.push(token);
+            totalWeight = TFHE.add(totalWeight, weight);
+        }
+
+        // TODO: Zama coprocessor to check totalWeight == 10 ** curatorIntentDecimals, see
+        // OrionTransparentVault implementation.
+
+        // Clear temporary mapping
+        for (uint256 i = 0; i < orderLength; i++) {
+            delete _seenTokens[order[i].token];
         }
 
         emit EventsLib.OrderSubmitted(msg.sender);

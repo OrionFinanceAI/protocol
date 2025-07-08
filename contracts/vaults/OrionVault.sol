@@ -318,7 +318,8 @@ abstract contract OrionVault is
     // TODO: add function for liquidity orchestrator to update portfolio weights.
 
     // TODO: add function for liquidity orchestrator to deposit assets in curator fee escrow?
-    // And therefore another for curator to withdraw assets from curator fee escrow? Or pay curator fee directly?
+    // And therefore another for curator to withdraw assets from curator fee escrow?
+    // Or pay curator fee directly from liquidity orchestrator?
 
     /// --------- ABSTRACT FUNCTIONS ---------
     /// @notice Derived contracts implement their specific submitIntent functions
