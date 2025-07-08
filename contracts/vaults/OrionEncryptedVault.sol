@@ -25,6 +25,9 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
     mapping(address => euint32) internal _intent;
     address[] internal _intentKeys;
 
+    /// @notice Temporary mapping to track seen tokens during submitIntent to check for duplicates
+    mapping(address => bool) internal _seenTokens;
+
     function initialize(
         address curatorAddress,
         IOrionConfig configAddress,
@@ -38,6 +41,7 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
 
     /// @notice Submit an encrypted portfolio intent.
     /// @param order EncryptedPosition struct containing the tokens and encrypted weights.
+    /// @dev The weights are interpreted as percentage of total supply.
     function submitIntent(EncryptedPosition[] calldata order) external onlyCurator {
         if (order.length == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
 
@@ -49,12 +53,32 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
         }
         delete _intentKeys;
 
+        euint32 totalWeight = ezero;
         uint256 orderLength = order.length;
         for (uint256 i = 0; i < orderLength; i++) {
             address token = order[i].token;
+            euint32 weight = order[i].value;
             if (!config.isWhitelisted(token)) revert ErrorsLib.TokenNotWhitelisted(token);
-            _intent[token] = order[i].weight;
+
+            // Check for duplicate tokens in the order
+            if (_seenTokens[token]) {
+                revert ErrorsLib.TokenAlreadyInOrder(token);
+            }
+            _seenTokens[token] = true;
+
+            // TODO: Zama coprocessor to check weight > 0, see OrionTransparentVault implementation.
+
+            _intent[token] = weight;
             _intentKeys.push(token);
+            totalWeight = TFHE.add(totalWeight, weight);
+        }
+
+        // TODO: Zama coprocessor to check totalWeight == 10 ** curatorIntentDecimals, see
+        // OrionTransparentVault implementation.
+
+        // Clear temporary mapping
+        for (uint256 i = 0; i < orderLength; i++) {
+            delete _seenTokens[order[i].token];
         }
 
         emit EventsLib.OrderSubmitted(msg.sender);
@@ -88,11 +112,7 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
 
     // --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
 
-    // TODO: Get the encrypted sharesPerAsset executed by the liquidity orchestrator
-    // and update the vault intent with an encrypted calibration error before storing it.
-    /// @notice Update vault state based on market performance and pending operations
-    /// @param portfolio The new portfolio after processing pending transactions.
-    /// @param newTotalAssets The new total assets after processing pending transactions.
+    /// @inheritdoc IOrionEncryptedVault
     function updateVaultState(
         EncryptedPosition[] calldata portfolio,
         uint256 newTotalAssets
@@ -108,7 +128,7 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
 
         // Update portfolio
         for (uint256 i = 0; i < portfolioLength; i++) {
-            _portfolio[portfolio[i].token] = portfolio[i].weight;
+            _portfolio[portfolio[i].token] = portfolio[i].value;
             _portfolioKeys.push(portfolio[i].token);
         }
 

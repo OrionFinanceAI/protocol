@@ -22,9 +22,9 @@ describe("OracleRegistry", function () {
 
     // Deploy underlying assets first
     const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
-    const underlyingAsset1 = await MockUnderlyingAssetFactory.deploy();
-    const underlyingAsset2 = await MockUnderlyingAssetFactory.deploy();
-    const underlyingAsset3 = await MockUnderlyingAssetFactory.deploy();
+    const underlyingAsset1 = await MockUnderlyingAssetFactory.deploy(6);
+    const underlyingAsset2 = await MockUnderlyingAssetFactory.deploy(6);
+    const underlyingAsset3 = await MockUnderlyingAssetFactory.deploy(6);
 
     await underlyingAsset1.waitForDeployment();
     await underlyingAsset2.waitForDeployment();
@@ -32,9 +32,9 @@ describe("OracleRegistry", function () {
 
     // Deploy ERC4626 assets with underlying assets
     const MockERC4626AssetFactory = await ethers.getContractFactory("MockERC4626Asset");
-    mockAsset1 = await MockERC4626AssetFactory.deploy(await underlyingAsset1.getAddress(), "Test Vault 1", "TV1");
-    mockAsset2 = await MockERC4626AssetFactory.deploy(await underlyingAsset2.getAddress(), "Test Vault 2", "TV2");
-    mockAsset3 = await MockERC4626AssetFactory.deploy(await underlyingAsset3.getAddress(), "Test Vault 3", "TV3");
+    mockAsset1 = await MockERC4626AssetFactory.deploy(await underlyingAsset1.getAddress(), "Test Vault 1", "TV1", 18);
+    mockAsset2 = await MockERC4626AssetFactory.deploy(await underlyingAsset2.getAddress(), "Test Vault 2", "TV2", 18);
+    mockAsset3 = await MockERC4626AssetFactory.deploy(await underlyingAsset3.getAddress(), "Test Vault 3", "TV3", 18);
 
     await mockAsset1.waitForDeployment();
     await mockAsset2.waitForDeployment();
@@ -245,7 +245,7 @@ describe("OracleRegistry", function () {
       for (let i = 0; i < 20; i++) {
         // Deploy underlying asset first
         const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
-        const underlyingAsset = await MockUnderlyingAssetFactory.deploy();
+        const underlyingAsset = await MockUnderlyingAssetFactory.deploy(18);
         await underlyingAsset.waitForDeployment();
 
         // Deploy ERC4626 asset with underlying asset
@@ -254,6 +254,7 @@ describe("OracleRegistry", function () {
           await underlyingAsset.getAddress(),
           `Test Vault ${i}`,
           `TV${i}`,
+          18,
         );
         await asset.waitForDeployment();
 

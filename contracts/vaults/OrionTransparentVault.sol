@@ -36,8 +36,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
     /// --------- CURATOR FUNCTIONS ---------
 
-    /// @notice Submit a plaintext portfolio intent.
-    /// @param order Position struct containing the tokens and plaintext weights.
+    /// @inheritdoc IOrionTransparentVault
     function submitIntent(Position[] calldata order) external onlyCurator {
         if (order.length == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
 
@@ -47,7 +46,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
         uint256 orderLength = order.length;
         for (uint256 i = 0; i < orderLength; i++) {
             address token = order[i].token;
-            uint32 weight = order[i].weight;
+            uint32 weight = order[i].value;
             if (!config.isWhitelisted(token)) revert ErrorsLib.TokenNotWhitelisted(token);
             if (weight == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(token);
             bool inserted = _portfolioIntent.set(token, weight);
@@ -93,6 +92,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
     // --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
 
+    /// @inheritdoc IOrionTransparentVault
     function updateVaultState(
         Position[] calldata portfolio,
         uint256 newTotalAssets
@@ -102,7 +102,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
         uint256 portfolioLength = portfolio.length;
         for (uint256 i = 0; i < portfolioLength; i++) {
             // slither-disable-next-line unused-return
-            _portfolio.set(portfolio[i].token, portfolio[i].weight);
+            _portfolio.set(portfolio[i].token, portfolio[i].value);
         }
 
         _totalAssets = newTotalAssets;

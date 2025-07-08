@@ -30,6 +30,43 @@
       "type": "error"
     },
     {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "user",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "DepositRequestCancelled",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "sender",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "balance",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "InsufficientFunds",
+      "type": "error"
+    },
+    {
       "inputs": [],
       "name": "InvalidAsset",
       "type": "error"
@@ -76,7 +113,7 @@
     },
     {
       "inputs": [],
-      "name": "NotEnoughShares",
+      "name": "NotEnoughWithdrawRequest",
       "type": "error"
     },
     {
@@ -142,13 +179,29 @@
       "type": "error"
     },
     {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "user",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "shares",
+          "type": "uint256"
+        }
+      ],
+      "name": "WithdrawRequestCancelled",
+      "type": "error"
+    },
+    {
       "inputs": [],
       "name": "ZeroAddress",
       "type": "error"
     }
   ],
-  "bytecode": "0x60556032600b8282823980515f1a607314602657634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f5ffdfea26469706673582212200750966086747d7a5e88b2b780fc5a6ecc271f7772e6e1ccadfd5e18b8ff650964736f6c634300081c0033",
-  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f5ffdfea26469706673582212200750966086747d7a5e88b2b780fc5a6ecc271f7772e6e1ccadfd5e18b8ff650964736f6c634300081c0033",
+  "bytecode": "0x60556032600b8282823980515f1a607314602657634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f5ffdfea2646970667358221220dd06e2f389aa671bb6c4366fcc256a8f9a7bd43837ca26f463456d804e1b137864736f6c634300081c0033",
+  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f5ffdfea2646970667358221220dd06e2f389aa671bb6c4366fcc256a8f9a7bd43837ca26f463456d804e1b137864736f6c634300081c0033",
   "linkReferences": {},
   "deployedLinkReferences": {}
 }

@@ -61,6 +61,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
 
     // === Protocol Configuration ===
 
+    /// @inheritdoc IOrionConfig
     function setProtocolParams(
         address underlyingAsset_,
         address internalStatesOrchestrator_,
@@ -93,26 +94,31 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
 
     // === Whitelist Functions ===
 
+    /// @inheritdoc IOrionConfig
     function addWhitelistedAsset(address asset) external onlyOwner {
         bool inserted = whitelistedAssets.add(asset);
         if (!inserted) revert ErrorsLib.AlreadyWhitelisted();
         emit EventsLib.WhitelistedAssetAdded(asset);
     }
 
+    /// @inheritdoc IOrionConfig
     function removeWhitelistedAsset(address asset) external onlyOwner {
         bool removed = whitelistedAssets.remove(asset);
         if (!removed) revert ErrorsLib.TokenNotWhitelisted(asset);
         emit EventsLib.WhitelistedAssetRemoved(asset);
     }
 
+    /// @inheritdoc IOrionConfig
     function whitelistedAssetsLength() external view returns (uint256) {
         return whitelistedAssets.length();
     }
 
+    /// @inheritdoc IOrionConfig
     function getWhitelistedAssetAt(uint256 index) external view returns (address) {
         return whitelistedAssets.at(index);
     }
 
+    /// @inheritdoc IOrionConfig
     function getAllWhitelistedAssets() external view returns (address[] memory assets) {
         uint256 length = whitelistedAssets.length();
         assets = new address[](length);
@@ -122,16 +128,15 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         return assets;
     }
 
+    /// @inheritdoc IOrionConfig
     function isWhitelisted(address asset) external view returns (bool) {
         return whitelistedAssets.contains(asset);
     }
 
     // === Orion Vaults ===
 
+    /// @inheritdoc IOrionConfig
     function addOrionVault(address vault, EventsLib.VaultType vaultType) external onlyFactory {
-        // NOTE: could check the type of the vault with EIP-165, instead of only
-        // checking it's not a zero address.
-        // https://eips.ethereum.org/EIPS/eip-165
         if (vault == address(0)) revert ErrorsLib.ZeroAddress();
 
         bool inserted;
@@ -145,6 +150,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         emit EventsLib.OrionVaultAdded(vault);
     }
 
+    /// @inheritdoc IOrionConfig
     function removeOrionVault(address vault, EventsLib.VaultType vaultType) external onlyFactory {
         bool removed;
         if (vaultType == EventsLib.VaultType.Encrypted) {
@@ -157,6 +163,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         emit EventsLib.OrionVaultRemoved(vault);
     }
 
+    /// @inheritdoc IOrionConfig
     function getAllOrionVaults(EventsLib.VaultType vaultType) external view returns (address[] memory) {
         EnumerableSet.AddressSet storage vaults = vaultType == EventsLib.VaultType.Encrypted
             ? encryptedVaults
@@ -167,5 +174,10 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
             vaultArray[i] = vaults.at(i);
         }
         return vaultArray;
+    }
+
+    /// @inheritdoc IOrionConfig
+    function isOrionVault(address vault) external view returns (bool) {
+        return encryptedVaults.contains(vault) || transparentVaults.contains(vault);
     }
 }

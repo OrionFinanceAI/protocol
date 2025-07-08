@@ -19,7 +19,6 @@ library ErrorsLib {
     error TokenNotWhitelisted(address token);
     error AmountMustBeGreaterThanZero(address asset);
     error SharesMustBeGreaterThanZero();
-    error NotEnoughShares();
     error SynchronousCallDisabled();
     error InvalidTotalWeight();
     error OrderIntentCannotBeEmpty();
@@ -27,6 +26,10 @@ library ErrorsLib {
     error NotAuthorized();
     error TooEarly();
     error NotEnoughDepositRequest();
+    error NotEnoughWithdrawRequest();
     error AdapterNotSet();
     error InvalidStatesDecimals();
+    error InsufficientFunds(address sender, uint256 balance, uint256 amount);
+    error DepositRequestCancelled(address user, uint256 amount);
+    error WithdrawRequestCancelled(address user, uint256 shares);
 }

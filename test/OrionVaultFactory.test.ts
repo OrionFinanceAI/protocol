@@ -17,7 +17,7 @@ beforeEach(async function () {
   [owner, curator, other, user] = await ethers.getSigners();
 
   const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
-  underlyingAsset = await MockUnderlyingAssetFactory.deploy();
+  underlyingAsset = await MockUnderlyingAssetFactory.deploy(6);
   await underlyingAsset.waitForDeployment();
 
   const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");

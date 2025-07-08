@@ -13,11 +13,16 @@ library EventsLib {
 
     // Vault Events
     event OrderSubmitted(address indexed curator);
+
     event DepositRequested(address indexed user, uint256 amount);
     event WithdrawRequested(address indexed user, uint256 shares);
+
     event DepositProcessed(address indexed user, uint256 amount);
     event WithdrawProcessed(address indexed user, uint256 shares);
+
     event DepositRequestCancelled(address indexed user, uint256 amount);
+    event WithdrawRequestCancelled(address indexed user, uint256 shares);
+
     event VaultStateUpdated(uint256 newTotalAssets);
 
     // Internal States Orchestrator Events

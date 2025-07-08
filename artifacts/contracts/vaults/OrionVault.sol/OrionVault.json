@@ -217,6 +217,27 @@
       "type": "error"
     },
     {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "sender",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "balance",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "InsufficientFunds",
+      "type": "error"
+    },
+    {
       "inputs": [],
       "name": "InvalidInitialization",
       "type": "error"
@@ -233,7 +254,7 @@
     },
     {
       "inputs": [],
-      "name": "NotEnoughShares",
+      "name": "NotEnoughWithdrawRequest",
       "type": "error"
     },
     {
@@ -578,6 +599,25 @@
           "type": "uint256"
         }
       ],
+      "name": "WithdrawRequestCancelled",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "user",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "shares",
+          "type": "uint256"
+        }
+      ],
       "name": "WithdrawRequested",
       "type": "event"
     },
@@ -690,6 +730,19 @@
         }
       ],
       "name": "cancelDepositRequest",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "shares",
+          "type": "uint256"
+        }
+      ],
+      "name": "cancelWithdrawRequest",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

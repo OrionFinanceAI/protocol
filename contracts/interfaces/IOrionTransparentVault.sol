@@ -6,13 +6,14 @@ import "./IOrionVault.sol";
 /// @title IOrionTransparentVault
 /// @notice Extends the Orion Vault with plaintext portfolio intent submission and plaintextportfolio querying.
 interface IOrionTransparentVault is IOrionVault {
-    /// @dev Struct representing a token and its desired weight in a portfolio intent.
+    /// @dev Struct representing a token and its value in a portfolio.
     /// @param token The address of the ERC20 token.
-    /// @param weight The desired weight of the token in the portfolio.
-    ///        This value is expressed in percentage of total supply, in config.curatorIntentDecimals precision.
+    /// @param value The plaintext value associated with the token.
+    ///        When used for portfolio intent, this represents percentage of total supply (weight).
+    ///        When used for current portfolio state, this represents number of shares per asset.
     struct Position {
         address token;
-        uint32 weight;
+        uint32 value;
     }
 
     /// @notice Submit a plaintext portfolio intent.
@@ -25,6 +26,11 @@ interface IOrionTransparentVault is IOrionVault {
     /// @notice Returns the current portfolio intent (w_1).
     function getIntent() external view returns (address[] memory tokens, uint256[] memory weights);
 
-    // TODO: add docstring once implemented.
+    /// @notice Updates the vault's portfolio state and total assets
+    /// @dev Can only be called by the liquidity orchestrator.
+    ///      Clears the previous portfolio and replaces it with the new one.
+    /// @param portfolio Array of Position structs
+    ///        It contains the new portfolio token addresses and plaintext number of shares per asset.
+    /// @param newTotalAssets The new total assets value for the vault
     function updateVaultState(Position[] calldata portfolio, uint256 newTotalAssets) external;
 }

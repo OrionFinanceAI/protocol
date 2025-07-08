@@ -104,37 +104,30 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
     /// @param user The user to return funds to
     /// @param amount The amount to return
     function returnDepositFunds(address user, uint256 amount) external {
-        // Verify the caller is a registered vault by checking both vault types
-        address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
-        address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
-
-        bool isRegisteredVault = false;
-
-        // Check transparent vaults
-        for (uint256 i = 0; i < transparentVaults.length; i++) {
-            if (transparentVaults[i] == msg.sender) {
-                isRegisteredVault = true;
-                break;
-            }
-        }
-
-        // Check encrypted vaults if not found in transparent
-        if (!isRegisteredVault) {
-            for (uint256 i = 0; i < encryptedVaults.length; i++) {
-                if (encryptedVaults[i] == msg.sender) {
-                    isRegisteredVault = true;
-                    break;
-                }
-            }
-        }
-
-        if (!isRegisteredVault) revert ErrorsLib.NotAuthorized();
+        // Verify the caller is a registered vault
+        if (!config.isOrionVault(msg.sender)) revert ErrorsLib.NotAuthorized();
 
         // Get the underlying asset from the vault
         address underlyingAsset = IOrionVault(msg.sender).asset();
 
         // Transfer funds back to the user
         bool success = IERC20(underlyingAsset).transfer(user, amount);
+        if (!success) revert ErrorsLib.TransferFailed();
+    }
+
+    /// @notice Return withdrawal shares to a user who cancelled their withdrawal request
+    /// @dev Called by vault contracts when users cancel withdrawal requests
+    /// @param user The user to return shares to
+    /// @param shares The amount of shares to return
+    function returnWithdrawShares(address user, uint256 shares) external {
+        // Verify the caller is a registered vault
+        if (!config.isOrionVault(msg.sender)) revert ErrorsLib.NotAuthorized();
+
+        // Get the vault's share token address
+        address shareToken = address(msg.sender);
+
+        // Transfer shares back to the user
+        bool success = IERC20(shareToken).transfer(user, shares);
         if (!success) revert ErrorsLib.TransferFailed();
     }
 
@@ -203,6 +196,12 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
             // vault.updateVaultState(?, ?);
         }
 
+        // TODO: to updateVaultState of encrypted vaults, get the encrypted sharesPerAsset executed by the liquidity
+        // orchestrator and update the vault intent with an encrypted calibration error before storing it.
+        // Not trivial how to backpropagate the calibration error to each vault.
+        // Identify metodology to do this maintaining privacy.
+        // TODO: how to do this maintaining privacy?
+
         address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
         length = encryptedVaults.length;
         for (uint256 i = 0; i < length; i++) {
@@ -213,6 +212,7 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
 
         // TODO: DepositRequest and WithdrawRequest in Vaults to be processed post t0 update, and removed from
         // vault state as pending requests.
+        // Also process curators and protocol fees.
 
         emit EventsLib.PortfolioRebalanced();
     }
@@ -224,11 +224,12 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         IExecutionAdapter adapter = executionAdapterOf[asset];
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
 
-        // Transfer shares to adapter for selling
-        bool success = IERC20(asset).transfer(address(adapter), amount);
+        // Approve adapter to spend shares
+        bool success = IERC20(asset).approve(address(adapter), amount);
         if (!success) revert ErrorsLib.TransferFailed();
 
         // Execute sell through adapter
+        // (adapter will pull shares from this contract and push underlying assets to it)
         adapter.sell(asset, amount);
     }
 
@@ -242,11 +243,12 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         // Get the underlying asset from the adapter (assumes it's an ERC4626 adapter)
         address underlyingAsset = IERC4626(asset).asset();
 
-        // Transfer underlying assets to adapter for buying
-        bool success = IERC20(underlyingAsset).transfer(address(adapter), amount);
+        // Approve adapter to spend underlying assets
+        bool success = IERC20(underlyingAsset).approve(address(adapter), amount);
         if (!success) revert ErrorsLib.TransferFailed();
 
         // Execute buy through adapter
+        // (adapter will pull underlying assets from this contract and push shares to it)
         adapter.buy(asset, amount);
     }
 }

@@ -20,12 +20,6 @@ interface IOrionConfig {
     /// @return The address of the vault factory
     function vaultFactory() external view returns (address);
 
-    /// @notice Checks if an asset is whitelisted for use in the protocol
-    /// @dev Only whitelisted assets can be used in various protocol operations
-    /// @param asset The address of the asset to check
-    /// @return True if the asset is whitelisted, false otherwise
-    function isWhitelisted(address asset) external view returns (bool);
-
     /// @notice Returns the number of decimal places used for states calculations
     /// @dev This value is used to scale state values for precision
     /// (e.g. inflation resistant conversions, P&L calculations).
@@ -90,6 +84,11 @@ interface IOrionConfig {
     /// @return An array of whitelisted asset addresses
     function getAllWhitelistedAssets() external view returns (address[] memory);
 
+    /// @notice Checks if an asset is whitelisted
+    /// @param asset The address of the asset to check
+    /// @return True if the asset is whitelisted, false otherwise
+    function isWhitelisted(address asset) external view returns (bool);
+
     /// @notice Adds a new Orion vault to the protocol registry
     /// @dev Only callable by the vault factory contract
     /// @param vault The address of the vault to add to the registry
@@ -106,4 +105,10 @@ interface IOrionConfig {
     /// @param vaultType Whether to return encrypted or transparent vaults
     /// @return An array of Orion vault addresses
     function getAllOrionVaults(EventsLib.VaultType vaultType) external view returns (address[] memory);
+
+    /// @notice Checks if an address is a registered Orion vault
+    /// @dev This function checks both encrypted and transparent vaults
+    /// @param vault The address of the vault to check
+    /// @return True if the address is a registered Orion vault, false otherwise
+    function isOrionVault(address vault) external view returns (bool);
 }

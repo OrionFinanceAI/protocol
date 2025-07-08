@@ -16,8 +16,9 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     function updateAutomationRegistry(address newAutomationRegistry) external;
     function updateConfig(address newConfig) external;
 
-    // Deposit management functions
+    // Deposit and withdrawal management functions
     function returnDepositFunds(address user, uint256 amount) external;
+    function returnWithdrawShares(address user, uint256 shares) external;
 
     // Adapter management functions
     function setAdapter(address asset, IExecutionAdapter adapter) external;

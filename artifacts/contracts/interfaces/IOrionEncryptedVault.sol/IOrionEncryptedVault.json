@@ -716,7 +716,7 @@
             },
             {
               "internalType": "euint32",
-              "name": "weight",
+              "name": "value",
               "type": "uint256"
             }
           ],
@@ -833,7 +833,7 @@
             },
             {
               "internalType": "euint32",
-              "name": "weight",
+              "name": "value",
               "type": "uint256"
             }
           ],

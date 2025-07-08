@@ -34,7 +34,7 @@ describe("InternalStatesOrchestrator", function () {
 
     // Deploy mock underlying asset
     const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
-    const underlyingAsset = await MockUnderlyingAssetFactory.deploy();
+    const underlyingAsset = await MockUnderlyingAssetFactory.deploy(6);
     await underlyingAsset.waitForDeployment();
     const underlyingAssetAddress = await underlyingAsset.getAddress();
 
@@ -301,15 +301,15 @@ describe("InternalStatesOrchestrator", function () {
         const portfolioTokens1 = [await underlyingAsset.getAddress()];
         await vault1
           .connect(liquidityOrchestrator)
-          .updateVaultState([{ token: portfolioTokens1[0], weight: 1000 }], ethers.parseEther("100000"));
-        await vault1.connect(curator1).submitIntent([{ token: portfolioTokens1[0], weight: 1000000 }]);
+          .updateVaultState([{ token: portfolioTokens1[0], value: 1000 }], ethers.parseEther("100000"));
+        await vault1.connect(curator1).submitIntent([{ token: portfolioTokens1[0], value: 1000000 }]);
 
         // Set up vault2 portfolio and intent (same token, different amounts)
         const portfolioTokens2 = [await underlyingAsset.getAddress()];
         await vault2
           .connect(liquidityOrchestrator)
-          .updateVaultState([{ token: portfolioTokens2[0], weight: 500 }], ethers.parseEther("50000"));
-        await vault2.connect(curator2).submitIntent([{ token: portfolioTokens2[0], weight: 1000000 }]);
+          .updateVaultState([{ token: portfolioTokens2[0], value: 500 }], ethers.parseEther("50000"));
+        await vault2.connect(curator2).submitIntent([{ token: portfolioTokens2[0], value: 1000000 }]);
 
         await ethers.provider.send("evm_increaseTime", [1e18]);
         await ethers.provider.send("evm_mine", []);
@@ -337,7 +337,7 @@ describe("InternalStatesOrchestrator", function () {
 
         // Deploy second token
         const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
-        const token2 = await MockUnderlyingAssetFactory.deploy();
+        const token2 = await MockUnderlyingAssetFactory.deploy(6);
         await token2.waitForDeployment();
 
         // Set up oracles for both tokens
@@ -358,14 +358,14 @@ describe("InternalStatesOrchestrator", function () {
         // Set up vault1 with token1
         await vault1
           .connect(liquidityOrchestrator)
-          .updateVaultState([{ token: await underlyingAsset.getAddress(), weight: 1000 }], ethers.parseEther("100000"));
-        await vault1.connect(curator1).submitIntent([{ token: await underlyingAsset.getAddress(), weight: 1000000 }]);
+          .updateVaultState([{ token: await underlyingAsset.getAddress(), value: 1000 }], ethers.parseEther("100000"));
+        await vault1.connect(curator1).submitIntent([{ token: await underlyingAsset.getAddress(), value: 1000000 }]);
 
         // Set up vault2 with token2
         await vault2
           .connect(liquidityOrchestrator)
-          .updateVaultState([{ token: await token2.getAddress(), weight: 500 }], ethers.parseEther("50000"));
-        await vault2.connect(curator2).submitIntent([{ token: await token2.getAddress(), weight: 1000000 }]);
+          .updateVaultState([{ token: await token2.getAddress(), value: 500 }], ethers.parseEther("50000"));
+        await vault2.connect(curator2).submitIntent([{ token: await token2.getAddress(), value: 1000000 }]);
 
         await ethers.provider.send("evm_increaseTime", [1e18]);
         await ethers.provider.send("evm_mine", []);
@@ -386,7 +386,6 @@ describe("InternalStatesOrchestrator", function () {
           liquidityOrchestrator,
           oracleRegistry,
           underlyingAsset,
-          orionConfig,
         } = await loadFixture(deployOrchestratorFixture);
 
         // Set up oracle
@@ -399,10 +398,10 @@ describe("InternalStatesOrchestrator", function () {
         // Set up vault portfolio
         await vault1
           .connect(liquidityOrchestrator)
-          .updateVaultState([{ token: await underlyingAsset.getAddress(), weight: 1000 }], ethers.parseEther("100000"));
+          .updateVaultState([{ token: await underlyingAsset.getAddress(), value: 1000 }], ethers.parseEther("100000"));
 
         // Set up intent
-        await vault1.connect(curator1).submitIntent([{ token: await underlyingAsset.getAddress(), weight: 1000000 }]);
+        await vault1.connect(curator1).submitIntent([{ token: await underlyingAsset.getAddress(), value: 1000000 }]);
 
         // Set pending deposits (need approval first)
         await underlyingAsset.connect(curator1).approve(await vault1.getAddress(), ethers.parseEther("10000"));
@@ -433,7 +432,7 @@ describe("InternalStatesOrchestrator", function () {
 
         // Deploy second token
         const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
-        const token2 = await MockUnderlyingAssetFactory.deploy();
+        const token2 = await MockUnderlyingAssetFactory.deploy(6);
         await token2.waitForDeployment();
 
         // Set up oracles for both tokens
@@ -454,12 +453,12 @@ describe("InternalStatesOrchestrator", function () {
         // Set up vault portfolio
         await vault1
           .connect(liquidityOrchestrator)
-          .updateVaultState([{ token: await underlyingAsset.getAddress(), weight: 1000 }], ethers.parseEther("100000"));
+          .updateVaultState([{ token: await underlyingAsset.getAddress(), value: 1000 }], ethers.parseEther("100000"));
 
         // Set up intent with two tokens (60% + 40% = 100%)
         await vault1.connect(curator1).submitIntent([
-          { token: await underlyingAsset.getAddress(), weight: 600000 }, // 60%
-          { token: await token2.getAddress(), weight: 400000 }, // 40%
+          { token: await underlyingAsset.getAddress(), value: 600000 }, // 60%
+          { token: await token2.getAddress(), value: 400000 }, // 40%
         ]);
 
         await ethers.provider.send("evm_increaseTime", [1e18]);
@@ -486,7 +485,7 @@ describe("InternalStatesOrchestrator", function () {
 
         // Deploy second token
         const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
-        const token2 = await MockUnderlyingAssetFactory.deploy();
+        const token2 = await MockUnderlyingAssetFactory.deploy(6);
         await token2.waitForDeployment();
 
         // Set up oracles for both tokens
@@ -507,16 +506,16 @@ describe("InternalStatesOrchestrator", function () {
         // Set up vault portfolio with both tokens
         await vault1.connect(liquidityOrchestrator).updateVaultState(
           [
-            { token: await underlyingAsset.getAddress(), weight: 600 },
-            { token: await token2.getAddress(), weight: 400 },
+            { token: await underlyingAsset.getAddress(), value: 600 },
+            { token: await token2.getAddress(), value: 400 },
           ],
           ethers.parseEther("100000"),
         );
 
         // Set up intent with both tokens (60% token1, 40% token2)
         await vault1.connect(curator1).submitIntent([
-          { token: await underlyingAsset.getAddress(), weight: 600000 }, // 60%
-          { token: await token2.getAddress(), weight: 400000 }, // 40%
+          { token: await underlyingAsset.getAddress(), value: 600000 }, // 60%
+          { token: await token2.getAddress(), value: 400000 }, // 40%
         ]);
 
         await ethers.provider.send("evm_increaseTime", [1e18]);
@@ -550,8 +549,8 @@ describe("InternalStatesOrchestrator", function () {
         // Set up vault portfolio and intent
         await vault1
           .connect(liquidityOrchestrator)
-          .updateVaultState([{ token: await underlyingAsset.getAddress(), weight: 1000 }], ethers.parseEther("100000"));
-        await vault1.connect(curator1).submitIntent([{ token: await underlyingAsset.getAddress(), weight: 1000000 }]);
+          .updateVaultState([{ token: await underlyingAsset.getAddress(), value: 1000 }], ethers.parseEther("100000"));
+        await vault1.connect(curator1).submitIntent([{ token: await underlyingAsset.getAddress(), value: 1000000 }]);
 
         // First upkeep
         await ethers.provider.send("evm_increaseTime", [1e18]);
