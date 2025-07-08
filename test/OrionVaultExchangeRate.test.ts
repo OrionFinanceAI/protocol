@@ -26,7 +26,6 @@ describe("OrionVault Exchange Rate Tests", function () {
       underlyingAssetAddress,
       internalOrchestrator.address,
       liquidityOrchestrator.address,
-      18, // statesDecimals
       6, // curatorIntentDecimals
       owner.address, // factory
       owner.address, // oracleRegistry
@@ -223,8 +222,7 @@ describe("OrionVault Exchange Rate Tests", function () {
       expect(assetsAfterDonation).to.be.lt(initialAssets + donationAmount);
 
       /* ── 5. Precise bound using the vault's virtual‑offset formula ───────── */
-      const statesDecimals = 18;
-      const virtualOffset = 10n ** BigInt(statesDecimals);
+      const virtualOffset = 10n ** BigInt(18 - 6);
       const totalSupply = await vault.totalSupply();
       const totalSupplyPlusOffset = totalSupply + virtualOffset;
 

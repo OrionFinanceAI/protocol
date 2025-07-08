@@ -96,6 +96,9 @@ abstract contract OrionVault is
     /// Units: Vault share tokens, not underlying assets
     uint256 private _totalPendingWithdrawals;
 
+    /// @notice Number of decimals to subtract from share asset decimals to get underlying asset decimals
+    uint8 private _deltaDecimals;
+
     modifier onlyCurator() {
         if (msg.sender != curator) revert ErrorsLib.NotCurator();
         _;
@@ -136,6 +139,10 @@ abstract contract OrionVault is
         _totalAssets = 0;
         _totalPendingDeposits = 0;
         _totalPendingWithdrawals = 0;
+
+        uint8 underlyingDecimals = IERC20Metadata(address(config_.underlyingAsset())).decimals();
+        if (underlyingDecimals > 18) revert ErrorsLib.InvalidUnderlyingDecimals();
+        _deltaDecimals = uint8(18 - underlyingDecimals);
     }
 
     // solhint-disable-next-line no-empty-blocks
@@ -186,14 +193,12 @@ abstract contract OrionVault is
         Math.Rounding rounding
     ) public view returns (uint256) {
         uint256 supply = totalSupply();
-        uint8 statesDecimals = config.statesDecimals();
-        return shares.mulDiv(pointInTimeTotalAssets + 1, supply + 10 ** statesDecimals, rounding);
+        return shares.mulDiv(pointInTimeTotalAssets + 1, supply + 10 ** _deltaDecimals, rounding);
     }
 
     function _convertToShares(uint256 assets, Math.Rounding rounding) internal view override returns (uint256) {
         uint256 supply = totalSupply();
-        uint8 statesDecimals = config.statesDecimals();
-        return assets.mulDiv(supply + 10 ** statesDecimals, _totalAssets + 1, rounding);
+        return assets.mulDiv(supply + 10 ** _deltaDecimals, _totalAssets + 1, rounding);
     }
 
     /// --------- LP FUNCTIONS ---------

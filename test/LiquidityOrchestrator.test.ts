@@ -59,7 +59,6 @@ describe("LiquidityOrchestrator", function () {
       await underlyingAsset.getAddress(),
       await internalStatesOrchestrator.getAddress(),
       await liquidityOrchestratorContract.getAddress(),
-      6, // statesDecimals
       6, // curatorIntentDecimals
       vaultFactory.address, // factory
       await oracleRegistry.getAddress(),

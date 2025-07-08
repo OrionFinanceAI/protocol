@@ -89,7 +89,6 @@ describe("End-to-End Protocol Simulation", function () {
       await underlyingAsset.getAddress(),
       await internalStatesOrchestrator.getAddress(),
       await liquidityOrchestratorContract.getAddress(),
-      6, // statesDecimals
       6, // curatorIntentDecimals
       await orionVaultFactory.getAddress(), // factory
       await oracleRegistry.getAddress(),

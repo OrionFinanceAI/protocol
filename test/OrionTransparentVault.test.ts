@@ -41,7 +41,6 @@ describe("OrionTransparentVault", function () {
       underlyingAssetAddress,
       internalOrchestrator.address,
       liquidityOrchestratorAddress,
-      18, // statesDecimals
       6, // curatorIntentDecimals
       owner.address, // factory
       owner.address, // oracleRegistry

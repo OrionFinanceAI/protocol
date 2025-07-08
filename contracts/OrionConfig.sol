@@ -30,7 +30,6 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     address public liquidityOrchestrator;
     address public vaultFactory;
     address public oracleRegistry;
-    uint8 public statesDecimals;
 
     // Curator-specific configuration
     uint8 public curatorIntentDecimals;
@@ -66,7 +65,6 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         address underlyingAsset_,
         address internalStatesOrchestrator_,
         address liquidityOrchestrator_,
-        uint8 statesDecimals_,
         uint8 curatorIntentDecimals_,
         address factory_,
         address oracleRegistry_
@@ -82,8 +80,6 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         liquidityOrchestrator = liquidityOrchestrator_;
 
         uint8 underlyingDecimals = IERC20Metadata(underlyingAsset_).decimals();
-        if (statesDecimals_ < underlyingDecimals) revert ErrorsLib.InvalidStatesDecimals();
-        statesDecimals = statesDecimals_;
 
         curatorIntentDecimals = curatorIntentDecimals_;
         vaultFactory = factory_;

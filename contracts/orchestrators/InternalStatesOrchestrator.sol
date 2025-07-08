@@ -167,7 +167,8 @@ contract InternalStatesOrchestrator is
                             IERC20Metadata(token).decimals()));
                 // TODO: how to avoid underflow?
                 // TODO: numerical unit test including open positions (i.e., more than 1 epoch) to verify this.
-                // Avoid moving away from 18 decimals inside oracle, as we want to support non ERC4626 or simply ERC4626 with
+                // Avoid moving away from 18 decimals inside oracle,
+                // as we want to support non ERC4626 or simply ERC4626 with
                 // different underlying.
                 // TODO: if correct, refacto into something more readable and efficient.
 
@@ -177,8 +178,6 @@ contract InternalStatesOrchestrator is
                 _addTokenIfNotExists(token);
             }
 
-            // TODO: ensure decimals of pendingWithdrawalsHat is
-            /// same as underlying (meaning same as t1Hat, if above fixed).
             uint256 pendingWithdrawalsHat = vault.convertToAssetsWithPITTotalAssets(
                 vault.getPendingWithdrawals(),
                 t1Hat,

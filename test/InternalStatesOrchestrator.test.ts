@@ -64,7 +64,6 @@ describe("InternalStatesOrchestrator", function () {
       underlyingAssetAddress,
       orchestratorAddress,
       liquidityOrchestrator.address,
-      18, // statesDecimals
       6, // curatorIntentDecimals
       vaultFactory.address, // factory
       oracleRegistryAddress, // oracleRegistry

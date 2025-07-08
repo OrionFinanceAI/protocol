@@ -28,7 +28,7 @@ library ErrorsLib {
     error NotEnoughDepositRequest();
     error NotEnoughWithdrawRequest();
     error AdapterNotSet();
-    error InvalidStatesDecimals();
+    error InvalidUnderlyingDecimals();
     error InsufficientFunds(address sender, uint256 balance, uint256 amount);
     error DepositRequestCancelled(address user, uint256 amount);
     error WithdrawRequestCancelled(address user, uint256 shares);
