@@ -81,7 +81,7 @@ jobs:
         uses: "crytic/slither-action@v0.4.1"
         with:
           slither-args: "--filter-paths 'lib|node_modules|dependencies|contracts/mocks'"
-          fail-on: medium
+          fail-on: high
           slither-version: "0.11.3"
         env:
           RPC_URL: ${{ secrets.RPC_URL }}
