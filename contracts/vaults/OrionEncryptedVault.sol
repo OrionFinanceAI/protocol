@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import { euint32, TFHE } from "fhevm/lib/TFHE.sol";
+import { euint32, ebool, TFHE } from "fhevm/lib/TFHE.sol";
 import "./OrionVault.sol";
 import "../interfaces/IOrionConfig.sol";
 import "../interfaces/IOrionEncryptedVault.sol";
@@ -66,15 +66,19 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
             }
             _seenTokens[token] = true;
 
-            // TODO: Zama coprocessor to check weight > 0, see OrionTransparentVault implementation.
+            ebool isWeightValid = TFHE.gt(weight, ezero);
+            // TODO: Zama coprocessor to check isWeightValid == true, else
+            // ErrorsLib.AmountMustBeGreaterThanZero(token);
 
             _intent[token] = weight;
             _intentKeys.push(token);
             totalWeight = TFHE.add(totalWeight, weight);
         }
 
-        // TODO: Zama coprocessor to check totalWeight == 10 ** curatorIntentDecimals, see
-        // OrionTransparentVault implementation.
+        euint32 encryptedTotalWeight = TFHE.asEuint32(10 ** config.curatorIntentDecimals());
+        ebool isTotalWeightValid = TFHE.eq(totalWeight, encryptedTotalWeight);
+        // TODO: Zama coprocessor to check isTotalWeightValid, else
+        // ErrorsLib.InvalidTotalWeight()
 
         // Clear temporary mapping
         for (uint256 i = 0; i < orderLength; i++) {

@@ -20,6 +20,12 @@ contract ERC4626PriceAdapter is Initializable, Ownable2StepUpgradeable, UUPSUpgr
         // Only the owner can upgrade the contract
     }
 
+    /// @notice Returns the normalized price of one share of the given ERC4626 asset.
+    /// @param asset The address of the ERC4626-compliant vault.
+    /// @return The price of one share, normalized to 18 decimals.
+    /// @dev The price is always scaled to 18 decimals, regardless of the underlying asset's decimals.
+    ///      This function reads the decimals of the share and its underlying asset, computes the
+    ///      amount of underlying per 1 share, and scales the result to 18 decimals.
     function price(address asset) external view returns (uint256) {
         uint8 shareDecimals = IERC20Metadata(asset).decimals();
         uint8 assetDecimals = IERC20Metadata(IERC4626(asset).asset()).decimals();

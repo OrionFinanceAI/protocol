@@ -161,7 +161,15 @@ contract InternalStatesOrchestrator is
                 }
 
                 // Calculate estimated value of the asset.
-                uint256 value = price * sharesPerAsset[j];
+                uint256 value = ((price * sharesPerAsset[j]) / 1e18) *
+                    (10 **
+                        (IERC20Metadata(address(config.underlyingAsset())).decimals() -
+                            IERC20Metadata(token).decimals()));
+                // TODO: how to avoid underflow?
+                // TODO: numerical unit test including open positions (i.e., more than 1 epoch) to verify this.
+                // Avoid moving away from 18 decimals inside oracle, as we want to support non ERC4626 or simply ERC4626 with
+                // different underlying.
+                // TODO: if correct, refacto into something more readable and efficient.
 
                 t1Hat += value;
 
@@ -169,13 +177,15 @@ contract InternalStatesOrchestrator is
                 _addTokenIfNotExists(token);
             }
 
+            // TODO: ensure decimals of pendingWithdrawalsHat is
+            /// same as underlying (meaning same as t1Hat, if above fixed).
             uint256 pendingWithdrawalsHat = vault.convertToAssetsWithPITTotalAssets(
                 vault.getPendingWithdrawals(),
                 t1Hat,
                 Math.Rounding.Floor
             );
 
-            // Calculate estimated (active and passive) total assets (t_2)
+            // Calculate estimated (active and passive) total assets (t_2), same decimals as underlying.
             uint256 t2Hat = t1Hat + vault.getPendingDeposits() - pendingWithdrawalsHat;
 
             (address[] memory intentTokens, uint256[] memory intentWeights) = vault.getIntent();
@@ -185,6 +195,8 @@ contract InternalStatesOrchestrator is
             for (uint256 j = 0; j < intentLength; j++) {
                 address token = intentTokens[j];
                 uint256 weight = intentWeights[j];
+
+                // same decimals as underlying
                 uint256 value = (t2Hat * weight) / (10 ** config.curatorIntentDecimals());
 
                 _currentEpoch.finalBatchPortfolioHat[token] += value;
