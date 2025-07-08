@@ -5,9 +5,14 @@ import { euint32 } from "fhevm/lib/TFHE.sol";
 import "./IOrionVault.sol";
 
 interface IOrionEncryptedVault is IOrionVault {
+    /// @dev Struct representing a token and its value in a portfolio.
+    /// @param token The address of the ERC20 token.
+    /// @param value The encrypted value associated with the token.
+    ///        When used for portfolio intent, this represents percentage of total supply (weight).
+    ///        When used for current portfolio state, this represents number of shares per asset.
     struct EncryptedPosition {
         address token;
-        euint32 weight;
+        euint32 value;
     }
 
     /// @notice Submit an encrypted portfolio intent.
@@ -22,6 +27,9 @@ interface IOrionEncryptedVault is IOrionVault {
     /// @return weights The weights in the intent.
     function getIntent() external view returns (address[] memory tokens, euint32[] memory weights);
 
-    // TODO: add docstring once implemented.
+    /// @notice Updates the vault's portfolio state and total assets
+    /// @dev Can only be called by the liquidity orchestrator. Clears the previous portfolio and replaces it with the new one.
+    /// @param portfolio Array of EncryptedPosition structs containing the new portfolio token addresses and encrypted number of shares per asset.
+    /// @param newTotalAssets The new total assets value for the vault
     function updateVaultState(EncryptedPosition[] calldata portfolio, uint256 newTotalAssets) external;
 }

@@ -203,6 +203,12 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
             // vault.updateVaultState(?, ?);
         }
 
+        // TODO: to updateVaultState of encrypted vaults, get the encrypted sharesPerAsset executed by the liquidity
+        // orchestrator and update the vault intent with an encrypted calibration error before storing it.
+        // Not trivial how to backpropagate the calibration error to each vault.
+        // Identify metodology to do this maintaining privacy.
+        // TODO: how to do this maintaining privacy?
+
         address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
         length = encryptedVaults.length;
         for (uint256 i = 0; i < length; i++) {

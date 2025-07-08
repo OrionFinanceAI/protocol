@@ -67,8 +67,8 @@ contract InternalStatesOrchestrator is
     /// @notice Buying orders - mapping of token address to amount that needs to be bought [assets]
     EnumerableMap.AddressToUintMap internal _buyingOrders;
 
-    // TODO: encrypted batched portfolio to be summed up in Zama coprocessor and then added to the two batchPortfolio.
-    // mapping(address => euint32) internal _encryptedBatchPortfolio;
+    /// @notice Encrypted batch portfolio - mapping of token address to encrypted value [assets]
+    mapping(address => euint32) internal _encryptedBatchPortfolio;
 
     function initialize(address initialOwner, address automationRegistry_, address config_) public initializer {
         __Ownable_init(initialOwner);
@@ -215,7 +215,11 @@ contract InternalStatesOrchestrator is
             (address[] memory portfolioTokens, euint32[] memory sharesPerAsset) = vault.getPortfolio();
             (address[] memory intentTokens, euint32[] memory intentWeights) = vault.getIntent();
             // TODO: add entry point for Zama coprocessor for both dot product and batching operations.
+            // encrypted batched portfolio to be summed up in Zama coprocessor and then added to the two batchPortfolio.
+            // _encryptedBatchPortfolio
         }
+        // TODO: finally sum up _encryptedBatchPortfolio to get _finalBatchPortfolioHat
+        // Analogous for estimated total assets.
 
         // Compute selling and buying orders based on portfolio differences
         _computeRebalancingOrders();
