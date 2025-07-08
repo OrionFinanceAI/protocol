@@ -5,7 +5,6 @@ import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
-import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "../interfaces/IOrionConfig.sol";
 import "../interfaces/IOrionVault.sol";
@@ -35,8 +34,6 @@ contract InternalStatesOrchestrator is
     UUPSUpgradeable,
     IInternalStateOrchestrator
 {
-    using EnumerableMap for EnumerableMap.AddressToUintMap;
-
     /// @notice Timestamp when the next upkeep is allowed
     uint256 public nextUpdateTime;
 
@@ -52,20 +49,26 @@ contract InternalStatesOrchestrator is
     /// @notice Counter for tracking processing cycles
     uint256 public epochCounter;
 
-    /// @notice Price hat (p_t) - mapping of token address to estimated price [USD]
-    EnumerableMap.AddressToUintMap internal _priceHat;
+    /// @notice Struct to hold epoch state data
+    struct EpochState {
+        /// @notice Price hat (p_t) - mapping of token address to estimated price [asset/underlying]
+        mapping(address => uint256) priceHat;
+        /// @notice Initial batch portfolio (w_0) - mapping of token address to estimated value [assets]
+        mapping(address => uint256) initialBatchPortfolioHat;
+        /// @notice Final batch portfolio (w_1) - mapping of token address to estimated value [assets]
+        mapping(address => uint256) finalBatchPortfolioHat;
+        /// @notice Selling orders - mapping of token address to amount that needs to be sold [assets]
+        mapping(address => uint256) sellingOrders;
+        /// @notice Buying orders - mapping of token address to amount that needs to be bought [assets]
+        mapping(address => uint256) buyingOrders;
+        /// @notice Array of all tokens used in this epoch for iteration
+        address[] tokens;
+        /// @notice Mapping to track if a token has been added to avoid duplicates
+        mapping(address => bool) tokenExists;
+    }
 
-    /// @notice Initial batch portfolio (w_0) - mapping of token address to estimated value [assets]
-    EnumerableMap.AddressToUintMap internal _initialBatchPortfolioHat;
-
-    /// @notice Final batch portfolio (w_1) - mapping of token address to estimated value [assets]
-    EnumerableMap.AddressToUintMap internal _finalBatchPortfolioHat;
-
-    /// @notice Selling orders - mapping of token address to amount that needs to be sold [assets]
-    EnumerableMap.AddressToUintMap internal _sellingOrders;
-
-    /// @notice Buying orders - mapping of token address to amount that needs to be bought [assets]
-    EnumerableMap.AddressToUintMap internal _buyingOrders;
+    /// @notice Current epoch state
+    EpochState internal _currentEpoch;
 
     /// @notice Encrypted batch portfolio - mapping of token address to encrypted value [assets]
     mapping(address => euint32) internal _encryptedBatchPortfolio;
@@ -151,14 +154,10 @@ contract InternalStatesOrchestrator is
 
                 // Get price from cache or from registry.
                 // Avoid re-fetching price if already cached.
-                uint256 price;
-                (bool priceExists, uint256 cachedPrice) = _priceHat.tryGet(token);
-                if (priceExists) {
-                    price = cachedPrice;
-                } else {
+                uint256 price = _currentEpoch.priceHat[token];
+                if (price == 0) {
                     price = registry.getPrice(token);
-                    // slither-disable-next-line unused-return
-                    _priceHat.set(token, price);
+                    _currentEpoch.priceHat[token] = price;
                 }
 
                 // Calculate estimated value of the asset.
@@ -166,14 +165,8 @@ contract InternalStatesOrchestrator is
 
                 t1Hat += value;
 
-                (bool initialValueExists, uint256 currentValue) = _initialBatchPortfolioHat.tryGet(token);
-                if (initialValueExists) {
-                    // slither-disable-next-line unused-return
-                    _initialBatchPortfolioHat.set(token, currentValue + value);
-                } else {
-                    // slither-disable-next-line unused-return
-                    _initialBatchPortfolioHat.set(token, value);
-                }
+                _currentEpoch.initialBatchPortfolioHat[token] += value;
+                _addTokenIfNotExists(token);
             }
 
             uint256 pendingWithdrawalsHat = vault.convertToAssetsWithPITTotalAssets(
@@ -194,14 +187,8 @@ contract InternalStatesOrchestrator is
                 uint256 weight = intentWeights[j];
                 uint256 value = (t2Hat * weight) / (10 ** config.curatorIntentDecimals());
 
-                (bool finalValueExists, uint256 currentValue) = _finalBatchPortfolioHat.tryGet(token);
-                if (finalValueExists) {
-                    // slither-disable-next-line unused-return
-                    _finalBatchPortfolioHat.set(token, currentValue + value);
-                } else {
-                    // slither-disable-next-line unused-return
-                    _finalBatchPortfolioHat.set(token, value);
-                }
+                _currentEpoch.finalBatchPortfolioHat[token] += value;
+                _addTokenIfNotExists(token);
             }
         }
 
@@ -254,51 +241,50 @@ contract InternalStatesOrchestrator is
 
     /// @notice Resets the previous epoch state variables
     function _resetEpochState() internal {
-        _priceHat.clear();
-        _initialBatchPortfolioHat.clear();
-        _finalBatchPortfolioHat.clear();
-        _sellingOrders.clear();
-        _buyingOrders.clear();
+        // Reset mappings for all tokens used in the previous epoch
+        address[] memory tokens = _currentEpoch.tokens;
+        uint256 length = tokens.length;
+
+        for (uint256 i = 0; i < length; i++) {
+            address token = tokens[i];
+            _currentEpoch.priceHat[token] = 0;
+            _currentEpoch.initialBatchPortfolioHat[token] = 0;
+            _currentEpoch.finalBatchPortfolioHat[token] = 0;
+            _currentEpoch.sellingOrders[token] = 0;
+            _currentEpoch.buyingOrders[token] = 0;
+            _currentEpoch.tokenExists[token] = false;
+        }
+
+        // Clear the tokens array
+        delete _currentEpoch.tokens;
+    }
+
+    /// @notice Adds a token to the current epoch if it doesn't exist
+    /// @param token The token address to add
+    function _addTokenIfNotExists(address token) internal {
+        if (!_currentEpoch.tokenExists[token]) {
+            _currentEpoch.tokens.push(token);
+            _currentEpoch.tokenExists[token] = true;
+        }
     }
 
     /// @notice Compute selling and buying orders based on portfolio differences
     /// @dev Compares _finalBatchPortfolioHat with _initialBatchPortfolioHat to determine rebalancing needs
     function _computeRebalancingOrders() internal {
-        uint256 initialLength = _initialBatchPortfolioHat.length();
+        address[] memory tokens = _currentEpoch.tokens;
+        uint256 length = tokens.length;
 
-        for (uint256 i = 0; i < initialLength; i++) {
-            (address token, uint256 initialValue) = _initialBatchPortfolioHat.at(i);
-            (bool finalValueExists, uint256 finalValue) = _finalBatchPortfolioHat.tryGet(token);
+        for (uint256 i = 0; i < length; i++) {
+            address token = tokens[i];
+            uint256 initialValue = _currentEpoch.initialBatchPortfolioHat[token];
+            uint256 finalValue = _currentEpoch.finalBatchPortfolioHat[token];
 
-            if (!finalValueExists) {
-                // If token is not in final portfolio, it means it needs to be sold fully.
-                // slither-disable-next-line unused-return
-                _sellingOrders.set(token, initialValue);
-                continue;
-            }
-
-            // If token is in final portfolio, check if it needs to be sold or bought.
             if (initialValue > finalValue) {
                 uint256 sellAmount = initialValue - finalValue;
-                // slither-disable-next-line unused-return
-                _sellingOrders.set(token, sellAmount);
+                _currentEpoch.sellingOrders[token] = sellAmount;
             } else if (finalValue > initialValue) {
                 uint256 buyAmount = finalValue - initialValue;
-                // slither-disable-next-line unused-return
-                _buyingOrders.set(token, buyAmount);
-            }
-        }
-
-        uint256 finalLength = _finalBatchPortfolioHat.length();
-        for (uint256 i = 0; i < finalLength; i++) {
-            (address token, uint256 finalValue) = _finalBatchPortfolioHat.at(i);
-            // slither-disable-next-line unused-return
-            (bool initialValueExists, ) = _initialBatchPortfolioHat.tryGet(token);
-
-            if (!initialValueExists) {
-                // If token is not in initial portfolio, it means it needs to be bought fully.
-                // slither-disable-next-line unused-return
-                _buyingOrders.set(token, finalValue);
+                _currentEpoch.buyingOrders[token] = buyAmount;
             }
         }
     }
@@ -311,13 +297,31 @@ contract InternalStatesOrchestrator is
     /// @return tokens The tokens to sell
     /// @return amounts The amounts to sell
     function getSellingOrders() external view returns (address[] memory tokens, uint256[] memory amounts) {
-        uint256 length = _sellingOrders.length();
-        tokens = new address[](length);
-        amounts = new uint256[](length);
-        for (uint256 i = 0; i < length; i++) {
-            (address key, uint256 value) = _sellingOrders.at(i);
-            tokens[i] = key;
-            amounts[i] = value;
+        address[] memory allTokens = _currentEpoch.tokens;
+        uint256 allTokensLength = allTokens.length;
+
+        // Count non-zero selling orders
+        uint256 count = 0;
+        for (uint256 i = 0; i < allTokensLength; i++) {
+            if (_currentEpoch.sellingOrders[allTokens[i]] > 0) {
+                count++;
+            }
+        }
+
+        // Create arrays with exact size
+        tokens = new address[](count);
+        amounts = new uint256[](count);
+
+        // Fill arrays with non-zero values
+        uint256 index = 0;
+        for (uint256 i = 0; i < allTokensLength; i++) {
+            address token = allTokens[i];
+            uint256 amount = _currentEpoch.sellingOrders[token];
+            if (amount > 0) {
+                tokens[index] = token;
+                amounts[index] = amount;
+                index++;
+            }
         }
     }
 
@@ -325,13 +329,31 @@ contract InternalStatesOrchestrator is
     /// @return tokens The tokens to buy
     /// @return amounts The amounts to buy
     function getBuyingOrders() external view returns (address[] memory tokens, uint256[] memory amounts) {
-        uint256 length = _buyingOrders.length();
-        tokens = new address[](length);
-        amounts = new uint256[](length);
-        for (uint256 i = 0; i < length; i++) {
-            (address key, uint256 value) = _buyingOrders.at(i);
-            tokens[i] = key;
-            amounts[i] = value;
+        address[] memory allTokens = _currentEpoch.tokens;
+        uint256 allTokensLength = allTokens.length;
+
+        // Count non-zero buying orders
+        uint256 count = 0;
+        for (uint256 i = 0; i < allTokensLength; i++) {
+            if (_currentEpoch.buyingOrders[allTokens[i]] > 0) {
+                count++;
+            }
+        }
+
+        // Create arrays with exact size
+        tokens = new address[](count);
+        amounts = new uint256[](count);
+
+        // Fill arrays with non-zero values
+        uint256 index = 0;
+        for (uint256 i = 0; i < allTokensLength; i++) {
+            address token = allTokens[i];
+            uint256 amount = _currentEpoch.buyingOrders[token];
+            if (amount > 0) {
+                tokens[index] = token;
+                amounts[index] = amount;
+                index++;
+            }
         }
     }
 }
