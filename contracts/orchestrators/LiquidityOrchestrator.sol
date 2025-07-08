@@ -179,6 +179,9 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
             // TODO: For last trade, adjust asset target amount post N-1
             // executions to deal with rounding/trade error.
             // Needed to have a measurement of the rebalancing error to compute this offset.
+            // The rebalancing error comes from sell orders, defining the number of shares to sell
+            // Based on the oracle price measurement. May be able to do the required estimation before this
+            // For loop.
         }
 
         // Here possible to compute the real T0 (sum total assets).

@@ -6,6 +6,7 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "../interfaces/IOrionConfig.sol";
 import "../interfaces/IOrionVault.sol";
 import "../interfaces/IOrionTransparentVault.sol";
@@ -48,6 +49,9 @@ contract InternalStatesOrchestrator is
 
     /// @notice Counter for tracking processing cycles
     uint256 public epochCounter;
+
+    /// @notice Oracle price precision (18 decimals)
+    uint256 private constant ORACLE_PRECISION = 1e18;
 
     /// @notice Struct to hold epoch state data
     struct EpochState {
@@ -160,17 +164,8 @@ contract InternalStatesOrchestrator is
                     _currentEpoch.priceHat[token] = price;
                 }
 
-                // Calculate estimated value of the asset.
-                uint256 value = ((price * sharesPerAsset[j]) / 1e18) *
-                    (10 **
-                        (IERC20Metadata(address(config.underlyingAsset())).decimals() -
-                            IERC20Metadata(token).decimals()));
-                // TODO: how to avoid underflow?
-                // TODO: numerical unit test including open positions (i.e., more than 1 epoch) to verify this.
-                // Avoid moving away from 18 decimals inside oracle,
-                // as we want to support non ERC4626 or simply ERC4626 with
-                // different underlying.
-                // TODO: if correct, refacto into something more readable and efficient.
+                // Calculate estimated value of the asset in underlying asset decimals
+                uint256 value = _calculateTokenValue(price, sharesPerAsset[j], token);
 
                 t1Hat += value;
 
@@ -292,11 +287,41 @@ contract InternalStatesOrchestrator is
 
             if (initialValue > finalValue) {
                 uint256 sellAmount = initialValue - finalValue;
+                // TODO: amounts are in underlying assets now. As they are consumed by _executeSell in liquidity
+                // orchestrator, they need to be converted to shares.
+                // Fix using the inverse transform of internal state orchestrator _calculateTokenValue.
+                // How to minimize the back and forth?
                 _currentEpoch.sellingOrders[token] = sellAmount;
             } else if (finalValue > initialValue) {
                 uint256 buyAmount = finalValue - initialValue;
                 _currentEpoch.buyingOrders[token] = buyAmount;
             }
+        }
+    }
+
+    /// @notice Calculates token value in underlying asset decimals
+    /// @dev Handles decimal conversion from token decimals to underlying asset decimals
+    ///      Formula: value = (price * shares) / ORACLE_PRECISION * 10^(underlyingDecimals - tokenDecimals)
+    ///      This safely handles cases where underlying has more or fewer decimals than the token
+    /// @param price The price of the token in underlying asset (18 decimals)
+    /// @param shares The amount of token shares (in token decimals)
+    /// @param token The token address to get decimals from
+    /// @return value The value in underlying asset decimals
+    function _calculateTokenValue(uint256 price, uint256 shares, address token) internal view returns (uint256 value) {
+        // Calculate base value in shares decimals
+        uint256 baseValue = (price * shares) / ORACLE_PRECISION;
+
+        // Get token and underlying decimals
+        uint8 tokenDecimals = IERC20Metadata(token).decimals();
+        uint8 underlyingDecimals = IERC20Metadata(address(config.underlyingAsset())).decimals();
+
+        // Convert to underlying decimals (if else to avoid underflow)
+        if (underlyingDecimals >= tokenDecimals) {
+            // Scale up: multiply by the difference (underlying has more decimals)
+            value = baseValue * (10 ** (underlyingDecimals - tokenDecimals));
+        } else {
+            // Scale down: divide by the difference (underlying has fewer decimals)
+            value = baseValue / (10 ** (tokenDecimals - underlyingDecimals));
         }
     }
 
@@ -306,7 +331,7 @@ contract InternalStatesOrchestrator is
 
     /// @notice Get the selling orders
     /// @return tokens The tokens to sell
-    /// @return amounts The amounts to sell
+    /// @return amounts The amounts to sell in underlying assets
     function getSellingOrders() external view returns (address[] memory tokens, uint256[] memory amounts) {
         address[] memory allTokens = _currentEpoch.tokens;
         uint256 allTokensLength = allTokens.length;
@@ -338,7 +363,7 @@ contract InternalStatesOrchestrator is
 
     /// @notice Get the buying orders
     /// @return tokens The tokens to buy
-    /// @return amounts The amounts to buy
+    /// @return amounts The amounts to buy in underlying assets
     function getBuyingOrders() external view returns (address[] memory tokens, uint256[] memory amounts) {
         address[] memory allTokens = _currentEpoch.tokens;
         uint256 allTokensLength = allTokens.length;
