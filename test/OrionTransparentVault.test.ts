@@ -1,6 +1,8 @@
-import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
+import { impersonateAccount, loadFixture, setBalance } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
+
+import type { MockUnderlyingAsset, OrionConfig, OrionTransparentVault } from "../typechain-types";
 
 describe("OrionTransparentVault", function () {
   // Test fixture setup
@@ -21,11 +23,24 @@ describe("OrionTransparentVault", function () {
     const configAddress = await config.getAddress();
     await config.initialize(owner.address);
 
-    // Set protocol parameters
+    // Deploy LiquidityOrchestrator
+    const LiquidityOrchestratorFactory = await ethers.getContractFactory("LiquidityOrchestrator");
+    const liquidityOrchestratorContract = await LiquidityOrchestratorFactory.deploy();
+    await liquidityOrchestratorContract.waitForDeployment();
+    const liquidityOrchestratorAddress = await liquidityOrchestratorContract.getAddress();
+
+    // Initialize LiquidityOrchestrator
+    await liquidityOrchestratorContract.initialize(
+      owner.address,
+      owner.address, // Using owner as automation registry for tests
+      configAddress,
+    );
+
+    // Set protocol parameters using deployed contract address
     await config.setProtocolParams(
       underlyingAssetAddress,
       internalOrchestrator.address,
-      liquidityOrchestrator.address,
+      liquidityOrchestratorAddress,
       18, // statesDecimals
       6, // curatorIntentDecimals
       owner.address, // factory
@@ -38,20 +53,29 @@ describe("OrionTransparentVault", function () {
     await vault.waitForDeployment();
     await vault.initialize(curator.address, configAddress, "Test Vault", "TV");
 
+    // Register the vault in the config (since we're not using the factory)
+    // Note: In production, this would be done by the OrionVaultFactory
+    await config.addOrionVault(await vault.getAddress(), 0); // 0 = Transparent vault type
+
     // Mint some underlying assets to LPs for testing
     await underlyingAsset.mint(lp1.address, ethers.parseUnits("10000", 6));
     await underlyingAsset.mint(lp2.address, ethers.parseUnits("10000", 6));
 
+    // Mint some underlying assets to the liquidityOrchestrator for cancel operations
+    await underlyingAsset.mint(liquidityOrchestratorAddress, ethers.parseUnits("10000", 6));
+
     return {
-      vault,
-      config,
-      underlyingAsset,
+      vault: vault as unknown as OrionTransparentVault,
+      config: config as unknown as OrionConfig,
+      underlyingAsset: underlyingAsset as unknown as MockUnderlyingAsset,
       owner,
       curator,
       lp1,
       lp2,
       internalOrchestrator,
       liquidityOrchestrator,
+      liquidityOrchestratorContract,
+      liquidityOrchestratorAddress,
       unauthorized,
     };
   }
@@ -188,15 +212,38 @@ describe("OrionTransparentVault", function () {
         "NotEnoughDepositRequest",
       );
     });
+    it("Should successfully cancel deposit request and emit DepositRequestCancelled event", async function () {
+      const { vault, underlyingAsset, lp1 } = await loadFixture(deployVaultFixture);
+      const depositAmount = ethers.parseUnits("100", 6);
+      const cancelAmount = ethers.parseUnits("60", 6);
+
+      // First make a deposit request
+      await underlyingAsset.connect(lp1).approve(await vault.getAddress(), depositAmount);
+      await vault.connect(lp1).requestDeposit(depositAmount);
+
+      // Then cancel part of it
+      await expect(vault.connect(lp1).cancelDepositRequest(cancelAmount))
+        .to.emit(vault, "DepositRequestCancelled")
+        .withArgs(lp1.address, cancelAmount);
+
+      // Verify the remaining pending deposit is correct
+      const expectedRemaining = depositAmount - cancelAmount;
+      expect(await vault.getPendingDeposits()).to.equal(expectedRemaining);
+    });
   });
 
   describe("Withdrawal Requests", function () {
     it("Should allow LP to request withdrawal", async function () {
-      const { vault, underlyingAsset, lp1, liquidityOrchestrator } = await loadFixture(deployVaultFixture);
+      const { vault, underlyingAsset, lp1, liquidityOrchestratorAddress } = await loadFixture(deployVaultFixture);
       const depositAmount = ethers.parseUnits("100", 6);
       await underlyingAsset.connect(lp1).approve(await vault.getAddress(), depositAmount);
       await vault.connect(lp1).requestDeposit(depositAmount);
-      await vault.connect(liquidityOrchestrator).processDepositRequests();
+
+      // Impersonate the liquidity orchestrator contract to call vault functions
+      await impersonateAccount(liquidityOrchestratorAddress);
+      await setBalance(liquidityOrchestratorAddress, ethers.parseEther("1"));
+      const impersonatedLiquidityOrchestrator = await ethers.getSigner(liquidityOrchestratorAddress);
+      await vault.connect(impersonatedLiquidityOrchestrator).processDepositRequests();
       const shares = ethers.parseUnits("100", 6);
       await vault.connect(lp1).approve(await vault.getAddress(), shares);
       await expect(vault.connect(lp1).requestWithdraw(shares))
@@ -219,17 +266,83 @@ describe("OrionTransparentVault", function () {
       );
     });
     it("Should allow multiple withdrawal requests from same user", async function () {
-      const { vault, underlyingAsset, lp1, liquidityOrchestrator } = await loadFixture(deployVaultFixture);
+      const { vault, underlyingAsset, lp1, liquidityOrchestratorAddress } = await loadFixture(deployVaultFixture);
       const depositAmount = ethers.parseUnits("200", 6);
       await underlyingAsset.connect(lp1).approve(await vault.getAddress(), depositAmount);
       await vault.connect(lp1).requestDeposit(depositAmount);
-      await vault.connect(liquidityOrchestrator).processDepositRequests();
+
+      // Impersonate the liquidity orchestrator contract to call vault functions
+      await impersonateAccount(liquidityOrchestratorAddress);
+      await setBalance(liquidityOrchestratorAddress, ethers.parseEther("1"));
+      const impersonatedLiquidityOrchestrator = await ethers.getSigner(liquidityOrchestratorAddress);
+      await vault.connect(impersonatedLiquidityOrchestrator).processDepositRequests();
       const shares1 = ethers.parseUnits("50", 6);
       const shares2 = ethers.parseUnits("30", 6);
       await vault.connect(lp1).approve(await vault.getAddress(), shares1 + shares2);
       await vault.connect(lp1).requestWithdraw(shares1);
       await vault.connect(lp1).requestWithdraw(shares2);
       expect(await vault.getPendingWithdrawals()).to.equal(shares1 + shares2);
+    });
+    it("Should revert cancellation of non-existent withdrawal request", async function () {
+      const { vault, lp1 } = await loadFixture(deployVaultFixture);
+      await expect(vault.connect(lp1).cancelWithdrawRequest(ethers.parseUnits("100", 6))).to.be.revertedWithCustomError(
+        vault,
+        "NotEnoughWithdrawRequest",
+      );
+    });
+    it("Should revert cancellation of more shares than requested", async function () {
+      const { vault, underlyingAsset, lp1, liquidityOrchestratorAddress } = await loadFixture(deployVaultFixture);
+      const depositAmount = ethers.parseUnits("100", 6);
+
+      // First make a deposit and process it to get shares
+      await underlyingAsset.connect(lp1).approve(await vault.getAddress(), depositAmount);
+      await vault.connect(lp1).requestDeposit(depositAmount);
+
+      // Impersonate the liquidity orchestrator contract to call vault functions
+      await impersonateAccount(liquidityOrchestratorAddress);
+      await setBalance(liquidityOrchestratorAddress, ethers.parseEther("1"));
+      const impersonatedLiquidityOrchestrator = await ethers.getSigner(liquidityOrchestratorAddress);
+      await vault.connect(impersonatedLiquidityOrchestrator).processDepositRequests();
+
+      // Request withdrawal of shares
+      const withdrawShares = ethers.parseUnits("50", 6);
+      await vault.connect(lp1).approve(await vault.getAddress(), withdrawShares);
+      await vault.connect(lp1).requestWithdraw(withdrawShares);
+
+      // Try to cancel more shares than requested
+      await expect(vault.connect(lp1).cancelWithdrawRequest(ethers.parseUnits("75", 6))).to.be.revertedWithCustomError(
+        vault,
+        "NotEnoughWithdrawRequest",
+      );
+    });
+    it("Should successfully cancel withdrawal request and emit WithdrawRequestCancelled event", async function () {
+      const { vault, underlyingAsset, lp1, liquidityOrchestratorAddress } = await loadFixture(deployVaultFixture);
+      const depositAmount = ethers.parseUnits("200", 6);
+
+      // First make a deposit and process it to get shares
+      await underlyingAsset.connect(lp1).approve(await vault.getAddress(), depositAmount);
+      await vault.connect(lp1).requestDeposit(depositAmount);
+
+      // Impersonate the liquidity orchestrator contract to call vault functions
+      await impersonateAccount(liquidityOrchestratorAddress);
+      await setBalance(liquidityOrchestratorAddress, ethers.parseEther("1"));
+      const impersonatedLiquidityOrchestrator = await ethers.getSigner(liquidityOrchestratorAddress);
+      await vault.connect(impersonatedLiquidityOrchestrator).processDepositRequests();
+
+      // Request withdrawal of shares
+      const withdrawShares = ethers.parseUnits("100", 6);
+      await vault.connect(lp1).approve(await vault.getAddress(), withdrawShares);
+      await vault.connect(lp1).requestWithdraw(withdrawShares);
+
+      // Cancel part of the withdrawal request
+      const cancelShares = ethers.parseUnits("30", 6);
+      await expect(vault.connect(lp1).cancelWithdrawRequest(cancelShares))
+        .to.emit(vault, "WithdrawRequestCancelled")
+        .withArgs(lp1.address, cancelShares);
+
+      // Verify the remaining pending withdrawal is correct
+      const expectedRemaining = withdrawShares - cancelShares;
+      expect(await vault.getPendingWithdrawals()).to.equal(expectedRemaining);
     });
   });
 
@@ -245,7 +358,7 @@ describe("OrionTransparentVault", function () {
     });
     it("Should revert empty order intent", async function () {
       const { vault, curator } = await loadFixture(deployVaultFixture);
-      const order: { token: string; amount: number }[] = [];
+      const order: { token: string; value: number }[] = [];
       await expect(vault.connect(curator).submitIntent(order)).to.be.revertedWithCustomError(
         vault,
         "OrderIntentCannotBeEmpty",
@@ -347,7 +460,7 @@ describe("OrionTransparentVault", function () {
     });
 
     it("Should return correct portfolio after liquidity orchestrator updates state", async function () {
-      const { vault, liquidityOrchestrator } = await loadFixture(deployVaultFixture);
+      const { vault, liquidityOrchestratorAddress } = await loadFixture(deployVaultFixture);
 
       // Create portfolio update
       const token1 = ethers.Wallet.createRandom().address;
@@ -358,8 +471,13 @@ describe("OrionTransparentVault", function () {
       ];
       const totalAssets = ethers.parseUnits("1000", 6);
 
+      // Impersonate the liquidity orchestrator contract to call vault functions
+      await impersonateAccount(liquidityOrchestratorAddress);
+      await setBalance(liquidityOrchestratorAddress, ethers.parseEther("1"));
+      const impersonatedLiquidityOrchestrator = await ethers.getSigner(liquidityOrchestratorAddress);
+
       // Update vault state
-      await vault.connect(liquidityOrchestrator).updateVaultState(portfolio, totalAssets);
+      await vault.connect(impersonatedLiquidityOrchestrator).updateVaultState(portfolio, totalAssets);
 
       // Get portfolio and verify
       const [tokens, sharesPerAsset] = await vault.getPortfolio();
@@ -394,13 +512,18 @@ describe("OrionTransparentVault", function () {
     });
 
     it("Should handle single token portfolio", async function () {
-      const { vault, liquidityOrchestrator } = await loadFixture(deployVaultFixture);
+      const { vault, liquidityOrchestratorAddress } = await loadFixture(deployVaultFixture);
 
       const token = ethers.Wallet.createRandom().address;
       const portfolio = [{ token: token, value: 1000000 }];
       const totalAssets = ethers.parseUnits("500", 6);
 
-      await vault.connect(liquidityOrchestrator).updateVaultState(portfolio, totalAssets);
+      // Impersonate the liquidity orchestrator contract to call vault functions
+      await impersonateAccount(liquidityOrchestratorAddress);
+      await setBalance(liquidityOrchestratorAddress, ethers.parseEther("1"));
+      const impersonatedLiquidityOrchestrator = await ethers.getSigner(liquidityOrchestratorAddress);
+
+      await vault.connect(impersonatedLiquidityOrchestrator).updateVaultState(portfolio, totalAssets);
 
       const [tokens, sharesPerAsset] = await vault.getPortfolio();
       expect(tokens.length).to.equal(1);
@@ -440,7 +563,12 @@ describe("OrionTransparentVault", function () {
     });
 
     it("Should clear previous portfolio when new portfolio is updated", async function () {
-      const { vault, liquidityOrchestrator } = await loadFixture(deployVaultFixture);
+      const { vault, liquidityOrchestratorAddress } = await loadFixture(deployVaultFixture);
+
+      // Impersonate the liquidity orchestrator contract to call vault functions
+      await impersonateAccount(liquidityOrchestratorAddress);
+      await setBalance(liquidityOrchestratorAddress, ethers.parseEther("1"));
+      const impersonatedLiquidityOrchestrator = await ethers.getSigner(liquidityOrchestratorAddress);
 
       // First portfolio update
       const token1 = ethers.Wallet.createRandom().address;
@@ -449,12 +577,12 @@ describe("OrionTransparentVault", function () {
         { token: token1, value: 600000 },
         { token: token2, value: 400000 },
       ];
-      await vault.connect(liquidityOrchestrator).updateVaultState(portfolio1, ethers.parseUnits("1000", 6));
+      await vault.connect(impersonatedLiquidityOrchestrator).updateVaultState(portfolio1, ethers.parseUnits("1000", 6));
 
       // Second portfolio update with different tokens
       const token3 = ethers.Wallet.createRandom().address;
       const portfolio2 = [{ token: token3, value: 1000000 }];
-      await vault.connect(liquidityOrchestrator).updateVaultState(portfolio2, ethers.parseUnits("1500", 6));
+      await vault.connect(impersonatedLiquidityOrchestrator).updateVaultState(portfolio2, ethers.parseUnits("1500", 6));
 
       // Verify only the new portfolio is returned
       const [tokens, sharesPerAsset] = await vault.getPortfolio();
@@ -467,11 +595,23 @@ describe("OrionTransparentVault", function () {
 
   describe("Edge Cases and Error Handling", function () {
     it("Should handle reentrancy protection", async function () {
-      const { vault, liquidityOrchestrator } = await loadFixture(deployVaultFixture);
-      await expect(vault.connect(liquidityOrchestrator).processDepositRequests()).to.not.be.reverted;
+      const { vault, liquidityOrchestratorAddress } = await loadFixture(deployVaultFixture);
+
+      // Impersonate the liquidity orchestrator contract to call vault functions
+      await impersonateAccount(liquidityOrchestratorAddress);
+      await setBalance(liquidityOrchestratorAddress, ethers.parseEther("1"));
+      const impersonatedLiquidityOrchestrator = await ethers.getSigner(liquidityOrchestratorAddress);
+
+      await expect(vault.connect(impersonatedLiquidityOrchestrator).processDepositRequests()).to.not.be.reverted;
     });
     it("Should handle multiple state updates correctly", async function () {
-      const { vault, liquidityOrchestrator } = await loadFixture(deployVaultFixture);
+      const { vault, liquidityOrchestratorAddress } = await loadFixture(deployVaultFixture);
+
+      // Impersonate the liquidity orchestrator contract to call vault functions
+      await impersonateAccount(liquidityOrchestratorAddress);
+      await setBalance(liquidityOrchestratorAddress, ethers.parseEther("1"));
+      const impersonatedLiquidityOrchestrator = await ethers.getSigner(liquidityOrchestratorAddress);
+
       const updates = [
         {
           totalAssets: ethers.parseUnits("1100", 6),
@@ -484,14 +624,20 @@ describe("OrionTransparentVault", function () {
         },
       ];
       for (const update of updates) {
-        await vault.connect(liquidityOrchestrator).updateVaultState([], update.totalAssets);
+        await vault.connect(impersonatedLiquidityOrchestrator).updateVaultState([], update.totalAssets);
       }
       expect(await vault.totalAssets()).to.equal(updates[2].totalAssets);
     });
     it("Should handle large numbers correctly", async function () {
-      const { vault, liquidityOrchestrator } = await loadFixture(deployVaultFixture);
+      const { vault, liquidityOrchestratorAddress } = await loadFixture(deployVaultFixture);
+
+      // Impersonate the liquidity orchestrator contract to call vault functions
+      await impersonateAccount(liquidityOrchestratorAddress);
+      await setBalance(liquidityOrchestratorAddress, ethers.parseEther("1"));
+      const impersonatedLiquidityOrchestrator = await ethers.getSigner(liquidityOrchestratorAddress);
+
       const largeTotalAssets = ethers.parseUnits("999999999999", 6);
-      await vault.connect(liquidityOrchestrator).updateVaultState([], largeTotalAssets);
+      await vault.connect(impersonatedLiquidityOrchestrator).updateVaultState([], largeTotalAssets);
       expect(await vault.totalAssets()).to.equal(largeTotalAssets);
     });
   });

@@ -15,6 +15,7 @@
     "compile": "cross-env TS_NODE_TRANSPILE_ONLY=true hardhat compile",
     "typechain": "cross-env TS_NODE_TRANSPILE_ONLY=true hardhat typechain",
     "test": "hardhat test --network hardhat",
+    "test:tv": "hardhat test test/OrionTransparentVault.test.ts --network hardhat",
     "coverage": "hardhat coverage",
     "lint": "pnpm lint:sol && pnpm prettier:check",
     "lint:sol": "solhint --max-warnings 25 \"contracts/**/*.sol\"",
