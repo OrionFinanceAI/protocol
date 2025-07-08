@@ -230,11 +230,12 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         IExecutionAdapter adapter = executionAdapterOf[asset];
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
 
-        // Transfer shares to adapter for selling
-        bool success = IERC20(asset).transfer(address(adapter), amount);
+        // Approve adapter to spend shares
+        bool success = IERC20(asset).approve(address(adapter), amount);
         if (!success) revert ErrorsLib.TransferFailed();
 
         // Execute sell through adapter
+        // (adapter will pull shares from this contract and push underlying assets to it)
         adapter.sell(asset, amount);
     }
 
@@ -248,11 +249,12 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         // Get the underlying asset from the adapter (assumes it's an ERC4626 adapter)
         address underlyingAsset = IERC4626(asset).asset();
 
-        // Transfer underlying assets to adapter for buying
-        bool success = IERC20(underlyingAsset).transfer(address(adapter), amount);
+        // Approve adapter to spend underlying assets
+        bool success = IERC20(underlyingAsset).approve(address(adapter), amount);
         if (!success) revert ErrorsLib.TransferFailed();
 
         // Execute buy through adapter
+        // (adapter will pull underlying assets from this contract and push shares to it)
         adapter.buy(asset, amount);
     }
 }

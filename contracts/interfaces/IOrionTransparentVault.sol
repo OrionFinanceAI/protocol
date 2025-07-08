@@ -27,8 +27,10 @@ interface IOrionTransparentVault is IOrionVault {
     function getIntent() external view returns (address[] memory tokens, uint256[] memory weights);
 
     /// @notice Updates the vault's portfolio state and total assets
-    /// @dev Can only be called by the liquidity orchestrator. Clears the previous portfolio and replaces it with the new one.
-    /// @param portfolio Array of Position structs containing the new portfolio token addresses and plaintext number of shares per asset.
+    /// @dev Can only be called by the liquidity orchestrator.
+    ///      Clears the previous portfolio and replaces it with the new one.
+    /// @param portfolio Array of Position structs
+    ///        It contains the new portfolio token addresses and plaintext number of shares per asset.
     /// @param newTotalAssets The new total assets value for the vault
     function updateVaultState(Position[] calldata portfolio, uint256 newTotalAssets) external;
 }

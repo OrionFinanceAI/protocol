@@ -264,14 +264,14 @@ describe("LiquidityOrchestrator", function () {
       // Step 2: Curators submit new intents
       // Curator 1: Wants 40% ERC4626Asset1, 60% ERC4626Asset2
       await vault1.connect(curator1).submitIntent([
-        { token: await erc4626Asset1.getAddress(), weight: 400000 }, // 40%
-        { token: await erc4626Asset2.getAddress(), weight: 600000 }, // 60%
+        { token: await erc4626Asset1.getAddress(), value: 400000 }, // 40%
+        { token: await erc4626Asset2.getAddress(), value: 600000 }, // 60%
       ]);
 
       // Curator 2: Wants 50% ERC4626Asset1, 50% ERC4626Asset2
       await vault2.connect(curator2).submitIntent([
-        { token: await erc4626Asset1.getAddress(), weight: 500000 }, // 50%
-        { token: await erc4626Asset2.getAddress(), weight: 500000 }, // 50%
+        { token: await erc4626Asset1.getAddress(), value: 500000 }, // 50%
+        { token: await erc4626Asset2.getAddress(), value: 500000 }, // 50%
       ]);
 
       // Step 3: Verify initial state - both vaults should have empty portfolios
@@ -376,14 +376,14 @@ describe("LiquidityOrchestrator", function () {
       // Step 3: Curators submit new intents
       // Curator 1: Wants 30% ERC4626Asset1, 70% ERC4626Asset2
       await vault1.connect(curator1).submitIntent([
-        { token: await erc4626Asset1.getAddress(), weight: 300000 }, // 30%
-        { token: await erc4626Asset2.getAddress(), weight: 700000 }, // 70%
+        { token: await erc4626Asset1.getAddress(), value: 300000 }, // 30%
+        { token: await erc4626Asset2.getAddress(), value: 700000 }, // 70%
       ]);
 
       // Curator 2: Wants 55% ERC4626Asset1, 45% ERC4626Asset2
       await vault2.connect(curator2).submitIntent([
-        { token: await erc4626Asset1.getAddress(), weight: 550000 }, // 55%
-        { token: await erc4626Asset2.getAddress(), weight: 450000 }, // 45%
+        { token: await erc4626Asset1.getAddress(), value: 550000 }, // 55%
+        { token: await erc4626Asset2.getAddress(), value: 450000 }, // 45%
       ]);
 
       // Step 4: Trigger Internal States Orchestrator

@@ -90,12 +90,12 @@ describe("OrionTransparentVault", function () {
   describe("Access Control", function () {
     it("Should only allow curator to submit order intents", async function () {
       const { vault, unauthorized } = await loadFixture(deployVaultFixture);
-      const order = [{ token: ethers.ZeroAddress, weight: 1000000 }];
+      const order = [{ token: ethers.ZeroAddress, value: 1000000 }];
       await expect(vault.connect(unauthorized).submitIntent(order)).to.be.revertedWithCustomError(vault, "NotCurator");
     });
     it("Should only allow liquidity orchestrator to update vault state", async function () {
       const { vault, unauthorized } = await loadFixture(deployVaultFixture);
-      const portfolio = [{ token: ethers.ZeroAddress, weight: 1000000 }];
+      const portfolio = [{ token: ethers.ZeroAddress, value: 1000000 }];
       await expect(
         vault.connect(unauthorized).updateVaultState(portfolio, ethers.parseUnits("1.1", 6)),
       ).to.be.revertedWithCustomError(vault, "NotLiquidityOrchestrator");
@@ -236,7 +236,7 @@ describe("OrionTransparentVault", function () {
       const { vault, curator, config } = await loadFixture(deployVaultFixture);
       const tokenAddress = ethers.Wallet.createRandom().address;
       await config.addWhitelistedAsset(tokenAddress);
-      const order = [{ token: tokenAddress, weight: 1000000 }];
+      const order = [{ token: tokenAddress, value: 1000000 }];
       await expect(vault.connect(curator).submitIntent(order))
         .to.emit(vault, "OrderSubmitted")
         .withArgs(curator.address);
@@ -252,7 +252,7 @@ describe("OrionTransparentVault", function () {
     it("Should revert order with non-whitelisted token", async function () {
       const { vault, curator } = await loadFixture(deployVaultFixture);
       const nonWhitelistedToken = ethers.Wallet.createRandom().address;
-      const order = [{ token: nonWhitelistedToken, weight: 1000000 }];
+      const order = [{ token: nonWhitelistedToken, value: 1000000 }];
       await expect(vault.connect(curator).submitIntent(order)).to.be.revertedWithCustomError(
         vault,
         "TokenNotWhitelisted",
@@ -262,7 +262,7 @@ describe("OrionTransparentVault", function () {
       const { vault, curator, config } = await loadFixture(deployVaultFixture);
       const tokenAddress = ethers.Wallet.createRandom().address;
       await config.addWhitelistedAsset(tokenAddress);
-      const order = [{ token: tokenAddress, weight: 0 }];
+      const order = [{ token: tokenAddress, value: 0 }];
       await expect(vault.connect(curator).submitIntent(order)).to.be.revertedWithCustomError(
         vault,
         "AmountMustBeGreaterThanZero",
@@ -276,8 +276,8 @@ describe("OrionTransparentVault", function () {
 
       // same token duplicated on purpose
       const duplicated = [
-        { token: tokenAddress, weight: 500_000 },
-        { token: tokenAddress, weight: 500_000 },
+        { token: tokenAddress, value: 500_000 },
+        { token: tokenAddress, value: 500_000 },
       ];
 
       await expect(vault.connect(curator).submitIntent(duplicated)).to.be.revertedWithCustomError(
@@ -289,7 +289,7 @@ describe("OrionTransparentVault", function () {
       const { vault, curator, config } = await loadFixture(deployVaultFixture);
       const tokenAddress = ethers.Wallet.createRandom().address;
       await config.addWhitelistedAsset(tokenAddress);
-      const order = [{ token: tokenAddress, weight: 500000 }];
+      const order = [{ token: tokenAddress, value: 500000 }];
       await expect(vault.connect(curator).submitIntent(order)).to.be.revertedWithCustomError(
         vault,
         "InvalidTotalWeight",
@@ -323,8 +323,8 @@ describe("OrionTransparentVault", function () {
 
       // Submit intent
       const order = [
-        { token: token1, weight: 600000 },
-        { token: token2, weight: 400000 },
+        { token: token1, value: 600000 },
+        { token: token2, value: 400000 },
       ];
       await vault.connect(curator).submitIntent(order);
 
@@ -351,8 +351,8 @@ describe("OrionTransparentVault", function () {
       const token1 = ethers.Wallet.createRandom().address;
       const token2 = ethers.Wallet.createRandom().address;
       const portfolio = [
-        { token: token1, weight: 750000 },
-        { token: token2, weight: 250000 },
+        { token: token1, value: 750000 },
+        { token: token2, value: 250000 },
       ];
       const totalAssets = ethers.parseUnits("1000", 6);
 
@@ -381,7 +381,7 @@ describe("OrionTransparentVault", function () {
       const token = ethers.Wallet.createRandom().address;
       await config.addWhitelistedAsset(token);
 
-      const order = [{ token: token, weight: 1000000 }];
+      const order = [{ token: token, value: 1000000 }];
       await vault.connect(curator).submitIntent(order);
 
       const [tokens, weights] = await vault.getIntent();
@@ -395,7 +395,7 @@ describe("OrionTransparentVault", function () {
       const { vault, liquidityOrchestrator } = await loadFixture(deployVaultFixture);
 
       const token = ethers.Wallet.createRandom().address;
-      const portfolio = [{ token: token, weight: 1000000 }];
+      const portfolio = [{ token: token, value: 1000000 }];
       const totalAssets = ethers.parseUnits("500", 6);
 
       await vault.connect(liquidityOrchestrator).updateVaultState(portfolio, totalAssets);
@@ -420,13 +420,13 @@ describe("OrionTransparentVault", function () {
 
       // Submit first intent
       const order1 = [
-        { token: token1, weight: 500000 },
-        { token: token2, weight: 500000 },
+        { token: token1, value: 500000 },
+        { token: token2, value: 500000 },
       ];
       await vault.connect(curator).submitIntent(order1);
 
       // Submit second intent with different tokens
-      const order2 = [{ token: token3, weight: 1000000 }];
+      const order2 = [{ token: token3, value: 1000000 }];
       await vault.connect(curator).submitIntent(order2);
 
       // Verify only the new intent is returned
@@ -444,14 +444,14 @@ describe("OrionTransparentVault", function () {
       const token1 = ethers.Wallet.createRandom().address;
       const token2 = ethers.Wallet.createRandom().address;
       const portfolio1 = [
-        { token: token1, weight: 600000 },
-        { token: token2, weight: 400000 },
+        { token: token1, value: 600000 },
+        { token: token2, value: 400000 },
       ];
       await vault.connect(liquidityOrchestrator).updateVaultState(portfolio1, ethers.parseUnits("1000", 6));
 
       // Second portfolio update with different tokens
       const token3 = ethers.Wallet.createRandom().address;
-      const portfolio2 = [{ token: token3, weight: 1000000 }];
+      const portfolio2 = [{ token: token3, value: 1000000 }];
       await vault.connect(liquidityOrchestrator).updateVaultState(portfolio2, ethers.parseUnits("1500", 6));
 
       // Verify only the new portfolio is returned

@@ -28,8 +28,10 @@ interface IOrionEncryptedVault is IOrionVault {
     function getIntent() external view returns (address[] memory tokens, euint32[] memory weights);
 
     /// @notice Updates the vault's portfolio state and total assets
-    /// @dev Can only be called by the liquidity orchestrator. Clears the previous portfolio and replaces it with the new one.
-    /// @param portfolio Array of EncryptedPosition structs containing the new portfolio token addresses and encrypted number of shares per asset.
+    /// @dev Can only be called by the liquidity orchestrator.
+    ///      Clears the previous portfolio and replaces it with the new one.
+    /// @param portfolio Array of EncryptedPosition structs
+    ///        It contains the new portfolio token addresses and encrypted number of shares per asset.
     /// @param newTotalAssets The new total assets value for the vault
     function updateVaultState(EncryptedPosition[] calldata portfolio, uint256 newTotalAssets) external;
 }
