@@ -59,7 +59,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
  *    - Units: Percentage points
  *    - This value must be specified in percentage of total supply because
  *      the curator does not know the point-in-time amount of assets in the vault at the time of intent submission.
- *      While the curator can estimate this value reading the vault’s state and oracle prices,
+ *      While the curator can estimate this value reading the vault's state and oracle prices,
  *      the actual value at time of execution may differ.
  */
 abstract contract OrionVault is
@@ -82,17 +82,11 @@ abstract contract OrionVault is
 
     /// @notice Deposit requests queue (D) - mapping of user address to requested asset amount
     /// Units: Asset tokens (e.g., USDC, ETH), not shares
-    mapping(address => uint256) private _depositRequests;
+    EnumerableMap.AddressToUintMap private _depositRequests;
 
     /// @notice Withdraw requests queue (W) - mapping of user address to requested share amount
     /// Units: Vault share tokens, not underlying assets
-    mapping(address => uint256) private _withdrawRequests;
-
-    /// @notice Array of users who have pending deposit requests
-    address[] private _depositRequestors;
-
-    /// @notice Array of users who have pending withdrawal requests
-    address[] private _withdrawRequestors;
+    EnumerableMap.AddressToUintMap private _withdrawRequests;
 
     modifier onlyCurator() {
         if (msg.sender != curator) revert ErrorsLib.NotCurator();
@@ -202,17 +196,16 @@ abstract contract OrionVault is
     function requestDeposit(uint256 amount) external nonReentrant {
         // Checks first
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
-
-        if (_depositRequests[msg.sender] == 0) {
-            _depositRequestors.push(msg.sender);
-        }
-
-        // Effects - update internal state before external interactions
-        _depositRequests[msg.sender] += amount;
+        uint256 senderBalance = IERC20(asset()).balanceOf(msg.sender);
+        if (amount > senderBalance) revert ErrorsLib.InsufficientFunds(msg.sender, senderBalance, amount);
 
         // Interactions - transfer funds directly to liquidity orchestrator
         bool success = IERC20(asset()).transferFrom(msg.sender, config.liquidityOrchestrator(), amount);
         if (!success) revert ErrorsLib.TransferFailed();
+
+        // Effects - now safe to update internal state
+        (, uint256 currentAmount) = _depositRequests.tryGet(msg.sender);
+        _depositRequests.set(msg.sender, currentAmount + amount);
 
         emit EventsLib.DepositRequested(msg.sender, amount);
     }
@@ -225,33 +218,68 @@ abstract contract OrionVault is
     function cancelDepositRequest(uint256 amount) external nonReentrant {
         // Checks first
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
-        if (_depositRequests[msg.sender] < amount) revert ErrorsLib.NotEnoughDepositRequest();
-
-        // Effects - update internal state before external interactions
-        _depositRequests[msg.sender] -= amount;
+        (, uint256 currentAmount) = _depositRequests.tryGet(msg.sender);
+        if (currentAmount < amount) revert ErrorsLib.NotEnoughDepositRequest();
 
         // Interactions - request funds from liquidity orchestrator
         ILiquidityOrchestrator(config.liquidityOrchestrator()).returnDepositFunds(msg.sender, amount);
 
+        // Effects - update internal state
+        uint256 newAmount = currentAmount - amount;
+        if (newAmount == 0) {
+            _depositRequests.remove(msg.sender);
+        } else {
+            _depositRequests.set(msg.sender, newAmount);
+        }
+
         emit EventsLib.DepositRequestCancelled(msg.sender, amount);
     }
 
-    /// @notice LPs submits async withdrawal request; shares locked until processed
+    /// @notice Submit an asynchronous withdrawal request.
+    /// @dev No share tokens are burned immediately. The specified amount of share tokens
+    ///      is transferred to the liquidity orchestrator for centralized liquidity management.
+    ///      LPs can later cancel this request to withdraw their funds before any burning occurs.
+    /// @param shares The amount of the share tokens to withdraw.
     function requestWithdraw(uint256 shares) external {
         // Checks first
         if (shares == 0) revert ErrorsLib.SharesMustBeGreaterThanZero();
-        if (balanceOf(msg.sender) < shares) revert ErrorsLib.NotEnoughShares();
+        uint256 senderBalance = balanceOf(msg.sender);
+        if (shares > senderBalance) revert ErrorsLib.InsufficientFunds(msg.sender, senderBalance, shares);
 
-        // Effects - update internal state before transfers
-        if (_withdrawRequests[msg.sender] == 0) {
-            _withdrawRequestors.push(msg.sender);
-        }
-        _withdrawRequests[msg.sender] += shares;
+        // Interactions - transfer share tokens directly to liquidity orchestrator
+        bool success = IERC20(address(this)).transferFrom(msg.sender, config.liquidityOrchestrator(), shares);
+        if (!success) revert ErrorsLib.TransferFailed();
 
-        // Interactions - lock shares by transferring them to contract as escrow
-        _transfer(msg.sender, address(this), shares);
+        // Effects - now safe to update internal state
+        (, uint256 currentShares) = _withdrawRequests.tryGet(msg.sender);
+        _withdrawRequests.set(msg.sender, currentShares + shares);
 
         emit EventsLib.WithdrawRequested(msg.sender, shares);
+    }
+
+    /// @notice Cancel a previously submitted withdrawal request.
+    /// @dev Allows LPs to recover their share tokens before any burning occurs.
+    ///      The request must still have enough shares remaining to cover the cancellation.
+    ///      Share tokens are returned from the liquidity orchestrator.
+    /// @param shares The amount of share tokens to recover.
+    function cancelWithdrawRequest(uint256 shares) external nonReentrant {
+        // Checks first
+        if (shares == 0) revert ErrorsLib.SharesMustBeGreaterThanZero();
+        (, uint256 currentShares) = _withdrawRequests.tryGet(msg.sender);
+        if (currentShares < shares) revert ErrorsLib.NotEnoughWithdrawRequest();
+
+        // Interactions - request share tokens from liquidity orchestrator
+        ILiquidityOrchestrator(config.liquidityOrchestrator()).returnWithdrawShares(msg.sender, shares);
+
+        // Effects - update internal state
+        uint256 newShares = currentShares - shares;
+        if (newShares == 0) {
+            _withdrawRequests.remove(msg.sender);
+        } else {
+            _withdrawRequests.set(msg.sender, newShares);
+        }
+
+        emit EventsLib.WithdrawRequestCancelled(msg.sender, shares);
     }
 
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
@@ -261,9 +289,10 @@ abstract contract OrionVault is
     /// Note: This returns asset amounts, not share amounts
     function getPendingDeposits() external view returns (uint256) {
         uint256 totalPending = 0;
-        uint256 length = _depositRequestors.length;
+        uint256 length = _depositRequests.length();
         for (uint256 i = 0; i < length; i++) {
-            totalPending += _depositRequests[_depositRequestors[i]];
+            (, uint256 amount) = _depositRequests.at(i);
+            totalPending += amount;
         }
         return totalPending;
     }
@@ -273,9 +302,10 @@ abstract contract OrionVault is
     /// Note: This returns share amounts, not underlying asset amounts
     function getPendingWithdrawals() external view returns (uint256) {
         uint256 totalPending = 0;
-        uint256 length = _withdrawRequestors.length;
+        uint256 length = _withdrawRequests.length();
         for (uint256 i = 0; i < length; i++) {
-            totalPending += _withdrawRequests[_withdrawRequestors[i]];
+            (, uint256 shares) = _withdrawRequests.at(i);
+            totalPending += shares;
         }
         return totalPending;
     }
@@ -284,13 +314,24 @@ abstract contract OrionVault is
 
     /// @notice Process deposit requests from LPs and reset the requestor's request amount
     function processDepositRequests() external onlyLiquidityOrchestrator nonReentrant {
-        uint256 length = _depositRequestors.length;
+        uint256 length = _depositRequests.length();
+        // Collect all requests first to avoid index shifting issues when removing during iteration
+        address[] memory users = new address[](length);
+        uint256[] memory amounts = new uint256[](length);
+
         for (uint256 i = 0; i < length; i++) {
-            address user = _depositRequestors[i];
-            uint256 amount = _depositRequests[user];
+            (address user, uint256 amount) = _depositRequests.at(i);
+            users[i] = user;
+            amounts[i] = amount;
+        }
+
+        // Process all requests
+        for (uint256 i = 0; i < length; i++) {
+            address user = users[i];
+            uint256 amount = amounts[i];
             uint256 shares = previewDeposit(amount);
 
-            _depositRequests[user] = 0;
+            _depositRequests.remove(user);
 
             _mint(user, shares);
 
@@ -300,12 +341,23 @@ abstract contract OrionVault is
 
     /// @notice Process withdrawal requests from LPs
     function processWithdrawRequests() external onlyLiquidityOrchestrator nonReentrant {
-        uint256 length = _withdrawRequestors.length;
-        for (uint256 i = 0; i < length; i++) {
-            address user = _withdrawRequestors[i];
-            uint256 shares = _withdrawRequests[user];
+        uint256 length = _withdrawRequests.length();
+        // Collect all requests first to avoid index shifting issues when removing during iteration
+        address[] memory users = new address[](length);
+        uint256[] memory sharesArray = new uint256[](length);
 
-            _withdrawRequests[user] = 0;
+        for (uint256 i = 0; i < length; i++) {
+            (address user, uint256 shares) = _withdrawRequests.at(i);
+            users[i] = user;
+            sharesArray[i] = shares;
+        }
+
+        // Process all requests
+        for (uint256 i = 0; i < length; i++) {
+            address user = users[i];
+            uint256 shares = sharesArray[i];
+
+            _withdrawRequests.remove(user);
 
             _burn(address(this), shares);
             uint256 underlyingAmount = previewRedeem(shares);
@@ -314,10 +366,6 @@ abstract contract OrionVault is
             emit EventsLib.WithdrawProcessed(user, shares);
         }
     }
-
-    // TODO: add function for liquidity orchestrator to deposit assets in curator fee escrow?
-    // And therefore another for curator to withdraw assets from curator fee escrow?
-    // Or pay curator fee directly from liquidity orchestrator?
 
     /// --------- ABSTRACT FUNCTIONS ---------
     /// @notice Derived contracts implement their specific submitIntent functions

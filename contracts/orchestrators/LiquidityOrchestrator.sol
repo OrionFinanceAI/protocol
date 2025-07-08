@@ -138,6 +138,45 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         if (!success) revert ErrorsLib.TransferFailed();
     }
 
+    /// @notice Return withdrawal shares to a user who cancelled their withdrawal request
+    /// @dev Called by vault contracts when users cancel withdrawal requests
+    /// @param user The user to return shares to
+    /// @param shares The amount of shares to return
+    function returnWithdrawShares(address user, uint256 shares) external {
+        // Verify the caller is a registered vault by checking both vault types
+        address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
+        address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
+
+        bool isRegisteredVault = false;
+
+        // Check transparent vaults
+        for (uint256 i = 0; i < transparentVaults.length; i++) {
+            if (transparentVaults[i] == msg.sender) {
+                isRegisteredVault = true;
+                break;
+            }
+        }
+
+        // Check encrypted vaults if not found in transparent
+        if (!isRegisteredVault) {
+            for (uint256 i = 0; i < encryptedVaults.length; i++) {
+                if (encryptedVaults[i] == msg.sender) {
+                    isRegisteredVault = true;
+                    break;
+                }
+            }
+        }
+
+        if (!isRegisteredVault) revert ErrorsLib.NotAuthorized();
+
+        // Get the vault's share token address
+        address shareToken = address(msg.sender);
+
+        // Transfer shares back to the user
+        bool success = IERC20(shareToken).transfer(user, shares);
+        if (!success) revert ErrorsLib.TransferFailed();
+    }
+
     /// @notice Checks if upkeep is needed by comparing epoch counters
     /// @return upkeepNeeded True if rebalancing is needed
     /// @return performData Data to pass to performUpkeep
@@ -219,6 +258,7 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
 
         // TODO: DepositRequest and WithdrawRequest in Vaults to be processed post t0 update, and removed from
         // vault state as pending requests.
+        // Also process curators and protocol fees.
 
         emit EventsLib.PortfolioRebalanced();
     }

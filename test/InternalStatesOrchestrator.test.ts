@@ -386,7 +386,6 @@ describe("InternalStatesOrchestrator", function () {
           liquidityOrchestrator,
           oracleRegistry,
           underlyingAsset,
-          orionConfig,
         } = await loadFixture(deployOrchestratorFixture);
 
         // Set up oracle

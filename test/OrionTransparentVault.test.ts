@@ -198,6 +198,7 @@ describe("OrionTransparentVault", function () {
       await vault.connect(lp1).requestDeposit(depositAmount);
       await vault.connect(liquidityOrchestrator).processDepositRequests();
       const shares = ethers.parseUnits("100", 6);
+      await vault.connect(lp1).approve(await vault.getAddress(), shares);
       await expect(vault.connect(lp1).requestWithdraw(shares))
         .to.emit(vault, "WithdrawRequested")
         .withArgs(lp1.address, shares);
@@ -214,7 +215,7 @@ describe("OrionTransparentVault", function () {
       const { vault, lp1 } = await loadFixture(deployVaultFixture);
       await expect(vault.connect(lp1).requestWithdraw(ethers.parseUnits("100", 6))).to.be.revertedWithCustomError(
         vault,
-        "NotEnoughShares",
+        "InsufficientFunds",
       );
     });
     it("Should allow multiple withdrawal requests from same user", async function () {
@@ -225,6 +226,7 @@ describe("OrionTransparentVault", function () {
       await vault.connect(liquidityOrchestrator).processDepositRequests();
       const shares1 = ethers.parseUnits("50", 6);
       const shares2 = ethers.parseUnits("30", 6);
+      await vault.connect(lp1).approve(await vault.getAddress(), shares1 + shares2);
       await vault.connect(lp1).requestWithdraw(shares1);
       await vault.connect(lp1).requestWithdraw(shares2);
       expect(await vault.getPendingWithdrawals()).to.equal(shares1 + shares2);
