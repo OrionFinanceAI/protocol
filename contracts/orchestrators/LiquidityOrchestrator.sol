@@ -153,36 +153,57 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         }
         lastProcessedEpoch = currentEpoch;
 
+        // Measure initial underlying balance of this contract.
+        address underlyingAsset = address(config.underlyingAsset());
+        uint256 initialUnderlyingBalance = IERC20(underlyingAsset).balanceOf(address(this));
+
         // Execute sequentially the trades to reach target state
         // (consider having the number of standing orders as a trigger of a set of chainlink automation jobs).
         // for more scalable market interactions.
         (address[] memory sellingTokens, uint256[] memory sellingAmounts) = internalStatesOrchestrator
             .getSellingOrders();
 
+        // Sell before buy, avoid undercollateralization risk.
         for (uint256 i = 0; i < sellingTokens.length; i++) {
             address token = sellingTokens[i];
             uint256 amount = sellingAmounts[i];
             _executeSell(token, amount);
         }
 
-        // Here I have all the liquidity from depositors + from selling orders.
-        // I cannot yet mint shares to depositors and burn shares/give assets to withdrawers as I don't have the
-        // exchange rate yet. To get it, I need to execute all the buying orders.
-        // I necessarily have enough liquidity for this at this point.
+        // Measure intermediate underlying balance of this contract.
+        uint256 intermediateUnderlyingBalance = IERC20(underlyingAsset).balanceOf(address(this));
+
+        // Compute tracking error.
+        uint256 executedUnderlyingSellAmount = intermediateUnderlyingBalance - initialUnderlyingBalance;
+        uint256 expectedUnderlyingSellAmount = internalStatesOrchestrator.expectedUnderlyingSellAmount();
+
+        uint256 trackingErrorFactor = 1e18;
+        if (executedUnderlyingSellAmount > 0) {
+            // Ratio between previous TVL estimate and current TVL estimate.
+            uint256 totalEstimatedLiquidity = internalStatesOrchestrator.totalEstimatedLiquidity();
+            trackingErrorFactor =
+                ((totalEstimatedLiquidity - expectedUnderlyingSellAmount + executedUnderlyingSellAmount) * 1e18) /
+                totalEstimatedLiquidity;
+        }
 
         (address[] memory buyingTokens, uint256[] memory buyingAmounts) = internalStatesOrchestrator.getBuyingOrders();
+        // Scaling the buy leg to absorb the tracking error, protecting LPs from execution slippage.
+        // This is a global compensation factor, applied uniformly to all vaults, it ensures full collateralization
+        // of the overall portfolio, but not of each vault individually.
+        for (uint256 i = 0; i < buyingTokens.length; i++) {
+            buyingAmounts[i] = (buyingAmounts[i] * trackingErrorFactor) / 1e18;
+        }
 
         for (uint256 i = 0; i < buyingTokens.length; i++) {
             address token = buyingTokens[i];
             uint256 amount = buyingAmounts[i];
             _executeBuy(token, amount);
-            // TODO: For last trade, adjust asset target amount post N-1
-            // executions to deal with rounding/trade error.
-            // Needed to have a measurement of the rebalancing error to compute this offset.
-            // The rebalancing error comes from sell orders, defining the number of shares to sell
-            // Based on the oracle price measurement. May be able to do the required estimation before this
-            // For loop.
         }
+
+        // TODO: investigate the possibility of removing p0 as vault state, store plaintext P0 in internal/liquidity orchestrator.
+        // This means using total assets per vault + live batched portfolio to define rebalancing action.
+        // In this scenario, document the fact that curators cannot track slippage to determine the next rebalancing.
+        // Document that netting (less costs) and market impact reduction are worth it.
 
         // Here possible to compute the real T0 (sum total assets).
         // TODO: how to backpropagate this to the vaults? Ideally we need to compute an array of tracking errors,
@@ -232,8 +253,7 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         bool success = IERC20(asset).approve(address(adapter), amount);
         if (!success) revert ErrorsLib.TransferFailed();
 
-        // Execute sell through adapter
-        // (adapter will pull shares from this contract and push underlying assets to it)
+        // Execute sell through adapter, pull shares from this contract and push underlying assets to it.
         adapter.sell(asset, amount);
     }
 
@@ -251,8 +271,7 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         bool success = IERC20(underlyingAsset).approve(address(adapter), amount);
         if (!success) revert ErrorsLib.TransferFailed();
 
-        // Execute buy through adapter
-        // (adapter will pull underlying assets from this contract and push shares to it)
+        // Execute buy through adapter, pull underlying assets from this contract and push shares to it.
         adapter.buy(asset, amount);
     }
 }

@@ -22,4 +22,8 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     // Rebalancing orders functions
     function getSellingOrders() external view returns (address[] memory, uint256[] memory);
     function getBuyingOrders() external view returns (address[] memory, uint256[] memory);
+
+    // Tracking error functions
+    function expectedUnderlyingSellAmount() external view returns (uint256);
+    function totalEstimatedLiquidity() external view returns (uint256);
 }

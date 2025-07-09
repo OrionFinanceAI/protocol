@@ -77,6 +77,12 @@ contract InternalStatesOrchestrator is
     /// @notice Encrypted batch portfolio - mapping of token address to encrypted value [assets]
     mapping(address => euint32) internal _encryptedBatchPortfolio;
 
+    /// @notice Expected underlying sell amount to be able to compute the tracking error during sell execution.
+    uint256 public expectedUnderlyingSellAmount;
+
+    /// @notice Total estimated liquidity to be able to compute the tracking error during buy execution.
+    uint256 public totalEstimatedLiquidity;
+
     function initialize(address initialOwner, address automationRegistry_, address config_) public initializer {
         __Ownable_init(initialOwner);
         __Ownable2Step_init();
@@ -145,6 +151,8 @@ contract InternalStatesOrchestrator is
         address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
         uint256 length = transparentVaults.length;
 
+        uint256 intentFactor = 10 ** config.curatorIntentDecimals();
+
         for (uint256 i = 0; i < length; i++) {
             IOrionTransparentVault vault = IOrionTransparentVault(transparentVaults[i]);
 
@@ -182,6 +190,8 @@ contract InternalStatesOrchestrator is
             // Calculate estimated (active and passive) total assets (t_2), same decimals as underlying.
             uint256 t2Hat = t1Hat + vault.getPendingDeposits() - pendingWithdrawalsHat;
 
+            totalEstimatedLiquidity += t2Hat;
+
             (address[] memory intentTokens, uint256[] memory intentWeights) = vault.getIntent();
 
             uint256 intentLength = intentTokens.length;
@@ -191,7 +201,7 @@ contract InternalStatesOrchestrator is
                 uint256 weight = intentWeights[j];
 
                 // same decimals as underlying
-                uint256 value = (t2Hat * weight) / (10 ** config.curatorIntentDecimals());
+                uint256 value = (t2Hat * weight) / intentFactor;
 
                 _currentEpoch.finalBatchPortfolioHat[token] += value;
                 _addTokenIfNotExists(token);
@@ -282,6 +292,8 @@ contract InternalStatesOrchestrator is
         address[] memory tokens = _currentEpoch.tokens;
         uint256 length = tokens.length;
 
+        // Compute expected underlying sell amount to be able to compute the tracking error during sell execution.
+        expectedUnderlyingSellAmount = 0;
         for (uint256 i = 0; i < length; i++) {
             address token = tokens[i];
             uint256 initialValue = _currentEpoch.initialBatchPortfolioHat[token];
@@ -289,7 +301,13 @@ contract InternalStatesOrchestrator is
 
             if (initialValue > finalValue) {
                 uint256 sellAmountInUnderlying = initialValue - finalValue;
+
+                expectedUnderlyingSellAmount += sellAmountInUnderlying;
+
                 // Convert from underlying assets to shares for LiquidityOrchestrator._executeSell
+                // Necessary to compute the number of shares to sell based on oracle price to have consistency with
+                // portfolio intent. Alternative, selling underlying-equivalent would lead to a previewWithdraw call
+                // or similar, giving a different number of shares.
                 uint256 sellAmountInShares = _calculateTokenShares(
                     _currentEpoch.priceHat[token],
                     sellAmountInUnderlying,
@@ -300,6 +318,8 @@ contract InternalStatesOrchestrator is
                 uint256 buyAmount = finalValue - initialValue;
                 // Keep buying orders in underlying assets as expected by LiquidityOrchestrator._executeBuy
                 _currentEpoch.buyingOrders[token] = buyAmount;
+            } else {
+                // No change
             }
         }
     }
@@ -339,8 +359,6 @@ contract InternalStatesOrchestrator is
     /// @param token The token address to get decimals from
     /// @return shares The amount of token shares (in token decimals)
     function _calculateTokenShares(uint256 price, uint256 value, address token) internal view returns (uint256 shares) {
-        if (price == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(token);
-
         // Get token and underlying decimals
         uint8 tokenDecimals = IERC20Metadata(token).decimals();
         uint8 underlyingDecimals = IERC20Metadata(address(config.underlyingAsset())).decimals();
