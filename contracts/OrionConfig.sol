@@ -79,8 +79,6 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         internalStatesOrchestrator = internalStatesOrchestrator_;
         liquidityOrchestrator = liquidityOrchestrator_;
 
-        uint8 underlyingDecimals = IERC20Metadata(underlyingAsset_).decimals();
-
         curatorIntentDecimals = curatorIntentDecimals_;
         vaultFactory = factory_;
         oracleRegistry = oracleRegistry_;

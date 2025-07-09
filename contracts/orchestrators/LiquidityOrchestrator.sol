@@ -200,12 +200,12 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
             _executeBuy(token, amount);
         }
 
-        // TODO: investigate the possibility of removing p0 as vault state, store plaintext P0 in internal/liquidity orchestrator.
-        // This means using total assets per vault + live batched portfolio to define rebalancing action.
-        // In this scenario, document the fact that curators cannot track slippage to determine the next rebalancing.
-        // Document that netting (less costs) and market impact reduction are worth it.
-
         // Here possible to compute the real T0 (sum total assets).
+        // as per the buyingAmounts, we can compute an adjusted t0 for each vault
+        // that takes into account the global tracking error.
+        // Distributing the tracking error proportionally to starting total assets is a decent assumption.
+        // TODO: test stability of this approach.
+
         // TODO: how to backpropagate this to the vaults? Ideally we need to compute an array of tracking errors,
         // one per vault. Can we have a different approach?
         // Distribute tracking error proportionally to starting total assets?
