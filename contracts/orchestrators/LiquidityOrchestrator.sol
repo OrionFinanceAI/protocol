@@ -170,26 +170,37 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
             _executeSell(token, amount);
         }
 
+        // Execution methodology objective to avoid undercollateralization:
+        // ||Delta_B||_L1 - ||Delta_S||_L1 = ||Delta_B_hat||_L1 - ||Delta_S_hat||_L1 = ||Delta_W_hat||_L1
+        // ====> ||Delta_W||_L1 = ||Delta_W_hat||_L1
+        // Given, because of oracle missestimations/slippage:
+        // ||Delta_S||_L1 = ||Delta_S_hat||_L1 + epsilon
+        // Delta_B := gamma * Delta_B_hat
+        // ====> gamma = (1 + epsilon / ||Delta_B_hat||_L1)
+
         // Measure intermediate underlying balance of this contract.
         uint256 intermediateUnderlyingBalance = IERC20(underlyingAsset).balanceOf(address(this));
 
         // Compute tracking error.
+        // ||Delta_S||_L1
         uint256 executedUnderlyingSellAmount = intermediateUnderlyingBalance - initialUnderlyingBalance;
+        // ||Delta_S_hat||_L1
         uint256 expectedUnderlyingSellAmount = internalStatesOrchestrator.expectedUnderlyingSellAmount();
+        uint256 epsilon = executedUnderlyingSellAmount - expectedUnderlyingSellAmount;
 
+        // ||Delta_B_hat||_L1
+        uint256 expectedUnderlyingBuyAmount = internalStatesOrchestrator.expectedUnderlyingBuyAmount();
+
+        // Tracking error factor gamma
         uint256 trackingErrorFactor = 1e18;
-        if (executedUnderlyingSellAmount > 0) {
-            // Ratio between previous TVL estimate and current TVL estimate.
-            uint256 totalEstimatedLiquidity = internalStatesOrchestrator.totalEstimatedLiquidity();
-            trackingErrorFactor =
-                ((totalEstimatedLiquidity - expectedUnderlyingSellAmount + executedUnderlyingSellAmount) * 1e18) /
-                totalEstimatedLiquidity;
+        if (expectedUnderlyingBuyAmount > 0) {
+            trackingErrorFactor = 1e18 + (epsilon * 1e18) / expectedUnderlyingBuyAmount;
         }
 
         (address[] memory buyingTokens, uint256[] memory buyingAmounts) = internalStatesOrchestrator.getBuyingOrders();
         // Scaling the buy leg to absorb the tracking error, protecting LPs from execution slippage.
         // This is a global compensation factor, applied uniformly to all vaults, it ensures full collateralization
-        // of the overall portfolio, but not of each vault individually.
+        // of the overall portfolio.
         for (uint256 i = 0; i < buyingTokens.length; i++) {
             buyingAmounts[i] = (buyingAmounts[i] * trackingErrorFactor) / 1e18;
         }
@@ -200,18 +211,13 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
             _executeBuy(token, amount);
         }
 
-        // Here possible to compute the real T0 (sum total assets).
-        // as per the buyingAmounts, we can compute an adjusted t0 for each vault
-        // that takes into account the global tracking error.
-        // Distributing the tracking error proportionally to starting total assets is a decent assumption.
-        // TODO: test stability of this approach.
+        // This approach leads to conserved sum of total assets.
+        // giving, for each vault: t_1 = t1Hat, giving actual vaults minting/burning ratio as the estimated one.
 
-        // TODO: how to backpropagate this to the vaults? Ideally we need to compute an array of tracking errors,
-        // one per vault. Can we have a different approach?
-        // Distribute tracking error proportionally to starting total assets?
+        // TODO: finish this.
 
-        // Same issue as T0 on W0, after execution we have it, but we need to backpropagate it to the vaults.
-        // TODO: how to do this maintaining privacy?
+        // As per the portfolio states, we can distribute the tracking error to each vault
+        // with a weight proportional to t_1.
         address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
         uint256 length = transparentVaults.length;
         for (uint256 i = 0; i < length; i++) {

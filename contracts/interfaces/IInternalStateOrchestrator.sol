@@ -25,5 +25,5 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
 
     // Tracking error functions
     function expectedUnderlyingSellAmount() external view returns (uint256);
-    function totalEstimatedLiquidity() external view returns (uint256);
+    function expectedUnderlyingBuyAmount() external view returns (uint256);
 }

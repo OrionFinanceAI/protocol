@@ -77,11 +77,11 @@ contract InternalStatesOrchestrator is
     /// @notice Encrypted batch portfolio - mapping of token address to encrypted value [assets]
     mapping(address => euint32) internal _encryptedBatchPortfolio;
 
-    /// @notice Expected underlying sell amount to be able to compute the tracking error during sell execution.
+    /// @notice Expected underlying sell amount to be able to measure tracking error during sell execution.
     uint256 public expectedUnderlyingSellAmount;
 
-    /// @notice Total estimated liquidity to be able to compute the tracking error during buy execution.
-    uint256 public totalEstimatedLiquidity;
+    /// @notice Expected underlying buy amount to be able to compute the tracking error during buy execution.
+    uint256 public expectedUnderlyingBuyAmount;
 
     function initialize(address initialOwner, address automationRegistry_, address config_) public initializer {
         __Ownable_init(initialOwner);
@@ -190,8 +190,6 @@ contract InternalStatesOrchestrator is
             // Calculate estimated (active and passive) total assets (t_2), same decimals as underlying.
             uint256 t2Hat = t1Hat + vault.getPendingDeposits() - pendingWithdrawalsHat;
 
-            totalEstimatedLiquidity += t2Hat;
-
             (address[] memory intentTokens, uint256[] memory intentWeights) = vault.getIntent();
 
             uint256 intentLength = intentTokens.length;
@@ -294,6 +292,7 @@ contract InternalStatesOrchestrator is
 
         // Compute expected underlying sell amount to be able to compute the tracking error during sell execution.
         expectedUnderlyingSellAmount = 0;
+        expectedUnderlyingBuyAmount = 0;
         for (uint256 i = 0; i < length; i++) {
             address token = tokens[i];
             uint256 initialValue = _currentEpoch.initialBatchPortfolioHat[token];
@@ -316,6 +315,7 @@ contract InternalStatesOrchestrator is
                 _currentEpoch.sellingOrders[token] = sellAmountInShares;
             } else if (finalValue > initialValue) {
                 uint256 buyAmount = finalValue - initialValue;
+                expectedUnderlyingBuyAmount += buyAmount;
                 // Keep buying orders in underlying assets as expected by LiquidityOrchestrator._executeBuy
                 _currentEpoch.buyingOrders[token] = buyAmount;
             } else {
