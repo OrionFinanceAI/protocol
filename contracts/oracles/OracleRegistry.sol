@@ -30,6 +30,12 @@ contract OracleRegistry is Initializable, Ownable2StepUpgradeable, UUPSUpgradeab
         emit EventsLib.AdapterSet(asset, address(adapter));
     }
 
+    /// @notice Returns the price of the given asset via its assigned price adapter.
+    /// @param asset The address of the asset.
+    /// @return The price of the asset, normalized to 18 decimals.
+    /// @dev The asset must be assigned an adapter in `adapterOf`.
+    ///      Reverts if no adapter is set.
+    ///      The returned price is always expected to have 18 decimals.
     function getPrice(address asset) external view returns (uint256) {
         IPriceAdapter adapter = adapterOf[asset];
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();

@@ -153,41 +153,74 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         }
         lastProcessedEpoch = currentEpoch;
 
+        // Measure initial underlying balance of this contract.
+        address underlyingAsset = address(config.underlyingAsset());
+        uint256 initialUnderlyingBalance = IERC20(underlyingAsset).balanceOf(address(this));
+
         // Execute sequentially the trades to reach target state
         // (consider having the number of standing orders as a trigger of a set of chainlink automation jobs).
         // for more scalable market interactions.
         (address[] memory sellingTokens, uint256[] memory sellingAmounts) = internalStatesOrchestrator
             .getSellingOrders();
 
+        // Sell before buy, avoid undercollateralization risk.
         for (uint256 i = 0; i < sellingTokens.length; i++) {
             address token = sellingTokens[i];
             uint256 amount = sellingAmounts[i];
             _executeSell(token, amount);
         }
 
-        // Here I have all the liquidity from depositors + from selling orders.
-        // I cannot yet mint shares to depositors and burn shares/give assets to withdrawers as I don't have the
-        // exchange rate yet. To get it, I need to execute all the buying orders.
-        // I necessarily have enough liquidity for this at this point.
+        // Execution methodology objective to avoid undercollateralization:
+        // ||Delta_B||_L1 - ||Delta_S||_L1 = ||Delta_B_hat||_L1 - ||Delta_S_hat||_L1 = ||Delta_W_hat||_L1
+        // ====> ||Delta_W||_L1 = ||Delta_W_hat||_L1
+        // Given, because of oracle missestimations/slippage:
+        // ||Delta_S||_L1 = ||Delta_S_hat||_L1 + epsilon
+        // Delta_B := gamma * Delta_B_hat
+        // ====> gamma = (1 + epsilon / ||Delta_B_hat||_L1)
+
+        // Measure intermediate underlying balance of this contract.
+        uint256 intermediateUnderlyingBalance = IERC20(underlyingAsset).balanceOf(address(this));
+
+        // Compute tracking error.
+        // ||Delta_S||_L1
+        uint256 executedUnderlyingSellAmount = intermediateUnderlyingBalance - initialUnderlyingBalance;
+        // ||Delta_S_hat||_L1
+        uint256 expectedUnderlyingSellAmount = internalStatesOrchestrator.expectedUnderlyingSellAmount();
+        uint256 epsilon = executedUnderlyingSellAmount - expectedUnderlyingSellAmount;
+
+        // ||Delta_B_hat||_L1
+        uint256 expectedUnderlyingBuyAmount = internalStatesOrchestrator.expectedUnderlyingBuyAmount();
+
+        // Tracking error factor gamma
+        uint256 trackingErrorFactor = 1e18;
+        if (expectedUnderlyingBuyAmount > 0) {
+            trackingErrorFactor = 1e18 + (epsilon * 1e18) / expectedUnderlyingBuyAmount;
+        }
 
         (address[] memory buyingTokens, uint256[] memory buyingAmounts) = internalStatesOrchestrator.getBuyingOrders();
+        // Scaling the buy leg to absorb the tracking error, protecting LPs from execution slippage.
+        // This is a global compensation factor, applied uniformly to all vaults, it ensures full collateralization
+        // of the overall portfolio.
+        for (uint256 i = 0; i < buyingTokens.length; i++) {
+            buyingAmounts[i] = (buyingAmounts[i] * trackingErrorFactor) / 1e18;
+        }
 
         for (uint256 i = 0; i < buyingTokens.length; i++) {
             address token = buyingTokens[i];
             uint256 amount = buyingAmounts[i];
             _executeBuy(token, amount);
-            // TODO: For last trade, adjust asset target amount post N-1
-            // executions to deal with rounding/trade error.
-            // Needed to have a measurement of the rebalancing error to compute this offset.
         }
 
-        // Here possible to compute the real T0 (sum total assets).
-        // TODO: how to backpropagate this to the vaults? Ideally we need to compute an array of tracking errors,
-        // one per vault. This gives up privacy. Can we have a different approach?
-        // Distribute tracking error proportionally to starting total assets?
+        // This approach leads to preserved sum of total assets.
+        // This gives, for each vault: t_1 = t1Hat, giving actual vaults minting/burning ratio as the estimated one.
 
-        // Same issue as T0 on W0, after execution we have it, but we need to backpropagate it to the vaults.
-        // TODO: how to do this maintaining privacy?
+        // TODO: for the following, consider avoiding redistributing the tracking error,
+        // and setting dust portfolio as "reminder" state in the orchestrator.
+        // Even in that case, we need to backpropagate the tracking error to account for
+        // it in the next epoch t1Hat estimation.
+
+        // As per the portfolio states, we can distribute the tracking error to each vault
+        // with a weight proportional to t_1.
         address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
         uint256 length = transparentVaults.length;
         for (uint256 i = 0; i < length; i++) {
@@ -200,7 +233,6 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         // orchestrator and update the vault intent with an encrypted calibration error before storing it.
         // Not trivial how to backpropagate the calibration error to each vault.
         // Identify metodology to do this maintaining privacy.
-        // TODO: how to do this maintaining privacy?
 
         address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
         length = encryptedVaults.length;
@@ -212,7 +244,9 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
 
         // TODO: DepositRequest and WithdrawRequest in Vaults to be processed post t0 update, and removed from
         // vault state as pending requests.
-        // Also process curators and protocol fees.
+        // Opportunity to net transaction? Perform minting and burning operation at the same time.
+
+        // TODO: process curators and protocol fees.
 
         emit EventsLib.PortfolioRebalanced();
     }
@@ -228,8 +262,7 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         bool success = IERC20(asset).approve(address(adapter), amount);
         if (!success) revert ErrorsLib.TransferFailed();
 
-        // Execute sell through adapter
-        // (adapter will pull shares from this contract and push underlying assets to it)
+        // Execute sell through adapter, pull shares from this contract and push underlying assets to it.
         adapter.sell(asset, amount);
     }
 
@@ -247,8 +280,7 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         bool success = IERC20(underlyingAsset).approve(address(adapter), amount);
         if (!success) revert ErrorsLib.TransferFailed();
 
-        // Execute buy through adapter
-        // (adapter will pull underlying assets from this contract and push shares to it)
+        // Execute buy through adapter, pull underlying assets from this contract and push shares to it.
         adapter.buy(asset, amount);
     }
 }
