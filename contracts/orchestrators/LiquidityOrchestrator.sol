@@ -211,10 +211,13 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
             _executeBuy(token, amount);
         }
 
-        // This approach leads to conserved sum of total assets.
-        // giving, for each vault: t_1 = t1Hat, giving actual vaults minting/burning ratio as the estimated one.
+        // This approach leads to preserved sum of total assets.
+        // This gives, for each vault: t_1 = t1Hat, giving actual vaults minting/burning ratio as the estimated one.
 
-        // TODO: finish this.
+        // TODO: for the following, consider avoiding redistributing the tracking error,
+        // and setting dust portfolio as "reminder" state in the orchestrator.
+        // Even in that case, we need to backpropagate the tracking error to account for
+        // it in the next epoch t1Hat estimation.
 
         // As per the portfolio states, we can distribute the tracking error to each vault
         // with a weight proportional to t_1.
