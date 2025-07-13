@@ -15,6 +15,7 @@ import "../interfaces/IOracleRegistry.sol";
 import "../interfaces/IInternalStateOrchestrator.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { EventsLib } from "../libraries/EventsLib.sol";
+import { euint32, TFHE } from "fhevm/lib/TFHE.sol";
 
 /// @title Internal States Orchestrator
 /// @notice Orchestrates state reading and estimation operations triggered by Chainlink Automation
@@ -145,13 +146,12 @@ contract InternalStatesOrchestrator is
         _resetEpochState();
 
         IOracleRegistry registry = IOracleRegistry(config.oracleRegistry());
+        uint256 intentFactor = 10 ** config.curatorIntentDecimals();
 
-        // Transparent Vaults
+        /* ---------- TRANSPARENT VAULTS ---------- */
 
         address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
         uint256 length = transparentVaults.length;
-
-        uint256 intentFactor = 10 ** config.curatorIntentDecimals();
 
         for (uint256 i = 0; i < length; i++) {
             IOrionTransparentVault vault = IOrionTransparentVault(transparentVaults[i]);
@@ -206,21 +206,51 @@ contract InternalStatesOrchestrator is
             }
         }
 
-        // Encrypted Vaults
+        /* ---------- ENCRYPTED VAULTS ---------- */
+
+        // TODO: refactor to avoid code duplication with transparent vaults and reduce code complexity.
 
         address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
         length = encryptedVaults.length;
+
         for (uint256 i = 0; i < length; i++) {
             IOrionEncryptedVault vault = IOrionEncryptedVault(encryptedVaults[i]);
 
             (address[] memory portfolioTokens, euint32[] memory sharesPerAsset) = vault.getPortfolio();
-            (address[] memory intentTokens, euint32[] memory intentWeights) = vault.getIntent();
+
+            // Calculate estimated active total assets (t_1) and populate batch portfolio
+            euint32 encryptedT1Hat = TFHE.asEuint32(0);
+            uint256 portfolioLength = portfolioTokens.length;
+            for (uint256 j = 0; j < portfolioLength; j++) {
+                address token = portfolioTokens[j];
+
+                // Get price from cache or from registry.
+                // Avoid re-fetching price if already cached.
+                uint256 price = _currentEpoch.priceHat[token];
+                if (price == 0) {
+                    price = registry.getPrice(token);
+                    _currentEpoch.priceHat[token] = price;
+                }
+
+                // TODO: implement encrypted value calculation based on encrypted sharesPerAsset.
+                // euint32 value = _calculateTokenValue(price, sharesPerAsset[j], token);
+                euint32 value = TFHE.asEuint32(0);
+
+                encryptedT1Hat = TFHE.add(encryptedT1Hat, value);
+
+                // TODO: ...
+            }
+
+            // (address[] memory intentTokens, euint32[] memory intentWeights) = vault.getIntent();
             // TODO: add entry point for Zama coprocessor for both dot product and batching operations.
             // encrypted batched portfolio to be summed up in Zama coprocessor and then added to the two batchPortfolio.
             // _encryptedBatchPortfolio
         }
         // TODO: finally sum up _encryptedBatchPortfolio to get _finalBatchPortfolioHat
-        // Analogous for estimated total assets.
+        // Analogous for estimated total assets and for initial batch portfolio.
+
+        // TODO: add reminder portfolio coming from execution error of previous epoch.
+        // Store such portfolio in this orchestrator state, write it from the liquidity orchestrator.
 
         // Compute selling and buying orders based on portfolio differences
         _computeRebalancingOrders();
@@ -232,7 +262,6 @@ contract InternalStatesOrchestrator is
     /*                               INTERNAL LOGIC                               */
     /* -------------------------------------------------------------------------- */
 
-    /// -------- 1. housekeeping --------------------------------------------------
     function _checkAndCountEpoch() internal {
         if (!_shouldTriggerUpkeep()) revert ErrorsLib.TooEarly();
         nextUpdateTime = _computeNextUpdateTime(block.timestamp);
