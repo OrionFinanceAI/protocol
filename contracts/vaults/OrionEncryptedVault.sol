@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import { euint32, ebool, TFHE } from "fhevm/lib/TFHE.sol";
+import { euint32, ebool, FHE } from "@fhevm/solidity/lib/FHE.sol";
 import "./OrionVault.sol";
 import "../interfaces/IOrionConfig.sol";
 import "../interfaces/IOrionEncryptedVault.sol";
@@ -46,7 +46,7 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
         if (order.length == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
 
         // Clear previous intent by setting weights to zero
-        euint32 ezero = TFHE.asEuint32(0);
+        euint32 ezero = FHE.asEuint32(0);
         uint256 intentLength = _intentKeys.length;
         for (uint256 i = 0; i < intentLength; i++) {
             _intent[_intentKeys[i]] = ezero;
@@ -66,17 +66,17 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
             }
             _seenTokens[token] = true;
 
-            ebool isWeightValid = TFHE.gt(weight, ezero);
+            ebool isWeightValid = FHE.gt(weight, ezero);
             // TODO: Zama coprocessor to check isWeightValid == true, else
             // ErrorsLib.AmountMustBeGreaterThanZero(token);
 
             _intent[token] = weight;
             _intentKeys.push(token);
-            totalWeight = TFHE.add(totalWeight, weight);
+            totalWeight = FHE.add(totalWeight, weight);
         }
 
-        euint32 encryptedTotalWeight = TFHE.asEuint32(10 ** config.curatorIntentDecimals());
-        ebool isTotalWeightValid = TFHE.eq(totalWeight, encryptedTotalWeight);
+        euint32 encryptedTotalWeight = FHE.asEuint32(uint32(10 ** config.curatorIntentDecimals()));
+        ebool isTotalWeightValid = FHE.eq(totalWeight, encryptedTotalWeight);
         // TODO: Zama coprocessor to check isTotalWeightValid, else
         // ErrorsLib.InvalidTotalWeight()
 
@@ -121,7 +121,7 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
         EncryptedPosition[] calldata portfolio,
         uint256 newTotalAssets
     ) external onlyLiquidityOrchestrator {
-        euint32 ezero = TFHE.asEuint32(0);
+        euint32 ezero = FHE.asEuint32(0);
 
         // Clear previous portfolio by setting weights to zero
         uint256 portfolioLength = _portfolioKeys.length;

@@ -15,7 +15,7 @@ import "../interfaces/IOracleRegistry.sol";
 import "../interfaces/IInternalStateOrchestrator.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { EventsLib } from "../libraries/EventsLib.sol";
-import { euint32, TFHE } from "fhevm/lib/TFHE.sol";
+import { FHE, euint32 } from "@fhevm/solidity/lib/FHE.sol";
 
 /// @title Internal States Orchestrator
 /// @notice Orchestrates state reading and estimation operations triggered by Chainlink Automation
@@ -219,7 +219,7 @@ contract InternalStatesOrchestrator is
             (address[] memory portfolioTokens, euint32[] memory sharesPerAsset) = vault.getPortfolio();
 
             // Calculate estimated active total assets (t_1) and populate batch portfolio
-            euint32 encryptedT1Hat = TFHE.asEuint32(0);
+            euint32 encryptedT1Hat = FHE.asEuint32(0);
             uint256 portfolioLength = portfolioTokens.length;
             for (uint256 j = 0; j < portfolioLength; j++) {
                 address token = portfolioTokens[j];
@@ -232,25 +232,23 @@ contract InternalStatesOrchestrator is
                     _currentEpoch.priceHat[token] = price;
                 }
 
-                // TODO: implement encrypted value calculation based on encrypted sharesPerAsset.
-                // euint32 value = _calculateTokenValue(price, sharesPerAsset[j], token);
-                euint32 value = TFHE.asEuint32(0);
+                euint32 value = _calculateEncryptedTokenValue(price, sharesPerAsset[j], token);
 
-                encryptedT1Hat = TFHE.add(encryptedT1Hat, value);
+                encryptedT1Hat = FHE.add(encryptedT1Hat, value);
 
                 // TODO: ...
             }
 
-            // (address[] memory intentTokens, euint32[] memory intentWeights) = vault.getIntent();
-            // TODO: add entry point for Zama coprocessor for both dot product and batching operations.
-            // encrypted batched portfolio to be summed up in Zama coprocessor and then added to the two batchPortfolio.
-            // _encryptedBatchPortfolio
+            (address[] memory intentTokens, euint32[] memory intentWeights) = vault.getIntent();
+
+            // TODO: ...
         }
-        // TODO: finally sum up _encryptedBatchPortfolio to get _finalBatchPortfolioHat
+        // TODO: finally sum up decrypted_encryptedBatchPortfolio to get _finalBatchPortfolioHat
         // Analogous for estimated total assets and for initial batch portfolio.
 
         // TODO: add reminder portfolio coming from execution error of previous epoch.
         // Store such portfolio in this orchestrator state, write it from the liquidity orchestrator.
+        // This also contributes to the current epoch state and is used to estimate the rebalancing orders.
 
         // Compute selling and buying orders based on portfolio differences
         _computeRebalancingOrders();
@@ -376,6 +374,36 @@ contract InternalStatesOrchestrator is
         } else {
             // Scale down: divide by the difference (underlying has fewer decimals)
             value = baseValue / (10 ** (tokenDecimals - underlyingDecimals));
+        }
+    }
+
+    /// @notice Calculates encrypted token value in underlying asset decimals
+    /// @dev Handles decimal conversion from token decimals to underlying asset decimals
+    ///      Formula: value = (price * shares) / ORACLE_PRECISION * 10^(underlyingDecimals - tokenDecimals)
+    ///      This safely handles cases where underlying has more or fewer decimals than the token
+    /// @param price The price of the token in underlying asset (18 decimals)
+    /// @param shares The encrypted amount of token shares (in token decimals)
+    /// @param token The token address to get decimals from
+    /// @return value The encrypted value in underlying asset decimals
+    function _calculateEncryptedTokenValue(
+        uint256 price,
+        euint32 shares,
+        address token
+    ) internal returns (euint32 value) {
+        // Calculate base value in shares decimals
+        euint32 baseValue = FHE.div(FHE.mul(FHE.asEuint32(uint32(price)), shares), uint32(ORACLE_PRECISION));
+
+        // Get token and underlying decimals
+        uint8 tokenDecimals = IERC20Metadata(token).decimals();
+        uint8 underlyingDecimals = IERC20Metadata(address(config.underlyingAsset())).decimals();
+
+        // Convert to underlying decimals (if else to avoid underflow)
+        if (underlyingDecimals >= tokenDecimals) {
+            // Scale up: multiply by the difference (underlying has more decimals)
+            value = FHE.mul(baseValue, uint32(10 ** (underlyingDecimals - tokenDecimals)));
+        } else {
+            // Scale down: divide by the difference (underlying has fewer decimals)
+            value = FHE.div(baseValue, uint32(10 ** (tokenDecimals - underlyingDecimals)));
         }
     }
 
