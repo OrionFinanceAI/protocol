@@ -1,24 +1,36 @@
+import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 
+import {
+  InternalStatesOrchestrator,
+  LiquidityOrchestrator,
+  MockUnderlyingAsset,
+  OracleRegistry,
+  OrionConfig,
+  OrionEncryptedVault,
+  OrionTransparentVault,
+  OrionVaultFactory,
+} from "../typechain-types";
+
 describe("InternalStatesOrchestrator", function () {
   // Test fixture setup
   async function deployOrchestratorFixture(): Promise<{
-    orchestrator: any;
-    orionConfig: any;
-    oracleRegistry: any;
-    underlyingAsset: any;
-    owner: any;
-    automationRegistry: any;
-    liquidityOrchestrator: any;
-    vaultFactory: any;
-    curator1: any;
-    curator2: any;
-    unauthorized: any;
-    vault1: any;
-    vault2: any;
-    encryptedVault: any;
+    orchestrator: InternalStatesOrchestrator;
+    orionConfig: OrionConfig;
+    oracleRegistry: OracleRegistry;
+    underlyingAsset: MockUnderlyingAsset;
+    owner: SignerWithAddress;
+    automationRegistry: SignerWithAddress;
+    liquidityOrchestrator: LiquidityOrchestrator;
+    vaultFactory: OrionVaultFactory;
+    curator1: SignerWithAddress;
+    curator2: SignerWithAddress;
+    unauthorized: SignerWithAddress;
+    vault1: OrionTransparentVault;
+    vault2: OrionTransparentVault;
+    encryptedVault: OrionEncryptedVault;
   }> {
     const [
       owner,
@@ -87,7 +99,7 @@ describe("InternalStatesOrchestrator", function () {
     await vault2.initialize(curator2.address, configAddress, "Test Vault 2", "TV2");
 
     // Add vaults to config
-    await (config as any).connect(vaultFactory).addOrionVault(await vault1.getAddress(), 1); // Transparent
+    await config.connect(vaultFactory).addOrionVault(await vault1.getAddress(), 1); // Transparent
     // Only add vault1 for this specific test - vault2 causes issues
     // await config.connect(vaultFactory).addOrionVault(await vault2.getAddress(), 1); // Transparent
 
@@ -191,7 +203,7 @@ describe("InternalStatesOrchestrator", function () {
     it("Should return false when not enough time has passed", async function () {
       const { orchestrator } = await loadFixture(deployOrchestratorFixture);
       const [upkeepNeeded, performData] = await orchestrator.checkUpkeep("0x");
-      expect(upkeepNeeded).to.be.false;
+      expect(upkeepNeeded).to.equal(false);
       expect(performData).to.equal("0x");
     });
 
@@ -202,7 +214,7 @@ describe("InternalStatesOrchestrator", function () {
       await ethers.provider.send("evm_mine", []);
 
       const [upkeepNeeded, performData] = await orchestrator.checkUpkeep("0x");
-      expect(upkeepNeeded).to.be.true;
+      expect(upkeepNeeded).to.equal(true);
       expect(performData).to.equal("0x");
     });
   });

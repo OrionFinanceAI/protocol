@@ -66,8 +66,8 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
             }
             _seenTokens[token] = true;
 
-            ebool isWeightValid = FHE.gt(weight, ezero);
             // TODO: Zama coprocessor to check isWeightValid == true, else
+            // ebool isWeightValid = FHE.gt(weight, ezero);
             // ErrorsLib.AmountMustBeGreaterThanZero(token);
 
             _intent[token] = weight;

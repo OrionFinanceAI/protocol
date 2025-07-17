@@ -151,17 +151,14 @@ contract InternalStatesOrchestrator is
         /* ---------- TRANSPARENT VAULTS ---------- */
 
         address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
-        uint256 length = transparentVaults.length;
-
-        for (uint256 i = 0; i < length; i++) {
+        for (uint256 i = 0; i < transparentVaults.length; i++) {
             IOrionTransparentVault vault = IOrionTransparentVault(transparentVaults[i]);
 
             (address[] memory portfolioTokens, uint256[] memory sharesPerAsset) = vault.getPortfolio();
 
             // Calculate estimated active total assets (t_1) and populate batch portfolio
             uint256 t1Hat = 0;
-            uint256 portfolioLength = portfolioTokens.length;
-            for (uint256 j = 0; j < portfolioLength; j++) {
+            for (uint256 j = 0; j < portfolioTokens.length; j++) {
                 address token = portfolioTokens[j];
 
                 // Get price from cache or from registry.
@@ -207,43 +204,40 @@ contract InternalStatesOrchestrator is
         }
 
         /* ---------- ENCRYPTED VAULTS ---------- */
+        // TODO
 
-        // TODO: refactor to avoid code duplication with transparent vaults and reduce code complexity.
+        // address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
 
-        address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
-        length = encryptedVaults.length;
+        // for (uint256 i = 0; i < encryptedVaults.length; i++) {
+        //     IOrionEncryptedVault vault = IOrionEncryptedVault(encryptedVaults[i]);
 
-        for (uint256 i = 0; i < length; i++) {
-            IOrionEncryptedVault vault = IOrionEncryptedVault(encryptedVaults[i]);
+        //     (address[] memory portfolioTokens, euint32[] memory sharesPerAsset) = vault.getPortfolio();
 
-            (address[] memory portfolioTokens, euint32[] memory sharesPerAsset) = vault.getPortfolio();
+        //     // Calculate estimated active total assets (t_1) and populate batch portfolio
+        //     euint32 encryptedT1Hat = FHE.asEuint32(0);
+        //     for (uint256 j = 0; j < portfolioTokens.length; j++) {
+        //         address token = portfolioTokens[j];
 
-            // Calculate estimated active total assets (t_1) and populate batch portfolio
-            euint32 encryptedT1Hat = FHE.asEuint32(0);
-            uint256 portfolioLength = portfolioTokens.length;
-            for (uint256 j = 0; j < portfolioLength; j++) {
-                address token = portfolioTokens[j];
+        //         // Get price from cache or from registry.
+        //         // Avoid re-fetching price if already cached.
+        //         uint256 price = _currentEpoch.priceHat[token];
+        //         if (price == 0) {
+        //             price = registry.getPrice(token);
+        //             _currentEpoch.priceHat[token] = price;
+        //         }
 
-                // Get price from cache or from registry.
-                // Avoid re-fetching price if already cached.
-                uint256 price = _currentEpoch.priceHat[token];
-                if (price == 0) {
-                    price = registry.getPrice(token);
-                    _currentEpoch.priceHat[token] = price;
-                }
+        //         euint32 value = _calculateEncryptedTokenValue(price, sharesPerAsset[j], token);
 
-                euint32 value = _calculateEncryptedTokenValue(price, sharesPerAsset[j], token);
+        //         encryptedT1Hat = FHE.add(encryptedT1Hat, value);
 
-                encryptedT1Hat = FHE.add(encryptedT1Hat, value);
+        //         // ...
+        //     }
 
-                // TODO: ...
-            }
+        //     (address[] memory intentTokens, euint32[] memory intentWeights) = vault.getIntent();
 
-            (address[] memory intentTokens, euint32[] memory intentWeights) = vault.getIntent();
-
-            // TODO: ...
-        }
-        // TODO: finally sum up decrypted_encryptedBatchPortfolio to get _finalBatchPortfolioHat
+        //     // ...
+        // }
+        // Finally sum up decrypted_encryptedBatchPortfolio to get _finalBatchPortfolioHat
         // Analogous for estimated total assets and for initial batch portfolio.
 
         // TODO: add reminder portfolio coming from execution error of previous epoch.
@@ -345,9 +339,8 @@ contract InternalStatesOrchestrator is
                 expectedUnderlyingBuyAmount += buyAmount;
                 // Keep buying orders in underlying assets as expected by LiquidityOrchestrator._executeBuy
                 _currentEpoch.buyingOrders[token] = buyAmount;
-            } else {
-                // No change
             }
+            // Else no change, do nothing.
         }
     }
 

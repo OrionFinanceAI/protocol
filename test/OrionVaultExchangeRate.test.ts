@@ -196,7 +196,7 @@ describe("OrionVault Exchange Rate Tests", function () {
       const { vault, underlyingAsset, lp1, attacker, liquidityOrchestrator } = await loadFixture(deployVaultFixture);
 
       /* ── 1. Legitimate deposit ────────────────────────────────────────────── */
-      const initialDeposit = ethers.parseUnits("1000", 6); // 1 000 USDC
+      const initialDeposit = ethers.parseUnits("1000", 6); // 1000 USDC
       await underlyingAsset.connect(lp1).approve(await vault.getAddress(), initialDeposit);
 
       await vault.connect(lp1).requestDeposit(initialDeposit);

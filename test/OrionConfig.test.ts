@@ -2,14 +2,16 @@ import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
 import { ethers, upgrades } from "hardhat";
 
-let OrionConfig: any;
-let orionConfig: any;
+import { MockUnderlyingAsset, OrionConfig } from "../typechain-types";
+
+let OrionConfig: OrionConfig;
+let orionConfig: OrionConfig;
 let owner: SignerWithAddress,
   vaultFactory: SignerWithAddress,
   other: SignerWithAddress,
   addr1: SignerWithAddress,
   addr2: SignerWithAddress;
-let underlyingAsset: any;
+let underlyingAsset: MockUnderlyingAsset;
 
 const ZERO = ethers.ZeroAddress;
 
@@ -131,7 +133,7 @@ describe("OrionConfig", function () {
         .to.emit(orionConfig, "WhitelistedAssetAdded")
         .withArgs(addr1.address);
 
-      expect(await orionConfig.isWhitelisted(addr1.address)).to.be.true;
+      expect(await orionConfig.isWhitelisted(addr1.address)).to.equal(true);
       expect(await orionConfig.whitelistedAssetsLength()).to.equal(1);
       expect(await orionConfig.getWhitelistedAssetAt(0)).to.equal(addr1.address);
 
@@ -150,7 +152,7 @@ describe("OrionConfig", function () {
         .to.emit(orionConfig, "WhitelistedAssetRemoved")
         .withArgs(addr1.address);
 
-      expect(await orionConfig.isWhitelisted(addr1.address)).to.be.false;
+      await expect(await orionConfig.isWhitelisted(addr1.address)).to.equal(false);
       expect(await orionConfig.whitelistedAssetsLength()).to.equal(0);
 
       // Removing non-existing asset reverts
@@ -297,7 +299,7 @@ describe("OrionConfig", function () {
   });
 
   describe("OrionConfig UUPS upgradeability", function () {
-    let orionConfigProxy: any;
+    let orionConfigProxy: OrionConfig;
 
     beforeEach(async function () {
       OrionConfig = await ethers.getContractFactory("OrionConfig");

@@ -2,16 +2,18 @@ import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 
+import { ERC4626PriceAdapter, MockERC4626Asset, MockPriceAdapter, OracleRegistry } from "../typechain-types";
+
 describe("OracleRegistry", function () {
-  let oracleRegistry: any;
-  let mockPriceAdapter1: any;
-  let mockPriceAdapter2: any;
-  let mockPriceAdapter3: any;
-  let erc4626PriceAdapter1: any;
-  let erc4626PriceAdapter2: any;
-  let mockAsset1: any;
-  let mockAsset2: any;
-  let mockAsset3: any;
+  let oracleRegistry: OracleRegistry;
+  let mockPriceAdapter1: MockPriceAdapter;
+  let mockPriceAdapter2: MockPriceAdapter;
+  let mockPriceAdapter3: MockPriceAdapter;
+  let erc4626PriceAdapter1: ERC4626PriceAdapter;
+  let erc4626PriceAdapter2: ERC4626PriceAdapter;
+  let mockAsset1: MockERC4626Asset;
+  let mockAsset2: MockERC4626Asset;
+  let mockAsset3: MockERC4626Asset;
   let owner: SignerWithAddress;
   let nonOwner: SignerWithAddress;
 

@@ -239,7 +239,7 @@ describe("End-to-End Protocol Simulation", function () {
 
       // Check that upkeep is needed
       const [internalUpkeepNeeded] = await internalStatesOrchestrator.checkUpkeep("0x");
-      expect(internalUpkeepNeeded).to.be.true;
+      expect(internalUpkeepNeeded).to.equal(true);
 
       // Perform internal states orchestrator upkeep
       await expect(internalStatesOrchestrator.connect(automationRegistry).performUpkeep("0x")).to.emit(
@@ -339,7 +339,7 @@ describe("End-to-End Protocol Simulation", function () {
 
       // Check that upkeep is needed
       const [internalUpkeepNeeded] = await internalStatesOrchestrator.checkUpkeep("0x");
-      expect(internalUpkeepNeeded).to.be.true;
+      expect(internalUpkeepNeeded).to.equal(true);
 
       // Perform upkeep
       await expect(internalStatesOrchestrator.connect(automationRegistry).performUpkeep("0x")).to.emit(
@@ -385,7 +385,7 @@ describe("End-to-End Protocol Simulation", function () {
 
       // Step 5: Check that Liquidity Orchestrator needs upkeep
       const [liquidityUpkeepNeeded] = await liquidityOrchestratorContract.checkUpkeep("0x");
-      expect(liquidityUpkeepNeeded).to.be.true;
+      expect(liquidityUpkeepNeeded).to.equal(true);
 
       // Step 6: Get initial balances
       const initialUnderlyingBalance = await underlyingAsset.balanceOf(

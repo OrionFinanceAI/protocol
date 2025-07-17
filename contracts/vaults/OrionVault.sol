@@ -363,6 +363,9 @@ abstract contract OrionVault is
             sharesArray[i] = shares;
         }
 
+        // Reset the cached total since all requests will be processed
+        _totalPendingWithdrawals = 0;
+
         // Process all requests
         for (uint256 i = 0; i < length; i++) {
             address user = users[i];
@@ -376,9 +379,6 @@ abstract contract OrionVault is
 
             emit EventsLib.WithdrawProcessed(user, shares);
         }
-
-        // Reset the cached total since all requests were processed
-        _totalPendingWithdrawals = 0;
     }
 
     /// --------- ABSTRACT FUNCTIONS ---------

@@ -1,0 +1,207 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "ErrorsLib",
+  "sourceName": "contracts/libraries/ErrorsLib.sol",
+  "abi": [
+    {
+      "inputs": [],
+      "name": "AdapterNotSet",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "AlreadyAnOrionVault",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "AlreadyWhitelisted",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "asset",
+          "type": "address"
+        }
+      ],
+      "name": "AmountMustBeGreaterThanZero",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "user",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "DepositRequestCancelled",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "sender",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "balance",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "InsufficientFunds",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidAsset",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidConfigAddress",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidCuratorAddress",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidTotalWeight",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidUnderlyingDecimals",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotAnOrionVault",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotAuthorized",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotCurator",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotEnoughDepositRequest",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotEnoughWithdrawRequest",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotFactory",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotInternalStatesOrchestrator",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotLiquidityOrchestrator",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "OrderIntentCannotBeEmpty",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "SharesMustBeGreaterThanZero",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "SynchronousCallDisabled",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "token",
+          "type": "address"
+        }
+      ],
+      "name": "TokenAlreadyInOrder",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "token",
+          "type": "address"
+        }
+      ],
+      "name": "TokenNotWhitelisted",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "TooEarly",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "TransferFailed",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "user",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "shares",
+          "type": "uint256"
+        }
+      ],
+      "name": "WithdrawRequestCancelled",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "ZeroAddress",
+      "type": "error"
+    }
+  ],
+  "bytecode": "0x6055604b600b8282823980515f1a607314603f577f4e487b71000000000000000000000000000000000000000000000000000000005f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f5ffdfea26469706673582212202a18d0e3eb35d3103f622e296d398ee14d567bbe132f56eae7483ec7a0dead3e64736f6c634300081c0033",
+  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f5ffdfea26469706673582212202a18d0e3eb35d3103f622e296d398ee14d567bbe132f56eae7483ec7a0dead3e64736f6c634300081c0033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

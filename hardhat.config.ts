@@ -7,6 +7,7 @@ import { HardhatUserConfig } from "hardhat/config";
 dotenv.config();
 
 const config: HardhatUserConfig = {
+  defaultNetwork: "hardhat",
   solidity: {
     compilers: [
       {
@@ -36,11 +37,16 @@ const config: HardhatUserConfig = {
         url: process.env.RPC_URL!,
         blockNumber: 5555555,
       },
-      chainId: 11155111,
+      chainId: 31337,
     },
   },
   etherscan: {
     apiKey: process.env.ETHERSCAN_API_KEY,
+  },
+  gasReporter: {
+    currency: "USD",
+    enabled: process.env.REPORT_GAS ? true : false,
+    excludeContracts: [],
   },
 };
 

@@ -2,6 +2,21 @@ import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
 import { ethers, upgrades } from "hardhat";
 
+import {
+  ERC4626ExecutionAdapter,
+  ERC4626PriceAdapter,
+  InternalStatesOrchestrator,
+  LiquidityOrchestrator,
+  MockERC4626Asset,
+  MockPriceAdapter,
+  MockUnderlyingAsset,
+  OracleRegistry,
+  OrionConfig,
+  OrionEncryptedVault,
+  OrionTransparentVault,
+  OrionVaultFactory,
+} from "../typechain-types";
+
 describe("OnlyOwner Functions - Comprehensive Test Suite", function () {
   let owner: SignerWithAddress;
   let nonOwner: SignerWithAddress;
@@ -10,20 +25,20 @@ describe("OnlyOwner Functions - Comprehensive Test Suite", function () {
   let automationRegistry: SignerWithAddress;
 
   // Contract instances
-  let orionConfig: any;
-  let oracleRegistry: any;
-  let liquidityOrchestrator: any;
-  let orionVaultFactory: any;
-  let internalStatesOrchestrator: any;
-  let erc4626ExecutionAdapter: any;
-  let erc4626PriceAdapter: any;
-  let mockUnderlyingAsset: any;
-  let mockPriceAdapter: any;
+  let orionConfig: OrionConfig;
+  let oracleRegistry: OracleRegistry;
+  let liquidityOrchestrator: LiquidityOrchestrator;
+  let orionVaultFactory: OrionVaultFactory;
+  let internalStatesOrchestrator: InternalStatesOrchestrator;
+  let erc4626ExecutionAdapter: ERC4626ExecutionAdapter;
+  let erc4626PriceAdapter: ERC4626PriceAdapter;
+  let mockUnderlyingAsset: MockUnderlyingAsset;
+  let mockPriceAdapter: MockPriceAdapter;
 
   // Helper contracts
-  let mockERC4626Asset: any;
-  let transparentVaultImpl: any;
-  let encryptedVaultImpl: any;
+  let mockERC4626Asset: MockERC4626Asset;
+  let transparentVaultImpl: OrionTransparentVault;
+  let encryptedVaultImpl: OrionEncryptedVault;
 
   const ZERO_ADDRESS = ethers.ZeroAddress;
 
@@ -612,20 +627,16 @@ describe("OnlyOwner Functions - Comprehensive Test Suite", function () {
       await orionConfig.connect(owner).addWhitelistedAsset(mockUnderlyingAsset.target);
 
       // Create vaults
-      const transparentVaultTx = await orionVaultFactory
-        .connect(owner)
-        .createOrionTransparentVault(user1.address, "Test Transparent", "TT");
-      const encryptedVaultTx = await orionVaultFactory
-        .connect(owner)
-        .createOrionEncryptedVault(user1.address, "Test Encrypted", "TE");
+      await orionVaultFactory.connect(owner).createOrionTransparentVault(user1.address, "Test Transparent", "TT");
+      await orionVaultFactory.connect(owner).createOrionEncryptedVault(user1.address, "Test Encrypted", "TE");
 
       // Verify everything was set up correctly
       expect(await oracleRegistry.adapterOf(mockERC4626Asset.target)).to.equal(erc4626PriceAdapter.target);
       expect(await liquidityOrchestrator.executionAdapterOf(mockERC4626Asset.target)).to.equal(
         erc4626ExecutionAdapter.target,
       );
-      expect(await orionConfig.isWhitelisted(mockERC4626Asset.target)).to.be.true;
-      expect(await orionConfig.isWhitelisted(mockUnderlyingAsset.target)).to.be.true;
+      expect(await orionConfig.isWhitelisted(mockERC4626Asset.target)).to.equal(true);
+      expect(await orionConfig.isWhitelisted(mockUnderlyingAsset.target)).to.equal(true);
     });
 
     it("should prevent non-owners from disrupting system configuration", async function () {
