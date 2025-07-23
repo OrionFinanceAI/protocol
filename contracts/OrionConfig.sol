@@ -92,6 +92,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     function addWhitelistedAsset(address asset) external onlyOwner {
         bool inserted = whitelistedAssets.add(asset);
         if (!inserted) revert ErrorsLib.AlreadyWhitelisted();
+        // TODO: add oracle adapter to registry and execution adapter to orchestrator.
         emit EventsLib.WhitelistedAssetAdded(asset);
     }
 
@@ -99,6 +100,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     function removeWhitelistedAsset(address asset) external onlyOwner {
         bool removed = whitelistedAssets.remove(asset);
         if (!removed) revert ErrorsLib.TokenNotWhitelisted(asset);
+        // TODO: remove oracle adapter from registry and execution adapter from orchestrator.
         emit EventsLib.WhitelistedAssetRemoved(asset);
     }
 

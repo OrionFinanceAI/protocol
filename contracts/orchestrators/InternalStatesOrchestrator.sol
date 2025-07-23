@@ -130,12 +130,16 @@ contract InternalStatesOrchestrator is
     function checkUpkeep(bytes calldata) external view override returns (bool upkeepNeeded, bytes memory performData) {
         upkeepNeeded = _shouldTriggerUpkeep();
 
+        // TODO: performUpkeep already not atomic wrt execution, might as well call price oracle here and pass
+        // estimated prices to performUpkeep.
+
         performData = bytes("");
         // NOTE: we can compute here all read-only states to generate payload to then pass to performUpkeep
         // https://docs.chain.link/chainlink-automation/reference/automation-interfaces
         // Losing atomicity, but better for scalability.
     }
 
+    // TODO: Investigate having N_plaintext vaults + 1 transactions instead of one single performUpkeep.
     /// @notice Performs state reading and estimation operations
     /// @dev This function:
     ///      - Reads current vault states and oracle prices;
@@ -145,6 +149,7 @@ contract InternalStatesOrchestrator is
         _checkAndCountEpoch();
         _resetEpochState();
 
+        // TODO: define these two variables in the constructor, not here.
         IOracleRegistry registry = IOracleRegistry(config.oracleRegistry());
         uint256 intentFactor = 10 ** config.curatorIntentDecimals();
 
@@ -357,7 +362,9 @@ contract InternalStatesOrchestrator is
         uint256 baseValue = (price * shares) / ORACLE_PRECISION;
 
         // Get token and underlying decimals
+        // TODO: set this in the epoch state??
         uint8 tokenDecimals = IERC20Metadata(token).decimals();
+        // TODO: define this variable in the constructor, not here.
         uint8 underlyingDecimals = IERC20Metadata(address(config.underlyingAsset())).decimals();
 
         // Convert to underlying decimals (if else to avoid underflow)
@@ -400,6 +407,7 @@ contract InternalStatesOrchestrator is
         }
     }
 
+    // TODO: can we avoid function duplication between _calculateTokenValue and _calculateTokenShares?
     /// @notice Calculates token shares from underlying asset value (inverse of _calculateTokenValue)
     /// @dev Handles decimal conversion from underlying asset decimals to token decimals
     ///      Formula: shares = (value * ORACLE_PRECISION) / (price * 10^(underlyingDecimals - tokenDecimals))
@@ -410,7 +418,9 @@ contract InternalStatesOrchestrator is
     /// @return shares The amount of token shares (in token decimals)
     function _calculateTokenShares(uint256 price, uint256 value, address token) internal view returns (uint256 shares) {
         // Get token and underlying decimals
+        // TODO: set this in the epoch state??
         uint8 tokenDecimals = IERC20Metadata(token).decimals();
+        // TODO: define this variable in the constructor, not here.
         uint8 underlyingDecimals = IERC20Metadata(address(config.underlyingAsset())).decimals();
 
         // Convert value from underlying decimals to token decimals scale

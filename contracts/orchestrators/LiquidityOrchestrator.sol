@@ -107,6 +107,7 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         // Verify the caller is a registered vault
         if (!config.isOrionVault(msg.sender)) revert ErrorsLib.NotAuthorized();
 
+        // TODO: set this in the constructor from the config, not here.
         // Get the underlying asset from the vault
         address underlyingAsset = IOrionVault(msg.sender).asset();
 
@@ -154,7 +155,7 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         lastProcessedEpoch = currentEpoch;
 
         // Measure initial underlying balance of this contract.
-        address underlyingAsset = address(config.underlyingAsset());
+        address underlyingAsset = address(config.underlyingAsset()); // TODO: set this in the constructor from the config, not here.
         uint256 initialUnderlyingBalance = IERC20(underlyingAsset).balanceOf(address(this));
 
         // Execute sequentially the trades to reach target state
@@ -170,13 +171,21 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
             _executeSell(token, amount);
         }
 
-        // Execution methodology objective to avoid undercollateralization:
+        // Naive execution methodology objective to avoid undercollateralization:
         // ||Delta_B||_L1 - ||Delta_S||_L1 = ||Delta_B_hat||_L1 - ||Delta_S_hat||_L1 = ||Delta_W_hat||_L1
         // ====> ||Delta_W||_L1 = ||Delta_W_hat||_L1
         // Given, because of oracle missestimations/slippage:
         // ||Delta_S||_L1 = ||Delta_S_hat||_L1 + epsilon
         // Delta_B := gamma * Delta_B_hat
         // ====> gamma = (1 + epsilon / ||Delta_B_hat||_L1)
+
+        // TODO: current logic does not enable calibration error treatment if there are
+        // no selling errors, please fix.
+
+        // TODO: in the future, the size of N-1 standing orders are sequentially recalibrated
+        // using the measurement from the current execution, breaking down each asset into a transaction.abi
+        // This could go further, breaking down each selling/buying order into multiple transactions,
+        // minimizing liquidity orchestrator market impact.
 
         // Measure intermediate underlying balance of this contract.
         uint256 intermediateUnderlyingBalance = IERC20(underlyingAsset).balanceOf(address(this));
