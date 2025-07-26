@@ -358,9 +358,6 @@ contract InternalStatesOrchestrator is
     /// @param token The token address to get decimals from
     /// @return value The value in underlying asset decimals
     function _calculateTokenValue(uint256 price, uint256 shares, address token) internal view returns (uint256 value) {
-        // Calculate base value in shares decimals
-        uint256 baseValue = (price * shares) / ORACLE_PRECISION;
-
         // Get token and underlying decimals
         // TODO: set this in the epoch state??
         uint8 tokenDecimals = IERC20Metadata(token).decimals();
@@ -370,10 +367,12 @@ contract InternalStatesOrchestrator is
         // Convert to underlying decimals (if else to avoid underflow)
         if (underlyingDecimals >= tokenDecimals) {
             // Scale up: multiply by the difference (underlying has more decimals)
-            value = baseValue * (10 ** (underlyingDecimals - tokenDecimals));
+            uint256 baseValue = price * shares * (10 ** (underlyingDecimals - tokenDecimals));
+            value = baseValue / ORACLE_PRECISION;
         } else {
             // Scale down: divide by the difference (underlying has fewer decimals)
-            value = baseValue / (10 ** (tokenDecimals - underlyingDecimals));
+            uint256 baseValue = price * shares;
+            value = baseValue / (ORACLE_PRECISION * (10 ** (tokenDecimals - underlyingDecimals)));
         }
     }
 
@@ -390,9 +389,6 @@ contract InternalStatesOrchestrator is
         euint32 shares,
         address token
     ) internal returns (euint32 value) {
-        // Calculate base value in shares decimals
-        euint32 baseValue = FHE.div(FHE.mul(FHE.asEuint32(uint32(price)), shares), uint32(ORACLE_PRECISION));
-
         // Get token and underlying decimals
         uint8 tokenDecimals = IERC20Metadata(token).decimals();
         uint8 underlyingDecimals = IERC20Metadata(address(config.underlyingAsset())).decimals();
@@ -400,10 +396,13 @@ contract InternalStatesOrchestrator is
         // Convert to underlying decimals (if else to avoid underflow)
         if (underlyingDecimals >= tokenDecimals) {
             // Scale up: multiply by the difference (underlying has more decimals)
-            value = FHE.mul(baseValue, uint32(10 ** (underlyingDecimals - tokenDecimals)));
+            euint32 baseValue = FHE.mul(FHE.asEuint32(uint32(price)), shares);
+            baseValue = FHE.mul(baseValue, uint32(10 ** (underlyingDecimals - tokenDecimals)));
+            value = FHE.div(baseValue, uint32(ORACLE_PRECISION));
         } else {
             // Scale down: divide by the difference (underlying has fewer decimals)
-            value = FHE.div(baseValue, uint32(10 ** (tokenDecimals - underlyingDecimals)));
+            euint32 baseValue = FHE.mul(FHE.asEuint32(uint32(price)), shares);
+            value = FHE.div(baseValue, uint32(ORACLE_PRECISION * (10 ** (tokenDecimals - underlyingDecimals))));
         }
     }
 

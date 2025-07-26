@@ -210,17 +210,16 @@ abstract contract OrionVault is
     ///      LPs can later cancel this request to withdraw their funds before any minting occurs.
     /// @param amount The amount of the underlying asset to deposit.
     function requestDeposit(uint256 amount) external nonReentrant {
-        // Checks first
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
         uint256 senderBalance = IERC20(asset()).balanceOf(msg.sender);
         if (amount > senderBalance) revert ErrorsLib.InsufficientFunds(msg.sender, senderBalance, amount);
 
-        // Interactions - transfer funds directly to liquidity orchestrator
         bool success = IERC20(asset()).transferFrom(msg.sender, config.liquidityOrchestrator(), amount);
         if (!success) revert ErrorsLib.TransferFailed();
 
-        // Effects - now safe to update internal state
+        // slither-disable-next-line unused-return
         (, uint256 currentAmount) = _depositRequests.tryGet(msg.sender);
+        // slither-disable-next-line unused-return
         _depositRequests.set(msg.sender, currentAmount + amount);
         _totalPendingDeposits += amount;
 
@@ -235,6 +234,7 @@ abstract contract OrionVault is
     function cancelDepositRequest(uint256 amount) external nonReentrant {
         // Checks first
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
+        // slither-disable-next-line unused-return
         (, uint256 currentAmount) = _depositRequests.tryGet(msg.sender);
         if (currentAmount < amount) revert ErrorsLib.NotEnoughDepositRequest();
 
@@ -244,8 +244,10 @@ abstract contract OrionVault is
         // Effects - update internal state
         uint256 newAmount = currentAmount - amount;
         if (newAmount == 0) {
+            // slither-disable-next-line unused-return
             _depositRequests.remove(msg.sender);
         } else {
+            // slither-disable-next-line unused-return
             _depositRequests.set(msg.sender, newAmount);
         }
         _totalPendingDeposits -= amount;
@@ -259,17 +261,16 @@ abstract contract OrionVault is
     ///      LPs can later cancel this request to withdraw their funds before any burning occurs.
     /// @param shares The amount of the share tokens to withdraw.
     function requestWithdraw(uint256 shares) external {
-        // Checks first
         if (shares == 0) revert ErrorsLib.SharesMustBeGreaterThanZero();
         uint256 senderBalance = balanceOf(msg.sender);
         if (shares > senderBalance) revert ErrorsLib.InsufficientFunds(msg.sender, senderBalance, shares);
 
-        // Interactions - transfer share tokens directly to liquidity orchestrator
         bool success = IERC20(address(this)).transferFrom(msg.sender, config.liquidityOrchestrator(), shares);
         if (!success) revert ErrorsLib.TransferFailed();
 
-        // Effects - now safe to update internal state
+        // slither-disable-next-line unused-return
         (, uint256 currentShares) = _withdrawRequests.tryGet(msg.sender);
+        // slither-disable-next-line unused-return
         _withdrawRequests.set(msg.sender, currentShares + shares);
         _totalPendingWithdrawals += shares;
 
@@ -284,6 +285,7 @@ abstract contract OrionVault is
     function cancelWithdrawRequest(uint256 shares) external nonReentrant {
         // Checks first
         if (shares == 0) revert ErrorsLib.SharesMustBeGreaterThanZero();
+        // slither-disable-next-line unused-return
         (, uint256 currentShares) = _withdrawRequests.tryGet(msg.sender);
         if (currentShares < shares) revert ErrorsLib.NotEnoughWithdrawRequest();
 
@@ -293,8 +295,10 @@ abstract contract OrionVault is
         // Effects - update internal state
         uint256 newShares = currentShares - shares;
         if (newShares == 0) {
+            // slither-disable-next-line unused-return
             _withdrawRequests.remove(msg.sender);
         } else {
+            // slither-disable-next-line unused-return
             _withdrawRequests.set(msg.sender, newShares);
         }
         _totalPendingWithdrawals -= shares;
@@ -339,6 +343,7 @@ abstract contract OrionVault is
             uint256 amount = amounts[i];
             uint256 shares = previewDeposit(amount);
 
+            // slither-disable-next-line unused-return
             _depositRequests.remove(user);
 
             _mint(user, shares);
@@ -371,6 +376,7 @@ abstract contract OrionVault is
             address user = users[i];
             uint256 shares = sharesArray[i];
 
+            // slither-disable-next-line unused-return
             _withdrawRequests.remove(user);
 
             _burn(address(this), shares);

@@ -155,7 +155,8 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         lastProcessedEpoch = currentEpoch;
 
         // Measure initial underlying balance of this contract.
-        address underlyingAsset = address(config.underlyingAsset()); // TODO: set this in the constructor from the config, not here.
+        // TODO: set this in the constructor from the config, not here.
+        address underlyingAsset = address(config.underlyingAsset());
         uint256 initialUnderlyingBalance = IERC20(underlyingAsset).balanceOf(address(this));
 
         // Execute sequentially the trades to reach target state
