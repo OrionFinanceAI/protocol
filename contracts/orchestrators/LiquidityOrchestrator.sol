@@ -49,6 +49,9 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
     /// @notice Last processed epoch counter from Internal States Orchestrator
     uint256 public lastProcessedEpoch;
 
+    /// @notice Underlying asset address
+    address public underlyingAsset;
+
     function initialize(address initialOwner, address automationRegistry_, address config_) external initializer {
         __Ownable_init(initialOwner);
         __Ownable2Step_init();
@@ -60,6 +63,8 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         automationRegistry = automationRegistry_;
         config = IOrionConfig(config_);
         internalStatesOrchestrator = IInternalStateOrchestrator(config.internalStatesOrchestrator());
+
+        underlyingAsset = address(config.underlyingAsset());
 
         lastProcessedEpoch = 0;
     }
@@ -106,11 +111,6 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
     function returnDepositFunds(address user, uint256 amount) external {
         // Verify the caller is a registered vault
         if (!config.isOrionVault(msg.sender)) revert ErrorsLib.NotAuthorized();
-
-        // TODO: set this in the constructor from the config, not here.
-        // Get the underlying asset from the vault
-        address underlyingAsset = IOrionVault(msg.sender).asset();
-
         // Transfer funds back to the user
         bool success = IERC20(underlyingAsset).transfer(user, amount);
         if (!success) revert ErrorsLib.TransferFailed();
@@ -155,8 +155,6 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         lastProcessedEpoch = currentEpoch;
 
         // Measure initial underlying balance of this contract.
-        // TODO: set this in the constructor from the config, not here.
-        address underlyingAsset = address(config.underlyingAsset());
         uint256 initialUnderlyingBalance = IERC20(underlyingAsset).balanceOf(address(this));
 
         // Execute sequentially the trades to reach target state
@@ -180,13 +178,14 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         // Delta_B := gamma * Delta_B_hat
         // ====> gamma = (1 + epsilon / ||Delta_B_hat||_L1)
 
-        // TODO: current logic does not enable calibration error treatment if there are
+        // TODO: the size of N-1 standing orders to be sequentially recalibrated
+        // using the measurement from the current execution, breaking down each asset into a transaction.
+        // In fact, current logic does not enable calibration error treatment if there are
         // no selling errors, please fix.
 
-        // TODO: in the future, the size of N-1 standing orders are sequentially recalibrated
-        // using the measurement from the current execution, breaking down each asset into a transaction.abi
-        // This could go further, breaking down each selling/buying order into multiple transactions,
+        // TODO: This could go further, breaking down each selling/buying order into multiple transactions,
         // minimizing liquidity orchestrator market impact.
+        // document, adding literature reference on how this could be expanded.
 
         // Measure intermediate underlying balance of this contract.
         uint256 intermediateUnderlyingBalance = IERC20(underlyingAsset).balanceOf(address(this));

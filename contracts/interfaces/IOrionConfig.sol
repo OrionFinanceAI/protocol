@@ -55,7 +55,9 @@ interface IOrionConfig {
     /// @notice Adds an asset to the whitelist
     /// @dev Can only be called by the contract owner
     /// @param asset The address of the asset to whitelist
-    function addWhitelistedAsset(address asset) external;
+    /// @param oracleAdapter The address of the oracle adapter
+    /// @param executionAdapter The address of the execution adapter
+    function addWhitelistedAsset(address asset, address oracleAdapter, address executionAdapter) external;
 
     /// @notice Removes an asset from the whitelist
     /// @dev Can only be called by the contract owner

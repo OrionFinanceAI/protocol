@@ -54,6 +54,15 @@ contract InternalStatesOrchestrator is
     /// @notice Oracle price precision (18 decimals)
     uint256 private constant ORACLE_PRECISION = 1e18;
 
+    /// @notice Oracle Registry contract
+    IOracleRegistry public registry;
+
+    /// @notice Intent factor for calculations
+    uint256 public intentFactor;
+
+    /// @notice Decimals of the underlying asset
+    uint8 public underlyingDecimals;
+
     /// @notice Struct to hold epoch state data
     struct EpochState {
         /// @notice Price hat (p_t) - mapping of token address to estimated price [asset/underlying]
@@ -70,6 +79,8 @@ contract InternalStatesOrchestrator is
         address[] tokens;
         /// @notice Mapping to track if a token has been added to avoid duplicates
         mapping(address => bool) tokenExists;
+        /// @notice Mapping of token address to its decimals
+        mapping(address => uint8) tokenDecimals;
     }
 
     /// @notice Current epoch state
@@ -95,6 +106,10 @@ contract InternalStatesOrchestrator is
 
         automationRegistry = automationRegistry_;
         config = IOrionConfig(config_);
+
+        registry = IOracleRegistry(config.oracleRegistry());
+        intentFactor = 10 ** config.curatorIntentDecimals();
+        underlyingDecimals = IERC20Metadata(address(config.underlyingAsset())).decimals();
 
         nextUpdateTime = _computeNextUpdateTime(block.timestamp);
         epochCounter = 0;
@@ -129,17 +144,15 @@ contract InternalStatesOrchestrator is
     /// @notice Checks if upkeep is needed based on time interval
     function checkUpkeep(bytes calldata) external view override returns (bool upkeepNeeded, bytes memory performData) {
         upkeepNeeded = _shouldTriggerUpkeep();
-
-        // TODO: performUpkeep already not atomic wrt execution, might as well call price oracle here and pass
-        // estimated prices to performUpkeep.
-
         performData = bytes("");
         // NOTE: we can compute here all read-only states to generate payload to then pass to performUpkeep
         // https://docs.chain.link/chainlink-automation/reference/automation-interfaces
         // Losing atomicity, but better for scalability.
     }
 
-    // TODO: Investigate having N_plaintext vaults + 1 transactions instead of one single performUpkeep.
+    // TODO: Give up atomicity for scalability, have N_plaintext vaults + 1 transactions instead of one single performUpkeep transaction.
+    // have two states triggering chainlink automation, one time, the other the N+1 processor, once all processed, trigger liquidity orchestrator.
+
     /// @notice Performs state reading and estimation operations
     /// @dev This function:
     ///      - Reads current vault states and oracle prices;
@@ -148,10 +161,6 @@ contract InternalStatesOrchestrator is
     function performUpkeep(bytes calldata) external override onlyAutomationRegistry nonReentrant {
         _checkAndCountEpoch();
         _resetEpochState();
-
-        // TODO: define these two variables in the constructor, not here.
-        IOracleRegistry registry = IOracleRegistry(config.oracleRegistry());
-        uint256 intentFactor = 10 ** config.curatorIntentDecimals();
 
         /* ---------- TRANSPARENT VAULTS ---------- */
 
@@ -166,8 +175,13 @@ contract InternalStatesOrchestrator is
             for (uint256 j = 0; j < portfolioTokens.length; j++) {
                 address token = portfolioTokens[j];
 
-                // Get price from cache or from registry.
-                // Avoid re-fetching price if already cached.
+                // Get and cache token decimals if not already cached
+                if (_currentEpoch.tokenDecimals[token] == 0) {
+                    _currentEpoch.tokenDecimals[token] = IERC20Metadata(token).decimals();
+                }
+                uint8 tokenDecimals = _currentEpoch.tokenDecimals[token];
+
+                // Get and cache price if not already cached
                 uint256 price = _currentEpoch.priceHat[token];
                 if (price == 0) {
                     price = registry.getPrice(token);
@@ -175,7 +189,7 @@ contract InternalStatesOrchestrator is
                 }
 
                 // Calculate estimated value of the asset in underlying asset decimals
-                uint256 value = _calculateTokenValue(price, sharesPerAsset[j], token);
+                uint256 value = _calculateTokenValue(price, sharesPerAsset[j], tokenDecimals);
 
                 t1Hat += value;
 
@@ -230,7 +244,7 @@ contract InternalStatesOrchestrator is
         //             price = registry.getPrice(token);
         //             _currentEpoch.priceHat[token] = price;
         //         }
-
+        //         // TODO: get and cache token decimals if not already cached, pass it to _calculateEncryptedTokenValue.
         //         euint32 value = _calculateEncryptedTokenValue(price, sharesPerAsset[j], token);
 
         //         encryptedT1Hat = FHE.add(encryptedT1Hat, value);
@@ -293,6 +307,7 @@ contract InternalStatesOrchestrator is
             _currentEpoch.sellingOrders[token] = 0;
             _currentEpoch.buyingOrders[token] = 0;
             _currentEpoch.tokenExists[token] = false;
+            _currentEpoch.tokenDecimals[token] = 0;
         }
 
         // Clear the tokens array
@@ -323,6 +338,7 @@ contract InternalStatesOrchestrator is
             address token = tokens[i];
             uint256 initialValue = _currentEpoch.initialBatchPortfolioHat[token];
             uint256 finalValue = _currentEpoch.finalBatchPortfolioHat[token];
+            uint8 tokenDecimals = _currentEpoch.tokenDecimals[token];
 
             if (initialValue > finalValue) {
                 uint256 sellAmountInUnderlying = initialValue - finalValue;
@@ -336,7 +352,7 @@ contract InternalStatesOrchestrator is
                 uint256 sellAmountInShares = _calculateTokenShares(
                     _currentEpoch.priceHat[token],
                     sellAmountInUnderlying,
-                    token
+                    tokenDecimals
                 );
                 _currentEpoch.sellingOrders[token] = sellAmountInShares;
             } else if (finalValue > initialValue) {
@@ -349,90 +365,57 @@ contract InternalStatesOrchestrator is
         }
     }
 
+    /// @notice Helper function to convert value between token decimals and underlying asset decimals
+    /// @param amount The amount to convert
+    /// @param fromDecimals The decimals of the original amount
+    /// @param toDecimals The decimals to convert to
+    /// @return scaledAmount The amount converted to the target decimals
+    function _convertDecimals(
+        uint256 amount,
+        uint8 fromDecimals,
+        uint8 toDecimals
+    ) internal pure returns (uint256 scaledAmount) {
+        if (toDecimals >= fromDecimals) {
+            // Scale up: multiply by the difference
+            scaledAmount = amount * (10 ** (toDecimals - fromDecimals));
+        } else {
+            // Scale down: divide by the difference
+            scaledAmount = amount / (10 ** (fromDecimals - toDecimals));
+        }
+    }
+
     /// @notice Calculates token value in underlying asset decimals
     /// @dev Handles decimal conversion from token decimals to underlying asset decimals
     ///      Formula: value = (price * shares) / ORACLE_PRECISION * 10^(underlyingDecimals - tokenDecimals)
     ///      This safely handles cases where underlying has more or fewer decimals than the token
     /// @param price The price of the token in underlying asset (18 decimals)
     /// @param shares The amount of token shares (in token decimals)
-    /// @param token The token address to get decimals from
+    /// @param tokenDecimals The decimals of the token
     /// @return value The value in underlying asset decimals
-    function _calculateTokenValue(uint256 price, uint256 shares, address token) internal view returns (uint256 value) {
-        // Get token and underlying decimals
-        // TODO: set this in the epoch state??
-        uint8 tokenDecimals = IERC20Metadata(token).decimals();
-        // TODO: define this variable in the constructor, not here.
-        uint8 underlyingDecimals = IERC20Metadata(address(config.underlyingAsset())).decimals();
-
-        // Convert to underlying decimals (if else to avoid underflow)
-        if (underlyingDecimals >= tokenDecimals) {
-            // Scale up: multiply by the difference (underlying has more decimals)
-            uint256 baseValue = price * shares * (10 ** (underlyingDecimals - tokenDecimals));
-            value = baseValue / ORACLE_PRECISION;
-        } else {
-            // Scale down: divide by the difference (underlying has fewer decimals)
-            uint256 baseValue = price * shares;
-            value = baseValue / (ORACLE_PRECISION * (10 ** (tokenDecimals - underlyingDecimals)));
-        }
-    }
-
-    /// @notice Calculates encrypted token value in underlying asset decimals
-    /// @dev Handles decimal conversion from token decimals to underlying asset decimals
-    ///      Formula: value = (price * shares) / ORACLE_PRECISION * 10^(underlyingDecimals - tokenDecimals)
-    ///      This safely handles cases where underlying has more or fewer decimals than the token
-    /// @param price The price of the token in underlying asset (18 decimals)
-    /// @param shares The encrypted amount of token shares (in token decimals)
-    /// @param token The token address to get decimals from
-    /// @return value The encrypted value in underlying asset decimals
-    function _calculateEncryptedTokenValue(
+    function _calculateTokenValue(
         uint256 price,
-        euint32 shares,
-        address token
-    ) internal returns (euint32 value) {
-        // Get token and underlying decimals
-        uint8 tokenDecimals = IERC20Metadata(token).decimals();
-        uint8 underlyingDecimals = IERC20Metadata(address(config.underlyingAsset())).decimals();
-
-        // Convert to underlying decimals (if else to avoid underflow)
-        if (underlyingDecimals >= tokenDecimals) {
-            // Scale up: multiply by the difference (underlying has more decimals)
-            euint32 baseValue = FHE.mul(FHE.asEuint32(uint32(price)), shares);
-            baseValue = FHE.mul(baseValue, uint32(10 ** (underlyingDecimals - tokenDecimals)));
-            value = FHE.div(baseValue, uint32(ORACLE_PRECISION));
-        } else {
-            // Scale down: divide by the difference (underlying has fewer decimals)
-            euint32 baseValue = FHE.mul(FHE.asEuint32(uint32(price)), shares);
-            value = FHE.div(baseValue, uint32(ORACLE_PRECISION * (10 ** (tokenDecimals - underlyingDecimals))));
-        }
+        uint256 shares,
+        uint8 tokenDecimals
+    ) internal view returns (uint256 value) {
+        uint256 baseValue = price * shares;
+        uint256 scaledValue = _convertDecimals(baseValue, tokenDecimals, underlyingDecimals);
+        value = scaledValue / ORACLE_PRECISION;
     }
 
-    // TODO: can we avoid function duplication between _calculateTokenValue and _calculateTokenShares?
     /// @notice Calculates token shares from underlying asset value (inverse of _calculateTokenValue)
     /// @dev Handles decimal conversion from underlying asset decimals to token decimals
     ///      Formula: shares = (value * ORACLE_PRECISION) / (price * 10^(underlyingDecimals - tokenDecimals))
     ///      This safely handles cases where underlying has more or fewer decimals than the token
     /// @param price The price of the token in underlying asset (18 decimals)
     /// @param value The value in underlying asset decimals
-    /// @param token The token address to get decimals from
+    /// @param tokenDecimals The decimals of the token
     /// @return shares The amount of token shares (in token decimals)
-    function _calculateTokenShares(uint256 price, uint256 value, address token) internal view returns (uint256 shares) {
-        // Get token and underlying decimals
-        // TODO: set this in the epoch state??
-        uint8 tokenDecimals = IERC20Metadata(token).decimals();
-        // TODO: define this variable in the constructor, not here.
-        uint8 underlyingDecimals = IERC20Metadata(address(config.underlyingAsset())).decimals();
-
-        // Convert value from underlying decimals to token decimals scale
-        uint256 scaledValue;
-        if (underlyingDecimals >= tokenDecimals) {
-            // Scale down: divide by the difference (underlying has more decimals)
-            scaledValue = value / (10 ** (underlyingDecimals - tokenDecimals));
-        } else {
-            // Scale up: multiply by the difference (underlying has fewer decimals)
-            scaledValue = value * (10 ** (tokenDecimals - underlyingDecimals));
-        }
-
-        // Calculate shares: shares = (scaledValue * ORACLE_PRECISION) / price
+    function _calculateTokenShares(
+        uint256 price,
+        uint256 value,
+        uint8 tokenDecimals
+    ) internal view returns (uint256 shares) {
+        uint256 scaledValue = _convertDecimals(value, underlyingDecimals, tokenDecimals);
         shares = (scaledValue * ORACLE_PRECISION) / price;
     }
 

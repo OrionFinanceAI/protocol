@@ -27,6 +27,16 @@
           "internalType": "address",
           "name": "asset",
           "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "oracleAdapter",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "executionAdapter",
+          "type": "address"
         }
       ],
       "name": "addWhitelistedAsset",

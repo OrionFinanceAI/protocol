@@ -11,6 +11,10 @@ import { ErrorsLib } from "./libraries/ErrorsLib.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { EventsLib } from "./libraries/EventsLib.sol";
+import "./interfaces/IOracleRegistry.sol";
+import "./interfaces/ILiquidityOrchestrator.sol";
+import "./interfaces/IPriceAdapter.sol";
+import "./interfaces/IExecutionAdapter.sol";
 
 /**
  *     ██████╗ ██████╗ ██╗ ██████╗ ███╗   ██╗    ███████╗██╗███╗   ██╗ █████╗ ███╗   ██╗ ██████╗███████╗
@@ -89,10 +93,14 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     // === Whitelist Functions ===
 
     /// @inheritdoc IOrionConfig
-    function addWhitelistedAsset(address asset) external onlyOwner {
+    function addWhitelistedAsset(address asset, address oracleAdapter, address executionAdapter) external onlyOwner {
         bool inserted = whitelistedAssets.add(asset);
         if (!inserted) revert ErrorsLib.AlreadyWhitelisted();
-        // TODO: add oracle adapter to registry and execution adapter to orchestrator.
+
+        // Register the adapters
+        IOracleRegistry(oracleRegistry).setAdapter(asset, IPriceAdapter(oracleAdapter));
+        ILiquidityOrchestrator(liquidityOrchestrator).setAdapter(asset, IExecutionAdapter(executionAdapter));
+
         emit EventsLib.WhitelistedAssetAdded(asset);
     }
 
@@ -100,7 +108,11 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     function removeWhitelistedAsset(address asset) external onlyOwner {
         bool removed = whitelistedAssets.remove(asset);
         if (!removed) revert ErrorsLib.TokenNotWhitelisted(asset);
-        // TODO: remove oracle adapter from registry and execution adapter from orchestrator.
+
+        // Remove the adapters
+        IOracleRegistry(oracleRegistry).setAdapter(asset, IPriceAdapter(address(0)));
+        ILiquidityOrchestrator(liquidityOrchestrator).setAdapter(asset, IExecutionAdapter(address(0)));
+
         emit EventsLib.WhitelistedAssetRemoved(asset);
     }
 
