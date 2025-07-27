@@ -219,8 +219,7 @@ contract InternalStatesOrchestrator is
             }
         } else if (keccak256(bytes(action)) == keccak256("processEncryptedVaults")) {
             if (currentPhase != UpkeepPhase.ProcessingEncryptedVaults) revert ErrorsLib.InvalidState();
-            // TODO: fix.
-            // _processEncryptedVaults();
+            _processEncryptedVaults();
             currentPhase = UpkeepPhase.Aggregating;
         } else if (keccak256(bytes(action)) == keccak256("aggregate")) {
             if (currentPhase != UpkeepPhase.Aggregating) revert ErrorsLib.InvalidState();
@@ -297,7 +296,6 @@ contract InternalStatesOrchestrator is
         }
     }
 
-    // TODO.
     function _processEncryptedVaults() internal {
         address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
 

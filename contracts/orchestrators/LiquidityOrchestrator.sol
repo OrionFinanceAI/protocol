@@ -34,6 +34,9 @@ import "@openzeppelin/contracts/interfaces/IERC4626.sol";
 ///      not only due to slippage, but also because asset prices can evolve
 ///      between the oracle call and execution.
 contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable, ILiquidityOrchestrator {
+    /* -------------------------------------------------------------------------- */
+    /*                                 CONTRACTS                                  */
+    /* -------------------------------------------------------------------------- */
     /// @notice Chainlink Automation Registry address
     address public automationRegistry;
 
@@ -43,14 +46,31 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
     /// @notice Internal States Orchestrator contract address
     IInternalStateOrchestrator public internalStatesOrchestrator;
 
+    /// @notice Underlying asset address
+    address public underlyingAsset;
+
     /// @notice Execution adapters mapping for assets
     mapping(address => IExecutionAdapter) public executionAdapterOf;
+
+    /* -------------------------------------------------------------------------- */
+    /*                               UPKEEP STATE                                 */
+    /* -------------------------------------------------------------------------- */
+    /// @notice Upkeep phase
+    enum UpkeepPhase {
+        Idle,
+        SellingLeg,
+        BuyingLeg,
+        StateUpdate
+    }
 
     /// @notice Last processed epoch counter from Internal States Orchestrator
     uint256 public lastProcessedEpoch;
 
-    /// @notice Underlying asset address
-    address public underlyingAsset;
+    /// @notice Upkeep phase
+    UpkeepPhase public currentPhase;
+
+    /// @notice Number of orders processed in the current leg
+    uint256 public processedLegOrders;
 
     function initialize(address initialOwner, address automationRegistry_, address config_) external initializer {
         __Ownable_init(initialOwner);
@@ -67,6 +87,9 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         underlyingAsset = address(config.underlyingAsset());
 
         lastProcessedEpoch = 0;
+
+        currentPhase = UpkeepPhase.SellingLeg;
+        processedLegOrders = 0;
     }
 
     // solhint-disable-next-line no-empty-blocks
@@ -142,15 +165,18 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
     /// @return performData Data to pass to performUpkeep
     function checkUpkeep(bytes calldata) external view override returns (bool upkeepNeeded, bytes memory performData) {
         uint256 currentEpoch = internalStatesOrchestrator.epochCounter();
-
-        upkeepNeeded = currentEpoch > lastProcessedEpoch;
-
-        performData = bytes("");
-        // NOTE: we can compute here all read-only states to generate payload to then pass to performUpkeep
-        // https://docs.chain.link/chainlink-automation/reference/automation-interfaces
-        // Losing atomicity, but better for scalability.
+        if (currentEpoch > lastProcessedEpoch && currentPhase == UpkeepPhase.Idle) {
+            upkeepNeeded = true;
+            performData = abi.encode("start");
+        }
+        // TODO: ...
+        else {
+            upkeepNeeded = false;
+            performData = "";
+        }
     }
 
+    // TODO: refacto for scalability, same as internal states orchestrator.
     /// @notice Performs the rebalancing.
     function performUpkeep(bytes calldata) external override onlyAutomationRegistry {
         uint256 currentEpoch = internalStatesOrchestrator.epochCounter();
