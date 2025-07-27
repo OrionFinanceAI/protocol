@@ -220,14 +220,17 @@
       "inputs": [
         {
           "internalType": "address",
-          "name": "_underlyingAsset",
+          "name": "orchestrator",
           "type": "address"
-        },
-        {
-          "internalType": "address",
-          "name": "_internalStatesOrchestrator",
-          "type": "address"
-        },
+        }
+      ],
+      "name": "setInternalStatesOrchestrator",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
         {
           "internalType": "address",
           "name": "_liquidityOrchestrator",
@@ -250,6 +253,19 @@
         }
       ],
       "name": "setProtocolParams",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "asset",
+          "type": "address"
+        }
+      ],
+      "name": "setUnderlyingAsset",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

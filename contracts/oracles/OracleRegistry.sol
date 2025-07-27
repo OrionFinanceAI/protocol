@@ -11,11 +11,19 @@ import { EventsLib } from "../libraries/EventsLib.sol";
 
 contract OracleRegistry is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable, IOracleRegistry {
     mapping(address => IPriceAdapter) public adapterOf;
+    address public configAddress;
 
-    function initialize(address initialOwner) public initializer {
+    modifier onlyConfig() {
+        require(msg.sender == configAddress, "Caller is not the config");
+        _;
+    }
+
+    function initialize(address initialOwner, address _configAddress) public initializer {
         __Ownable_init(initialOwner);
         __Ownable2Step_init();
         __UUPSUpgradeable_init();
+
+        configAddress = _configAddress;
     }
 
     // solhint-disable-next-line no-empty-blocks
@@ -24,7 +32,7 @@ contract OracleRegistry is Initializable, Ownable2StepUpgradeable, UUPSUpgradeab
     }
 
     /// @notice Register or replace the adapter for an asset.
-    function setAdapter(address asset, IPriceAdapter adapter) external onlyOwner {
+    function setAdapter(address asset, IPriceAdapter adapter) external onlyConfig {
         if (asset == address(0) || address(adapter) == address(0)) revert ErrorsLib.ZeroAddress();
         adapterOf[asset] = adapter;
         emit EventsLib.AdapterSet(asset, address(adapter));

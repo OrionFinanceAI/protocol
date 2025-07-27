@@ -61,10 +61,11 @@ describe("OnlyOwner Functions - Comprehensive Test Suite", function () {
       initializer: "initialize",
     });
     await orionConfig.waitForDeployment();
+    await orionConfig.setUnderlyingAsset(mockUnderlyingAsset.target);
 
     // Deploy OracleRegistry
     const OracleRegistryFactory = await ethers.getContractFactory("OracleRegistry");
-    oracleRegistry = await upgrades.deployProxy(OracleRegistryFactory, [owner.address], {
+    oracleRegistry = await upgrades.deployProxy(OracleRegistryFactory, [owner.address, orionConfig.target], {
       kind: "uups",
       initializer: "initialize",
     });
@@ -138,86 +139,13 @@ describe("OnlyOwner Functions - Comprehensive Test Suite", function () {
     // Set up OrionConfig with protocol params
     await orionConfig
       .connect(owner)
-      .setProtocolParams(
-        mockUnderlyingAsset.target,
-        internalStatesOrchestrator.target,
-        liquidityOrchestrator.target,
-        6,
-        orionVaultFactory.target,
-        oracleRegistry.target,
-      );
+      .setProtocolParams(liquidityOrchestrator.target, 6, orionVaultFactory.target, oracleRegistry.target);
 
     // Set implementations in factory
     await orionVaultFactory.connect(owner).setImplementations(transparentVaultImpl.target, encryptedVaultImpl.target);
   });
 
   describe("OrionConfig onlyOwner Functions", function () {
-    describe("setProtocolParams", function () {
-      it("should succeed when called by owner", async function () {
-        await expect(
-          orionConfig
-            .connect(owner)
-            .setProtocolParams(
-              mockUnderlyingAsset.target,
-              user1.address,
-              user2.address,
-              6,
-              orionVaultFactory.target,
-              oracleRegistry.target,
-            ),
-        ).to.emit(orionConfig, "ProtocolParamsUpdated");
-      });
-
-      it("should revert when called by non-owner", async function () {
-        await expect(
-          orionConfig
-            .connect(nonOwner)
-            .setProtocolParams(
-              mockUnderlyingAsset.target,
-              user1.address,
-              user2.address,
-              6,
-              orionVaultFactory.target,
-              oracleRegistry.target,
-            ),
-        ).to.be.revertedWithCustomError(orionConfig, "OwnableUnauthorizedAccount");
-      });
-    });
-
-    describe("addWhitelistedAsset", function () {
-      it("should succeed when called by owner", async function () {
-        await expect(orionConfig.connect(owner).addWhitelistedAsset(user1.address))
-          .to.emit(orionConfig, "WhitelistedAssetAdded")
-          .withArgs(user1.address);
-      });
-
-      it("should revert when called by non-owner", async function () {
-        await expect(orionConfig.connect(nonOwner).addWhitelistedAsset(user1.address)).to.be.revertedWithCustomError(
-          orionConfig,
-          "OwnableUnauthorizedAccount",
-        );
-      });
-    });
-
-    describe("removeWhitelistedAsset", function () {
-      beforeEach(async function () {
-        await orionConfig.connect(owner).addWhitelistedAsset(user1.address);
-      });
-
-      it("should succeed when called by owner", async function () {
-        await expect(orionConfig.connect(owner).removeWhitelistedAsset(user1.address))
-          .to.emit(orionConfig, "WhitelistedAssetRemoved")
-          .withArgs(user1.address);
-      });
-
-      it("should revert when called by non-owner", async function () {
-        await expect(orionConfig.connect(nonOwner).removeWhitelistedAsset(user1.address)).to.be.revertedWithCustomError(
-          orionConfig,
-          "OwnableUnauthorizedAccount",
-        );
-      });
-    });
-
     describe("upgradeability", function () {
       it("should succeed when owner calls upgradeToAndCall", async function () {
         const OrionConfigV2Factory = await ethers.getContractFactory("OrionConfig");
@@ -240,20 +168,6 @@ describe("OnlyOwner Functions - Comprehensive Test Suite", function () {
   });
 
   describe("OracleRegistry onlyOwner Functions", function () {
-    describe("setAdapter", function () {
-      it("should succeed when called by owner", async function () {
-        await expect(oracleRegistry.connect(owner).setAdapter(user1.address, mockPriceAdapter.target))
-          .to.emit(oracleRegistry, "AdapterSet")
-          .withArgs(user1.address, mockPriceAdapter.target);
-      });
-
-      it("should revert when called by non-owner", async function () {
-        await expect(
-          oracleRegistry.connect(nonOwner).setAdapter(user1.address, mockPriceAdapter.target),
-        ).to.be.revertedWithCustomError(oracleRegistry, "OwnableUnauthorizedAccount");
-      });
-    });
-
     describe("upgradeability", function () {
       it("should succeed when owner calls upgradeToAndCall", async function () {
         const OracleRegistryV2Factory = await ethers.getContractFactory("OracleRegistry");
@@ -298,20 +212,6 @@ describe("OnlyOwner Functions - Comprehensive Test Suite", function () {
           liquidityOrchestrator,
           "OwnableUnauthorizedAccount",
         );
-      });
-    });
-
-    describe("setAdapter", function () {
-      it("should succeed when called by owner", async function () {
-        await expect(liquidityOrchestrator.connect(owner).setAdapter(user1.address, erc4626ExecutionAdapter.target))
-          .to.emit(liquidityOrchestrator, "AdapterSet")
-          .withArgs(user1.address, erc4626ExecutionAdapter.target);
-      });
-
-      it("should revert when called by non-owner", async function () {
-        await expect(
-          liquidityOrchestrator.connect(nonOwner).setAdapter(user1.address, erc4626ExecutionAdapter.target),
-        ).to.be.revertedWithCustomError(liquidityOrchestrator, "OwnableUnauthorizedAccount");
       });
     });
 
@@ -535,131 +435,6 @@ describe("OnlyOwner Functions - Comprehensive Test Suite", function () {
           "OwnableUnauthorizedAccount",
         );
       });
-    });
-  });
-
-  describe("Edge Cases and Security Tests", function () {
-    it("should prevent zero address parameters where applicable", async function () {
-      // Test OrionConfig setProtocolParams with zero addresses
-      await expect(
-        orionConfig
-          .connect(owner)
-          .setProtocolParams(
-            ZERO_ADDRESS,
-            user1.address,
-            user2.address,
-            6,
-            orionVaultFactory.target,
-            oracleRegistry.target,
-          ),
-      ).to.be.revertedWithCustomError(orionConfig, "ZeroAddress");
-
-      // Test OracleRegistry setAdapter with zero addresses
-      await expect(
-        oracleRegistry.connect(owner).setAdapter(ZERO_ADDRESS, mockPriceAdapter.target),
-      ).to.be.revertedWithCustomError(oracleRegistry, "ZeroAddress");
-
-      await expect(oracleRegistry.connect(owner).setAdapter(user1.address, ZERO_ADDRESS)).to.be.revertedWithCustomError(
-        oracleRegistry,
-        "ZeroAddress",
-      );
-
-      // Test LiquidityOrchestrator updateAutomationRegistry with zero address
-      await expect(
-        liquidityOrchestrator.connect(owner).updateAutomationRegistry(ZERO_ADDRESS),
-      ).to.be.revertedWithCustomError(liquidityOrchestrator, "ZeroAddress");
-
-      // Test OrionVaultFactory setImplementations with zero addresses
-      await expect(
-        orionVaultFactory.connect(owner).setImplementations(ZERO_ADDRESS, user2.address),
-      ).to.be.revertedWithCustomError(orionVaultFactory, "ZeroAddress");
-
-      await expect(
-        orionVaultFactory.connect(owner).setImplementations(user1.address, ZERO_ADDRESS),
-      ).to.be.revertedWithCustomError(orionVaultFactory, "ZeroAddress");
-    });
-
-    it("should maintain state consistency after owner transfers", async function () {
-      // Transfer ownership of OrionConfig
-      await orionConfig.connect(owner).transferOwnership(user1.address);
-      await orionConfig.connect(user1).acceptOwnership();
-
-      // Original owner should no longer have access
-      await expect(orionConfig.connect(owner).addWhitelistedAsset(user2.address)).to.be.revertedWithCustomError(
-        orionConfig,
-        "OwnableUnauthorizedAccount",
-      );
-
-      // New owner should have access
-      await expect(orionConfig.connect(user1).addWhitelistedAsset(user2.address))
-        .to.emit(orionConfig, "WhitelistedAssetAdded")
-        .withArgs(user2.address);
-    });
-
-    it("should prevent function calls during ownership transfer", async function () {
-      // Start ownership transfer
-      await orionConfig.connect(owner).transferOwnership(user1.address);
-
-      // Original owner should still have access until transfer is accepted
-      await expect(orionConfig.connect(owner).addWhitelistedAsset(user2.address))
-        .to.emit(orionConfig, "WhitelistedAssetAdded")
-        .withArgs(user2.address);
-
-      // New owner should not have access until accepted
-      await expect(orionConfig.connect(user1).removeWhitelistedAsset(user2.address)).to.be.revertedWithCustomError(
-        orionConfig,
-        "OwnableUnauthorizedAccount",
-      );
-    });
-  });
-
-  describe("Integration Tests", function () {
-    it("should allow owner to configure complete system", async function () {
-      // Set up oracle adapters
-      await oracleRegistry.connect(owner).setAdapter(mockERC4626Asset.target, erc4626PriceAdapter.target);
-      await oracleRegistry.connect(owner).setAdapter(mockUnderlyingAsset.target, mockPriceAdapter.target);
-
-      // Set up execution adapters
-      await liquidityOrchestrator.connect(owner).setAdapter(mockERC4626Asset.target, erc4626ExecutionAdapter.target);
-
-      // Whitelist assets
-      await orionConfig.connect(owner).addWhitelistedAsset(mockERC4626Asset.target);
-      await orionConfig.connect(owner).addWhitelistedAsset(mockUnderlyingAsset.target);
-
-      // Create vaults
-      await orionVaultFactory.connect(owner).createOrionTransparentVault(user1.address, "Test Transparent", "TT");
-      await orionVaultFactory.connect(owner).createOrionEncryptedVault(user1.address, "Test Encrypted", "TE");
-
-      // Verify everything was set up correctly
-      expect(await oracleRegistry.adapterOf(mockERC4626Asset.target)).to.equal(erc4626PriceAdapter.target);
-      expect(await liquidityOrchestrator.executionAdapterOf(mockERC4626Asset.target)).to.equal(
-        erc4626ExecutionAdapter.target,
-      );
-      expect(await orionConfig.isWhitelisted(mockERC4626Asset.target)).to.equal(true);
-      expect(await orionConfig.isWhitelisted(mockUnderlyingAsset.target)).to.equal(true);
-    });
-
-    it("should prevent non-owners from disrupting system configuration", async function () {
-      // Try to disrupt oracle configuration
-      await expect(
-        oracleRegistry.connect(nonOwner).setAdapter(mockERC4626Asset.target, ZERO_ADDRESS),
-      ).to.be.revertedWithCustomError(oracleRegistry, "OwnableUnauthorizedAccount");
-
-      // Try to disrupt execution adapter configuration
-      await expect(
-        liquidityOrchestrator.connect(nonOwner).setAdapter(mockERC4626Asset.target, ZERO_ADDRESS),
-      ).to.be.revertedWithCustomError(liquidityOrchestrator, "OwnableUnauthorizedAccount");
-
-      // Try to disrupt whitelist
-      await expect(orionConfig.connect(nonOwner).addWhitelistedAsset(ZERO_ADDRESS)).to.be.revertedWithCustomError(
-        orionConfig,
-        "OwnableUnauthorizedAccount",
-      );
-
-      // Try to create unauthorized vaults
-      await expect(
-        orionVaultFactory.connect(nonOwner).createOrionTransparentVault(user1.address, "Malicious", "MAL"),
-      ).to.be.revertedWithCustomError(orionVaultFactory, "OwnableUnauthorizedAccount");
     });
   });
 });

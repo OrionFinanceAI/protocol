@@ -36,12 +36,13 @@ describe("LiquidityOrchestrator", function () {
     const config = await OrionConfigFactory.deploy();
     await config.waitForDeployment();
     await config.initialize(owner.address);
+    await config.setUnderlyingAsset(await underlyingAsset.getAddress());
 
     // Deploy OracleRegistry
     const OracleRegistryFactory = await ethers.getContractFactory("OracleRegistry");
     const oracleRegistry = await OracleRegistryFactory.deploy();
     await oracleRegistry.waitForDeployment();
-    await oracleRegistry.initialize(owner.address);
+    await oracleRegistry.initialize(owner.address, await config.getAddress());
 
     // Deploy InternalStatesOrchestrator
     const InternalStatesOrchestratorFactory = await ethers.getContractFactory("InternalStatesOrchestrator");
@@ -55,18 +56,14 @@ describe("LiquidityOrchestrator", function () {
     await liquidityOrchestratorContract.waitForDeployment();
 
     // Set protocol parameters in OrionConfig BEFORE initializing LiquidityOrchestrator
+    await config.connect(owner).setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
+
     await config.setProtocolParams(
-      await underlyingAsset.getAddress(),
-      await internalStatesOrchestrator.getAddress(),
       await liquidityOrchestratorContract.getAddress(),
       6, // curatorIntentDecimals
       vaultFactory.address, // factory
       await oracleRegistry.getAddress(),
     );
-
-    // Whitelist the ERC4626 assets so they can be used in vault intents
-    await config.addWhitelistedAsset(await erc4626Asset1.getAddress());
-    await config.addWhitelistedAsset(await erc4626Asset2.getAddress());
 
     // Initialize LiquidityOrchestrator after config parameters are set
     await liquidityOrchestratorContract.initialize(
@@ -82,10 +79,6 @@ describe("LiquidityOrchestrator", function () {
     await erc4626Oracle.waitForDeployment();
     await erc4626Oracle.initialize(owner.address);
 
-    // Set price adapters in registry
-    await oracleRegistry.setAdapter(await erc4626Asset1.getAddress(), await erc4626Oracle.getAddress());
-    await oracleRegistry.setAdapter(await erc4626Asset2.getAddress(), await erc4626Oracle.getAddress());
-
     // Deploy execution adapter for ERC4626 assets
     const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
 
@@ -93,13 +86,15 @@ describe("LiquidityOrchestrator", function () {
     await erc4626ExecutionAdapter.waitForDeployment();
     await erc4626ExecutionAdapter.initialize(owner.address);
 
-    // Set adapters in LiquidityOrchestrator
-    await liquidityOrchestratorContract.setAdapter(
+    // Whitelist the ERC4626 assets so they can be used in vault intents
+    await config.addWhitelistedAsset(
       await erc4626Asset1.getAddress(),
+      await erc4626Oracle.getAddress(),
       await erc4626ExecutionAdapter.getAddress(),
     );
-    await liquidityOrchestratorContract.setAdapter(
+    await config.addWhitelistedAsset(
       await erc4626Asset2.getAddress(),
+      await erc4626Oracle.getAddress(),
       await erc4626ExecutionAdapter.getAddress(),
     );
 
@@ -183,18 +178,6 @@ describe("LiquidityOrchestrator", function () {
   });
 
   describe("Access Control", function () {
-    it("Should only allow owner to set adapters", async function () {
-      const { liquidityOrchestratorContract, erc4626Asset1, erc4626ExecutionAdapter, unauthorized } = await loadFixture(
-        deployLiquidityOrchestratorFixture,
-      );
-
-      await expect(
-        liquidityOrchestratorContract
-          .connect(unauthorized)
-          .setAdapter(await erc4626Asset1.getAddress(), await erc4626ExecutionAdapter.getAddress()),
-      ).to.be.revertedWithCustomError(liquidityOrchestratorContract, "OwnableUnauthorizedAccount");
-    });
-
     it("Should only allow automation registry to perform upkeep", async function () {
       const { liquidityOrchestratorContract, unauthorized } = await loadFixture(deployLiquidityOrchestratorFixture);
 
@@ -217,24 +200,6 @@ describe("LiquidityOrchestrator", function () {
       expect(await liquidityOrchestratorContract.executionAdapterOf(await erc4626Asset2.getAddress())).to.equal(
         await erc4626ExecutionAdapter.getAddress(),
       );
-    });
-
-    it("Should revert when setting adapter with zero asset address", async function () {
-      const { liquidityOrchestratorContract, erc4626ExecutionAdapter } = await loadFixture(
-        deployLiquidityOrchestratorFixture,
-      );
-
-      await expect(
-        liquidityOrchestratorContract.setAdapter(ethers.ZeroAddress, await erc4626ExecutionAdapter.getAddress()),
-      ).to.be.revertedWithCustomError(liquidityOrchestratorContract, "ZeroAddress");
-    });
-
-    it("Should revert when setting adapter with zero adapter address", async function () {
-      const { liquidityOrchestratorContract, erc4626Asset1 } = await loadFixture(deployLiquidityOrchestratorFixture);
-
-      await expect(
-        liquidityOrchestratorContract.setAdapter(await erc4626Asset1.getAddress(), ethers.ZeroAddress),
-      ).to.be.revertedWithCustomError(liquidityOrchestratorContract, "ZeroAddress");
     });
   });
 });

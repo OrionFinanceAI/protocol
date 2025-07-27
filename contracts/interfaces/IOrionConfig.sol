@@ -35,17 +35,23 @@ interface IOrionConfig {
     /// @return The address of the oracle registry
     function oracleRegistry() external view returns (address);
 
+    /// @notice Sets the underlying asset for the protocol
+    /// @dev Can only be called by the contract owner
+    /// @param asset The address of the underlying asset contract
+    function setUnderlyingAsset(address asset) external;
+
+    /// @notice Sets the internal states orchestrator for the protocol
+    /// @dev Can only be called by the contract owner
+    /// @param orchestrator The address of the internal states orchestrator
+    function setInternalStatesOrchestrator(address orchestrator) external;
+
     /// @notice Sets the core protocol parameters in a single transaction
     /// @dev Can only be called by the contract owner
-    /// @param _underlyingAsset The address of the underlying asset contract
-    /// @param _internalStatesOrchestrator The address of the internal states orchestrator
     /// @param _liquidityOrchestrator The address of the liquidity orchestrator
     /// @param _curatorIntentDecimals The number of decimal places for curator intents
     /// @param _factory The address of the vault factory
     /// @param _oracleRegistry The address of the oracle registry
     function setProtocolParams(
-        address _underlyingAsset,
-        address _internalStatesOrchestrator,
         address _liquidityOrchestrator,
         uint8 _curatorIntentDecimals,
         address _factory,

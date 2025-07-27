@@ -22,6 +22,13 @@ describe("OrionTransparentVault", function () {
     await config.waitForDeployment();
     const configAddress = await config.getAddress();
     await config.initialize(owner.address);
+    await config.setUnderlyingAsset(underlyingAssetAddress);
+
+    // Deploy OracleRegistry
+    const OracleRegistryFactory = await ethers.getContractFactory("OracleRegistry");
+    const oracleRegistry = await OracleRegistryFactory.deploy();
+    await oracleRegistry.waitForDeployment();
+    await oracleRegistry.initialize(owner.address, await config.getAddress());
 
     // Deploy LiquidityOrchestrator
     const LiquidityOrchestratorFactory = await ethers.getContractFactory("LiquidityOrchestrator");
@@ -38,12 +45,10 @@ describe("OrionTransparentVault", function () {
 
     // Set protocol parameters using deployed contract address
     await config.setProtocolParams(
-      underlyingAssetAddress,
-      internalOrchestrator.address,
       liquidityOrchestratorAddress,
       6, // curatorIntentDecimals
       owner.address, // factory
-      owner.address, // oracleRegistry
+      await oracleRegistry.getAddress(), // oracleRegistry
     );
 
     // Deploy OrionTransparentVault (concrete implementation of OrionVault)
@@ -349,7 +354,27 @@ describe("OrionTransparentVault", function () {
     it("Should allow curator to submit order intent", async function () {
       const { vault, curator, config } = await loadFixture(deployVaultFixture);
       const tokenAddress = ethers.Wallet.createRandom().address;
-      await config.addWhitelistedAsset(tokenAddress);
+      // Deploy mock oracle adapter
+      const MockOracleAdapterFactory = await ethers.getContractFactory("MockPriceAdapter");
+      const oracleAdapter = await MockOracleAdapterFactory.deploy();
+      await oracleAdapter.waitForDeployment();
+
+      // Deploy ERC4626ExecutionAdapter
+      const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
+      const executionAdapter = await ERC4626ExecutionAdapterFactory.deploy();
+      await executionAdapter.waitForDeployment();
+
+      // Initialize mock oracle adapter
+      await oracleAdapter.initialize(curator.address);
+
+      // Initialize ERC4626ExecutionAdapter
+      await executionAdapter.initialize(curator.address);
+
+      await config.addWhitelistedAsset(
+        tokenAddress,
+        await oracleAdapter.getAddress(),
+        await executionAdapter.getAddress(),
+      );
       const order = [{ token: tokenAddress, value: 1000000 }];
       await expect(vault.connect(curator).submitIntent(order))
         .to.emit(vault, "OrderSubmitted")
@@ -375,7 +400,27 @@ describe("OrionTransparentVault", function () {
     it("Should revert order with zero amount", async function () {
       const { vault, curator, config } = await loadFixture(deployVaultFixture);
       const tokenAddress = ethers.Wallet.createRandom().address;
-      await config.addWhitelistedAsset(tokenAddress);
+      // Deploy mock oracle adapter
+      const MockOracleAdapterFactory = await ethers.getContractFactory("MockPriceAdapter");
+      const oracleAdapter = await MockOracleAdapterFactory.deploy();
+      await oracleAdapter.waitForDeployment();
+
+      // Deploy ERC4626ExecutionAdapter
+      const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
+      const executionAdapter = await ERC4626ExecutionAdapterFactory.deploy();
+      await executionAdapter.waitForDeployment();
+
+      // Initialize mock oracle adapter
+      await oracleAdapter.initialize(curator.address);
+
+      // Initialize ERC4626ExecutionAdapter
+      await executionAdapter.initialize(curator.address);
+
+      await config.addWhitelistedAsset(
+        tokenAddress,
+        await oracleAdapter.getAddress(),
+        await executionAdapter.getAddress(),
+      );
       const order = [{ token: tokenAddress, value: 0 }];
       await expect(vault.connect(curator).submitIntent(order)).to.be.revertedWithCustomError(
         vault,
@@ -386,7 +431,27 @@ describe("OrionTransparentVault", function () {
       const { vault, curator, config } = await loadFixture(deployVaultFixture);
 
       const tokenAddress = ethers.Wallet.createRandom().address;
-      await config.addWhitelistedAsset(tokenAddress);
+      // Deploy mock oracle adapter
+      const MockOracleAdapterFactory = await ethers.getContractFactory("MockPriceAdapter");
+      const oracleAdapter = await MockOracleAdapterFactory.deploy();
+      await oracleAdapter.waitForDeployment();
+
+      // Deploy ERC4626ExecutionAdapter
+      const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
+      const executionAdapter = await ERC4626ExecutionAdapterFactory.deploy();
+      await executionAdapter.waitForDeployment();
+
+      // Initialize mock oracle adapter
+      await oracleAdapter.initialize(curator.address);
+
+      // Initialize ERC4626ExecutionAdapter
+      await executionAdapter.initialize(curator.address);
+
+      await config.addWhitelistedAsset(
+        tokenAddress,
+        await oracleAdapter.getAddress(),
+        await executionAdapter.getAddress(),
+      );
 
       // same token duplicated on purpose
       const duplicated = [
@@ -402,7 +467,27 @@ describe("OrionTransparentVault", function () {
     it("Should revert order with invalid total amount", async function () {
       const { vault, curator, config } = await loadFixture(deployVaultFixture);
       const tokenAddress = ethers.Wallet.createRandom().address;
-      await config.addWhitelistedAsset(tokenAddress);
+      // Deploy mock oracle adapter
+      const MockOracleAdapterFactory = await ethers.getContractFactory("MockPriceAdapter");
+      const oracleAdapter = await MockOracleAdapterFactory.deploy();
+      await oracleAdapter.waitForDeployment();
+
+      // Deploy ERC4626ExecutionAdapter
+      const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
+      const executionAdapter = await ERC4626ExecutionAdapterFactory.deploy();
+      await executionAdapter.waitForDeployment();
+
+      // Initialize mock oracle adapter
+      await oracleAdapter.initialize(curator.address);
+
+      // Initialize ERC4626ExecutionAdapter
+      await executionAdapter.initialize(curator.address);
+
+      await config.addWhitelistedAsset(
+        tokenAddress,
+        await oracleAdapter.getAddress(),
+        await executionAdapter.getAddress(),
+      );
       const order = [{ token: tokenAddress, value: 500000 }];
       await expect(vault.connect(curator).submitIntent(order)).to.be.revertedWithCustomError(
         vault,
@@ -432,8 +517,24 @@ describe("OrionTransparentVault", function () {
       // Add whitelisted tokens
       const token1 = ethers.Wallet.createRandom().address;
       const token2 = ethers.Wallet.createRandom().address;
-      await config.addWhitelistedAsset(token1);
-      await config.addWhitelistedAsset(token2);
+      // Deploy mock oracle adapter
+      const MockOracleAdapterFactory = await ethers.getContractFactory("MockPriceAdapter");
+      const oracleAdapter = await MockOracleAdapterFactory.deploy();
+      await oracleAdapter.waitForDeployment();
+
+      // Deploy ERC4626ExecutionAdapter
+      const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
+      const executionAdapter = await ERC4626ExecutionAdapterFactory.deploy();
+      await executionAdapter.waitForDeployment();
+
+      // Initialize mock oracle adapter
+      await oracleAdapter.initialize(curator.address);
+
+      // Initialize ERC4626ExecutionAdapter
+      await executionAdapter.initialize(curator.address);
+
+      await config.addWhitelistedAsset(token1, await oracleAdapter.getAddress(), await executionAdapter.getAddress());
+      await config.addWhitelistedAsset(token2, await oracleAdapter.getAddress(), await executionAdapter.getAddress());
 
       // Submit intent
       const order = [
@@ -498,7 +599,23 @@ describe("OrionTransparentVault", function () {
       const { vault, curator, config } = await loadFixture(deployVaultFixture);
 
       const token = ethers.Wallet.createRandom().address;
-      await config.addWhitelistedAsset(token);
+      // Deploy mock oracle adapter
+      const MockOracleAdapterFactory = await ethers.getContractFactory("MockPriceAdapter");
+      const oracleAdapter = await MockOracleAdapterFactory.deploy();
+      await oracleAdapter.waitForDeployment();
+
+      // Deploy ERC4626ExecutionAdapter
+      const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
+      const executionAdapter = await ERC4626ExecutionAdapterFactory.deploy();
+      await executionAdapter.waitForDeployment();
+
+      // Initialize mock oracle adapter
+      await oracleAdapter.initialize(curator.address);
+
+      // Initialize ERC4626ExecutionAdapter
+      await executionAdapter.initialize(curator.address);
+
+      await config.addWhitelistedAsset(token, await oracleAdapter.getAddress(), await executionAdapter.getAddress());
 
       const order = [{ token: token, value: 1000000 }];
       await vault.connect(curator).submitIntent(order);
@@ -538,9 +655,25 @@ describe("OrionTransparentVault", function () {
       const token1 = ethers.Wallet.createRandom().address;
       const token2 = ethers.Wallet.createRandom().address;
       const token3 = ethers.Wallet.createRandom().address;
-      await config.addWhitelistedAsset(token1);
-      await config.addWhitelistedAsset(token2);
-      await config.addWhitelistedAsset(token3);
+      // Deploy mock oracle adapter
+      const MockOracleAdapterFactory = await ethers.getContractFactory("MockPriceAdapter");
+      const oracleAdapter = await MockOracleAdapterFactory.deploy();
+      await oracleAdapter.waitForDeployment();
+
+      // Deploy ERC4626ExecutionAdapter
+      const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
+      const executionAdapter = await ERC4626ExecutionAdapterFactory.deploy();
+      await executionAdapter.waitForDeployment();
+
+      // Initialize mock oracle adapter
+      await oracleAdapter.initialize(curator.address);
+
+      // Initialize ERC4626ExecutionAdapter
+      await executionAdapter.initialize(curator.address);
+
+      await config.addWhitelistedAsset(token1, await oracleAdapter.getAddress(), await executionAdapter.getAddress());
+      await config.addWhitelistedAsset(token2, await oracleAdapter.getAddress(), await executionAdapter.getAddress());
+      await config.addWhitelistedAsset(token3, await oracleAdapter.getAddress(), await executionAdapter.getAddress());
 
       // Submit first intent
       const order1 = [

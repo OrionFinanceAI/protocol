@@ -1,6 +1,10 @@
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
+import { AbiCoder } from "ethers";
+
+// Create an instance of AbiCoder
+const abiCoder = new AbiCoder();
 
 describe("End-to-End Protocol Simulation", function () {
   // Test fixture setup for end-to-end scenarios
@@ -45,18 +49,21 @@ describe("End-to-End Protocol Simulation", function () {
     const config = await OrionConfigFactory.deploy();
     await config.waitForDeployment();
     await config.initialize(owner.address);
+    await config.setUnderlyingAsset(await underlyingAsset.getAddress());
 
     // Deploy OracleRegistry
     const OracleRegistryFactory = await ethers.getContractFactory("OracleRegistry");
     const oracleRegistry = await OracleRegistryFactory.deploy();
     await oracleRegistry.waitForDeployment();
-    await oracleRegistry.initialize(owner.address);
+    await oracleRegistry.initialize(owner.address, await config.getAddress());
 
     // Deploy InternalStatesOrchestrator
     const InternalStatesOrchestratorFactory = await ethers.getContractFactory("InternalStatesOrchestrator");
     const internalStatesOrchestrator = await InternalStatesOrchestratorFactory.deploy();
     await internalStatesOrchestrator.waitForDeployment();
     await internalStatesOrchestrator.initialize(owner.address, automationRegistry.address, await config.getAddress());
+
+    await config.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
 
     // Deploy LiquidityOrchestrator
     const LiquidityOrchestratorFactory = await ethers.getContractFactory("LiquidityOrchestrator");
@@ -84,26 +91,11 @@ describe("End-to-End Protocol Simulation", function () {
       await encryptedVaultImpl.getAddress(),
     );
 
-    // Set protocol parameters in OrionConfig BEFORE initializing LiquidityOrchestrator
     await config.setProtocolParams(
-      await underlyingAsset.getAddress(),
-      await internalStatesOrchestrator.getAddress(),
       await liquidityOrchestratorContract.getAddress(),
       6, // curatorIntentDecimals
       await orionVaultFactory.getAddress(), // factory
       await oracleRegistry.getAddress(),
-    );
-
-    // Whitelist the ERC4626 assets so they can be used in vault intents
-    await config.addWhitelistedAsset(await erc4626Asset1.getAddress());
-    await config.addWhitelistedAsset(await erc4626Asset2.getAddress());
-    await config.addWhitelistedAsset(await erc4626Asset3.getAddress());
-
-    // Initialize LiquidityOrchestrator after config parameters are set
-    await liquidityOrchestratorContract.initialize(
-      owner.address,
-      automationRegistry.address,
-      await config.getAddress(),
     );
 
     // Deploy price adapters for oracles
@@ -113,11 +105,6 @@ describe("End-to-End Protocol Simulation", function () {
     await erc4626Oracle.waitForDeployment();
     await erc4626Oracle.initialize(owner.address);
 
-    // Set price adapters in registry
-    await oracleRegistry.setAdapter(await erc4626Asset1.getAddress(), await erc4626Oracle.getAddress());
-    await oracleRegistry.setAdapter(await erc4626Asset2.getAddress(), await erc4626Oracle.getAddress());
-    await oracleRegistry.setAdapter(await erc4626Asset3.getAddress(), await erc4626Oracle.getAddress());
-
     // Deploy execution adapter for ERC4626 assets
     const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
 
@@ -125,17 +112,27 @@ describe("End-to-End Protocol Simulation", function () {
     await erc4626ExecutionAdapter.waitForDeployment();
     await erc4626ExecutionAdapter.initialize(owner.address);
 
-    // Set adapters in LiquidityOrchestrator
-    await liquidityOrchestratorContract.setAdapter(
+    // Initialize LiquidityOrchestrator after config parameters are set
+    await liquidityOrchestratorContract.initialize(
+      owner.address,
+      automationRegistry.address,
+      await config.getAddress(),
+    );
+
+    // Whitelist the ERC4626 assets so they can be used in vault intents
+    await config.addWhitelistedAsset(
       await erc4626Asset1.getAddress(),
+      await erc4626Oracle.getAddress(),
       await erc4626ExecutionAdapter.getAddress(),
     );
-    await liquidityOrchestratorContract.setAdapter(
+    await config.addWhitelistedAsset(
       await erc4626Asset2.getAddress(),
+      await erc4626Oracle.getAddress(),
       await erc4626ExecutionAdapter.getAddress(),
     );
-    await liquidityOrchestratorContract.setAdapter(
+    await config.addWhitelistedAsset(
       await erc4626Asset3.getAddress(),
+      await erc4626Oracle.getAddress(),
       await erc4626ExecutionAdapter.getAddress(),
     );
 
@@ -237,15 +234,29 @@ describe("End-to-End Protocol Simulation", function () {
       await ethers.provider.send("evm_increaseTime", [1e18]);
       await ethers.provider.send("evm_mine", []);
 
-      // Check that upkeep is needed
-      const [internalUpkeepNeeded] = await internalStatesOrchestrator.checkUpkeep("0x");
-      expect(internalUpkeepNeeded).to.equal(true);
+      // Initialize the epoch
+      await internalStatesOrchestrator
+        .connect(automationRegistry)
+        .performUpkeep(abiCoder.encode(["string"], ["start"]));
 
-      // Perform internal states orchestrator upkeep
-      await expect(internalStatesOrchestrator.connect(automationRegistry).performUpkeep("0x")).to.emit(
-        internalStatesOrchestrator,
-        "InternalStateProcessed",
-      );
+      // Process each transparent vault
+      for (let i = 0; i < 2; i++) {
+        await internalStatesOrchestrator
+          .connect(automationRegistry)
+          .performUpkeep(abiCoder.encode(["string", "uint256"], ["processTransparentVault", i]));
+      }
+
+      // Process encrypted vaults
+      await internalStatesOrchestrator
+        .connect(automationRegistry)
+        .performUpkeep(abiCoder.encode(["string"], ["processEncryptedVaults"]));
+
+      // Verify that the InternalStateProcessed event was emitted
+      await expect(
+        internalStatesOrchestrator
+          .connect(automationRegistry)
+          .performUpkeep(abiCoder.encode(["string"], ["aggregate"])),
+      ).to.emit(internalStatesOrchestrator, "InternalStateProcessed");
 
       // Step 5: Verify the expected behavior
       const [sellingTokens, sellingAmounts] = await internalStatesOrchestrator.getSellingOrders();
@@ -341,11 +352,29 @@ describe("End-to-End Protocol Simulation", function () {
       const [internalUpkeepNeeded] = await internalStatesOrchestrator.checkUpkeep("0x");
       expect(internalUpkeepNeeded).to.equal(true);
 
+      // Initialize the epoch
+      await internalStatesOrchestrator
+        .connect(automationRegistry)
+        .performUpkeep(abiCoder.encode(["string"], ["start"]));
+
+      // Process each transparent vault
+      for (let i = 0; i < 2; i++) {
+        await internalStatesOrchestrator
+          .connect(automationRegistry)
+          .performUpkeep(abiCoder.encode(["string", "uint256"], ["processTransparentVault", i]));
+      }
+
+      // Process encrypted vaults
+      await internalStatesOrchestrator
+        .connect(automationRegistry)
+        .performUpkeep(abiCoder.encode(["string"], ["processEncryptedVaults"]));
+
       // Perform upkeep
-      await expect(internalStatesOrchestrator.connect(automationRegistry).performUpkeep("0x")).to.emit(
-        internalStatesOrchestrator,
-        "InternalStateProcessed",
-      );
+      await expect(
+        internalStatesOrchestrator
+          .connect(automationRegistry)
+          .performUpkeep(abiCoder.encode(["string"], ["aggregate"])),
+      ).to.emit(internalStatesOrchestrator, "InternalStateProcessed");
 
       // Step 5: Verify the expected behavior
       const [sellingTokens, sellingAmounts] = await internalStatesOrchestrator.getSellingOrders();
@@ -429,7 +458,20 @@ describe("End-to-End Protocol Simulation", function () {
       // Trigger internal states orchestrator to increment epoch
       await ethers.provider.send("evm_increaseTime", [1e18]);
       await ethers.provider.send("evm_mine", []);
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep("0x");
+      await internalStatesOrchestrator
+        .connect(automationRegistry)
+        .performUpkeep(abiCoder.encode(["string"], ["start"]));
+      for (let i = 0; i < 2; i++) {
+        await internalStatesOrchestrator
+          .connect(automationRegistry)
+          .performUpkeep(abiCoder.encode(["string", "uint256"], ["processTransparentVault", i]));
+      }
+      await internalStatesOrchestrator
+        .connect(automationRegistry)
+        .performUpkeep(abiCoder.encode(["string"], ["processEncryptedVaults"]));
+      await internalStatesOrchestrator
+        .connect(automationRegistry)
+        .performUpkeep(abiCoder.encode(["string"], ["aggregate"]));
 
       // First execution should work
       await expect(liquidityOrchestratorContract.connect(automationRegistry).performUpkeep("0x")).to.emit(

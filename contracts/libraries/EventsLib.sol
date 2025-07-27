@@ -26,8 +26,8 @@ library EventsLib {
     event VaultStateUpdated(uint256 newTotalAssets);
 
     // Internal States Orchestrator Events
-    event InternalStateProcessed(uint256 epochCounter);
     event AutomationRegistryUpdated(address indexed newAutomationRegistry);
+    event InternalStateProcessed(uint256 epochCounter);
 
     // Liquidity Orchestrator Events
     event PortfolioRebalanced();

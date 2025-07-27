@@ -36,26 +36,23 @@ contract InternalStatesOrchestrator is
     UUPSUpgradeable,
     IInternalStateOrchestrator
 {
-    /// @notice Timestamp when the next upkeep is allowed
-    uint256 public nextUpdateTime;
-
-    /// @notice Interval in seconds between upkeeps
-    uint256 public constant updateInterval = 1 minutes;
-
+    /* -------------------------------------------------------------------------- */
+    /*                                 CONTRACTS                                  */
+    /* -------------------------------------------------------------------------- */
     /// @notice Chainlink Automation Registry address
     address public automationRegistry;
 
     /// @notice Orion Config contract address
     IOrionConfig public config;
 
-    /// @notice Counter for tracking processing cycles
-    uint256 public epochCounter;
-
-    /// @notice Oracle price precision (18 decimals)
-    uint256 private constant ORACLE_PRECISION = 1e18;
-
     /// @notice Oracle Registry contract
     IOracleRegistry public registry;
+
+    /* -------------------------------------------------------------------------- */
+    /*                                 CONSTANTS                                  */
+    /* -------------------------------------------------------------------------- */
+    /// @notice Oracle price precision (18 decimals)
+    uint256 private constant ORACLE_PRECISION = 1e18;
 
     /// @notice Intent factor for calculations
     uint256 public intentFactor;
@@ -63,6 +60,9 @@ contract InternalStatesOrchestrator is
     /// @notice Decimals of the underlying asset
     uint8 public underlyingDecimals;
 
+    /* -------------------------------------------------------------------------- */
+    /*                                 EPOCH STATE                                */
+    /* -------------------------------------------------------------------------- */
     /// @notice Struct to hold epoch state data
     struct EpochState {
         /// @notice Price hat (p_t) - mapping of token address to estimated price [asset/underlying]
@@ -95,6 +95,31 @@ contract InternalStatesOrchestrator is
     /// @notice Expected underlying buy amount to be able to compute the tracking error during buy execution.
     uint256 public expectedUnderlyingBuyAmount;
 
+    /* -------------------------------------------------------------------------- */
+    /*                               UPKEEP STATE                                 */
+    /* -------------------------------------------------------------------------- */
+    /// @notice Upkeep phase
+    enum UpkeepPhase {
+        Idle,
+        ProcessingTransparentVaults,
+        ProcessingEncryptedVaults,
+        Aggregating
+    }
+
+    /// @notice Counter for tracking processing cycles
+    uint256 public epochCounter;
+    /// @notice Timestamp when the next upkeep is allowed
+    uint256 public nextUpdateTime;
+    /// @notice Epoch duration
+    uint256 public constant updateInterval = 1 minutes;
+
+    /// @notice Upkeep phase
+    UpkeepPhase public currentPhase;
+    /// @notice Current vault index
+    uint256 public currentVaultIndex;
+    /// @notice Transparent vaults associated to the current epoch
+    address[] public transparentVaultEpoch;
+
     function initialize(address initialOwner, address automationRegistry_, address config_) public initializer {
         __Ownable_init(initialOwner);
         __Ownable2Step_init();
@@ -113,6 +138,9 @@ contract InternalStatesOrchestrator is
 
         nextUpdateTime = _computeNextUpdateTime(block.timestamp);
         epochCounter = 0;
+
+        currentPhase = UpkeepPhase.Idle;
+        currentVaultIndex = 0;
     }
 
     // solhint-disable-next-line no-empty-blocks
@@ -142,36 +170,143 @@ contract InternalStatesOrchestrator is
     }
 
     /// @notice Checks if upkeep is needed based on time interval
+    /// @dev https://docs.chain.link/chainlink-automation/reference/automation-interfaces
     function checkUpkeep(bytes calldata) external view override returns (bool upkeepNeeded, bytes memory performData) {
-        upkeepNeeded = _shouldTriggerUpkeep();
-        performData = bytes("");
-        // NOTE: we can compute here all read-only states to generate payload to then pass to performUpkeep
-        // https://docs.chain.link/chainlink-automation/reference/automation-interfaces
-        // Losing atomicity, but better for scalability.
+        if (currentPhase == UpkeepPhase.Idle && _shouldTriggerUpkeep()) {
+            upkeepNeeded = true;
+            performData = abi.encode("start");
+        } else if (
+            currentPhase == UpkeepPhase.ProcessingTransparentVaults && currentVaultIndex < transparentVaultEpoch.length
+        ) {
+            upkeepNeeded = true;
+            performData = abi.encode("processTransparentVault", currentVaultIndex);
+        } else if (currentPhase == UpkeepPhase.ProcessingEncryptedVaults) {
+            upkeepNeeded = true;
+            performData = abi.encode("processEncryptedVaults");
+        } else if (currentPhase == UpkeepPhase.Aggregating) {
+            upkeepNeeded = true;
+            performData = abi.encode("aggregate");
+        } else {
+            upkeepNeeded = false;
+            performData = "";
+        }
     }
-
-    // TODO: Give up atomicity for scalability, have N_plaintext vaults + 1 transactions instead of one single performUpkeep transaction.
-    // have two states triggering chainlink automation, one time, the other the N+1 processor, once all processed, trigger liquidity orchestrator.
 
     /// @notice Performs state reading and estimation operations
     /// @dev This function:
     ///      - Reads current vault states and oracle prices;
     ///      - Computes estimated system states;
-    ///      - Emits events to trigger the Liquidity Orchestrator
-    function performUpkeep(bytes calldata) external override onlyAutomationRegistry nonReentrant {
-        _checkAndCountEpoch();
-        _resetEpochState();
+    ///      - Updates epoch state to trigger the Liquidity Orchestrator
+    function performUpkeep(bytes calldata performData) external override onlyAutomationRegistry nonReentrant {
+        if (performData.length == 0) revert ErrorsLib.InvalidArguments();
+        string memory action;
+        uint256 index;
+        (action, index) = abi.decode(performData, (string, uint256));
 
-        /* ---------- TRANSPARENT VAULTS ---------- */
+        if (keccak256(bytes(action)) == keccak256("start")) {
+            _checkAndCountEpoch();
+            _resetEpochState();
+            transparentVaultEpoch = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
+            currentVaultIndex = 0;
+            currentPhase = UpkeepPhase.ProcessingTransparentVaults;
+        } else if (keccak256(bytes(action)) == keccak256("processTransparentVault")) {
+            if (currentPhase != UpkeepPhase.ProcessingTransparentVaults) revert ErrorsLib.InvalidState();
+            _processTransparentVault(index);
+            currentVaultIndex++;
 
-        address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
-        for (uint256 i = 0; i < transparentVaults.length; i++) {
-            IOrionTransparentVault vault = IOrionTransparentVault(transparentVaults[i]);
+            if (currentVaultIndex >= transparentVaultEpoch.length) {
+                currentPhase = UpkeepPhase.ProcessingEncryptedVaults;
+            }
+        } else if (keccak256(bytes(action)) == keccak256("processEncryptedVaults")) {
+            if (currentPhase != UpkeepPhase.ProcessingEncryptedVaults) revert ErrorsLib.InvalidState();
+            // TODO: fix.
+            // _processEncryptedVaults();
+            currentPhase = UpkeepPhase.Aggregating;
+        } else if (keccak256(bytes(action)) == keccak256("aggregate")) {
+            if (currentPhase != UpkeepPhase.Aggregating) revert ErrorsLib.InvalidState();
 
-            (address[] memory portfolioTokens, uint256[] memory sharesPerAsset) = vault.getPortfolio();
+            // TODO: Finally sum up decrypted_encryptedBatchPortfolio to get _finalBatchPortfolioHat
+            // Analogous for estimated total assets and for initial batch portfolio.
+
+            // TODO: add reminder portfolio coming from execution error of previous epoch.
+            // Store such portfolio in this orchestrator state, write it from the liquidity orchestrator.
+            // This also contributes to the current epoch state and is used to estimate the rebalancing orders.
+
+            // Compute selling and buying orders based on portfolio differences
+            _computeRebalancingOrders();
+
+            currentPhase = UpkeepPhase.Idle;
+            delete transparentVaultEpoch;
+            epochCounter++;
+
+            emit EventsLib.InternalStateProcessed(epochCounter);
+        } else {
+            revert ErrorsLib.InvalidArguments();
+        }
+    }
+
+    function _processTransparentVault(uint256 i) internal {
+        IOrionTransparentVault vault = IOrionTransparentVault(transparentVaultEpoch[i]);
+
+        (address[] memory portfolioTokens, uint256[] memory sharesPerAsset) = vault.getPortfolio();
+
+        // Calculate estimated active total assets (t_1) and populate batch portfolio
+        uint256 t1Hat = 0;
+        for (uint256 j = 0; j < portfolioTokens.length; j++) {
+            address token = portfolioTokens[j];
+
+            // Get and cache token decimals if not already cached
+            if (_currentEpoch.tokenDecimals[token] == 0) {
+                _currentEpoch.tokenDecimals[token] = IERC20Metadata(token).decimals();
+            }
+            uint8 tokenDecimals = _currentEpoch.tokenDecimals[token];
+
+            // Get and cache price if not already cached
+            uint256 price = _currentEpoch.priceHat[token];
+            if (price == 0) {
+                price = registry.getPrice(token);
+                _currentEpoch.priceHat[token] = price;
+            }
+
+            // Calculate estimated value of the asset in underlying asset decimals
+            uint256 value = _calculateTokenValue(price, sharesPerAsset[j], tokenDecimals);
+            t1Hat += value;
+            _currentEpoch.initialBatchPortfolioHat[token] += value;
+            _addTokenIfNotExists(token);
+        }
+
+        uint256 pendingWithdrawalsHat = vault.convertToAssetsWithPITTotalAssets(
+            vault.getPendingWithdrawals(),
+            t1Hat,
+            Math.Rounding.Floor
+        );
+        // Calculate estimated (active and passive) total assets (t_2), same decimals as underlying.
+        uint256 t2Hat = t1Hat + vault.getPendingDeposits() - pendingWithdrawalsHat;
+
+        (address[] memory intentTokens, uint256[] memory intentWeights) = vault.getIntent();
+        uint256 intentLength = intentTokens.length;
+        for (uint256 j = 0; j < intentLength; j++) {
+            address token = intentTokens[j];
+            uint256 weight = intentWeights[j];
+
+            // same decimals as underlying
+            uint256 value = (t2Hat * weight) / intentFactor;
+
+            _currentEpoch.finalBatchPortfolioHat[token] += value;
+            _addTokenIfNotExists(token);
+        }
+    }
+
+    // TODO.
+    function _processEncryptedVaults() internal {
+        address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
+
+        for (uint256 i = 0; i < encryptedVaults.length; i++) {
+            IOrionEncryptedVault vault = IOrionEncryptedVault(encryptedVaults[i]);
+            (address[] memory portfolioTokens, euint32[] memory sharesPerAsset) = vault.getPortfolio();
 
             // Calculate estimated active total assets (t_1) and populate batch portfolio
-            uint256 t1Hat = 0;
+            euint32 encryptedT1Hat = FHE.asEuint32(0);
             for (uint256 j = 0; j < portfolioTokens.length; j++) {
                 address token = portfolioTokens[j];
 
@@ -188,85 +323,13 @@ contract InternalStatesOrchestrator is
                     _currentEpoch.priceHat[token] = price;
                 }
 
-                // Calculate estimated value of the asset in underlying asset decimals
-                uint256 value = _calculateTokenValue(price, sharesPerAsset[j], tokenDecimals);
-
-                t1Hat += value;
-
-                _currentEpoch.initialBatchPortfolioHat[token] += value;
-                _addTokenIfNotExists(token);
+                euint32 value = _calculateEncryptedTokenValue(price, sharesPerAsset[j], tokenDecimals);
+                encryptedT1Hat = FHE.add(encryptedT1Hat, value);
+                // TODO...
             }
-
-            uint256 pendingWithdrawalsHat = vault.convertToAssetsWithPITTotalAssets(
-                vault.getPendingWithdrawals(),
-                t1Hat,
-                Math.Rounding.Floor
-            );
-
-            // Calculate estimated (active and passive) total assets (t_2), same decimals as underlying.
-            uint256 t2Hat = t1Hat + vault.getPendingDeposits() - pendingWithdrawalsHat;
-
-            (address[] memory intentTokens, uint256[] memory intentWeights) = vault.getIntent();
-
-            uint256 intentLength = intentTokens.length;
-
-            for (uint256 j = 0; j < intentLength; j++) {
-                address token = intentTokens[j];
-                uint256 weight = intentWeights[j];
-
-                // same decimals as underlying
-                uint256 value = (t2Hat * weight) / intentFactor;
-
-                _currentEpoch.finalBatchPortfolioHat[token] += value;
-                _addTokenIfNotExists(token);
-            }
+            (address[] memory intentTokens, euint32[] memory intentWeights) = vault.getIntent();
+            // TODO...
         }
-
-        /* ---------- ENCRYPTED VAULTS ---------- */
-        // TODO
-
-        // address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
-
-        // for (uint256 i = 0; i < encryptedVaults.length; i++) {
-        //     IOrionEncryptedVault vault = IOrionEncryptedVault(encryptedVaults[i]);
-
-        //     (address[] memory portfolioTokens, euint32[] memory sharesPerAsset) = vault.getPortfolio();
-
-        //     // Calculate estimated active total assets (t_1) and populate batch portfolio
-        //     euint32 encryptedT1Hat = FHE.asEuint32(0);
-        //     for (uint256 j = 0; j < portfolioTokens.length; j++) {
-        //         address token = portfolioTokens[j];
-
-        //         // Get price from cache or from registry.
-        //         // Avoid re-fetching price if already cached.
-        //         uint256 price = _currentEpoch.priceHat[token];
-        //         if (price == 0) {
-        //             price = registry.getPrice(token);
-        //             _currentEpoch.priceHat[token] = price;
-        //         }
-        //         // TODO: get and cache token decimals if not already cached, pass it to _calculateEncryptedTokenValue.
-        //         euint32 value = _calculateEncryptedTokenValue(price, sharesPerAsset[j], token);
-
-        //         encryptedT1Hat = FHE.add(encryptedT1Hat, value);
-
-        //         // ...
-        //     }
-
-        //     (address[] memory intentTokens, euint32[] memory intentWeights) = vault.getIntent();
-
-        //     // ...
-        // }
-        // Finally sum up decrypted_encryptedBatchPortfolio to get _finalBatchPortfolioHat
-        // Analogous for estimated total assets and for initial batch portfolio.
-
-        // TODO: add reminder portfolio coming from execution error of previous epoch.
-        // Store such portfolio in this orchestrator state, write it from the liquidity orchestrator.
-        // This also contributes to the current epoch state and is used to estimate the rebalancing orders.
-
-        // Compute selling and buying orders based on portfolio differences
-        _computeRebalancingOrders();
-
-        emit EventsLib.InternalStateProcessed(epochCounter);
     }
 
     /* -------------------------------------------------------------------------- */
@@ -276,7 +339,6 @@ contract InternalStatesOrchestrator is
     function _checkAndCountEpoch() internal {
         if (!_shouldTriggerUpkeep()) revert ErrorsLib.TooEarly();
         nextUpdateTime = _computeNextUpdateTime(block.timestamp);
-        epochCounter++;
     }
 
     /// @notice Computes the next update time based on current timestamp
@@ -375,12 +437,15 @@ contract InternalStatesOrchestrator is
         uint8 fromDecimals,
         uint8 toDecimals
     ) internal pure returns (uint256 scaledAmount) {
-        if (toDecimals >= fromDecimals) {
+        if (toDecimals > fromDecimals) {
             // Scale up: multiply by the difference
             scaledAmount = amount * (10 ** (toDecimals - fromDecimals));
-        } else {
+        } else if (toDecimals < fromDecimals) {
             // Scale down: divide by the difference
             scaledAmount = amount / (10 ** (fromDecimals - toDecimals));
+        } else {
+            // No conversion needed if decimals are the same
+            scaledAmount = amount;
         }
     }
 
@@ -401,6 +466,13 @@ contract InternalStatesOrchestrator is
         uint256 scaledValue = _convertDecimals(baseValue, tokenDecimals, underlyingDecimals);
         value = scaledValue / ORACLE_PRECISION;
     }
+
+    // TODO.
+    function _calculateEncryptedTokenValue(
+        uint256 price,
+        euint32 shares,
+        uint8 tokenDecimals
+    ) internal view returns (euint32 value) {}
 
     /// @notice Calculates token shares from underlying asset value (inverse of _calculateTokenValue)
     /// @dev Handles decimal conversion from underlying asset decimals to token decimals

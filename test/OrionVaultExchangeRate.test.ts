@@ -20,11 +20,10 @@ describe("OrionVault Exchange Rate Tests", function () {
     await config.waitForDeployment();
     const configAddress = await config.getAddress();
     await config.initialize(owner.address);
+    await config.setUnderlyingAsset(underlyingAssetAddress);
 
     // Set protocol parameters
     await config.setProtocolParams(
-      underlyingAssetAddress,
-      internalOrchestrator.address,
       liquidityOrchestrator.address,
       6, // curatorIntentDecimals
       owner.address, // factory

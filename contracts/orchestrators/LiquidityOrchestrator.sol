@@ -80,6 +80,11 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         _;
     }
 
+    modifier onlyConfig() {
+        if (msg.sender != address(config)) revert ErrorsLib.NotAuthorized();
+        _;
+    }
+
     /// @notice Updates the Chainlink Automation Registry address
     /// @param newAutomationRegistry The new automation registry address
     function updateAutomationRegistry(address newAutomationRegistry) external onlyOwner {
@@ -98,7 +103,7 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
     /// @notice Register or replace the adapter for an asset.
     /// @param asset The address of the asset
     /// @param adapter The execution adapter for the asset
-    function setAdapter(address asset, IExecutionAdapter adapter) external onlyOwner {
+    function setAdapter(address asset, IExecutionAdapter adapter) external onlyConfig {
         if (asset == address(0) || address(adapter) == address(0)) revert ErrorsLib.ZeroAddress();
         executionAdapterOf[asset] = adapter;
         emit EventsLib.AdapterSet(asset, address(adapter));

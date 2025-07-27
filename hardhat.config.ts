@@ -38,6 +38,7 @@ const config: HardhatUserConfig = {
         blockNumber: 5555555,
       },
       chainId: 31337,
+      initialBaseFeePerGas: 0,
     },
   },
   etherscan: {

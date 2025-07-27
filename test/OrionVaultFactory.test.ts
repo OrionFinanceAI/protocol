@@ -27,6 +27,8 @@ beforeEach(async function () {
   orionConfig = await OrionConfigFactory.deploy();
   await orionConfig.waitForDeployment();
   await orionConfig.initialize(owner.address);
+  await orionConfig.setUnderlyingAsset(await underlyingAsset.getAddress());
+  await orionConfig.setInternalStatesOrchestrator(await other.address);
 
   const OrionVaultFactoryFactory = await ethers.getContractFactory("OrionVaultFactory");
   const factoryInstance = await OrionVaultFactoryFactory.deploy();
@@ -35,8 +37,6 @@ beforeEach(async function () {
   orionVaultFactory = await ethers.getContractAt("OrionVaultFactory", await factoryInstance.getAddress());
 
   await orionConfig.setProtocolParams(
-    await underlyingAsset.getAddress(),
-    other.address, // internalStatesOrchestrator
     other.address, // liquidityOrchestrator
     6, // curatorIntentDecimals
     await orionVaultFactory.getAddress(), // factory
