@@ -88,7 +88,7 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
 
         lastProcessedEpoch = 0;
 
-        currentPhase = UpkeepPhase.SellingLeg;
+        currentPhase = UpkeepPhase.Idle;
         processedLegOrders = 0;
     }
 
@@ -314,7 +314,7 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
 
         // Get the underlying asset from the adapter (assumes it's an ERC4626 adapter)
-        address underlyingAsset = IERC4626(asset).asset();
+        address underlyingAsset = IERC4626(asset).asset(); // TODO: fix, This declaration shadows an existing declaration.
 
         // Approve adapter to spend underlying assets
         bool success = IERC20(underlyingAsset).approve(address(adapter), amount);

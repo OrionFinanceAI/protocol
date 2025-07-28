@@ -118,7 +118,7 @@ contract InternalStatesOrchestrator is
     /// @notice Current vault index
     uint256 public currentVaultIndex;
     /// @notice Transparent vaults associated to the current epoch
-    address[] public transparentVaultEpoch;
+    address[] public transparentVaultsEpoch;
 
     function initialize(address initialOwner, address automationRegistry_, address config_) public initializer {
         __Ownable_init(initialOwner);
@@ -176,7 +176,7 @@ contract InternalStatesOrchestrator is
             upkeepNeeded = true;
             performData = abi.encode("start");
         } else if (
-            currentPhase == UpkeepPhase.ProcessingTransparentVaults && currentVaultIndex < transparentVaultEpoch.length
+            currentPhase == UpkeepPhase.ProcessingTransparentVaults && currentVaultIndex < transparentVaultsEpoch.length
         ) {
             upkeepNeeded = true;
             performData = abi.encode("processTransparentVault", currentVaultIndex);
@@ -204,7 +204,7 @@ contract InternalStatesOrchestrator is
         if (keccak256(bytes(action)) == keccak256("start")) {
             _checkAndCountEpoch();
             _resetEpochState();
-            transparentVaultEpoch = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
+            transparentVaultsEpoch = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
             currentVaultIndex = 0;
             currentPhase = UpkeepPhase.ProcessingTransparentVaults;
         } else if (keccak256(bytes(action)) == keccak256("processTransparentVault")) {
@@ -215,19 +215,14 @@ contract InternalStatesOrchestrator is
             if (currentPhase != UpkeepPhase.Aggregating) revert ErrorsLib.InvalidState();
 
             // TODO: Finally sum up decrypted_encryptedBatchPortfolio to get _finalBatchPortfolioHat
-            // Analogous for estimated total assets and for initial batch portfolio.
-
-            // TODO: add reminder portfolio coming from execution error of previous epoch.
-            // Store such portfolio in this orchestrator state, write it from the liquidity orchestrator.
-            // This also contributes to the current epoch state and is used to estimate the rebalancing orders.
+            // TODO: same for estimated total assets and for initial batch portfolio.
 
             // Compute selling and buying orders based on portfolio differences
             _computeRebalancingOrders();
 
             currentPhase = UpkeepPhase.Idle;
-            delete transparentVaultEpoch;
+            delete transparentVaultsEpoch;
             epochCounter++;
-
             emit EventsLib.InternalStateProcessed(epochCounter);
         } else {
             revert ErrorsLib.InvalidArguments();
@@ -236,7 +231,7 @@ contract InternalStatesOrchestrator is
 
     function _processTransparentVault(uint256 i) internal {
         if (currentPhase != UpkeepPhase.ProcessingTransparentVaults) revert ErrorsLib.InvalidState();
-        IOrionTransparentVault vault = IOrionTransparentVault(transparentVaultEpoch[i]);
+        IOrionTransparentVault vault = IOrionTransparentVault(transparentVaultsEpoch[i]);
 
         (address[] memory portfolioTokens, uint256[] memory sharesPerAsset) = vault.getPortfolio();
 
@@ -288,7 +283,7 @@ contract InternalStatesOrchestrator is
 
         currentVaultIndex++;
 
-        if (currentVaultIndex >= transparentVaultEpoch.length) {
+        if (currentVaultIndex >= transparentVaultsEpoch.length) {
             currentPhase = UpkeepPhase.ProcessingEncryptedVaults;
         }
     }
