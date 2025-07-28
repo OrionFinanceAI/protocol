@@ -14,7 +14,7 @@ contract OracleRegistry is Initializable, Ownable2StepUpgradeable, UUPSUpgradeab
     address public configAddress;
 
     modifier onlyConfig() {
-        require(msg.sender == configAddress, "Caller is not the config");
+        if (msg.sender != configAddress) revert ErrorsLib.NotAuthorized();
         _;
     }
 

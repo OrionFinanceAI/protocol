@@ -199,9 +199,7 @@ contract InternalStatesOrchestrator is
     ///      - Updates epoch state to trigger the Liquidity Orchestrator
     function performUpkeep(bytes calldata performData) external override onlyAutomationRegistry nonReentrant {
         if (performData.length == 0) revert ErrorsLib.InvalidArguments();
-        string memory action;
-        uint256 index;
-        (action, index) = abi.decode(performData, (string, uint256));
+        (string memory action, uint256 index) = abi.decode(performData, (string, uint256));
 
         if (keccak256(bytes(action)) == keccak256("start")) {
             _checkAndCountEpoch();
@@ -210,17 +208,9 @@ contract InternalStatesOrchestrator is
             currentVaultIndex = 0;
             currentPhase = UpkeepPhase.ProcessingTransparentVaults;
         } else if (keccak256(bytes(action)) == keccak256("processTransparentVault")) {
-            if (currentPhase != UpkeepPhase.ProcessingTransparentVaults) revert ErrorsLib.InvalidState();
             _processTransparentVault(index);
-            currentVaultIndex++;
-
-            if (currentVaultIndex >= transparentVaultEpoch.length) {
-                currentPhase = UpkeepPhase.ProcessingEncryptedVaults;
-            }
         } else if (keccak256(bytes(action)) == keccak256("processEncryptedVaults")) {
-            if (currentPhase != UpkeepPhase.ProcessingEncryptedVaults) revert ErrorsLib.InvalidState();
             _processEncryptedVaults();
-            currentPhase = UpkeepPhase.Aggregating;
         } else if (keccak256(bytes(action)) == keccak256("aggregate")) {
             if (currentPhase != UpkeepPhase.Aggregating) revert ErrorsLib.InvalidState();
 
@@ -245,6 +235,7 @@ contract InternalStatesOrchestrator is
     }
 
     function _processTransparentVault(uint256 i) internal {
+        if (currentPhase != UpkeepPhase.ProcessingTransparentVaults) revert ErrorsLib.InvalidState();
         IOrionTransparentVault vault = IOrionTransparentVault(transparentVaultEpoch[i]);
 
         (address[] memory portfolioTokens, uint256[] memory sharesPerAsset) = vault.getPortfolio();
@@ -294,9 +285,16 @@ contract InternalStatesOrchestrator is
             _currentEpoch.finalBatchPortfolioHat[token] += value;
             _addTokenIfNotExists(token);
         }
+
+        currentVaultIndex++;
+
+        if (currentVaultIndex >= transparentVaultEpoch.length) {
+            currentPhase = UpkeepPhase.ProcessingEncryptedVaults;
+        }
     }
 
     function _processEncryptedVaults() internal {
+        if (currentPhase != UpkeepPhase.ProcessingEncryptedVaults) revert ErrorsLib.InvalidState();
         address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
 
         for (uint256 i = 0; i < encryptedVaults.length; i++) {
@@ -328,6 +326,8 @@ contract InternalStatesOrchestrator is
             (address[] memory intentTokens, euint32[] memory intentWeights) = vault.getIntent();
             // TODO...
         }
+
+        currentPhase = UpkeepPhase.Aggregating;
     }
 
     /* -------------------------------------------------------------------------- */
@@ -465,12 +465,15 @@ contract InternalStatesOrchestrator is
         value = scaledValue / ORACLE_PRECISION;
     }
 
-    // TODO.
+    /// @notice Calculates encrypted token value in underlying asset decimals
+    /// @dev Same as _calculateTokenValue but with encrypted shares
     function _calculateEncryptedTokenValue(
         uint256 price,
         euint32 shares,
         uint8 tokenDecimals
-    ) internal view returns (euint32 value) {}
+    ) internal view returns (euint32 value) {
+        // TODO...
+    }
 
     /// @notice Calculates token shares from underlying asset value (inverse of _calculateTokenValue)
     /// @dev Handles decimal conversion from underlying asset decimals to token decimals

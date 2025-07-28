@@ -21,7 +21,6 @@ describe("OnlyOwner Functions - Comprehensive Test Suite", function () {
   let owner: SignerWithAddress;
   let nonOwner: SignerWithAddress;
   let user1: SignerWithAddress;
-  let user2: SignerWithAddress;
   let automationRegistry: SignerWithAddress;
 
   // Contract instances
