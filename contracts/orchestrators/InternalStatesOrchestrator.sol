@@ -266,7 +266,7 @@ contract InternalStatesOrchestrator is
             Math.Rounding.Floor
         );
         // Calculate estimated (active and passive) total assets (t_2), same decimals as underlying.
-        uint256 t2Hat = t1Hat + vault.getPendingDeposits() - pendingWithdrawalsHat;
+        uint256 t2Hat = t1Hat + vault.getPendingDeposits() - pendingWithdrawalsHat; // TODO: - curator fee(TVL, return,...) - protocol_fee(vault)
 
         (address[] memory intentTokens, uint256[] memory intentWeights) = vault.getIntent();
         uint256 intentLength = intentTokens.length;
@@ -320,6 +320,8 @@ contract InternalStatesOrchestrator is
             }
             (address[] memory intentTokens, euint32[] memory intentWeights) = vault.getIntent();
             // TODO...
+
+            // TODO: curator fee(TVL, return,...) - protocol fee(vault). Protocol fee here can be different from the transparent vaults because of added costs.
         }
 
         currentPhase = UpkeepPhase.Aggregating;
