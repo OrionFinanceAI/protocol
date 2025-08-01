@@ -35,7 +35,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # --- Simulation parameters ---
-epochs = 1000
+epochs = 365 * 2
 # --- Simulated slippage model (Gaussian + extreme events) ---
 np.random.seed(42)
 # Models continuous, minor slippage due to market impact + micro-volatility (e.g., drift and diffusion in a Brownian motion).
@@ -52,14 +52,18 @@ raw_slippage_series = base_slippage + extreme_slippage
 # estimation of the slippage statistics and design a robust and capital efficient buffer.
 # This bound is saying: "if the execution engine is unable to find an execution policy with an average slippage below this,
 # (partially) revert the transaction".
-slippage_bound = 0.005 
+slippage_bound = 0.005
 # Setting a bit above the standard 0.03. At the same time, in the multivariate case, the portfolio slippage is lower, given is weighted average of slippages all of max this value.
 # So geometrically, it's still possible to have this at the portfolio level, but the more assets, the less probable.
 slippage_series = np.clip(raw_slippage_series, -slippage_bound, slippage_bound)
 
-tvl = 1_000_000
+# Simulate dynamic TVL growing in time arriving "at regime" and look at the population of the buffer as the protocol TVL changes.
+noise = np.random.normal(0.0, 100_000.0, size=epochs)
+tvl = np.power(np.linspace(2, 10, epochs), 2) * 50_000 + noise
+tvl = np.maximum(50_000, tvl)
+
 target_ratio = slippage_bound * 1.1 # bigger than slippage bound to ensure solvency while using a smoother fee time series (second order buffer).
-initial_buffer = target_ratio * tvl # Setting initial buffer to target ratio to avoid big initial fees.
+initial_buffer = target_ratio * tvl[0] # Setting initial buffer to target ratio to avoid big initial fees.
 
 # Create figure with 3 subplots
 fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(20, 6))
@@ -89,42 +93,34 @@ plt.tight_layout()
 
 # --- Dynamic fee function with smoothing ---
 class SmoothFeeController:
-    def __init__(self, tvl, target_ratio, smoothing_factor):
-        self.tvl = tvl
+    def __init__(self, target_ratio, smoothing_factor):
         self.target_ratio = target_ratio
         self.smoothing_factor = smoothing_factor  # Exponential smoothing factor
-        self.previous_fee = 0.0
         self.smoothed_error = 0.0
     
-    def calculate_fee_rate(self, current_buffer):
-        buffer_ratio = current_buffer / self.tvl
-        error = self.target_ratio - buffer_ratio
-
+    def calculate_fee_rate(self, current_buffer, current_tvl):
+        buffer_ratio = current_buffer / current_tvl
         # If buffer is below slippage bound, return the slippage bound.
         if buffer_ratio < slippage_bound:
             new_fee = 1.000001 * (slippage_bound - buffer_ratio)
             return new_fee
         
+        error = self.target_ratio - buffer_ratio
+
         # Exponential smoothing of the error
         self.smoothed_error = (self.smoothing_factor * error + 
                             (1 - self.smoothing_factor) * self.smoothed_error)
         
         # Proportional control with smoothed error
         k = 1.
-        target_fee = k * self.smoothed_error
-        
-        # Rate limiting to prevent sharp changes
-        fee_change = target_fee - self.previous_fee
-        
-        new_fee = self.previous_fee + fee_change
+        new_fee = k * self.smoothed_error
+                
         new_fee = max(0.0, new_fee)  # Ensure non-negative fees
-            
-        self.previous_fee = new_fee
+
         return new_fee
 
 # Initialize the smooth fee controller
 fee_controller = SmoothFeeController(
-    tvl=tvl,
     target_ratio=target_ratio,
     smoothing_factor=0.05,
 )
@@ -132,8 +128,8 @@ fee_controller = SmoothFeeController(
 
 
 # Original simple fee function for comparison
-def simple_fee_rate(current_buffer, tvl):
-    buffer_ratio = current_buffer / tvl
+def simple_fee_rate(current_buffer, current_tvl):
+    buffer_ratio = current_buffer / current_tvl
     k = 1
     fee = k * (target_ratio - buffer_ratio)
     return max(0.0, fee)
@@ -147,12 +143,13 @@ original_fee_rates = []  # For comparison
 # --- Simulation loop ---
 for i in range(epochs):
     current_buffer = buffer_over_time[-1]
-    fee_rate = fee_controller.calculate_fee_rate(current_buffer)
-    original_fee_rate = simple_fee_rate(current_buffer, tvl)
-    fees = fee_rate * tvl
+    current_tvl = tvl[i]
+    fee_rate = fee_controller.calculate_fee_rate(current_buffer, current_tvl)
+    original_fee_rate = simple_fee_rate(current_buffer, current_tvl)
+    fees = fee_rate * current_tvl
 
     slippage = slippage_series[i]
-    total_slippage_cost = slippage * tvl
+    total_slippage_cost = slippage * current_tvl
 
     new_buffer = current_buffer + fees - total_slippage_cost
     buffer_over_time.append(new_buffer)
@@ -200,12 +197,30 @@ ax3.set_title("Slippage Events Over Time")
 ax3.legend()
 ax3.grid(True, alpha=0.3)
 
-# Figure 4: Fees Collected
+# Figure 4: Fees Collected with Moving Averages
 ax4 = axes[1, 1]
-ax4.plot(fees_collected, label="Fees Collected ($)", color='orange', linewidth=2)
+ax4.plot(fees_collected, label="Fees Collected ($)", color='orange', linewidth=2, alpha=0.8)
+
+# Calculate multiple moving averages
+window_sizes = [30, 90, 180, 360]  # Different window sizes for moving averages
+colors = ['blue', 'green', 'red', 'purple']
+labels = ['MA(30)', 'MA(90)', 'MA(180)', 'MA(360)']
+
+for i, window in enumerate(window_sizes):
+    if len(fees_collected) >= window:
+        # Calculate moving average
+        ma = []
+        for j in range(len(fees_collected)):
+            if j < window - 1:
+                ma.append(np.nan)  # Not enough data for full window
+            else:
+                ma.append(np.mean(fees_collected[j-window+1:j+1]))
+        
+        ax4.plot(ma, label=labels[i], color=colors[i], linewidth=1.5, alpha=0.8)
+
 ax4.set_xlabel("Batch Execution Step")
 ax4.set_ylabel("Fees Collected ($)")
-ax4.set_title("Fees Collected Over Time")
+ax4.set_title("Fees Collected Over Time with Moving Averages")
 ax4.legend()
 ax4.grid(True, alpha=0.3)
 
@@ -224,7 +239,7 @@ ax5.grid(True, alpha=0.3)
 
 # Figure 6: Buffer Health Ratio
 ax6 = axes[2, 1]
-buffer_ratio = [b / tvl for b in buffer_over_time]
+buffer_ratio = [b / t for b, t in zip(buffer_over_time, tvl)]
 ax6.plot(buffer_ratio, label="Buffer/TVL Ratio", color='purple', linewidth=2)
 ax6.axhline(y=0.02, color='red', linestyle='--', label="2% Threshold")
 ax6.axhline(y=0.05, color='orange', linestyle='--', label="5% Threshold")
@@ -271,7 +286,7 @@ print(f"Original: {avg_original_fee:.4f}%")
 print(f"Smooth:   {avg_smooth_fee:.4f}%")
 
 # Buffer performance metrics
-final_buffer_ratio = buffer_over_time[-1] / tvl
+final_buffer_ratio = buffer_over_time[-1] / tvl[-1]
 print(f"\nFinal Buffer/TVL Ratio: {final_buffer_ratio:.4f} ({final_buffer_ratio*100:.2f}%)")
 
 print("="*60)
