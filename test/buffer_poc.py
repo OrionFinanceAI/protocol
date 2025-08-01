@@ -35,74 +35,98 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # --- Simulation parameters ---
-epochs = 365
-tvl = 1_000_000
-balance_ratio = 0.005
-initial_buffer = balance_ratio * tvl
-solvency_threshold = 0  # Buffer floor
-
+epochs = 1000
 # --- Simulated slippage model (Gaussian + extreme events) ---
 np.random.seed(42)
-base_slippage = np.random.normal(0.001, 0.0003, size=epochs)
-extreme_events = np.random.binomial(1, 0.01, size=epochs)
-extreme_slippage = np.random.normal(0.03, 0.02, size=epochs) * extreme_events
-slippage_series = np.clip(base_slippage + extreme_slippage, -0.001, 0.001)
+# Models continuous, minor slippage due to market impact + micro-volatility (e.g., drift and diffusion in a Brownian motion).
+base_slippage = np.random.normal(0.0005, 0.001, size=epochs)
 
-# Plot slippage series
-plt.figure(figsize=(10, 6))
-plt.plot(slippage_series, color='purple', alpha=0.7, linewidth=1.5)
-plt.title('Simulated Slippage Events Over Time', fontsize=12, pad=15)
-plt.xlabel('Execution Step', fontsize=10)
-plt.ylabel('Slippage Amount', fontsize=10)
-plt.grid(True, linestyle='--', alpha=0.3)
+# Simulates rare market stress conditions — oracle mismatch, liquidity crunch, MEV front-runs, stale pricing.
+extreme_events = np.random.binomial(1, 0.02, size=epochs) 
+extreme_slippage = np.random.normal(0.0, 0.03, size=epochs) * extreme_events
+
+raw_slippage_series = base_slippage + extreme_slippage
+# Controlling execution and reverting high slippage events:
+# Rerefence: Uniswap, Curve, Yearn, Balancer.
+# Note that optimal execution can lead to lower slippage, this is an upper bound used to have a conservative
+# estimation of the slippage statistics and design a robust and capital efficient buffer.
+# This bound is saying: "if the execution engine is unable to find an execution policy with an average slippage below this,
+# (partially) revert the transaction".
+slippage_bound = 0.005 
+# Setting a bit above the standard 0.03. At the same time, in the multivariate case, the portfolio slippage is lower, given is weighted average of slippages all of max this value.
+# So geometrically, it's still possible to have this at the portfolio level, but the more assets, the less probable.
+slippage_series = np.clip(raw_slippage_series, -slippage_bound, slippage_bound)
+
+tvl = 1_000_000
+target_ratio = slippage_bound * 1.1 # bigger than slippage bound to ensure solvency while using a smoother fee time series (second order buffer).
+initial_buffer = target_ratio * tvl # Setting initial buffer to target ratio to avoid big initial fees.
+
+# Create figure with 3 subplots
+fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(20, 6))
+
+# Base slippage subplot (Gaussian noise)
+ax1.plot(base_slippage, color='blue', alpha=0.7, linewidth=1.5)
+ax1.set_title('Base Market Impact (Gaussian)', fontsize=12, pad=15)
+ax1.set_xlabel('Execution Step', fontsize=10)
+ax1.set_ylabel('Slippage Amount', fontsize=10)
+ax1.grid(True, linestyle='--', alpha=0.3)
+
+# Raw slippage subplot (with extreme events)
+ax2.plot(raw_slippage_series, color='purple', alpha=0.7, linewidth=1.5)
+ax2.set_title('Raw Slippage (with Extreme Events)', fontsize=12, pad=15)
+ax2.set_xlabel('Execution Step', fontsize=10)
+ax2.set_ylabel('Slippage Amount', fontsize=10)
+ax2.grid(True, linestyle='--', alpha=0.3)
+
+# Clipped slippage subplot (controlled execution)
+ax3.plot(slippage_series, color='green', alpha=0.7, linewidth=1.5)
+ax3.set_title('Controlled Execution (Clipped)', fontsize=12, pad=15)
+ax3.set_xlabel('Execution Step', fontsize=10)
+ax3.set_ylabel('Slippage Amount', fontsize=10)
+ax3.grid(True, linestyle='--', alpha=0.3)
+
 plt.tight_layout()
-plt.show()
 
 # --- Dynamic fee function with smoothing ---
 class SmoothFeeController:
-    def __init__(self, tvl, target_ratio, max_fee_change=0.001, smoothing_factor=0.1, deadband=0.001):
+    def __init__(self, tvl, target_ratio, smoothing_factor):
         self.tvl = tvl
         self.target_ratio = target_ratio
-        self.max_fee_change = max_fee_change  # Maximum fee change per step
         self.smoothing_factor = smoothing_factor  # Exponential smoothing factor
-        self.deadband = deadband  # Deadband around target to prevent oscillations
         self.previous_fee = 0.0
         self.smoothed_error = 0.0
     
     def calculate_fee_rate(self, current_buffer):
         buffer_ratio = current_buffer / self.tvl
         error = self.target_ratio - buffer_ratio
-        
-        # Apply deadband to prevent oscillations around target
-        if abs(error) < self.deadband:
-            error = 0.0
+
+        # If buffer is below slippage bound, return the slippage bound.
+        if buffer_ratio < slippage_bound:
+            new_fee = 1.000001 * (slippage_bound - buffer_ratio)
+            return new_fee
         
         # Exponential smoothing of the error
         self.smoothed_error = (self.smoothing_factor * error + 
-                              (1 - self.smoothing_factor) * self.smoothed_error)
+                            (1 - self.smoothing_factor) * self.smoothed_error)
         
         # Proportional control with smoothed error
         k = 1.
         target_fee = k * self.smoothed_error
         
         # Rate limiting to prevent sharp changes
-        max_change = self.max_fee_change
         fee_change = target_fee - self.previous_fee
-        fee_change = np.clip(fee_change, -max_change, max_change)
         
         new_fee = self.previous_fee + fee_change
         new_fee = max(0.0, new_fee)  # Ensure non-negative fees
-        
+            
         self.previous_fee = new_fee
         return new_fee
 
 # Initialize the smooth fee controller
 fee_controller = SmoothFeeController(
     tvl=tvl,
-    target_ratio=balance_ratio,
-    max_fee_change=0.0005,  # 0.05% max change per step
-    smoothing_factor=0.1,   # 10% weight to new error
-    deadband=0.001          # 0.1% deadband around target
+    target_ratio=target_ratio,
+    smoothing_factor=0.05,
 )
 # + protocol_gas_epoch (oracle for USDC/ETH exchange to compute one part, historical average for the other?) + zama_decryption_costs # + 50% of the estimated savings due to netting (can we compute it?)
 
@@ -110,9 +134,8 @@ fee_controller = SmoothFeeController(
 # Original simple fee function for comparison
 def simple_fee_rate(current_buffer, tvl):
     buffer_ratio = current_buffer / tvl
-    x_star = balance_ratio
     k = 1
-    fee = k * (x_star - buffer_ratio)
+    fee = k * (target_ratio - buffer_ratio)
     return max(0.0, fee)
 
 # --- Tracking variables ---
@@ -131,7 +154,7 @@ for i in range(epochs):
     slippage = slippage_series[i]
     total_slippage_cost = slippage * tvl
 
-    new_buffer = max(current_buffer + fees - total_slippage_cost, 0)  # Clamp buffer at 0
+    new_buffer = current_buffer + fees - total_slippage_cost
     buffer_over_time.append(new_buffer)
     fees_collected.append(fees)
     fee_rates.append(fee_rate)
@@ -146,7 +169,7 @@ fig.suptitle('Buffer Simulation Results', fontsize=16, fontweight='bold')
 # Figure 1: Buffer Level Over Time
 ax1 = axes[0, 0]
 ax1.plot(buffer_over_time, label="Buffer Level ($)", color='blue', linewidth=2)
-ax1.axhline(y=solvency_threshold, color='red', linestyle='--', label="Buffer Floor")
+ax1.axhline(y=0, color='red', linestyle='--', label="Buffer Floor")
 ax1.set_xlabel("Batch Execution Step")
 ax1.set_ylabel("Buffer ($)")
 ax1.set_title("Buffer Level Evolution Over Time")
@@ -154,7 +177,7 @@ ax1.legend()
 ax1.grid(True, alpha=0.3)
 
 # Highlight insolvency events
-insolvent_steps = [i for i, b in enumerate(buffer_over_time) if b <= solvency_threshold]
+insolvent_steps = [i for i, b in enumerate(buffer_over_time) if b <= 0]
 if insolvent_steps:
     ax1.scatter(insolvent_steps, [buffer_over_time[i] for i in insolvent_steps], color='red', s=10, label="Insolvent")
 
@@ -250,6 +273,5 @@ print(f"Smooth:   {avg_smooth_fee:.4f}%")
 # Buffer performance metrics
 final_buffer_ratio = buffer_over_time[-1] / tvl
 print(f"\nFinal Buffer/TVL Ratio: {final_buffer_ratio:.4f} ({final_buffer_ratio*100:.2f}%)")
-print(f"Target Buffer/TVL Ratio: {balance_ratio:.4f} ({balance_ratio*100:.2f}%)")
 
 print("="*60)
