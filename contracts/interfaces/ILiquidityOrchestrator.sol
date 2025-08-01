@@ -20,7 +20,16 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     function returnDepositFunds(address user, uint256 amount) external;
     function returnWithdrawShares(address user, uint256 shares) external;
 
-    // Adapter management functions
+    /// @notice Register or replace the execution adapter for an asset.
+    /// @param asset The address of the asset.
+    /// @param adapter The execution adapter for the asset.
+    /// @dev Can only be called by the Orion Config contract.
     function setAdapter(address asset, IExecutionAdapter adapter) external;
+
+    /// @notice Unregister the execution adapter for an asset.
+    /// @param asset The address of the asset.
+    /// @dev Can only be called by the Orion Config contract.
+    function unsetAdapter(address asset) external;
+
     function executionAdapterOf(address asset) external view returns (IExecutionAdapter);
 }

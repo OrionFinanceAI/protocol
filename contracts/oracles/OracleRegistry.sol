@@ -31,11 +31,18 @@ contract OracleRegistry is Initializable, Ownable2StepUpgradeable, UUPSUpgradeab
         // Only the owner can upgrade the contract
     }
 
-    /// @notice Register or replace the adapter for an asset.
+    /// @inheritdoc IOracleRegistry
     function setAdapter(address asset, IPriceAdapter adapter) external onlyConfig {
         if (asset == address(0) || address(adapter) == address(0)) revert ErrorsLib.ZeroAddress();
         adapterOf[asset] = adapter;
         emit EventsLib.AdapterSet(asset, address(adapter));
+    }
+
+    /// @inheritdoc IOracleRegistry
+    function unsetAdapter(address asset) external onlyConfig {
+        if (asset == address(0)) revert ErrorsLib.ZeroAddress();
+        delete adapterOf[asset];
+        emit EventsLib.AdapterSet(asset, address(0));
     }
 
     /// @notice Returns the price of the given asset via its assigned price adapter.

@@ -115,9 +115,8 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         bool removed = whitelistedAssets.remove(asset);
         if (!removed) revert ErrorsLib.TokenNotWhitelisted(asset);
 
-        // Remove the adapters
-        IOracleRegistry(oracleRegistry).setAdapter(asset, IPriceAdapter(address(0)));
-        ILiquidityOrchestrator(liquidityOrchestrator).setAdapter(asset, IExecutionAdapter(address(0)));
+        IOracleRegistry(oracleRegistry).unsetAdapter(asset);
+        ILiquidityOrchestrator(liquidityOrchestrator).unsetAdapter(asset);
 
         emit EventsLib.WhitelistedAssetRemoved(asset);
     }

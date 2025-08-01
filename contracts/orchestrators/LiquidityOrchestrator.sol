@@ -123,13 +123,18 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         config = IOrionConfig(newConfig);
     }
 
-    /// @notice Register or replace the adapter for an asset.
-    /// @param asset The address of the asset
-    /// @param adapter The execution adapter for the asset
+    /// @inheritdoc ILiquidityOrchestrator
     function setAdapter(address asset, IExecutionAdapter adapter) external onlyConfig {
         if (asset == address(0) || address(adapter) == address(0)) revert ErrorsLib.ZeroAddress();
         executionAdapterOf[asset] = adapter;
         emit EventsLib.AdapterSet(asset, address(adapter));
+    }
+
+    /// @inheritdoc ILiquidityOrchestrator
+    function unsetAdapter(address asset) external onlyConfig {
+        if (asset == address(0)) revert ErrorsLib.ZeroAddress();
+        delete executionAdapterOf[asset];
+        emit EventsLib.AdapterSet(asset, address(0));
     }
 
     /// @notice Return deposit funds to a user who cancelled their deposit request
