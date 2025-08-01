@@ -212,22 +212,9 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
             _executeSell(token, amount);
         }
 
-        // Naive execution methodology objective to avoid undercollateralization:
-        // ||Delta_B||_L1 - ||Delta_S||_L1 = ||Delta_B_hat||_L1 - ||Delta_S_hat||_L1 = ||Delta_W_hat||_L1
-        // ====> ||Delta_W||_L1 = ||Delta_W_hat||_L1
-        // Given, because of oracle missestimations/slippage:
-        // ||Delta_S||_L1 = ||Delta_S_hat||_L1 + epsilon
-        // Delta_B := gamma * Delta_B_hat
-        // ====> gamma = (1 + epsilon / ||Delta_B_hat||_L1)
-
-        // TODO: the size of N-1 standing orders to be sequentially recalibrated
-        // using the measurement from the current execution, breaking down each asset into a transaction.
-        // In fact, current logic does not enable calibration error treatment if there are
-        // no selling errors, please fix.
-
-        // TODO: This could go further, breaking down each selling/buying order into multiple transactions,
+        // TODO: Execution methodology could go further than batched buy/sell,
+        // breaking down each selling/buying order into multiple transactions,
         // minimizing liquidity orchestrator market impact.
-        // document, adding literature reference on how this could be expanded.
 
         // Measure intermediate underlying balance of this contract.
         uint256 intermediateUnderlyingBalance = IERC20(underlyingAsset).balanceOf(address(this));
@@ -284,9 +271,8 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
 
         // TODO: DepositRequest and WithdrawRequest in Vaults to be processed post t0 update, and removed from
         // vault state as pending requests.
-        // Opportunity to net transaction? Perform minting and burning operation at the same time.
-
-        // TODO: process curators and protocol fees.
+        // Opportunity to net actual transactions (not just intents), performing minting and burning operation at the same time.
+        // TODO: process curators (sending underlying to vault as escrow for curator to redeem) and protocol fees to separate escrow/wallet.
 
         emit EventsLib.PortfolioRebalanced();
     }
@@ -301,6 +287,13 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         // Approve adapter to spend shares
         bool success = IERC20(asset).approve(address(adapter), amount);
         if (!success) revert ErrorsLib.TransferFailed();
+
+        // TODO: setting slippage tolerance at the protocol level, passing oracle price for specific asset to execution adapter,
+        // and not performing trade if slippage is too high.
+        // TODO: same for buy orders.
+
+        // TODO: underlying asset/numeraire needs to be part of the whitelisted investment universe, as if an order does not pass the underlying equivalent
+        // is set into the portfolio state for all vaults. As before, clear how to handle this point with privacy.
 
         // Execute sell through adapter, pull shares from this contract and push underlying assets to it.
         adapter.sell(asset, amount);

@@ -278,7 +278,7 @@ contract InternalStatesOrchestrator is
         );
         // Calculate estimated (active and passive) total assets (t_2), same decimals as underlying.
         uint256 t2Hat = t1Hat + vault.getPendingDeposits() - pendingWithdrawalsHat;
-        // TODO: - curator fee(TVL, return,...) - protocol_fee(vault)
+        // TODO: - curator_fee(TVL, return, ...) - protocol_fee(vault)
 
         (address[] memory intentTokens, uint256[] memory intentWeights) = vault.getIntent();
         uint256 intentLength = intentTokens.length;
