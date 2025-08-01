@@ -60,6 +60,12 @@ contract InternalStatesOrchestrator is
     /// @notice Decimals of the underlying asset
     uint8 public underlyingDecimals;
 
+    /// @notice Action constants for checkUpkeep and performUpkeep
+    bytes4 private constant ACTION_START = bytes4(keccak256("start()"));
+    bytes4 private constant ACTION_PROCESS_TRANSPARENT_VAULT = bytes4(keccak256("processTransparentVault(uint256)"));
+    bytes4 private constant ACTION_PROCESS_ENCRYPTED_VAULTS = bytes4(keccak256("processEncryptedVaults()"));
+    bytes4 private constant ACTION_AGGREGATE = bytes4(keccak256("aggregate()"));
+
     /* -------------------------------------------------------------------------- */
     /*                                 EPOCH STATE                                */
     /* -------------------------------------------------------------------------- */
@@ -105,6 +111,10 @@ contract InternalStatesOrchestrator is
         ProcessingEncryptedVaults,
         Aggregating
     }
+    // TODO: protect against adding/removing vaults when UpkeepPhase != Idle. Same for the Liquidity Orchestrator
+    // Same for adding/removing whitelisted assets. Potentially others.
+    // Some protocol interactions need to be disabled when the rebalancing is in progres.
+    // Reblancing is in progress if at least one orchestrator is not idle.
 
     /// @notice Counter for tracking processing cycles
     uint256 public epochCounter;
@@ -174,18 +184,18 @@ contract InternalStatesOrchestrator is
     function checkUpkeep(bytes calldata) external view override returns (bool upkeepNeeded, bytes memory performData) {
         if (currentPhase == UpkeepPhase.Idle && _shouldTriggerUpkeep()) {
             upkeepNeeded = true;
-            performData = abi.encode("start");
+            performData = abi.encodePacked(ACTION_START);
         } else if (
             currentPhase == UpkeepPhase.ProcessingTransparentVaults && currentVaultIndex < transparentVaultsEpoch.length
         ) {
             upkeepNeeded = true;
-            performData = abi.encode("processTransparentVault", currentVaultIndex);
+            performData = abi.encodePacked(ACTION_PROCESS_TRANSPARENT_VAULT, currentVaultIndex);
         } else if (currentPhase == UpkeepPhase.ProcessingEncryptedVaults) {
             upkeepNeeded = true;
-            performData = abi.encode("processEncryptedVaults");
+            performData = abi.encodePacked(ACTION_PROCESS_ENCRYPTED_VAULTS);
         } else if (currentPhase == UpkeepPhase.Aggregating) {
             upkeepNeeded = true;
-            performData = abi.encode("aggregate");
+            performData = abi.encodePacked(ACTION_AGGREGATE);
         } else {
             upkeepNeeded = false;
             performData = "";
@@ -198,22 +208,22 @@ contract InternalStatesOrchestrator is
     ///      - Computes estimated system states;
     ///      - Updates epoch state to trigger the Liquidity Orchestrator
     function performUpkeep(bytes calldata performData) external override onlyAutomationRegistry nonReentrant {
-        if (performData.length == 0) revert ErrorsLib.InvalidArguments();
-        (string memory action, uint256 index) = abi.decode(performData, (string, uint256));
+        if (performData.length < 4) revert ErrorsLib.InvalidArguments();
 
-        if (keccak256(bytes(action)) == keccak256("start")) {
+        bytes4 action = bytes4(performData[:4]);
+
+        if (action == ACTION_START) {
             _checkAndCountEpoch();
             _resetEpochState();
             transparentVaultsEpoch = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
             currentVaultIndex = 0;
             currentPhase = UpkeepPhase.ProcessingTransparentVaults;
-        } else if (keccak256(bytes(action)) == keccak256("processTransparentVault")) {
+        } else if (action == ACTION_PROCESS_TRANSPARENT_VAULT) {
+            uint256 index = abi.decode(performData[4:], (uint256));
             _processTransparentVault(index);
-        } else if (keccak256(bytes(action)) == keccak256("processEncryptedVaults")) {
+        } else if (action == ACTION_PROCESS_ENCRYPTED_VAULTS) {
             _processEncryptedVaults();
-        } else if (keccak256(bytes(action)) == keccak256("aggregate")) {
-            if (currentPhase != UpkeepPhase.Aggregating) revert ErrorsLib.InvalidState();
-
+        } else if (action == ACTION_AGGREGATE) {
             // TODO: Finally sum up decrypted_encryptedBatchPortfolio to get _finalBatchPortfolioHat
             // TODO: same for estimated total assets and for initial batch portfolio.
 
@@ -229,9 +239,10 @@ contract InternalStatesOrchestrator is
         }
     }
 
-    function _processTransparentVault(uint256 i) internal {
-        if (currentPhase != UpkeepPhase.ProcessingTransparentVaults) revert ErrorsLib.InvalidState();
-        IOrionTransparentVault vault = IOrionTransparentVault(transparentVaultsEpoch[i]);
+    /// @notice Processes a transparent vault
+    /// @param index The index of the transparent vault to process
+    function _processTransparentVault(uint256 index) internal {
+        IOrionTransparentVault vault = IOrionTransparentVault(transparentVaultsEpoch[index]);
 
         (address[] memory portfolioTokens, uint256[] memory sharesPerAsset) = vault.getPortfolio();
 
@@ -266,7 +277,8 @@ contract InternalStatesOrchestrator is
             Math.Rounding.Floor
         );
         // Calculate estimated (active and passive) total assets (t_2), same decimals as underlying.
-        uint256 t2Hat = t1Hat + vault.getPendingDeposits() - pendingWithdrawalsHat; // TODO: - curator fee(TVL, return,...) - protocol_fee(vault)
+        uint256 t2Hat = t1Hat + vault.getPendingDeposits() - pendingWithdrawalsHat;
+        // TODO: - curator fee(TVL, return,...) - protocol_fee(vault)
 
         (address[] memory intentTokens, uint256[] memory intentWeights) = vault.getIntent();
         uint256 intentLength = intentTokens.length;
@@ -288,8 +300,8 @@ contract InternalStatesOrchestrator is
         }
     }
 
+    /// @notice Processes encrypted vaults
     function _processEncryptedVaults() internal {
-        if (currentPhase != UpkeepPhase.ProcessingEncryptedVaults) revert ErrorsLib.InvalidState();
         address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
 
         for (uint256 i = 0; i < encryptedVaults.length; i++) {
@@ -321,7 +333,8 @@ contract InternalStatesOrchestrator is
             (address[] memory intentTokens, euint32[] memory intentWeights) = vault.getIntent();
             // TODO...
 
-            // TODO: curator fee(TVL, return,...) - protocol fee(vault). Protocol fee here can be different from the transparent vaults because of added costs.
+            // TODO: curator fee(TVL, return,...) - protocol fee(vault).
+            // Protocol fee here can be different from the transparent vaults because of added costs.
         }
 
         currentPhase = UpkeepPhase.Aggregating;
@@ -331,6 +344,8 @@ contract InternalStatesOrchestrator is
     /*                               INTERNAL LOGIC                               */
     /* -------------------------------------------------------------------------- */
 
+    /// @notice Checks if upkeep should be triggered based on time
+    /// @dev If upkeep should be triggered, updates the next update time
     function _checkAndCountEpoch() internal {
         if (!_shouldTriggerUpkeep()) revert ErrorsLib.TooEarly();
         nextUpdateTime = _computeNextUpdateTime(block.timestamp);
@@ -358,13 +373,13 @@ contract InternalStatesOrchestrator is
 
         for (uint256 i = 0; i < length; i++) {
             address token = tokens[i];
-            _currentEpoch.priceHat[token] = 0;
-            _currentEpoch.initialBatchPortfolioHat[token] = 0;
-            _currentEpoch.finalBatchPortfolioHat[token] = 0;
-            _currentEpoch.sellingOrders[token] = 0;
-            _currentEpoch.buyingOrders[token] = 0;
-            _currentEpoch.tokenExists[token] = false;
-            _currentEpoch.tokenDecimals[token] = 0;
+            delete _currentEpoch.priceHat[token];
+            delete _currentEpoch.initialBatchPortfolioHat[token];
+            delete _currentEpoch.finalBatchPortfolioHat[token];
+            delete _currentEpoch.sellingOrders[token];
+            delete _currentEpoch.buyingOrders[token];
+            delete _currentEpoch.tokenExists[token];
+            delete _currentEpoch.tokenDecimals[token];
         }
 
         // Clear the tokens array

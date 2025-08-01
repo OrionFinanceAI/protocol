@@ -172,6 +172,7 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         uint256 currentEpoch = internalStatesOrchestrator.epochCounter();
         if (currentEpoch > lastProcessedEpoch && currentPhase == UpkeepPhase.Idle) {
             upkeepNeeded = true;
+            // TODO: same as internal states orchestrator, use bytes4 and encodePacked.
             performData = abi.encode("start");
         }
         // TODO: ...
@@ -192,6 +193,11 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
 
         // Measure initial underlying balance of this contract.
         uint256 initialUnderlyingBalance = IERC20(underlyingAsset).balanceOf(address(this));
+
+        // TODO: buy and sell orders all in shares at this point, fix execution adapter API accordingly.
+        // this implies we can match intents with oracle price and use those variables to update vault states
+        // we nonetheless do this update after the actual execution, in line with a re-entrancy protection design.
+        // Here we are dealing with multiple transactions, not a single one, so the pattern has not the same use.
 
         // Execute sequentially the trades to reach target state
         // (consider having the number of standing orders as a trigger of a set of chainlink automation jobs).
@@ -256,14 +262,6 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
             _executeBuy(token, amount);
         }
 
-        // This approach leads to preserved sum of total assets.
-        // This gives, for each vault: t_1 = t1Hat, giving actual vaults minting/burning ratio as the estimated one.
-
-        // TODO: for the following, consider avoiding redistributing the tracking error,
-        // and setting dust portfolio as "reminder" state in the orchestrator.
-        // Even in that case, we need to backpropagate the tracking error to account for
-        // it in the next epoch t1Hat estimation.
-
         // As per the portfolio states, we can distribute the tracking error to each vault
         // with a weight proportional to t_1.
         address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
@@ -275,9 +273,6 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         }
 
         // TODO: to updateVaultState of encrypted vaults, get the encrypted sharesPerAsset executed by the liquidity
-        // orchestrator and update the vault intent with an encrypted calibration error before storing it.
-        // Not trivial how to backpropagate the calibration error to each vault.
-        // Identify metodology to do this maintaining privacy.
 
         address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
         length = encryptedVaults.length;
@@ -319,7 +314,8 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
 
         // Get the underlying asset from the adapter (assumes it's an ERC4626 adapter)
-        address underlyingAsset = IERC4626(asset).asset(); // TODO: fix, This declaration shadows an existing declaration.
+        // TODO: fix, This declaration shadows an existing declaration.
+        address underlyingAsset = IERC4626(asset).asset();
 
         // Approve adapter to spend underlying assets
         bool success = IERC20(underlyingAsset).approve(address(adapter), amount);

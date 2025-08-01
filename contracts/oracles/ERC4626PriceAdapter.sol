@@ -26,7 +26,7 @@ contract ERC4626PriceAdapter is Initializable, Ownable2StepUpgradeable, UUPSUpgr
     /// @dev The price is always scaled to 18 decimals, regardless of the underlying asset's decimals.
     ///      This function reads the decimals of the share and its underlying asset, computes the
     ///      amount of underlying per 1 share, and scales the result to 18 decimals.
-    /// NOTE: This adapter is expecting the underlying of the asset to be the same as the config underlying asset.
+    /// @notice This adapter is expecting the underlying of the asset to be the same as the config underlying asset.
     function price(address asset) external view returns (uint256) {
         uint8 shareDecimals = IERC20Metadata(asset).decimals();
         uint8 assetDecimals = IERC20Metadata(IERC4626(asset).asset()).decimals();
