@@ -2,17 +2,17 @@ import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 
-import { ERC4626PriceAdapter, MockERC4626Asset, MockUnderlyingAsset } from "../typechain-types";
+import { OrionAssetERC4626PriceAdapter, MockERC4626Asset, MockUnderlyingAsset } from "../typechain-types";
 
-describe("ERC4626PriceAdapter", function () {
-  let priceAdapter: ERC4626PriceAdapter;
+describe("OrionAssetERC4626PriceAdapter", function () {
+  let priceAdapter: OrionAssetERC4626PriceAdapter;
   let owner: SignerWithAddress;
 
   beforeEach(async function () {
     [owner] = await ethers.getSigners();
 
-    const ERC4626PriceAdapterFactory = await ethers.getContractFactory("ERC4626PriceAdapter");
-    priceAdapter = (await ERC4626PriceAdapterFactory.deploy()) as unknown as ERC4626PriceAdapter;
+    const OrionAssetERC4626PriceAdapterFactory = await ethers.getContractFactory("OrionAssetERC4626PriceAdapter");
+    priceAdapter = (await OrionAssetERC4626PriceAdapterFactory.deploy()) as unknown as OrionAssetERC4626PriceAdapter;
     await priceAdapter.waitForDeployment();
     await priceAdapter.initialize(owner.address);
   });

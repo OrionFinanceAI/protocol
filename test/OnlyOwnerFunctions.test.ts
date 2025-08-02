@@ -4,7 +4,7 @@ import { ethers, upgrades } from "hardhat";
 
 import {
   ERC4626ExecutionAdapter,
-  ERC4626PriceAdapter,
+  OrionAssetERC4626PriceAdapter,
   InternalStatesOrchestrator,
   LiquidityOrchestrator,
   MockERC4626Asset,
@@ -30,7 +30,7 @@ describe("OnlyOwner Functions - Comprehensive Test Suite", function () {
   let orionVaultFactory: OrionVaultFactory;
   let internalStatesOrchestrator: InternalStatesOrchestrator;
   let erc4626ExecutionAdapter: ERC4626ExecutionAdapter;
-  let erc4626PriceAdapter: ERC4626PriceAdapter;
+  let orionAssetERC4626PriceAdapter: OrionAssetERC4626PriceAdapter;
   let mockUnderlyingAsset: MockUnderlyingAsset;
   let mockPriceAdapter: MockPriceAdapter;
 
@@ -42,7 +42,7 @@ describe("OnlyOwner Functions - Comprehensive Test Suite", function () {
   const ZERO_ADDRESS = ethers.ZeroAddress;
 
   beforeEach(async function () {
-    [owner, nonOwner, user1, user2, automationRegistry] = await ethers.getSigners();
+    [owner, nonOwner, user1, automationRegistry] = await ethers.getSigners();
 
     // Deploy mock contracts first
     const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
@@ -82,13 +82,13 @@ describe("OnlyOwner Functions - Comprehensive Test Suite", function () {
     });
     await mockPriceAdapter.waitForDeployment();
 
-    // Deploy ERC4626PriceAdapter
-    const ERC4626PriceAdapterFactory = await ethers.getContractFactory("ERC4626PriceAdapter");
-    erc4626PriceAdapter = await upgrades.deployProxy(ERC4626PriceAdapterFactory, [owner.address], {
+    // Deploy OrionAssetERC4626PriceAdapter
+    const OrionAssetERC4626PriceAdapterFactory = await ethers.getContractFactory("OrionAssetERC4626PriceAdapter");
+    orionAssetERC4626PriceAdapter = await upgrades.deployProxy(OrionAssetERC4626PriceAdapterFactory, [owner.address], {
       kind: "uups",
       initializer: "initialize",
     });
-    await erc4626PriceAdapter.waitForDeployment();
+    await orionAssetERC4626PriceAdapter.waitForDeployment();
 
     // Deploy LiquidityOrchestrator
     const LiquidityOrchestratorFactory = await ethers.getContractFactory("LiquidityOrchestrator");
@@ -387,19 +387,22 @@ describe("OnlyOwner Functions - Comprehensive Test Suite", function () {
   describe("ERC4626PriceAdapter onlyOwner Functions", function () {
     describe("upgradeability", function () {
       it("should succeed when owner calls upgradeToAndCall", async function () {
-        const ERC4626PriceAdapterV2Factory = await ethers.getContractFactory("ERC4626PriceAdapter");
-        await expect(upgrades.upgradeProxy(erc4626PriceAdapter.target, ERC4626PriceAdapterV2Factory)).to.not.be
-          .reverted;
+        const OrionAssetERC4626PriceAdapterV2Factory = await ethers.getContractFactory("OrionAssetERC4626PriceAdapter");
+        await expect(
+          upgrades.upgradeProxy(orionAssetERC4626PriceAdapter.target, OrionAssetERC4626PriceAdapterV2Factory),
+        ).to.not.be.reverted;
       });
 
       it("should revert when non-owner tries to upgrade", async function () {
-        const ERC4626PriceAdapterV2Factory = await ethers.getContractFactory("ERC4626PriceAdapter");
-        const erc4626PriceAdapterV2 = await ERC4626PriceAdapterV2Factory.deploy();
-        await erc4626PriceAdapterV2.waitForDeployment();
+        const OrionAssetERC4626PriceAdapterV2Factory = await ethers.getContractFactory("OrionAssetERC4626PriceAdapter");
+        const orionAssetERC4626PriceAdapterV2 = await OrionAssetERC4626PriceAdapterV2Factory.deploy();
+        await orionAssetERC4626PriceAdapterV2.waitForDeployment();
 
         await expect(
-          erc4626PriceAdapter.connect(nonOwner).upgradeToAndCall(erc4626PriceAdapterV2.target, "0x"),
-        ).to.be.revertedWithCustomError(erc4626PriceAdapter, "OwnableUnauthorizedAccount");
+          orionAssetERC4626PriceAdapter
+            .connect(nonOwner)
+            .upgradeToAndCall(orionAssetERC4626PriceAdapterV2.target, "0x"),
+        ).to.be.revertedWithCustomError(orionAssetERC4626PriceAdapter, "OwnableUnauthorizedAccount");
       });
     });
   });

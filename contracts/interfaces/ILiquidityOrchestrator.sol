@@ -5,7 +5,6 @@ import "@chainlink/contracts/src/v0.8/automation/AutomationCompatible.sol";
 import "./IExecutionAdapter.sol";
 
 /// @title ILiquidityOrchestrator
-/// @notice Interface for orchestrating liquidity operations within the protocol.
 interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @notice Updates the Chainlink Automation Registry address
     /// @param newAutomationRegistry The new automation registry address
