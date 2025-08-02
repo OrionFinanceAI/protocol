@@ -359,16 +359,18 @@ describe("OrionTransparentVault", function () {
       const priceAdapter = await MockPriceAdapterFactory.deploy();
       await priceAdapter.waitForDeployment();
 
-      // Deploy ERC4626ExecutionAdapter
-      const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
-      const executionAdapter = await ERC4626ExecutionAdapterFactory.deploy();
+      // Deploy OrionAssetERC4626ExecutionAdapter
+      const OrionAssetERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
+        "OrionAssetERC4626ExecutionAdapter",
+      );
+      const executionAdapter = await OrionAssetERC4626ExecutionAdapterFactory.deploy();
       await executionAdapter.waitForDeployment();
 
       // Initialize mock price adapter
       await priceAdapter.initialize(curator.address);
 
-      // Initialize ERC4626ExecutionAdapter
-      await executionAdapter.initialize(curator.address);
+      // Initialize OrionAssetERC4626ExecutionAdapter
+      await executionAdapter.initialize(curator.address, await config.getAddress());
 
       await config.addWhitelistedAsset(
         tokenAddress,
@@ -405,16 +407,18 @@ describe("OrionTransparentVault", function () {
       const priceAdapter = await MockPriceAdapterFactory.deploy();
       await priceAdapter.waitForDeployment();
 
-      // Deploy ERC4626ExecutionAdapter
-      const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
-      const executionAdapter = await ERC4626ExecutionAdapterFactory.deploy();
+      // Deploy OrionAssetERC4626ExecutionAdapter
+      const OrionAssetERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
+        "OrionAssetERC4626ExecutionAdapter",
+      );
+      const executionAdapter = await OrionAssetERC4626ExecutionAdapterFactory.deploy();
       await executionAdapter.waitForDeployment();
 
       // Initialize mock price adapter
       await priceAdapter.initialize(curator.address);
 
-      // Initialize ERC4626ExecutionAdapter
-      await executionAdapter.initialize(curator.address);
+      // Initialize OrionAssetERC4626ExecutionAdapter
+      await executionAdapter.initialize(curator.address, await config.getAddress());
 
       await config.addWhitelistedAsset(
         tokenAddress,
@@ -436,16 +440,18 @@ describe("OrionTransparentVault", function () {
       const priceAdapter = await MockPriceAdapterFactory.deploy();
       await priceAdapter.waitForDeployment();
 
-      // Deploy ERC4626ExecutionAdapter
-      const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
-      const executionAdapter = await ERC4626ExecutionAdapterFactory.deploy();
+      // Deploy OrionAssetERC4626ExecutionAdapter
+      const OrionAssetERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
+        "OrionAssetERC4626ExecutionAdapter",
+      );
+      const executionAdapter = await OrionAssetERC4626ExecutionAdapterFactory.deploy();
       await executionAdapter.waitForDeployment();
 
       // Initialize mock price adapter
       await priceAdapter.initialize(curator.address);
 
-      // Initialize ERC4626ExecutionAdapter
-      await executionAdapter.initialize(curator.address);
+      // Initialize OrionAssetERC4626ExecutionAdapter
+      await executionAdapter.initialize(curator.address, await config.getAddress());
 
       await config.addWhitelistedAsset(
         tokenAddress,
@@ -472,16 +478,18 @@ describe("OrionTransparentVault", function () {
       const priceAdapter = await MockPriceAdapterFactory.deploy();
       await priceAdapter.waitForDeployment();
 
-      // Deploy ERC4626ExecutionAdapter
-      const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
-      const executionAdapter = await ERC4626ExecutionAdapterFactory.deploy();
+      // Deploy OrionAssetERC4626ExecutionAdapter
+      const OrionAssetERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
+        "OrionAssetERC4626ExecutionAdapter",
+      );
+      const executionAdapter = await OrionAssetERC4626ExecutionAdapterFactory.deploy();
       await executionAdapter.waitForDeployment();
 
       // Initialize mock price adapter
       await priceAdapter.initialize(curator.address);
 
-      // Initialize ERC4626ExecutionAdapter
-      await executionAdapter.initialize(curator.address);
+      // Initialize OrionAssetERC4626ExecutionAdapter
+      await executionAdapter.initialize(curator.address, await config.getAddress());
 
       await config.addWhitelistedAsset(
         tokenAddress,
@@ -522,16 +530,18 @@ describe("OrionTransparentVault", function () {
       const priceAdapter = await MockPriceAdapterFactory.deploy();
       await priceAdapter.waitForDeployment();
 
-      // Deploy ERC4626ExecutionAdapter
-      const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
-      const executionAdapter = await ERC4626ExecutionAdapterFactory.deploy();
+      // Deploy OrionAssetERC4626ExecutionAdapter
+      const OrionAssetERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
+        "OrionAssetERC4626ExecutionAdapter",
+      );
+      const executionAdapter = await OrionAssetERC4626ExecutionAdapterFactory.deploy();
       await executionAdapter.waitForDeployment();
 
       // Initialize mock price adapter
       await priceAdapter.initialize(curator.address);
 
-      // Initialize ERC4626ExecutionAdapter
-      await executionAdapter.initialize(curator.address);
+      // Initialize OrionAssetERC4626ExecutionAdapter
+      await executionAdapter.initialize(curator.address, await config.getAddress());
 
       await config.addWhitelistedAsset(token1, await priceAdapter.getAddress(), await executionAdapter.getAddress());
       await config.addWhitelistedAsset(token2, await priceAdapter.getAddress(), await executionAdapter.getAddress());
@@ -604,16 +614,18 @@ describe("OrionTransparentVault", function () {
       const priceAdapter = await MockPriceAdapterFactory.deploy();
       await priceAdapter.waitForDeployment();
 
-      // Deploy ERC4626ExecutionAdapter
-      const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
-      const executionAdapter = await ERC4626ExecutionAdapterFactory.deploy();
+      // Deploy OrionAssetERC4626ExecutionAdapter
+      const OrionAssetERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
+        "OrionAssetERC4626ExecutionAdapter",
+      );
+      const executionAdapter = await OrionAssetERC4626ExecutionAdapterFactory.deploy();
       await executionAdapter.waitForDeployment();
 
       // Initialize mock price adapter
       await priceAdapter.initialize(curator.address);
 
-      // Initialize ERC4626ExecutionAdapter
-      await executionAdapter.initialize(curator.address);
+      // Initialize OrionAssetERC4626ExecutionAdapter
+      await executionAdapter.initialize(curator.address, await config.getAddress());
 
       await config.addWhitelistedAsset(token, await priceAdapter.getAddress(), await executionAdapter.getAddress());
 
@@ -660,16 +672,18 @@ describe("OrionTransparentVault", function () {
       const priceAdapter = await MockPriceAdapterFactory.deploy();
       await priceAdapter.waitForDeployment();
 
-      // Deploy ERC4626ExecutionAdapter
-      const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
-      const executionAdapter = await ERC4626ExecutionAdapterFactory.deploy();
+      // Deploy OrionAssetERC4626ExecutionAdapter
+      const OrionAssetERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
+        "OrionAssetERC4626ExecutionAdapter",
+      );
+      const executionAdapter = await OrionAssetERC4626ExecutionAdapterFactory.deploy();
       await executionAdapter.waitForDeployment();
 
       // Initialize mock price adapter
       await priceAdapter.initialize(curator.address);
 
-      // Initialize ERC4626ExecutionAdapter
-      await executionAdapter.initialize(curator.address);
+      // Initialize OrionAssetERC4626ExecutionAdapter
+      await executionAdapter.initialize(curator.address, await config.getAddress());
 
       await config.addWhitelistedAsset(token1, await priceAdapter.getAddress(), await executionAdapter.getAddress());
       await config.addWhitelistedAsset(token2, await priceAdapter.getAddress(), await executionAdapter.getAddress());

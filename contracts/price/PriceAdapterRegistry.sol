@@ -9,6 +9,11 @@ import "../interfaces/IPriceAdapter.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { EventsLib } from "../libraries/EventsLib.sol";
 
+/**
+ * @title PriceAdapterRegistry
+ * @notice A registry contract that manages price adapters for different assets in the Orion protocol.
+ * @dev This contract allows the configuration of price adapters for various assets in the investment universe.
+ */
 contract PriceAdapterRegistry is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable, IPriceAdapterRegistry {
     mapping(address => IPriceAdapter) public adapterOf;
     address public configAddress;
@@ -45,12 +50,7 @@ contract PriceAdapterRegistry is Initializable, Ownable2StepUpgradeable, UUPSUpg
         emit EventsLib.PriceAdapterSet(asset, address(0));
     }
 
-    /// @notice Returns the price of the given asset via its assigned price adapter.
-    /// @param asset The address of the asset.
-    /// @return The price of the asset, normalized to 18 decimals.
-    /// @dev The asset must be assigned an adapter in `adapterOf`.
-    ///      Reverts if no adapter is set.
-    ///      The returned price is always expected to have 18 decimals.
+    /// @inheritdoc IPriceAdapterRegistry
     function getPrice(address asset) external view returns (uint256) {
         IPriceAdapter adapter = adapterOf[asset];
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();

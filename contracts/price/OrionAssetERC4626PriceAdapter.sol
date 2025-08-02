@@ -12,7 +12,7 @@ import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
 
 /**
  * @title OrionAssetERC4626PriceAdapter
- * @notice Adapter for ERC-4626 vaults that share the same underlying asset as the Orion protocol.
+ * @notice Price adapter for ERC-4626 vaults sharing the same underlying asset as the Orion protocol.
  * @dev This adapter assumes that the target vault and the Orion protocol use the same underlying asset.
  *      It is not safe to use this adapter with vaults that are based on a different asset.
  */

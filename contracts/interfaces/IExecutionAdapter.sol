@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
+/// @title IExecutionAdapter
 interface IExecutionAdapter {
     /// @notice Executes a buy order for a given asset and amount.
     /// @param asset The address of the asset to buy.

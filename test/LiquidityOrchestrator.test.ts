@@ -80,22 +80,24 @@ describe("LiquidityOrchestrator", function () {
     await orionAssetERC4626PriceAdapter.initialize(owner.address);
 
     // Deploy execution adapter for ERC4626 assets
-    const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
+    const OrionAssetERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
+      "OrionAssetERC4626ExecutionAdapter",
+    );
 
-    const erc4626ExecutionAdapter = await ERC4626ExecutionAdapterFactory.deploy();
-    await erc4626ExecutionAdapter.waitForDeployment();
-    await erc4626ExecutionAdapter.initialize(owner.address);
+    const orionAssetERC4626ExecutionAdapter = await OrionAssetERC4626ExecutionAdapterFactory.deploy();
+    await orionAssetERC4626ExecutionAdapter.waitForDeployment();
+    await orionAssetERC4626ExecutionAdapter.initialize(owner.address, await config.getAddress());
 
     // Whitelist the ERC4626 assets so they can be used in vault intents
     await config.addWhitelistedAsset(
       await erc4626Asset1.getAddress(),
       await orionAssetERC4626PriceAdapter.getAddress(),
-      await erc4626ExecutionAdapter.getAddress(),
+      await orionAssetERC4626ExecutionAdapter.getAddress(),
     );
     await config.addWhitelistedAsset(
       await erc4626Asset2.getAddress(),
       await orionAssetERC4626PriceAdapter.getAddress(),
-      await erc4626ExecutionAdapter.getAddress(),
+      await orionAssetERC4626ExecutionAdapter.getAddress(),
     );
 
     // Deploy two transparent vaults
@@ -127,7 +129,7 @@ describe("LiquidityOrchestrator", function () {
       erc4626Asset2,
       vault1,
       vault2,
-      erc4626ExecutionAdapter,
+      orionAssetERC4626ExecutionAdapter,
       owner,
       automationRegistry,
       vaultFactory,
@@ -189,16 +191,16 @@ describe("LiquidityOrchestrator", function () {
 
   describe("Adapter Management", function () {
     it("Should set and get adapters correctly", async function () {
-      const { liquidityOrchestratorContract, erc4626Asset1, erc4626Asset2, erc4626ExecutionAdapter } =
+      const { liquidityOrchestratorContract, erc4626Asset1, erc4626Asset2, orionAssetERC4626ExecutionAdapter } =
         await loadFixture(deployLiquidityOrchestratorFixture);
 
       // Set adapter for erc4626Asset1
       expect(await liquidityOrchestratorContract.executionAdapterOf(await erc4626Asset1.getAddress())).to.equal(
-        await erc4626ExecutionAdapter.getAddress(),
+        await orionAssetERC4626ExecutionAdapter.getAddress(),
       );
 
       expect(await liquidityOrchestratorContract.executionAdapterOf(await erc4626Asset2.getAddress())).to.equal(
-        await erc4626ExecutionAdapter.getAddress(),
+        await orionAssetERC4626ExecutionAdapter.getAddress(),
       );
     });
   });

@@ -1,5 +1,5 @@
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import { expect } from "chai";
+import { config, expect } from "chai";
 import { ethers } from "hardhat";
 
 describe("ERC4626ExecutionAdapter", function () {
@@ -17,13 +17,15 @@ describe("ERC4626ExecutionAdapter", function () {
     const erc4626Vault = await ERC4626AssetFactory.deploy(underlyingAsset, "Vault Token", "VT", 6);
     await erc4626Vault.waitForDeployment();
 
-    // Deploy ERC4626ExecutionAdapter
-    const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
-    const adapter = await ERC4626ExecutionAdapterFactory.deploy();
+    // Deploy OrionAssetERC4626ExecutionAdapter
+    const OrionAssetERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
+      "OrionAssetERC4626ExecutionAdapter",
+    );
+    const adapter = await OrionAssetERC4626ExecutionAdapterFactory.deploy();
     await adapter.waitForDeployment();
 
     // Initialize adapter
-    await adapter.initialize(owner.address);
+    await adapter.initialize(owner.address, await config.getAddress());
 
     // Mint underlying assets to users
     await underlyingAsset.mint(user1.address, ethers.parseUnits("200000", 6));
@@ -54,8 +56,10 @@ describe("ERC4626ExecutionAdapter", function () {
     });
 
     it("Should revert if initialized with zero address owner", async function () {
-      const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
-      const adapter = await ERC4626ExecutionAdapterFactory.deploy();
+      const OrionAssetERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
+        "OrionAssetERC4626ExecutionAdapter",
+      );
+      const adapter = await OrionAssetERC4626ExecutionAdapterFactory.deploy();
       await adapter.waitForDeployment();
 
       await expect(adapter.initialize(ethers.ZeroAddress)).to.be.revertedWithCustomError(
@@ -67,7 +71,10 @@ describe("ERC4626ExecutionAdapter", function () {
     it("Should not allow double initialization", async function () {
       const { adapter, owner } = await loadFixture(deployERC4626ExecutionAdapterFixture);
 
-      await expect(adapter.initialize(owner.address)).to.be.revertedWithCustomError(adapter, "InvalidInitialization");
+      await expect(adapter.initialize(owner.address, await config.getAddress())).to.be.revertedWithCustomError(
+        adapter,
+        "InvalidInitialization",
+      );
     });
   });
 

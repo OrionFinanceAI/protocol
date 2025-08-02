@@ -3,7 +3,7 @@ import { expect } from "chai";
 import { ethers, upgrades } from "hardhat";
 
 import {
-  ERC4626ExecutionAdapter,
+  OrionAssetERC4626ExecutionAdapter,
   OrionAssetERC4626PriceAdapter,
   InternalStatesOrchestrator,
   LiquidityOrchestrator,
@@ -29,7 +29,7 @@ describe("OnlyOwner Functions - Comprehensive Test Suite", function () {
   let liquidityOrchestrator: LiquidityOrchestrator;
   let orionVaultFactory: OrionVaultFactory;
   let internalStatesOrchestrator: InternalStatesOrchestrator;
-  let erc4626ExecutionAdapter: ERC4626ExecutionAdapter;
+  let orionAssetERC4626ExecutionAdapter: OrionAssetERC4626ExecutionAdapter;
   let orionAssetERC4626PriceAdapter: OrionAssetERC4626PriceAdapter;
   let mockUnderlyingAsset: MockUnderlyingAsset;
   let mockPriceAdapter: MockPriceAdapter;
@@ -122,13 +122,19 @@ describe("OnlyOwner Functions - Comprehensive Test Suite", function () {
     });
     await orionVaultFactory.waitForDeployment();
 
-    // Deploy ERC4626ExecutionAdapter
-    const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
-    erc4626ExecutionAdapter = await upgrades.deployProxy(ERC4626ExecutionAdapterFactory, [owner.address], {
-      kind: "uups",
-      initializer: "initialize",
-    });
-    await erc4626ExecutionAdapter.waitForDeployment();
+    // Deploy OrionAssetERC4626ExecutionAdapter
+    const OrionAssetERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
+      "OrionAssetERC4626ExecutionAdapter",
+    );
+    orionAssetERC4626ExecutionAdapter = await upgrades.deployProxy(
+      OrionAssetERC4626ExecutionAdapterFactory,
+      [owner.address, orionConfig.target],
+      {
+        kind: "uups",
+        initializer: "initialize",
+      },
+    );
+    await orionAssetERC4626ExecutionAdapter.waitForDeployment();
 
     // Deploy vault implementations for factory testing
     const OrionTransparentVaultFactory = await ethers.getContractFactory("OrionTransparentVault");
@@ -367,19 +373,26 @@ describe("OnlyOwner Functions - Comprehensive Test Suite", function () {
   describe("ERC4626ExecutionAdapter onlyOwner Functions", function () {
     describe("upgradeability", function () {
       it("should succeed when owner calls upgradeToAndCall", async function () {
-        const ERC4626ExecutionAdapterV2Factory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
-        await expect(upgrades.upgradeProxy(erc4626ExecutionAdapter.target, ERC4626ExecutionAdapterV2Factory)).to.not.be
-          .reverted;
+        const OrionAssetERC4626ExecutionAdapterV2Factory = await ethers.getContractFactory(
+          "OrionAssetERC4626ExecutionAdapter",
+        );
+        await expect(
+          upgrades.upgradeProxy(orionAssetERC4626ExecutionAdapter.target, OrionAssetERC4626ExecutionAdapterV2Factory),
+        ).to.not.be.reverted;
       });
 
       it("should revert when non-owner tries to upgrade", async function () {
-        const ERC4626ExecutionAdapterV2Factory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
-        const erc4626ExecutionAdapterV2 = await ERC4626ExecutionAdapterV2Factory.deploy();
-        await erc4626ExecutionAdapterV2.waitForDeployment();
+        const OrionAssetERC4626ExecutionAdapterV2Factory = await ethers.getContractFactory(
+          "OrionAssetERC4626ExecutionAdapter",
+        );
+        const orionAssetERC4626ExecutionAdapterV2 = await OrionAssetERC4626ExecutionAdapterV2Factory.deploy();
+        await orionAssetERC4626ExecutionAdapterV2.waitForDeployment();
 
         await expect(
-          erc4626ExecutionAdapter.connect(nonOwner).upgradeToAndCall(erc4626ExecutionAdapterV2.target, "0x"),
-        ).to.be.revertedWithCustomError(erc4626ExecutionAdapter, "OwnableUnauthorizedAccount");
+          orionAssetERC4626ExecutionAdapter
+            .connect(nonOwner)
+            .upgradeToAndCall(orionAssetERC4626ExecutionAdapterV2.target, "0x"),
+        ).to.be.revertedWithCustomError(orionAssetERC4626ExecutionAdapter, "OwnableUnauthorizedAccount");
       });
     });
   });

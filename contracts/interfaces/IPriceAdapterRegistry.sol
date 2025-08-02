@@ -4,15 +4,7 @@ pragma solidity ^0.8.28;
 import "./IPriceAdapter.sol";
 
 /// @title IPriceAdapterRegistry
-/// @notice Interface for managing asset price adapters
 interface IPriceAdapterRegistry {
-    /// @notice Return the price of the given asset.
-    /// @param asset The address of the asset.
-    /// @return The price of the asset, normalized to 18 decimals.
-    /// @dev The asset shall be whitelisted in the OrionConfig contract.
-    ///      Returned value is always expected to have 18 decimals.
-    function getPrice(address asset) external view returns (uint256);
-
     /// @notice Register or replace the price adapter for an asset.
     /// @param asset The address of the asset.
     /// @param adapter The price adapter for the asset.
@@ -21,4 +13,12 @@ interface IPriceAdapterRegistry {
     /// @notice Unregister the price adapter for an asset.
     /// @param asset The address of the asset.
     function unsetPriceAdapter(address asset) external;
+
+    /// @notice Returns the price of the given asset via its assigned price adapter.
+    /// @param asset The address of the asset.
+    /// @return The price of the asset, normalized to 18 decimals.
+    /// @dev The asset shall be whitelisted in the OrionConfig contract,
+    ///      therefore assigned an adapter in `adapterOf`.
+    ///      Returned value is always expected to have 18 decimals.
+    function getPrice(address asset) external view returns (uint256);
 }

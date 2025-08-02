@@ -106,11 +106,13 @@ describe("End-to-End Protocol Simulation", function () {
     await orionAssetERC4626PriceAdapter.initialize(owner.address);
 
     // Deploy execution adapter for ERC4626 assets
-    const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
+    const OrionAssetERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
+      "OrionAssetERC4626ExecutionAdapter",
+    );
 
-    const erc4626ExecutionAdapter = await ERC4626ExecutionAdapterFactory.deploy();
-    await erc4626ExecutionAdapter.waitForDeployment();
-    await erc4626ExecutionAdapter.initialize(owner.address);
+    const orionAssetERC4626ExecutionAdapter = await OrionAssetERC4626ExecutionAdapterFactory.deploy();
+    await orionAssetERC4626ExecutionAdapter.waitForDeployment();
+    await orionAssetERC4626ExecutionAdapter.initialize(owner.address, await config.getAddress());
 
     // Initialize LiquidityOrchestrator after config parameters are set
     await liquidityOrchestratorContract.initialize(
@@ -123,17 +125,17 @@ describe("End-to-End Protocol Simulation", function () {
     await config.addWhitelistedAsset(
       await erc4626Asset1.getAddress(),
       await orionAssetERC4626PriceAdapter.getAddress(),
-      await erc4626ExecutionAdapter.getAddress(),
+      await orionAssetERC4626ExecutionAdapter.getAddress(),
     );
     await config.addWhitelistedAsset(
       await erc4626Asset2.getAddress(),
       await orionAssetERC4626PriceAdapter.getAddress(),
-      await erc4626ExecutionAdapter.getAddress(),
+      await orionAssetERC4626ExecutionAdapter.getAddress(),
     );
     await config.addWhitelistedAsset(
       await erc4626Asset3.getAddress(),
       await orionAssetERC4626PriceAdapter.getAddress(),
-      await erc4626ExecutionAdapter.getAddress(),
+      await orionAssetERC4626ExecutionAdapter.getAddress(),
     );
 
     // Create vaults through the factory (this will automatically register them)
@@ -164,7 +166,7 @@ describe("End-to-End Protocol Simulation", function () {
       erc4626Asset3,
       vault1,
       vault2,
-      erc4626ExecutionAdapter,
+      orionAssetERC4626ExecutionAdapter,
       owner,
       automationRegistry,
       vaultFactory: orionVaultFactory,
