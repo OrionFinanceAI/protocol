@@ -142,7 +142,7 @@ describe("OnlyOwner Functions - Comprehensive Test Suite", function () {
     // Set up OrionConfig with protocol params
     await orionConfig
       .connect(owner)
-      .setProtocolParams(liquidityOrchestrator.target, 6, orionVaultFactory.target, oracleRegistry.target);
+      .setProtocolParams(liquidityOrchestrator.target, 6, orionVaultFactory.target, priceAdapterRegistry.target);
 
     // Set implementations in factory
     await orionVaultFactory.connect(owner).setImplementations(transparentVaultImpl.target, encryptedVaultImpl.target);
@@ -170,21 +170,22 @@ describe("OnlyOwner Functions - Comprehensive Test Suite", function () {
     });
   });
 
-  describe("OracleRegistry onlyOwner Functions", function () {
+  describe("PriceAdapterRegistry onlyOwner Functions", function () {
     describe("upgradeability", function () {
       it("should succeed when owner calls upgradeToAndCall", async function () {
-        const OracleRegistryV2Factory = await ethers.getContractFactory("OracleRegistry");
-        await expect(upgrades.upgradeProxy(oracleRegistry.target, OracleRegistryV2Factory)).to.not.be.reverted;
+        const PriceAdapterRegistryV2Factory = await ethers.getContractFactory("PriceAdapterRegistry");
+        await expect(upgrades.upgradeProxy(priceAdapterRegistry.target, PriceAdapterRegistryV2Factory)).to.not.be
+          .reverted;
       });
 
       it("should revert when non-owner tries to upgrade", async function () {
-        const OracleRegistryV2Factory = await ethers.getContractFactory("OracleRegistry");
-        const oracleRegistryV2 = await OracleRegistryV2Factory.deploy();
-        await oracleRegistryV2.waitForDeployment();
+        const PriceAdapterRegistryV2Factory = await ethers.getContractFactory("PriceAdapterRegistry");
+        const priceAdapterRegistryV2 = await PriceAdapterRegistryV2Factory.deploy();
+        await priceAdapterRegistryV2.waitForDeployment();
 
         await expect(
-          oracleRegistry.connect(nonOwner).upgradeToAndCall(oracleRegistryV2.target, "0x"),
-        ).to.be.revertedWithCustomError(oracleRegistry, "OwnableUnauthorizedAccount");
+          priceAdapterRegistry.connect(nonOwner).upgradeToAndCall(priceAdapterRegistryV2.target, "0x"),
+        ).to.be.revertedWithCustomError(priceAdapterRegistry, "OwnableUnauthorizedAccount");
       });
     });
   });

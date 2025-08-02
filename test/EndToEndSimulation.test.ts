@@ -101,9 +101,9 @@ describe("End-to-End Protocol Simulation", function () {
     // Deploy price adapters for prices
     const ERC4626PriceAdapterFactory = await ethers.getContractFactory("ERC4626PriceAdapter");
 
-    const erc4626Oracle = await ERC4626PriceAdapterFactory.deploy();
-    await erc4626Oracle.waitForDeployment();
-    await erc4626Oracle.initialize(owner.address);
+    const erc4626PriceAdapter = await ERC4626PriceAdapterFactory.deploy();
+    await erc4626PriceAdapter.waitForDeployment();
+    await erc4626PriceAdapter.initialize(owner.address);
 
     // Deploy execution adapter for ERC4626 assets
     const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
@@ -122,17 +122,17 @@ describe("End-to-End Protocol Simulation", function () {
     // Whitelist the ERC4626 assets so they can be used in vault intents
     await config.addWhitelistedAsset(
       await erc4626Asset1.getAddress(),
-      await erc4626Oracle.getAddress(),
+      await erc4626PriceAdapter.getAddress(),
       await erc4626ExecutionAdapter.getAddress(),
     );
     await config.addWhitelistedAsset(
       await erc4626Asset2.getAddress(),
-      await erc4626Oracle.getAddress(),
+      await erc4626PriceAdapter.getAddress(),
       await erc4626ExecutionAdapter.getAddress(),
     );
     await config.addWhitelistedAsset(
       await erc4626Asset3.getAddress(),
-      await erc4626Oracle.getAddress(),
+      await erc4626PriceAdapter.getAddress(),
       await erc4626ExecutionAdapter.getAddress(),
     );
 
@@ -173,7 +173,7 @@ describe("End-to-End Protocol Simulation", function () {
       depositor1,
       depositor2,
       unauthorized,
-      erc4626Oracle,
+      erc4626PriceAdapter,
     };
   }
 
