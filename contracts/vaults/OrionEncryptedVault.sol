@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import { euint32, TFHE } from "fhevm/lib/TFHE.sol";
+import { euint32, ebool, FHE } from "@fhevm/solidity/lib/FHE.sol";
 import "./OrionVault.sol";
 import "../interfaces/IOrionConfig.sol";
 import "../interfaces/IOrionEncryptedVault.sol";
@@ -42,43 +42,52 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
     /// @notice Submit an encrypted portfolio intent.
     /// @param order EncryptedPosition struct containing the tokens and encrypted weights.
     /// @dev The weights are interpreted as percentage of total supply.
-    function submitIntent(EncryptedPosition[] calldata order) external onlyCurator {
+    function submitIntent(EncryptedPosition[] calldata order) external onlyCurator nonReentrant {
         if (order.length == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
 
-        // Clear previous intent by setting weights to zero
-        euint32 ezero = TFHE.asEuint32(0);
+        uint256 orderLength = order.length;
+        euint32 ezero = FHE.asEuint32(0);
+        euint32 totalWeight = ezero;
+
+        address[] memory tempKeys = new address[](orderLength);
+        euint32[] memory tempWeights = new euint32[](orderLength);
+
+        for (uint256 i = 0; i < orderLength; i++) {
+            address token = order[i].token;
+            euint32 weight = order[i].value;
+
+            if (!config.isWhitelisted(token)) revert ErrorsLib.TokenNotWhitelisted(token);
+            // TODO: Zama coprocessor to check isWeightValid == true, else
+            // ebool isWeightValid = FHE.gt(weight, ezero);
+            // ErrorsLib.AmountMustBeGreaterThanZero(token);
+            if (_seenTokens[token]) revert ErrorsLib.TokenAlreadyInOrder(token);
+
+            _seenTokens[token] = true;
+            tempKeys[i] = token;
+            tempWeights[i] = weight;
+            totalWeight = FHE.add(totalWeight, weight);
+        }
+        euint32 encryptedTotalWeight = FHE.asEuint32(uint32(10 ** config.curatorIntentDecimals()));
+        ebool isTotalWeightValid = FHE.eq(totalWeight, encryptedTotalWeight);
+        // TODO: Zama coprocessor to check isTotalWeightValid
+        // bytes32[] memory cts = new bytes32[](1);
+        // cts[0] = FHE.toBytes32(isTotalWeightValid);
+        // https://docs.zama.ai/protocol/solidity-guides/smart-contract/oracle#overview
+        // else
+        // ErrorsLib.InvalidTotalWeight()
+
+        // Clear previous intent by setting weights to zero (state write after all external calls)
         uint256 intentLength = _intentKeys.length;
         for (uint256 i = 0; i < intentLength; i++) {
             _intent[_intentKeys[i]] = ezero;
         }
         delete _intentKeys;
 
-        euint32 totalWeight = ezero;
-        uint256 orderLength = order.length;
         for (uint256 i = 0; i < orderLength; i++) {
-            address token = order[i].token;
-            euint32 weight = order[i].value;
-            if (!config.isWhitelisted(token)) revert ErrorsLib.TokenNotWhitelisted(token);
-
-            // Check for duplicate tokens in the order
-            if (_seenTokens[token]) {
-                revert ErrorsLib.TokenAlreadyInOrder(token);
-            }
-            _seenTokens[token] = true;
-
-            // TODO: Zama coprocessor to check weight > 0, see OrionTransparentVault implementation.
-
-            _intent[token] = weight;
+            address token = tempKeys[i];
+            _intent[token] = tempWeights[i];
             _intentKeys.push(token);
-            totalWeight = TFHE.add(totalWeight, weight);
-        }
-
-        // TODO: Zama coprocessor to check totalWeight == 10 ** curatorIntentDecimals, see
-        // OrionTransparentVault implementation.
-
-        // Clear temporary mapping
-        for (uint256 i = 0; i < orderLength; i++) {
-            delete _seenTokens[order[i].token];
+            delete _seenTokens[token];
         }
 
         emit EventsLib.OrderSubmitted(msg.sender);
@@ -117,7 +126,7 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
         EncryptedPosition[] calldata portfolio,
         uint256 newTotalAssets
     ) external onlyLiquidityOrchestrator {
-        euint32 ezero = TFHE.asEuint32(0);
+        euint32 ezero = FHE.asEuint32(0);
 
         // Clear previous portfolio by setting weights to zero
         uint256 portfolioLength = _portfolioKeys.length;

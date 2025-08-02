@@ -11,6 +11,10 @@ import { ErrorsLib } from "./libraries/ErrorsLib.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { EventsLib } from "./libraries/EventsLib.sol";
+import "./interfaces/IPriceAdapterRegistry.sol";
+import "./interfaces/ILiquidityOrchestrator.sol";
+import "./interfaces/IPriceAdapter.sol";
+import "./interfaces/IExecutionAdapter.sol";
 
 /**
  *     ██████╗ ██████╗ ██╗ ██████╗ ███╗   ██╗    ███████╗██╗███╗   ██╗ █████╗ ███╗   ██╗ ██████╗███████╗
@@ -29,8 +33,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     address public internalStatesOrchestrator;
     address public liquidityOrchestrator;
     address public vaultFactory;
-    address public oracleRegistry;
-    uint8 public statesDecimals;
+    address public priceAdapterRegistry;
 
     // Curator-specific configuration
     uint8 public curatorIntentDecimals;
@@ -62,32 +65,33 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     // === Protocol Configuration ===
 
     /// @inheritdoc IOrionConfig
+    function setUnderlyingAsset(address asset) external onlyOwner {
+        if (asset == address(0)) revert ErrorsLib.ZeroAddress();
+        underlyingAsset = IERC20(asset);
+    }
+
+    /// @inheritdoc IOrionConfig
+    function setInternalStatesOrchestrator(address orchestrator) external onlyOwner {
+        if (orchestrator == address(0)) revert ErrorsLib.ZeroAddress();
+        internalStatesOrchestrator = orchestrator;
+    }
+
+    /// @inheritdoc IOrionConfig
     function setProtocolParams(
-        address underlyingAsset_,
-        address internalStatesOrchestrator_,
         address liquidityOrchestrator_,
-        uint8 statesDecimals_,
         uint8 curatorIntentDecimals_,
         address factory_,
-        address oracleRegistry_
+        address priceAdapterRegistry_
     ) external onlyOwner {
-        if (underlyingAsset_ == address(0)) revert ErrorsLib.ZeroAddress();
-        if (internalStatesOrchestrator_ == address(0)) revert ErrorsLib.ZeroAddress();
         if (liquidityOrchestrator_ == address(0)) revert ErrorsLib.ZeroAddress();
         if (factory_ == address(0)) revert ErrorsLib.ZeroAddress();
-        if (oracleRegistry_ == address(0)) revert ErrorsLib.ZeroAddress();
+        if (priceAdapterRegistry_ == address(0)) revert ErrorsLib.ZeroAddress();
 
-        underlyingAsset = IERC20(underlyingAsset_);
-        internalStatesOrchestrator = internalStatesOrchestrator_;
         liquidityOrchestrator = liquidityOrchestrator_;
-
-        uint8 underlyingDecimals = IERC20Metadata(underlyingAsset_).decimals();
-        if (statesDecimals_ < underlyingDecimals) revert ErrorsLib.InvalidStatesDecimals();
-        statesDecimals = statesDecimals_;
 
         curatorIntentDecimals = curatorIntentDecimals_;
         vaultFactory = factory_;
-        oracleRegistry = oracleRegistry_;
+        priceAdapterRegistry = priceAdapterRegistry_;
 
         emit EventsLib.ProtocolParamsUpdated();
     }
@@ -95,9 +99,14 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     // === Whitelist Functions ===
 
     /// @inheritdoc IOrionConfig
-    function addWhitelistedAsset(address asset) external onlyOwner {
+    function addWhitelistedAsset(address asset, address priceAdapter, address executionAdapter) external onlyOwner {
         bool inserted = whitelistedAssets.add(asset);
         if (!inserted) revert ErrorsLib.AlreadyWhitelisted();
+
+        // Register the adapters
+        IPriceAdapterRegistry(priceAdapterRegistry).setPriceAdapter(asset, IPriceAdapter(priceAdapter));
+        ILiquidityOrchestrator(liquidityOrchestrator).setExecutionAdapter(asset, IExecutionAdapter(executionAdapter));
+
         emit EventsLib.WhitelistedAssetAdded(asset);
     }
 
@@ -105,6 +114,10 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     function removeWhitelistedAsset(address asset) external onlyOwner {
         bool removed = whitelistedAssets.remove(asset);
         if (!removed) revert ErrorsLib.TokenNotWhitelisted(asset);
+
+        IPriceAdapterRegistry(priceAdapterRegistry).unsetPriceAdapter(asset);
+        ILiquidityOrchestrator(liquidityOrchestrator).unsetExecutionAdapter(asset);
+
         emit EventsLib.WhitelistedAssetRemoved(asset);
     }
 

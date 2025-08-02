@@ -20,12 +20,6 @@ interface IOrionConfig {
     /// @return The address of the vault factory
     function vaultFactory() external view returns (address);
 
-    /// @notice Returns the number of decimal places used for states calculations
-    /// @dev This value is used to scale state values for precision
-    /// (e.g. inflation resistant conversions, P&L calculations).
-    /// @return The number of decimal places for states
-    function statesDecimals() external view returns (uint8);
-
     /// @notice Returns the number of decimal places used for curator intent calculations
     /// @dev This value is used to scale curator intent values for precision
     /// @return The number of decimal places for curator intents
@@ -36,34 +30,40 @@ interface IOrionConfig {
     /// @return The address of the underlying asset contract
     function underlyingAsset() external view returns (IERC20);
 
-    /// @notice Returns the address of the oracle registry contract
-    /// @dev This registry is responsible for managing asset price oracles
-    /// @return The address of the oracle registry
-    function oracleRegistry() external view returns (address);
+    /// @notice Returns the address of the price adapter registry contract
+    /// @dev This registry is responsible for managing asset price adapters
+    /// @return The address of the price adapter registry
+    function priceAdapterRegistry() external view returns (address);
+
+    /// @notice Sets the underlying asset for the protocol
+    /// @dev Can only be called by the contract owner
+    /// @param asset The address of the underlying asset contract
+    function setUnderlyingAsset(address asset) external;
+
+    /// @notice Sets the internal states orchestrator for the protocol
+    /// @dev Can only be called by the contract owner
+    /// @param orchestrator The address of the internal states orchestrator
+    function setInternalStatesOrchestrator(address orchestrator) external;
 
     /// @notice Sets the core protocol parameters in a single transaction
     /// @dev Can only be called by the contract owner
-    /// @param _underlyingAsset The address of the underlying asset contract
-    /// @param _internalStatesOrchestrator The address of the internal states orchestrator
     /// @param _liquidityOrchestrator The address of the liquidity orchestrator
     /// @param _curatorIntentDecimals The number of decimal places for curator intents
-    /// @param _statesDecimals The number of decimal places for states
     /// @param _factory The address of the vault factory
-    /// @param _oracleRegistry The address of the oracle registry
+    /// @param _priceAdapterRegistry The address of the price adapter registry
     function setProtocolParams(
-        address _underlyingAsset,
-        address _internalStatesOrchestrator,
         address _liquidityOrchestrator,
         uint8 _curatorIntentDecimals,
-        uint8 _statesDecimals,
         address _factory,
-        address _oracleRegistry
+        address _priceAdapterRegistry
     ) external;
 
     /// @notice Adds an asset to the whitelist
     /// @dev Can only be called by the contract owner
     /// @param asset The address of the asset to whitelist
-    function addWhitelistedAsset(address asset) external;
+    /// @param priceAdapter The address of the price adapter
+    /// @param executionAdapter The address of the execution adapter
+    function addWhitelistedAsset(address asset, address priceAdapter, address executionAdapter) external;
 
     /// @notice Removes an asset from the whitelist
     /// @dev Can only be called by the contract owner

@@ -9,5 +9,5 @@
   },
   "files": ["./hardhat.config.ts"],
   "include": ["src/**/*.ts", "scripts/**/*.ts", "test/**/*.ts"],
-  "exclude": ["**/*.js", "node_modules", "python-sdk", "lib/fhevm-solidity"]
+  "exclude": ["**/*.js", "node_modules", "lib/fhevm-solidity"]
 }

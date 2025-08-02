@@ -2,14 +2,16 @@ import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
 import { ethers, upgrades } from "hardhat";
 
-let OrionConfig: any;
-let orionConfig: any;
+import { MockUnderlyingAsset, OrionConfig } from "../typechain-types";
+
+let OrionConfig: OrionConfig;
+let orionConfig: OrionConfig;
 let owner: SignerWithAddress,
   vaultFactory: SignerWithAddress,
   other: SignerWithAddress,
   addr1: SignerWithAddress,
   addr2: SignerWithAddress;
-let underlyingAsset: any;
+let underlyingAsset: MockUnderlyingAsset;
 
 const ZERO = ethers.ZeroAddress;
 
@@ -48,156 +50,57 @@ describe("OrionConfig", function () {
 
   describe("setProtocolParams", function () {
     it("reverts if underlyingAsset is zero", async function () {
-      await expect(
-        orionConfig
-          .connect(owner)
-          .setProtocolParams(ZERO, other.address, other.address, 18, 8, vaultFactory.address, other.address),
-      ).to.be.revertedWithCustomError(orionConfig, "ZeroAddress");
+      await expect(orionConfig.connect(owner).setUnderlyingAsset(ZERO)).to.be.revertedWithCustomError(
+        orionConfig,
+        "ZeroAddress",
+      );
     });
 
     it("reverts if internalStatesOrchestrator is zero", async function () {
-      await expect(
-        orionConfig
-          .connect(owner)
-          .setProtocolParams(underlyingAsset.target, ZERO, other.address, 18, 8, vaultFactory.address, other.address),
-      ).to.be.revertedWithCustomError(orionConfig, "ZeroAddress");
+      await expect(orionConfig.connect(owner).setInternalStatesOrchestrator(ZERO)).to.be.revertedWithCustomError(
+        orionConfig,
+        "ZeroAddress",
+      );
     });
 
     it("reverts if liquidityOrchestrator is zero", async function () {
       await expect(
-        orionConfig
-          .connect(owner)
-          .setProtocolParams(underlyingAsset.target, other.address, ZERO, 18, 8, vaultFactory.address, other.address),
+        orionConfig.connect(owner).setProtocolParams(ZERO, 8, vaultFactory.address, other.address),
       ).to.be.revertedWithCustomError(orionConfig, "ZeroAddress");
     });
 
     it("reverts if factory is zero", async function () {
       await expect(
-        orionConfig
-          .connect(owner)
-          .setProtocolParams(underlyingAsset.target, other.address, other.address, 18, 8, ZERO, other.address),
+        orionConfig.connect(owner).setProtocolParams(other.address, 8, ZERO, other.address),
       ).to.be.revertedWithCustomError(orionConfig, "ZeroAddress");
     });
 
-    it("reverts if oracleRegistry is zero", async function () {
+    it("reverts if priceAdapterRegistry is zero", async function () {
       await expect(
-        orionConfig
-          .connect(owner)
-          .setProtocolParams(underlyingAsset.target, other.address, other.address, 18, 8, vaultFactory.address, ZERO),
+        orionConfig.connect(owner).setProtocolParams(other.address, 8, vaultFactory.address, ZERO),
       ).to.be.revertedWithCustomError(orionConfig, "ZeroAddress");
-    });
-
-    it("reverts if statesDecimals < underlying decimals", async function () {
-      // MockUnderlyingAsset decimals is 6, try 5 < 6
-      await expect(
-        orionConfig
-          .connect(owner)
-          .setProtocolParams(
-            underlyingAsset.target,
-            other.address,
-            other.address,
-            5,
-            8,
-            vaultFactory.address,
-            other.address,
-          ),
-      ).to.be.revertedWithCustomError(orionConfig, "InvalidStatesDecimals");
     });
 
     it("sets all params and emits event", async function () {
+      await orionConfig.connect(owner).setUnderlyingAsset(underlyingAsset.target);
+      await orionConfig.connect(owner).setInternalStatesOrchestrator(other.address);
+
       await expect(
-        orionConfig
-          .connect(owner)
-          .setProtocolParams(
-            underlyingAsset.target,
-            other.address,
-            vaultFactory.address,
-            6,
-            10,
-            vaultFactory.address,
-            other.address,
-          ),
+        orionConfig.connect(owner).setProtocolParams(vaultFactory.address, 6, vaultFactory.address, other.address),
       ).to.emit(orionConfig, "ProtocolParamsUpdated");
 
       expect(await orionConfig.underlyingAsset()).to.equal(underlyingAsset.target);
       expect(await orionConfig.internalStatesOrchestrator()).to.equal(other.address);
       expect(await orionConfig.liquidityOrchestrator()).to.equal(vaultFactory.address);
-      expect(await orionConfig.statesDecimals()).to.equal(6);
-      expect(await orionConfig.curatorIntentDecimals()).to.equal(10);
+      expect(await orionConfig.curatorIntentDecimals()).to.equal(6);
       expect(await orionConfig.vaultFactory()).to.equal(vaultFactory.address);
-      expect(await orionConfig.oracleRegistry()).to.equal(other.address);
+      expect(await orionConfig.priceAdapterRegistry()).to.equal(other.address);
     });
 
     it("only owner can call setProtocolParams", async function () {
       await expect(
-        orionConfig
-          .connect(other)
-          .setProtocolParams(
-            underlyingAsset.target,
-            other.address,
-            vaultFactory.address,
-            6,
-            10,
-            vaultFactory.address,
-            other.address,
-          ),
+        orionConfig.connect(other).setProtocolParams(vaultFactory.address, 6, vaultFactory.address, other.address),
       ).to.be.revertedWithCustomError(orionConfig, "OwnableUnauthorizedAccount");
-    });
-  });
-
-  describe("whitelistedAssets management", function () {
-    it("adds asset, emits event, and reverts on duplicate", async function () {
-      await expect(orionConfig.connect(owner).addWhitelistedAsset(addr1.address))
-        .to.emit(orionConfig, "WhitelistedAssetAdded")
-        .withArgs(addr1.address);
-
-      expect(await orionConfig.isWhitelisted(addr1.address)).to.be.true;
-      expect(await orionConfig.whitelistedAssetsLength()).to.equal(1);
-      expect(await orionConfig.getWhitelistedAssetAt(0)).to.equal(addr1.address);
-
-      // Adding same asset again reverts
-      await expect(orionConfig.connect(owner).addWhitelistedAsset(addr1.address)).to.be.revertedWithCustomError(
-        orionConfig,
-        "AlreadyWhitelisted",
-      );
-    });
-
-    it("removes asset, emits event, reverts if not whitelisted", async function () {
-      // Add asset
-      await orionConfig.connect(owner).addWhitelistedAsset(addr1.address);
-
-      await expect(orionConfig.connect(owner).removeWhitelistedAsset(addr1.address))
-        .to.emit(orionConfig, "WhitelistedAssetRemoved")
-        .withArgs(addr1.address);
-
-      expect(await orionConfig.isWhitelisted(addr1.address)).to.be.false;
-      expect(await orionConfig.whitelistedAssetsLength()).to.equal(0);
-
-      // Removing non-existing asset reverts
-      await expect(orionConfig.connect(owner).removeWhitelistedAsset(addr1.address))
-        .to.be.revertedWithCustomError(orionConfig, "TokenNotWhitelisted")
-        .withArgs(addr1.address);
-    });
-
-    it("getAllWhitelistedAssets returns all added assets", async function () {
-      await orionConfig.connect(owner).addWhitelistedAsset(addr1.address);
-      await orionConfig.connect(owner).addWhitelistedAsset(addr2.address);
-
-      const assets = await orionConfig.getAllWhitelistedAssets();
-      expect(assets).to.include(addr1.address);
-      expect(assets).to.include(addr2.address);
-    });
-
-    it("only owner can add or remove whitelisted asset", async function () {
-      await expect(orionConfig.connect(other).addWhitelistedAsset(addr1.address)).to.be.revertedWithCustomError(
-        orionConfig,
-        "OwnableUnauthorizedAccount",
-      );
-
-      await expect(orionConfig.connect(other).removeWhitelistedAsset(addr1.address)).to.be.revertedWithCustomError(
-        orionConfig,
-        "OwnableUnauthorizedAccount",
-      );
     });
   });
 
@@ -207,17 +110,7 @@ describe("OrionConfig", function () {
         orionConfig.connect(other).addOrionVault(addr1.address, VaultType.Encrypted),
       ).to.be.revertedWithCustomError(orionConfig, "NotFactory");
 
-      await orionConfig
-        .connect(owner)
-        .setProtocolParams(
-          underlyingAsset.target,
-          other.address,
-          vaultFactory.address,
-          6,
-          10,
-          vaultFactory.address,
-          other.address,
-        );
+      await orionConfig.connect(owner).setProtocolParams(vaultFactory.address, 6, vaultFactory.address, other.address);
 
       // factory can add vault
       await orionConfig.connect(vaultFactory).addOrionVault(addr1.address, VaultType.Encrypted);
@@ -232,17 +125,7 @@ describe("OrionConfig", function () {
     });
 
     it("reverts adding zero address vault", async function () {
-      await orionConfig
-        .connect(owner)
-        .setProtocolParams(
-          underlyingAsset.target,
-          other.address,
-          vaultFactory.address,
-          6,
-          10,
-          vaultFactory.address,
-          other.address,
-        );
+      await orionConfig.connect(owner).setProtocolParams(vaultFactory.address, 6, vaultFactory.address, other.address);
 
       await expect(
         orionConfig.connect(vaultFactory).addOrionVault(ZERO, VaultType.Encrypted),
@@ -250,17 +133,7 @@ describe("OrionConfig", function () {
     });
 
     it("reverts adding existing vault", async function () {
-      await orionConfig
-        .connect(owner)
-        .setProtocolParams(
-          underlyingAsset.target,
-          other.address,
-          vaultFactory.address,
-          6,
-          10,
-          vaultFactory.address,
-          other.address,
-        );
+      await orionConfig.connect(owner).setProtocolParams(vaultFactory.address, 6, vaultFactory.address, other.address);
 
       await orionConfig.connect(vaultFactory).addOrionVault(addr1.address, VaultType.Encrypted);
 
@@ -270,17 +143,7 @@ describe("OrionConfig", function () {
     });
 
     it("reverts removing vault not added", async function () {
-      await orionConfig
-        .connect(owner)
-        .setProtocolParams(
-          underlyingAsset.target,
-          other.address,
-          vaultFactory.address,
-          6,
-          10,
-          vaultFactory.address,
-          other.address,
-        );
+      await orionConfig.connect(owner).setProtocolParams(vaultFactory.address, 6, vaultFactory.address, other.address);
 
       await expect(
         orionConfig.connect(vaultFactory).removeOrionVault(addr1.address, VaultType.Encrypted),
@@ -288,17 +151,7 @@ describe("OrionConfig", function () {
     });
 
     it("adds/removes both Encrypted and Transparent vaults correctly and emits events", async function () {
-      await orionConfig
-        .connect(owner)
-        .setProtocolParams(
-          underlyingAsset.target,
-          other.address,
-          vaultFactory.address,
-          6,
-          10,
-          vaultFactory.address,
-          other.address,
-        );
+      await orionConfig.connect(owner).setProtocolParams(vaultFactory.address, 6, vaultFactory.address, other.address);
 
       await expect(orionConfig.connect(vaultFactory).addOrionVault(addr1.address, VaultType.Encrypted))
         .to.emit(orionConfig, "OrionVaultAdded")
@@ -322,7 +175,7 @@ describe("OrionConfig", function () {
   });
 
   describe("OrionConfig UUPS upgradeability", function () {
-    let orionConfigProxy: any;
+    let orionConfigProxy: OrionConfig;
 
     beforeEach(async function () {
       OrionConfig = await ethers.getContractFactory("OrionConfig");

@@ -369,7 +369,7 @@
         {
           "internalType": "euint32[]",
           "name": "weights",
-          "type": "uint256[]"
+          "type": "bytes32[]"
         }
       ],
       "stateMutability": "view",
@@ -413,7 +413,7 @@
         {
           "internalType": "euint32[]",
           "name": "sharesPerAsset",
-          "type": "uint256[]"
+          "type": "bytes32[]"
         }
       ],
       "stateMutability": "view",
@@ -717,7 +717,7 @@
             {
               "internalType": "euint32",
               "name": "value",
-              "type": "uint256"
+              "type": "bytes32"
             }
           ],
           "internalType": "struct IOrionEncryptedVault.EncryptedPosition[]",
@@ -834,7 +834,7 @@
             {
               "internalType": "euint32",
               "name": "value",
-              "type": "uint256"
+              "type": "bytes32"
             }
           ],
           "internalType": "struct IOrionEncryptedVault.EncryptedPosition[]",

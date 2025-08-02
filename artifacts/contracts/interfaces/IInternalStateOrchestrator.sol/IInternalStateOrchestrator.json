@@ -4,19 +4,6 @@
   "sourceName": "contracts/interfaces/IInternalStateOrchestrator.sol",
   "abi": [
     {
-      "inputs": [],
-      "name": "automationRegistry",
-      "outputs": [
-        {
-          "internalType": "address",
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
       "inputs": [
         {
           "internalType": "bytes",
@@ -42,12 +29,12 @@
     },
     {
       "inputs": [],
-      "name": "config",
+      "name": "epochCounter",
       "outputs": [
         {
-          "internalType": "contract IOrionConfig",
+          "internalType": "uint256",
           "name": "",
-          "type": "address"
+          "type": "uint256"
         }
       ],
       "stateMutability": "view",
@@ -55,7 +42,20 @@
     },
     {
       "inputs": [],
-      "name": "epochCounter",
+      "name": "expectedUnderlyingBuyAmount",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "expectedUnderlyingSellAmount",
       "outputs": [
         {
           "internalType": "uint256",
@@ -103,19 +103,6 @@
       "type": "function"
     },
     {
-      "inputs": [],
-      "name": "nextUpdateTime",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
       "inputs": [
         {
           "internalType": "bytes",
@@ -152,19 +139,6 @@
       "name": "updateConfig",
       "outputs": [],
       "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "updateInterval",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
       "type": "function"
     }
   ],

@@ -17,23 +17,16 @@ import "../interfaces/IExecutionAdapter.sol";
 import "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
 /// @title Liquidity Orchestrator
-/// @notice Orchestrates transaction execution and vault state modifications
 /// @dev This contract is responsible for:
-///      - Executing actual transactions on vaults and external protocols
-///      - Processing deposit and withdrawal requests from vaults
-///      - Writing and updating vault states based on executed transactions
-///      - Handling slippage and market execution differences from oracle estimates
-///      - Managing curator fees.
-///
-///      IMPORTANT: This contract is triggered by the Internal States Orchestrator
-///      and is responsible for all state-modifying operations.
-///      The Internal States Orchestrator only reads states and performs estimations.
-///      This contract handles the actual execution and state writing.
-///
-///      Note: The post execution portfolio state may differ from the intent
-///      not only due to slippage, but also because asset prices can evolve
-///      between the oracle call and execution.
+///      - Executing actual buy and sell orders on investment universe;
+///      - Processing actual curator fees with vaults and protocol fees;
+///      - Processing deposit and withdrawal requests from LPs;
+///      - Updating vault states (post-execution, checks-effects-interactions pattern at the protocol level);
+///      - Handling slippage and market execution differences from adapter estimates via liquidity buffer.
 contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable, ILiquidityOrchestrator {
+    /* -------------------------------------------------------------------------- */
+    /*                                 CONTRACTS                                  */
+    /* -------------------------------------------------------------------------- */
     /// @notice Chainlink Automation Registry address
     address public automationRegistry;
 
@@ -43,11 +36,31 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
     /// @notice Internal States Orchestrator contract address
     IInternalStateOrchestrator public internalStatesOrchestrator;
 
+    /// @notice Underlying asset address
+    address public underlyingAsset;
+
     /// @notice Execution adapters mapping for assets
     mapping(address => IExecutionAdapter) public executionAdapterOf;
 
+    /* -------------------------------------------------------------------------- */
+    /*                               UPKEEP STATE                                 */
+    /* -------------------------------------------------------------------------- */
+    /// @notice Upkeep phase
+    enum UpkeepPhase {
+        Idle,
+        SellingLeg,
+        BuyingLeg,
+        StateUpdate
+    }
+
     /// @notice Last processed epoch counter from Internal States Orchestrator
     uint256 public lastProcessedEpoch;
+
+    /// @notice Upkeep phase
+    UpkeepPhase public currentPhase;
+
+    /// @notice Number of orders processed in the current leg
+    uint256 public processedLegOrders;
 
     function initialize(address initialOwner, address automationRegistry_, address config_) external initializer {
         __Ownable_init(initialOwner);
@@ -61,7 +74,12 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         config = IOrionConfig(config_);
         internalStatesOrchestrator = IInternalStateOrchestrator(config.internalStatesOrchestrator());
 
+        underlyingAsset = address(config.underlyingAsset());
+
         lastProcessedEpoch = 0;
+
+        currentPhase = UpkeepPhase.Idle;
+        processedLegOrders = 0;
     }
 
     // solhint-disable-next-line no-empty-blocks
@@ -75,50 +93,48 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         _;
     }
 
-    /// @notice Updates the Chainlink Automation Registry address
-    /// @param newAutomationRegistry The new automation registry address
+    modifier onlyConfig() {
+        if (msg.sender != address(config)) revert ErrorsLib.NotAuthorized();
+        _;
+    }
+
+    /// @inheritdoc ILiquidityOrchestrator
     function updateAutomationRegistry(address newAutomationRegistry) external onlyOwner {
         if (newAutomationRegistry == address(0)) revert ErrorsLib.ZeroAddress();
         automationRegistry = newAutomationRegistry;
         emit EventsLib.AutomationRegistryUpdated(newAutomationRegistry);
     }
 
-    /// @notice Updates the Orion Config contract address
-    /// @param newConfig The new config address
+    /// @inheritdoc ILiquidityOrchestrator
     function updateConfig(address newConfig) external onlyOwner {
         if (newConfig == address(0)) revert ErrorsLib.ZeroAddress();
         config = IOrionConfig(newConfig);
     }
 
-    /// @notice Register or replace the adapter for an asset.
-    /// @param asset The address of the asset
-    /// @param adapter The execution adapter for the asset
-    function setAdapter(address asset, IExecutionAdapter adapter) external onlyOwner {
+    /// @inheritdoc ILiquidityOrchestrator
+    function setExecutionAdapter(address asset, IExecutionAdapter adapter) external onlyConfig {
         if (asset == address(0) || address(adapter) == address(0)) revert ErrorsLib.ZeroAddress();
         executionAdapterOf[asset] = adapter;
-        emit EventsLib.AdapterSet(asset, address(adapter));
+        emit EventsLib.ExecutionAdapterSet(asset, address(adapter));
     }
 
-    /// @notice Return deposit funds to a user who cancelled their deposit request
-    /// @dev Called by vault contracts when users cancel deposit requests
-    /// @param user The user to return funds to
-    /// @param amount The amount to return
+    /// @inheritdoc ILiquidityOrchestrator
+    function unsetExecutionAdapter(address asset) external onlyConfig {
+        if (asset == address(0)) revert ErrorsLib.ZeroAddress();
+        delete executionAdapterOf[asset];
+        emit EventsLib.ExecutionAdapterSet(asset, address(0));
+    }
+
+    /// @inheritdoc ILiquidityOrchestrator
     function returnDepositFunds(address user, uint256 amount) external {
         // Verify the caller is a registered vault
         if (!config.isOrionVault(msg.sender)) revert ErrorsLib.NotAuthorized();
-
-        // Get the underlying asset from the vault
-        address underlyingAsset = IOrionVault(msg.sender).asset();
-
         // Transfer funds back to the user
         bool success = IERC20(underlyingAsset).transfer(user, amount);
         if (!success) revert ErrorsLib.TransferFailed();
     }
 
-    /// @notice Return withdrawal shares to a user who cancelled their withdrawal request
-    /// @dev Called by vault contracts when users cancel withdrawal requests
-    /// @param user The user to return shares to
-    /// @param shares The amount of shares to return
+    /// @inheritdoc ILiquidityOrchestrator
     function returnWithdrawShares(address user, uint256 shares) external {
         // Verify the caller is a registered vault
         if (!config.isOrionVault(msg.sender)) revert ErrorsLib.NotAuthorized();
@@ -131,21 +147,23 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         if (!success) revert ErrorsLib.TransferFailed();
     }
 
-    /// @notice Checks if upkeep is needed by comparing epoch counters
-    /// @return upkeepNeeded True if rebalancing is needed
-    /// @return performData Data to pass to performUpkeep
+    // TODO: docs when implemented.
     function checkUpkeep(bytes calldata) external view override returns (bool upkeepNeeded, bytes memory performData) {
         uint256 currentEpoch = internalStatesOrchestrator.epochCounter();
-
-        upkeepNeeded = currentEpoch > lastProcessedEpoch;
-
-        performData = bytes("");
-        // NOTE: we can compute here all read-only states to generate payload to then pass to performUpkeep
-        // https://docs.chain.link/chainlink-automation/reference/automation-interfaces
-        // Losing atomicity, but better for scalability.
+        if (currentEpoch > lastProcessedEpoch && currentPhase == UpkeepPhase.Idle) {
+            upkeepNeeded = true;
+            // TODO: same as internal states orchestrator, use bytes4 and encodePacked.
+            performData = abi.encode("start");
+        }
+        // TODO: ...
+        else {
+            upkeepNeeded = false;
+            performData = "";
+        }
     }
 
-    /// @notice Performs the rebalancing.
+    // TODO: refacto for scalability, same as internal states orchestrator.
+    // TODO: docs when implemented.
     function performUpkeep(bytes calldata) external override onlyAutomationRegistry {
         uint256 currentEpoch = internalStatesOrchestrator.epochCounter();
         if (currentEpoch <= lastProcessedEpoch) {
@@ -153,41 +171,66 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         }
         lastProcessedEpoch = currentEpoch;
 
+        // Measure initial underlying balance of this contract.
+        uint256 initialUnderlyingBalance = IERC20(underlyingAsset).balanceOf(address(this));
+
+        // TODO: buy and sell orders all in shares at this point, fix execution adapter API accordingly.
+        // this implies we can match intents with adapter price and use those variables to update vault states
+        // we nonetheless do this update after the actual execution, in line with a re-entrancy protection design.
+        // Here we are dealing with multiple transactions, not a single one, so the pattern has not the same use.
+
         // Execute sequentially the trades to reach target state
         // (consider having the number of standing orders as a trigger of a set of chainlink automation jobs).
         // for more scalable market interactions.
         (address[] memory sellingTokens, uint256[] memory sellingAmounts) = internalStatesOrchestrator
             .getSellingOrders();
 
+        // Sell before buy, avoid undercollateralization risk.
         for (uint256 i = 0; i < sellingTokens.length; i++) {
             address token = sellingTokens[i];
             uint256 amount = sellingAmounts[i];
             _executeSell(token, amount);
         }
 
-        // Here I have all the liquidity from depositors + from selling orders.
-        // I cannot yet mint shares to depositors and burn shares/give assets to withdrawers as I don't have the
-        // exchange rate yet. To get it, I need to execute all the buying orders.
-        // I necessarily have enough liquidity for this at this point.
+        // TODO: Execution methodology could go further than batched buy/sell,
+        // breaking down each selling/buying order into multiple transactions,
+        // minimizing liquidity orchestrator market impact.
+
+        // Measure intermediate underlying balance of this contract.
+        uint256 intermediateUnderlyingBalance = IERC20(underlyingAsset).balanceOf(address(this));
+
+        // Compute tracking error.
+        // ||Delta_S||_L1
+        uint256 executedUnderlyingSellAmount = intermediateUnderlyingBalance - initialUnderlyingBalance;
+        // ||Delta_S_hat||_L1
+        uint256 expectedUnderlyingSellAmount = internalStatesOrchestrator.expectedUnderlyingSellAmount();
+        uint256 epsilon = executedUnderlyingSellAmount - expectedUnderlyingSellAmount;
+
+        // ||Delta_B_hat||_L1
+        uint256 expectedUnderlyingBuyAmount = internalStatesOrchestrator.expectedUnderlyingBuyAmount();
+
+        // Tracking error factor gamma
+        uint256 trackingErrorFactor = 1e18;
+        if (expectedUnderlyingBuyAmount > 0) {
+            trackingErrorFactor = 1e18 + (epsilon * 1e18) / expectedUnderlyingBuyAmount;
+        }
 
         (address[] memory buyingTokens, uint256[] memory buyingAmounts) = internalStatesOrchestrator.getBuyingOrders();
+        // Scaling the buy leg to absorb the tracking error, protecting LPs from execution slippage.
+        // This is a global compensation factor, applied uniformly to all vaults, it ensures full collateralization
+        // of the overall portfolio.
+        for (uint256 i = 0; i < buyingTokens.length; i++) {
+            buyingAmounts[i] = (buyingAmounts[i] * trackingErrorFactor) / 1e18;
+        }
 
         for (uint256 i = 0; i < buyingTokens.length; i++) {
             address token = buyingTokens[i];
             uint256 amount = buyingAmounts[i];
             _executeBuy(token, amount);
-            // TODO: For last trade, adjust asset target amount post N-1
-            // executions to deal with rounding/trade error.
-            // Needed to have a measurement of the rebalancing error to compute this offset.
         }
 
-        // Here possible to compute the real T0 (sum total assets).
-        // TODO: how to backpropagate this to the vaults? Ideally we need to compute an array of tracking errors,
-        // one per vault. This gives up privacy. Can we have a different approach?
-        // Distribute tracking error proportionally to starting total assets?
-
-        // Same issue as T0 on W0, after execution we have it, but we need to backpropagate it to the vaults.
-        // TODO: how to do this maintaining privacy?
+        // As per the portfolio states, we can distribute the tracking error to each vault
+        // with a weight proportional to t_1.
         address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
         uint256 length = transparentVaults.length;
         for (uint256 i = 0; i < length; i++) {
@@ -197,10 +240,6 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         }
 
         // TODO: to updateVaultState of encrypted vaults, get the encrypted sharesPerAsset executed by the liquidity
-        // orchestrator and update the vault intent with an encrypted calibration error before storing it.
-        // Not trivial how to backpropagate the calibration error to each vault.
-        // Identify metodology to do this maintaining privacy.
-        // TODO: how to do this maintaining privacy?
 
         address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
         length = encryptedVaults.length;
@@ -212,14 +251,15 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
 
         // TODO: DepositRequest and WithdrawRequest in Vaults to be processed post t0 update, and removed from
         // vault state as pending requests.
-        // Also process curators and protocol fees.
+        // Opportunity to net actual transactions (not just intents),
+        // performing minting and burning operation at the same time.
+        // TODO: process curators (sending underlying to vault as escrow for curator to redeem)
+        // and protocol fees to separate escrow/wallet.
 
         emit EventsLib.PortfolioRebalanced();
     }
 
-    /// @notice Internal function to execute a sell order directly through the adapter
-    /// @param asset The address of the asset to sell
-    /// @param amount The amount of shares to sell
+    // TODO: docs when implemented.
     function _executeSell(address asset, uint256 amount) internal {
         IExecutionAdapter adapter = executionAdapterOf[asset];
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
@@ -228,27 +268,33 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         bool success = IERC20(asset).approve(address(adapter), amount);
         if (!success) revert ErrorsLib.TransferFailed();
 
-        // Execute sell through adapter
-        // (adapter will pull shares from this contract and push underlying assets to it)
+        // TODO: setting slippage tolerance at the protocol level,
+        // passing adapter price for specific asset to execution adapter,
+        // and not performing trade if slippage is too high.
+        // TODO: same for buy orders.
+
+        // TODO: underlying asset/numeraire needs to be part of the whitelisted investment universe,
+        // as if an order does not pass the underlying equivalent
+        // is set into the portfolio state for all vaults. As before, clear how to handle this point with privacy.
+
+        // Execute sell through adapter, pull shares from this contract and push underlying assets to it.
         adapter.sell(asset, amount);
     }
 
-    /// @notice Internal function to execute a buy order directly through the adapter
-    /// @param asset The address of the asset to buy
-    /// @param amount The amount of underlying assets to use for buying
+    // TODO: docs when implemented.
     function _executeBuy(address asset, uint256 amount) internal {
         IExecutionAdapter adapter = executionAdapterOf[asset];
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
 
         // Get the underlying asset from the adapter (assumes it's an ERC4626 adapter)
+        // TODO: fix, This declaration shadows an existing declaration.
         address underlyingAsset = IERC4626(asset).asset();
 
         // Approve adapter to spend underlying assets
         bool success = IERC20(underlyingAsset).approve(address(adapter), amount);
         if (!success) revert ErrorsLib.TransferFailed();
 
-        // Execute buy through adapter
-        // (adapter will pull underlying assets from this contract and push shares to it)
+        // Execute buy through adapter, pull underlying assets from this contract and push shares to it.
         adapter.buy(asset, amount);
     }
 }

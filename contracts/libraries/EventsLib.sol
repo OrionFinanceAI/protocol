@@ -26,14 +26,14 @@ library EventsLib {
     event VaultStateUpdated(uint256 newTotalAssets);
 
     // Internal States Orchestrator Events
-    event InternalStateProcessed(uint256 epochCounter);
     event AutomationRegistryUpdated(address indexed newAutomationRegistry);
+    event InternalStateProcessed(uint256 epochCounter);
 
     // Liquidity Orchestrator Events
     event PortfolioRebalanced();
 
-    // Oracle Registry Events
-    event AdapterSet(address indexed asset, address indexed adapter);
+    event PriceAdapterSet(address indexed asset, address indexed adapter);
+    event ExecutionAdapterSet(address indexed asset, address indexed adapter);
 
     // Orion Vault Factory Events
     enum VaultType {

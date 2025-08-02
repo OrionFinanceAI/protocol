@@ -27,6 +27,16 @@
           "internalType": "address",
           "name": "asset",
           "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "priceAdapter",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "executionAdapter",
+          "type": "address"
         }
       ],
       "name": "addWhitelistedAsset",
@@ -164,7 +174,7 @@
     },
     {
       "inputs": [],
-      "name": "oracleRegistry",
+      "name": "priceAdapterRegistry",
       "outputs": [
         {
           "internalType": "address",
@@ -210,14 +220,17 @@
       "inputs": [
         {
           "internalType": "address",
-          "name": "_underlyingAsset",
+          "name": "orchestrator",
           "type": "address"
-        },
-        {
-          "internalType": "address",
-          "name": "_internalStatesOrchestrator",
-          "type": "address"
-        },
+        }
+      ],
+      "name": "setInternalStatesOrchestrator",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
         {
           "internalType": "address",
           "name": "_liquidityOrchestrator",
@@ -229,18 +242,13 @@
           "type": "uint8"
         },
         {
-          "internalType": "uint8",
-          "name": "_statesDecimals",
-          "type": "uint8"
-        },
-        {
           "internalType": "address",
           "name": "_factory",
           "type": "address"
         },
         {
           "internalType": "address",
-          "name": "_oracleRegistry",
+          "name": "_priceAdapterRegistry",
           "type": "address"
         }
       ],
@@ -250,16 +258,16 @@
       "type": "function"
     },
     {
-      "inputs": [],
-      "name": "statesDecimals",
-      "outputs": [
+      "inputs": [
         {
-          "internalType": "uint8",
-          "name": "",
-          "type": "uint8"
+          "internalType": "address",
+          "name": "asset",
+          "type": "address"
         }
       ],
-      "stateMutability": "view",
+      "name": "setUnderlyingAsset",
+      "outputs": [],
+      "stateMutability": "nonpayable",
       "type": "function"
     },
     {

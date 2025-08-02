@@ -1,20 +1,23 @@
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
+import { Log } from "ethers";
 import { ethers } from "hardhat";
 
-let orionVaultFactory: any;
-let orionConfig: any;
-let vaultImplementations: any;
-let underlyingAsset: any;
+import { MockUnderlyingAsset, OrionConfig, OrionVaultFactory, VaultImplementations } from "../typechain-types";
 
-let owner: SignerWithAddress, curator: SignerWithAddress, other: SignerWithAddress, user: SignerWithAddress;
+let orionVaultFactory: OrionVaultFactory;
+let orionConfig: OrionConfig;
+let vaultImplementations: VaultImplementations;
+let underlyingAsset: MockUnderlyingAsset;
+
+let owner: SignerWithAddress, curator: SignerWithAddress, other: SignerWithAddress;
 
 const ZERO_ADDRESS = ethers.ZeroAddress;
 
 const VaultType = { Transparent: 0, Encrypted: 1 };
 
 beforeEach(async function () {
-  [owner, curator, other, user] = await ethers.getSigners();
+  [owner, curator, other] = await ethers.getSigners();
 
   const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
   underlyingAsset = await MockUnderlyingAssetFactory.deploy(6);
@@ -24,6 +27,8 @@ beforeEach(async function () {
   orionConfig = await OrionConfigFactory.deploy();
   await orionConfig.waitForDeployment();
   await orionConfig.initialize(owner.address);
+  await orionConfig.setUnderlyingAsset(await underlyingAsset.getAddress());
+  await orionConfig.setInternalStatesOrchestrator(await other.address);
 
   const OrionVaultFactoryFactory = await ethers.getContractFactory("OrionVaultFactory");
   const factoryInstance = await OrionVaultFactoryFactory.deploy();
@@ -32,13 +37,10 @@ beforeEach(async function () {
   orionVaultFactory = await ethers.getContractAt("OrionVaultFactory", await factoryInstance.getAddress());
 
   await orionConfig.setProtocolParams(
-    await underlyingAsset.getAddress(),
-    other.address, // internalStatesOrchestrator
     other.address, // liquidityOrchestrator
-    18, // statesDecimals
     6, // curatorIntentDecimals
     await orionVaultFactory.getAddress(), // factory
-    other.address, // oracleRegistry
+    other.address, // priceAdapterRegistry
   );
 
   const VaultImplementationsFactory = await ethers.getContractFactory("VaultImplementations");
@@ -146,7 +148,7 @@ describe("OrionVaultFactory", function () {
         .createOrionTransparentVault(curator.address, vaultName, vaultSymbol);
 
       const receipt = await tx.wait();
-      const event = receipt.logs.find((log: any) => {
+      const event = receipt.logs.find((log: Log) => {
         try {
           const decoded = orionVaultFactory.interface.parseLog(log);
           return decoded.name === "OrionVaultCreated";
@@ -155,8 +157,8 @@ describe("OrionVaultFactory", function () {
         }
       });
 
-      expect(event).to.not.be.undefined;
-      const decodedEvent = orionVaultFactory.interface.parseLog(event);
+      await expect(event).to.not.be.undefined;
+      const decodedEvent = orionVaultFactory.interface.parseLog(event!);
       expect(decodedEvent.args.curator).to.equal(curator.address);
       expect(decodedEvent.args.deployer).to.equal(owner.address);
       expect(decodedEvent.args.vaultType).to.equal(VaultType.Transparent);
@@ -203,7 +205,7 @@ describe("OrionVaultFactory", function () {
         .createOrionEncryptedVault(curator.address, vaultName, vaultSymbol);
 
       const receipt = await tx.wait();
-      const event = receipt.logs.find((log: any) => {
+      const event = receipt?.logs.find((log: Log) => {
         try {
           const decoded = orionVaultFactory.interface.parseLog(log);
           return decoded.name === "OrionVaultCreated";
@@ -212,8 +214,8 @@ describe("OrionVaultFactory", function () {
         }
       });
 
-      expect(event).to.not.be.undefined;
-      const decodedEvent = orionVaultFactory.interface.parseLog(event);
+      await expect(event).to.not.be.undefined;
+      const decodedEvent = orionVaultFactory.interface.parseLog(event!);
       expect(decodedEvent.args.curator).to.equal(curator.address);
       expect(decodedEvent.args.deployer).to.equal(owner.address);
       expect(decodedEvent.args.vaultType).to.equal(VaultType.Encrypted);
@@ -267,7 +269,7 @@ describe("OrionVaultFactory", function () {
         .connect(owner)
         .createOrionTransparentVault(curator.address, "Test Vault", "TV");
 
-      expect(tx).to.not.be.undefined;
+      await expect(tx).to.not.be.reverted;
     });
   });
 });

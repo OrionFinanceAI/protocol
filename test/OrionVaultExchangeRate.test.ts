@@ -20,16 +20,14 @@ describe("OrionVault Exchange Rate Tests", function () {
     await config.waitForDeployment();
     const configAddress = await config.getAddress();
     await config.initialize(owner.address);
+    await config.setUnderlyingAsset(underlyingAssetAddress);
 
     // Set protocol parameters
     await config.setProtocolParams(
-      underlyingAssetAddress,
-      internalOrchestrator.address,
       liquidityOrchestrator.address,
-      18, // statesDecimals
       6, // curatorIntentDecimals
       owner.address, // factory
-      owner.address, // oracleRegistry
+      owner.address, // priceAdapterRegistry
     );
 
     // Deploy OrionTransparentVault
@@ -197,7 +195,7 @@ describe("OrionVault Exchange Rate Tests", function () {
       const { vault, underlyingAsset, lp1, attacker, liquidityOrchestrator } = await loadFixture(deployVaultFixture);
 
       /* ── 1. Legitimate deposit ────────────────────────────────────────────── */
-      const initialDeposit = ethers.parseUnits("1000", 6); // 1 000 USDC
+      const initialDeposit = ethers.parseUnits("1000", 6); // 1000 USDC
       await underlyingAsset.connect(lp1).approve(await vault.getAddress(), initialDeposit);
 
       await vault.connect(lp1).requestDeposit(initialDeposit);
@@ -223,8 +221,7 @@ describe("OrionVault Exchange Rate Tests", function () {
       expect(assetsAfterDonation).to.be.lt(initialAssets + donationAmount);
 
       /* ── 5. Precise bound using the vault's virtual‑offset formula ───────── */
-      const statesDecimals = 18;
-      const virtualOffset = 10n ** BigInt(statesDecimals);
+      const virtualOffset = 10n ** BigInt(18 - 6);
       const totalSupply = await vault.totalSupply();
       const totalSupplyPlusOffset = totalSupply + virtualOffset;
 

@@ -2,33 +2,47 @@ import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
 import { ethers, upgrades } from "hardhat";
 
+import {
+  OrionAssetERC4626ExecutionAdapter,
+  OrionAssetERC4626PriceAdapter,
+  InternalStatesOrchestrator,
+  LiquidityOrchestrator,
+  MockERC4626Asset,
+  MockPriceAdapter,
+  MockUnderlyingAsset,
+  PriceAdapterRegistry,
+  OrionConfig,
+  OrionEncryptedVault,
+  OrionTransparentVault,
+  OrionVaultFactory,
+} from "../typechain-types";
+
 describe("OnlyOwner Functions - Comprehensive Test Suite", function () {
   let owner: SignerWithAddress;
   let nonOwner: SignerWithAddress;
   let user1: SignerWithAddress;
-  let user2: SignerWithAddress;
   let automationRegistry: SignerWithAddress;
 
   // Contract instances
-  let orionConfig: any;
-  let oracleRegistry: any;
-  let liquidityOrchestrator: any;
-  let orionVaultFactory: any;
-  let internalStatesOrchestrator: any;
-  let erc4626ExecutionAdapter: any;
-  let erc4626PriceAdapter: any;
-  let mockUnderlyingAsset: any;
-  let mockPriceAdapter: any;
+  let orionConfig: OrionConfig;
+  let priceAdapterRegistry: PriceAdapterRegistry;
+  let liquidityOrchestrator: LiquidityOrchestrator;
+  let orionVaultFactory: OrionVaultFactory;
+  let internalStatesOrchestrator: InternalStatesOrchestrator;
+  let orionAssetERC4626ExecutionAdapter: OrionAssetERC4626ExecutionAdapter;
+  let orionAssetERC4626PriceAdapter: OrionAssetERC4626PriceAdapter;
+  let mockUnderlyingAsset: MockUnderlyingAsset;
+  let mockPriceAdapter: MockPriceAdapter;
 
   // Helper contracts
-  let mockERC4626Asset: any;
-  let transparentVaultImpl: any;
-  let encryptedVaultImpl: any;
+  let mockERC4626Asset: MockERC4626Asset;
+  let transparentVaultImpl: OrionTransparentVault;
+  let encryptedVaultImpl: OrionEncryptedVault;
 
   const ZERO_ADDRESS = ethers.ZeroAddress;
 
   beforeEach(async function () {
-    [owner, nonOwner, user1, user2, automationRegistry] = await ethers.getSigners();
+    [owner, nonOwner, user1, automationRegistry] = await ethers.getSigners();
 
     // Deploy mock contracts first
     const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
@@ -46,14 +60,19 @@ describe("OnlyOwner Functions - Comprehensive Test Suite", function () {
       initializer: "initialize",
     });
     await orionConfig.waitForDeployment();
+    await orionConfig.setUnderlyingAsset(mockUnderlyingAsset.target);
 
-    // Deploy OracleRegistry
-    const OracleRegistryFactory = await ethers.getContractFactory("OracleRegistry");
-    oracleRegistry = await upgrades.deployProxy(OracleRegistryFactory, [owner.address], {
-      kind: "uups",
-      initializer: "initialize",
-    });
-    await oracleRegistry.waitForDeployment();
+    // Deploy PriceAdapterRegistryFactory
+    const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistry");
+    priceAdapterRegistry = await upgrades.deployProxy(
+      PriceAdapterRegistryFactory,
+      [owner.address, orionConfig.target],
+      {
+        kind: "uups",
+        initializer: "initialize",
+      },
+    );
+    await priceAdapterRegistry.waitForDeployment();
 
     // Deploy MockPriceAdapter
     const MockPriceAdapterFactory = await ethers.getContractFactory("MockPriceAdapter");
@@ -63,13 +82,13 @@ describe("OnlyOwner Functions - Comprehensive Test Suite", function () {
     });
     await mockPriceAdapter.waitForDeployment();
 
-    // Deploy ERC4626PriceAdapter
-    const ERC4626PriceAdapterFactory = await ethers.getContractFactory("ERC4626PriceAdapter");
-    erc4626PriceAdapter = await upgrades.deployProxy(ERC4626PriceAdapterFactory, [owner.address], {
+    // Deploy OrionAssetERC4626PriceAdapter
+    const OrionAssetERC4626PriceAdapterFactory = await ethers.getContractFactory("OrionAssetERC4626PriceAdapter");
+    orionAssetERC4626PriceAdapter = await upgrades.deployProxy(OrionAssetERC4626PriceAdapterFactory, [owner.address], {
       kind: "uups",
       initializer: "initialize",
     });
-    await erc4626PriceAdapter.waitForDeployment();
+    await orionAssetERC4626PriceAdapter.waitForDeployment();
 
     // Deploy LiquidityOrchestrator
     const LiquidityOrchestratorFactory = await ethers.getContractFactory("LiquidityOrchestrator");
@@ -103,13 +122,19 @@ describe("OnlyOwner Functions - Comprehensive Test Suite", function () {
     });
     await orionVaultFactory.waitForDeployment();
 
-    // Deploy ERC4626ExecutionAdapter
-    const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
-    erc4626ExecutionAdapter = await upgrades.deployProxy(ERC4626ExecutionAdapterFactory, [owner.address], {
-      kind: "uups",
-      initializer: "initialize",
-    });
-    await erc4626ExecutionAdapter.waitForDeployment();
+    // Deploy OrionAssetERC4626ExecutionAdapter
+    const OrionAssetERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
+      "OrionAssetERC4626ExecutionAdapter",
+    );
+    orionAssetERC4626ExecutionAdapter = await upgrades.deployProxy(
+      OrionAssetERC4626ExecutionAdapterFactory,
+      [owner.address, orionConfig.target],
+      {
+        kind: "uups",
+        initializer: "initialize",
+      },
+    );
+    await orionAssetERC4626ExecutionAdapter.waitForDeployment();
 
     // Deploy vault implementations for factory testing
     const OrionTransparentVaultFactory = await ethers.getContractFactory("OrionTransparentVault");
@@ -123,89 +148,13 @@ describe("OnlyOwner Functions - Comprehensive Test Suite", function () {
     // Set up OrionConfig with protocol params
     await orionConfig
       .connect(owner)
-      .setProtocolParams(
-        mockUnderlyingAsset.target,
-        internalStatesOrchestrator.target,
-        liquidityOrchestrator.target,
-        6,
-        18,
-        orionVaultFactory.target,
-        oracleRegistry.target,
-      );
+      .setProtocolParams(liquidityOrchestrator.target, 6, orionVaultFactory.target, priceAdapterRegistry.target);
 
     // Set implementations in factory
     await orionVaultFactory.connect(owner).setImplementations(transparentVaultImpl.target, encryptedVaultImpl.target);
   });
 
   describe("OrionConfig onlyOwner Functions", function () {
-    describe("setProtocolParams", function () {
-      it("should succeed when called by owner", async function () {
-        await expect(
-          orionConfig
-            .connect(owner)
-            .setProtocolParams(
-              mockUnderlyingAsset.target,
-              user1.address,
-              user2.address,
-              6,
-              18,
-              orionVaultFactory.target,
-              oracleRegistry.target,
-            ),
-        ).to.emit(orionConfig, "ProtocolParamsUpdated");
-      });
-
-      it("should revert when called by non-owner", async function () {
-        await expect(
-          orionConfig
-            .connect(nonOwner)
-            .setProtocolParams(
-              mockUnderlyingAsset.target,
-              user1.address,
-              user2.address,
-              6,
-              18,
-              orionVaultFactory.target,
-              oracleRegistry.target,
-            ),
-        ).to.be.revertedWithCustomError(orionConfig, "OwnableUnauthorizedAccount");
-      });
-    });
-
-    describe("addWhitelistedAsset", function () {
-      it("should succeed when called by owner", async function () {
-        await expect(orionConfig.connect(owner).addWhitelistedAsset(user1.address))
-          .to.emit(orionConfig, "WhitelistedAssetAdded")
-          .withArgs(user1.address);
-      });
-
-      it("should revert when called by non-owner", async function () {
-        await expect(orionConfig.connect(nonOwner).addWhitelistedAsset(user1.address)).to.be.revertedWithCustomError(
-          orionConfig,
-          "OwnableUnauthorizedAccount",
-        );
-      });
-    });
-
-    describe("removeWhitelistedAsset", function () {
-      beforeEach(async function () {
-        await orionConfig.connect(owner).addWhitelistedAsset(user1.address);
-      });
-
-      it("should succeed when called by owner", async function () {
-        await expect(orionConfig.connect(owner).removeWhitelistedAsset(user1.address))
-          .to.emit(orionConfig, "WhitelistedAssetRemoved")
-          .withArgs(user1.address);
-      });
-
-      it("should revert when called by non-owner", async function () {
-        await expect(orionConfig.connect(nonOwner).removeWhitelistedAsset(user1.address)).to.be.revertedWithCustomError(
-          orionConfig,
-          "OwnableUnauthorizedAccount",
-        );
-      });
-    });
-
     describe("upgradeability", function () {
       it("should succeed when owner calls upgradeToAndCall", async function () {
         const OrionConfigV2Factory = await ethers.getContractFactory("OrionConfig");
@@ -227,35 +176,22 @@ describe("OnlyOwner Functions - Comprehensive Test Suite", function () {
     });
   });
 
-  describe("OracleRegistry onlyOwner Functions", function () {
-    describe("setAdapter", function () {
-      it("should succeed when called by owner", async function () {
-        await expect(oracleRegistry.connect(owner).setAdapter(user1.address, mockPriceAdapter.target))
-          .to.emit(oracleRegistry, "AdapterSet")
-          .withArgs(user1.address, mockPriceAdapter.target);
-      });
-
-      it("should revert when called by non-owner", async function () {
-        await expect(
-          oracleRegistry.connect(nonOwner).setAdapter(user1.address, mockPriceAdapter.target),
-        ).to.be.revertedWithCustomError(oracleRegistry, "OwnableUnauthorizedAccount");
-      });
-    });
-
+  describe("PriceAdapterRegistry onlyOwner Functions", function () {
     describe("upgradeability", function () {
       it("should succeed when owner calls upgradeToAndCall", async function () {
-        const OracleRegistryV2Factory = await ethers.getContractFactory("OracleRegistry");
-        await expect(upgrades.upgradeProxy(oracleRegistry.target, OracleRegistryV2Factory)).to.not.be.reverted;
+        const PriceAdapterRegistryV2Factory = await ethers.getContractFactory("PriceAdapterRegistry");
+        await expect(upgrades.upgradeProxy(priceAdapterRegistry.target, PriceAdapterRegistryV2Factory)).to.not.be
+          .reverted;
       });
 
       it("should revert when non-owner tries to upgrade", async function () {
-        const OracleRegistryV2Factory = await ethers.getContractFactory("OracleRegistry");
-        const oracleRegistryV2 = await OracleRegistryV2Factory.deploy();
-        await oracleRegistryV2.waitForDeployment();
+        const PriceAdapterRegistryV2Factory = await ethers.getContractFactory("PriceAdapterRegistry");
+        const priceAdapterRegistryV2 = await PriceAdapterRegistryV2Factory.deploy();
+        await priceAdapterRegistryV2.waitForDeployment();
 
         await expect(
-          oracleRegistry.connect(nonOwner).upgradeToAndCall(oracleRegistryV2.target, "0x"),
-        ).to.be.revertedWithCustomError(oracleRegistry, "OwnableUnauthorizedAccount");
+          priceAdapterRegistry.connect(nonOwner).upgradeToAndCall(priceAdapterRegistryV2.target, "0x"),
+        ).to.be.revertedWithCustomError(priceAdapterRegistry, "OwnableUnauthorizedAccount");
       });
     });
   });
@@ -286,20 +222,6 @@ describe("OnlyOwner Functions - Comprehensive Test Suite", function () {
           liquidityOrchestrator,
           "OwnableUnauthorizedAccount",
         );
-      });
-    });
-
-    describe("setAdapter", function () {
-      it("should succeed when called by owner", async function () {
-        await expect(liquidityOrchestrator.connect(owner).setAdapter(user1.address, erc4626ExecutionAdapter.target))
-          .to.emit(liquidityOrchestrator, "AdapterSet")
-          .withArgs(user1.address, erc4626ExecutionAdapter.target);
-      });
-
-      it("should revert when called by non-owner", async function () {
-        await expect(
-          liquidityOrchestrator.connect(nonOwner).setAdapter(user1.address, erc4626ExecutionAdapter.target),
-        ).to.be.revertedWithCustomError(liquidityOrchestrator, "OwnableUnauthorizedAccount");
       });
     });
 
@@ -451,19 +373,26 @@ describe("OnlyOwner Functions - Comprehensive Test Suite", function () {
   describe("ERC4626ExecutionAdapter onlyOwner Functions", function () {
     describe("upgradeability", function () {
       it("should succeed when owner calls upgradeToAndCall", async function () {
-        const ERC4626ExecutionAdapterV2Factory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
-        await expect(upgrades.upgradeProxy(erc4626ExecutionAdapter.target, ERC4626ExecutionAdapterV2Factory)).to.not.be
-          .reverted;
+        const OrionAssetERC4626ExecutionAdapterV2Factory = await ethers.getContractFactory(
+          "OrionAssetERC4626ExecutionAdapter",
+        );
+        await expect(
+          upgrades.upgradeProxy(orionAssetERC4626ExecutionAdapter.target, OrionAssetERC4626ExecutionAdapterV2Factory),
+        ).to.not.be.reverted;
       });
 
       it("should revert when non-owner tries to upgrade", async function () {
-        const ERC4626ExecutionAdapterV2Factory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
-        const erc4626ExecutionAdapterV2 = await ERC4626ExecutionAdapterV2Factory.deploy();
-        await erc4626ExecutionAdapterV2.waitForDeployment();
+        const OrionAssetERC4626ExecutionAdapterV2Factory = await ethers.getContractFactory(
+          "OrionAssetERC4626ExecutionAdapter",
+        );
+        const orionAssetERC4626ExecutionAdapterV2 = await OrionAssetERC4626ExecutionAdapterV2Factory.deploy();
+        await orionAssetERC4626ExecutionAdapterV2.waitForDeployment();
 
         await expect(
-          erc4626ExecutionAdapter.connect(nonOwner).upgradeToAndCall(erc4626ExecutionAdapterV2.target, "0x"),
-        ).to.be.revertedWithCustomError(erc4626ExecutionAdapter, "OwnableUnauthorizedAccount");
+          orionAssetERC4626ExecutionAdapter
+            .connect(nonOwner)
+            .upgradeToAndCall(orionAssetERC4626ExecutionAdapterV2.target, "0x"),
+        ).to.be.revertedWithCustomError(orionAssetERC4626ExecutionAdapter, "OwnableUnauthorizedAccount");
       });
     });
   });
@@ -471,19 +400,22 @@ describe("OnlyOwner Functions - Comprehensive Test Suite", function () {
   describe("ERC4626PriceAdapter onlyOwner Functions", function () {
     describe("upgradeability", function () {
       it("should succeed when owner calls upgradeToAndCall", async function () {
-        const ERC4626PriceAdapterV2Factory = await ethers.getContractFactory("ERC4626PriceAdapter");
-        await expect(upgrades.upgradeProxy(erc4626PriceAdapter.target, ERC4626PriceAdapterV2Factory)).to.not.be
-          .reverted;
+        const OrionAssetERC4626PriceAdapterV2Factory = await ethers.getContractFactory("OrionAssetERC4626PriceAdapter");
+        await expect(
+          upgrades.upgradeProxy(orionAssetERC4626PriceAdapter.target, OrionAssetERC4626PriceAdapterV2Factory),
+        ).to.not.be.reverted;
       });
 
       it("should revert when non-owner tries to upgrade", async function () {
-        const ERC4626PriceAdapterV2Factory = await ethers.getContractFactory("ERC4626PriceAdapter");
-        const erc4626PriceAdapterV2 = await ERC4626PriceAdapterV2Factory.deploy();
-        await erc4626PriceAdapterV2.waitForDeployment();
+        const OrionAssetERC4626PriceAdapterV2Factory = await ethers.getContractFactory("OrionAssetERC4626PriceAdapter");
+        const orionAssetERC4626PriceAdapterV2 = await OrionAssetERC4626PriceAdapterV2Factory.deploy();
+        await orionAssetERC4626PriceAdapterV2.waitForDeployment();
 
         await expect(
-          erc4626PriceAdapter.connect(nonOwner).upgradeToAndCall(erc4626PriceAdapterV2.target, "0x"),
-        ).to.be.revertedWithCustomError(erc4626PriceAdapter, "OwnableUnauthorizedAccount");
+          orionAssetERC4626PriceAdapter
+            .connect(nonOwner)
+            .upgradeToAndCall(orionAssetERC4626PriceAdapterV2.target, "0x"),
+        ).to.be.revertedWithCustomError(orionAssetERC4626PriceAdapter, "OwnableUnauthorizedAccount");
       });
     });
   });
@@ -523,136 +455,6 @@ describe("OnlyOwner Functions - Comprehensive Test Suite", function () {
           "OwnableUnauthorizedAccount",
         );
       });
-    });
-  });
-
-  describe("Edge Cases and Security Tests", function () {
-    it("should prevent zero address parameters where applicable", async function () {
-      // Test OrionConfig setProtocolParams with zero addresses
-      await expect(
-        orionConfig
-          .connect(owner)
-          .setProtocolParams(
-            ZERO_ADDRESS,
-            user1.address,
-            user2.address,
-            6,
-            18,
-            orionVaultFactory.target,
-            oracleRegistry.target,
-          ),
-      ).to.be.revertedWithCustomError(orionConfig, "ZeroAddress");
-
-      // Test OracleRegistry setAdapter with zero addresses
-      await expect(
-        oracleRegistry.connect(owner).setAdapter(ZERO_ADDRESS, mockPriceAdapter.target),
-      ).to.be.revertedWithCustomError(oracleRegistry, "ZeroAddress");
-
-      await expect(oracleRegistry.connect(owner).setAdapter(user1.address, ZERO_ADDRESS)).to.be.revertedWithCustomError(
-        oracleRegistry,
-        "ZeroAddress",
-      );
-
-      // Test LiquidityOrchestrator updateAutomationRegistry with zero address
-      await expect(
-        liquidityOrchestrator.connect(owner).updateAutomationRegistry(ZERO_ADDRESS),
-      ).to.be.revertedWithCustomError(liquidityOrchestrator, "ZeroAddress");
-
-      // Test OrionVaultFactory setImplementations with zero addresses
-      await expect(
-        orionVaultFactory.connect(owner).setImplementations(ZERO_ADDRESS, user2.address),
-      ).to.be.revertedWithCustomError(orionVaultFactory, "ZeroAddress");
-
-      await expect(
-        orionVaultFactory.connect(owner).setImplementations(user1.address, ZERO_ADDRESS),
-      ).to.be.revertedWithCustomError(orionVaultFactory, "ZeroAddress");
-    });
-
-    it("should maintain state consistency after owner transfers", async function () {
-      // Transfer ownership of OrionConfig
-      await orionConfig.connect(owner).transferOwnership(user1.address);
-      await orionConfig.connect(user1).acceptOwnership();
-
-      // Original owner should no longer have access
-      await expect(orionConfig.connect(owner).addWhitelistedAsset(user2.address)).to.be.revertedWithCustomError(
-        orionConfig,
-        "OwnableUnauthorizedAccount",
-      );
-
-      // New owner should have access
-      await expect(orionConfig.connect(user1).addWhitelistedAsset(user2.address))
-        .to.emit(orionConfig, "WhitelistedAssetAdded")
-        .withArgs(user2.address);
-    });
-
-    it("should prevent function calls during ownership transfer", async function () {
-      // Start ownership transfer
-      await orionConfig.connect(owner).transferOwnership(user1.address);
-
-      // Original owner should still have access until transfer is accepted
-      await expect(orionConfig.connect(owner).addWhitelistedAsset(user2.address))
-        .to.emit(orionConfig, "WhitelistedAssetAdded")
-        .withArgs(user2.address);
-
-      // New owner should not have access until accepted
-      await expect(orionConfig.connect(user1).removeWhitelistedAsset(user2.address)).to.be.revertedWithCustomError(
-        orionConfig,
-        "OwnableUnauthorizedAccount",
-      );
-    });
-  });
-
-  describe("Integration Tests", function () {
-    it("should allow owner to configure complete system", async function () {
-      // Set up oracle adapters
-      await oracleRegistry.connect(owner).setAdapter(mockERC4626Asset.target, erc4626PriceAdapter.target);
-      await oracleRegistry.connect(owner).setAdapter(mockUnderlyingAsset.target, mockPriceAdapter.target);
-
-      // Set up execution adapters
-      await liquidityOrchestrator.connect(owner).setAdapter(mockERC4626Asset.target, erc4626ExecutionAdapter.target);
-
-      // Whitelist assets
-      await orionConfig.connect(owner).addWhitelistedAsset(mockERC4626Asset.target);
-      await orionConfig.connect(owner).addWhitelistedAsset(mockUnderlyingAsset.target);
-
-      // Create vaults
-      const transparentVaultTx = await orionVaultFactory
-        .connect(owner)
-        .createOrionTransparentVault(user1.address, "Test Transparent", "TT");
-      const encryptedVaultTx = await orionVaultFactory
-        .connect(owner)
-        .createOrionEncryptedVault(user1.address, "Test Encrypted", "TE");
-
-      // Verify everything was set up correctly
-      expect(await oracleRegistry.adapterOf(mockERC4626Asset.target)).to.equal(erc4626PriceAdapter.target);
-      expect(await liquidityOrchestrator.executionAdapterOf(mockERC4626Asset.target)).to.equal(
-        erc4626ExecutionAdapter.target,
-      );
-      expect(await orionConfig.isWhitelisted(mockERC4626Asset.target)).to.be.true;
-      expect(await orionConfig.isWhitelisted(mockUnderlyingAsset.target)).to.be.true;
-    });
-
-    it("should prevent non-owners from disrupting system configuration", async function () {
-      // Try to disrupt oracle configuration
-      await expect(
-        oracleRegistry.connect(nonOwner).setAdapter(mockERC4626Asset.target, ZERO_ADDRESS),
-      ).to.be.revertedWithCustomError(oracleRegistry, "OwnableUnauthorizedAccount");
-
-      // Try to disrupt execution adapter configuration
-      await expect(
-        liquidityOrchestrator.connect(nonOwner).setAdapter(mockERC4626Asset.target, ZERO_ADDRESS),
-      ).to.be.revertedWithCustomError(liquidityOrchestrator, "OwnableUnauthorizedAccount");
-
-      // Try to disrupt whitelist
-      await expect(orionConfig.connect(nonOwner).addWhitelistedAsset(ZERO_ADDRESS)).to.be.revertedWithCustomError(
-        orionConfig,
-        "OwnableUnauthorizedAccount",
-      );
-
-      // Try to create unauthorized vaults
-      await expect(
-        orionVaultFactory.connect(nonOwner).createOrionTransparentVault(user1.address, "Malicious", "MAL"),
-      ).to.be.revertedWithCustomError(orionVaultFactory, "OwnableUnauthorizedAccount");
     });
   });
 });

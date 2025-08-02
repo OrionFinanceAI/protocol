@@ -53,13 +53,13 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
  * 4. Portfolio Weights (w_0) [shares] - Current portfolio expressed as the number of shares per asset.
  *    - Units: Number of shares
  *    - Using shares instead of percentages allows the estimated TVL to be derived by multiplying with estimated prices.
- *      This reduces reliance on on-chain price oracles and allows the oracle contract to remain stateless.
+ *      This reduces reliance on on-chain price adapters and allows the adapter contract to remain stateless.
  *
  * 5. Curator Intent (w_1) [%] - Target portfolio expressed in percentage of total assets.
  *    - Units: Percentage points
  *    - This value must be specified in percentage of total supply because
  *      the curator does not know the point-in-time amount of assets in the vault at the time of intent submission.
- *      While the curator can estimate this value reading the vault's state and oracle prices,
+ *      While the curator can estimate this value reading the vault's state and adapter prices,
  *      the actual value at time of execution may differ.
  */
 abstract contract OrionVault is
@@ -95,6 +95,9 @@ abstract contract OrionVault is
     /// @notice Cached total pending withdrawals - updated incrementally for gas efficiency
     /// Units: Vault share tokens, not underlying assets
     uint256 private _totalPendingWithdrawals;
+
+    /// @notice Factor to convert between underlying and share decimals
+    uint256 private _deltaFactor;
 
     modifier onlyCurator() {
         if (msg.sender != curator) revert ErrorsLib.NotCurator();
@@ -136,6 +139,11 @@ abstract contract OrionVault is
         _totalAssets = 0;
         _totalPendingDeposits = 0;
         _totalPendingWithdrawals = 0;
+
+        uint8 underlyingDecimals = IERC20Metadata(address(config_.underlyingAsset())).decimals();
+        if (underlyingDecimals > 18) revert ErrorsLib.InvalidUnderlyingDecimals();
+        uint8 deltaDecimals = uint8(18 - underlyingDecimals);
+        _deltaFactor = 10 ** deltaDecimals;
     }
 
     // solhint-disable-next-line no-empty-blocks
@@ -186,14 +194,12 @@ abstract contract OrionVault is
         Math.Rounding rounding
     ) public view returns (uint256) {
         uint256 supply = totalSupply();
-        uint8 statesDecimals = config.statesDecimals();
-        return shares.mulDiv(pointInTimeTotalAssets + 1, supply + 10 ** statesDecimals, rounding);
+        return shares.mulDiv(pointInTimeTotalAssets + 1, supply + _deltaFactor, rounding);
     }
 
     function _convertToShares(uint256 assets, Math.Rounding rounding) internal view override returns (uint256) {
         uint256 supply = totalSupply();
-        uint8 statesDecimals = config.statesDecimals();
-        return assets.mulDiv(supply + 10 ** statesDecimals, _totalAssets + 1, rounding);
+        return assets.mulDiv(supply + _deltaFactor, _totalAssets + 1, rounding);
     }
 
     /// --------- LP FUNCTIONS ---------
@@ -204,17 +210,16 @@ abstract contract OrionVault is
     ///      LPs can later cancel this request to withdraw their funds before any minting occurs.
     /// @param amount The amount of the underlying asset to deposit.
     function requestDeposit(uint256 amount) external nonReentrant {
-        // Checks first
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
         uint256 senderBalance = IERC20(asset()).balanceOf(msg.sender);
         if (amount > senderBalance) revert ErrorsLib.InsufficientFunds(msg.sender, senderBalance, amount);
 
-        // Interactions - transfer funds directly to liquidity orchestrator
         bool success = IERC20(asset()).transferFrom(msg.sender, config.liquidityOrchestrator(), amount);
         if (!success) revert ErrorsLib.TransferFailed();
 
-        // Effects - now safe to update internal state
+        // slither-disable-next-line unused-return
         (, uint256 currentAmount) = _depositRequests.tryGet(msg.sender);
+        // slither-disable-next-line unused-return
         _depositRequests.set(msg.sender, currentAmount + amount);
         _totalPendingDeposits += amount;
 
@@ -229,6 +234,7 @@ abstract contract OrionVault is
     function cancelDepositRequest(uint256 amount) external nonReentrant {
         // Checks first
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
+        // slither-disable-next-line unused-return
         (, uint256 currentAmount) = _depositRequests.tryGet(msg.sender);
         if (currentAmount < amount) revert ErrorsLib.NotEnoughDepositRequest();
 
@@ -238,8 +244,10 @@ abstract contract OrionVault is
         // Effects - update internal state
         uint256 newAmount = currentAmount - amount;
         if (newAmount == 0) {
+            // slither-disable-next-line unused-return
             _depositRequests.remove(msg.sender);
         } else {
+            // slither-disable-next-line unused-return
             _depositRequests.set(msg.sender, newAmount);
         }
         _totalPendingDeposits -= amount;
@@ -253,17 +261,16 @@ abstract contract OrionVault is
     ///      LPs can later cancel this request to withdraw their funds before any burning occurs.
     /// @param shares The amount of the share tokens to withdraw.
     function requestWithdraw(uint256 shares) external {
-        // Checks first
         if (shares == 0) revert ErrorsLib.SharesMustBeGreaterThanZero();
         uint256 senderBalance = balanceOf(msg.sender);
         if (shares > senderBalance) revert ErrorsLib.InsufficientFunds(msg.sender, senderBalance, shares);
 
-        // Interactions - transfer share tokens directly to liquidity orchestrator
         bool success = IERC20(address(this)).transferFrom(msg.sender, config.liquidityOrchestrator(), shares);
         if (!success) revert ErrorsLib.TransferFailed();
 
-        // Effects - now safe to update internal state
+        // slither-disable-next-line unused-return
         (, uint256 currentShares) = _withdrawRequests.tryGet(msg.sender);
+        // slither-disable-next-line unused-return
         _withdrawRequests.set(msg.sender, currentShares + shares);
         _totalPendingWithdrawals += shares;
 
@@ -278,6 +285,7 @@ abstract contract OrionVault is
     function cancelWithdrawRequest(uint256 shares) external nonReentrant {
         // Checks first
         if (shares == 0) revert ErrorsLib.SharesMustBeGreaterThanZero();
+        // slither-disable-next-line unused-return
         (, uint256 currentShares) = _withdrawRequests.tryGet(msg.sender);
         if (currentShares < shares) revert ErrorsLib.NotEnoughWithdrawRequest();
 
@@ -287,8 +295,10 @@ abstract contract OrionVault is
         // Effects - update internal state
         uint256 newShares = currentShares - shares;
         if (newShares == 0) {
+            // slither-disable-next-line unused-return
             _withdrawRequests.remove(msg.sender);
         } else {
+            // slither-disable-next-line unused-return
             _withdrawRequests.set(msg.sender, newShares);
         }
         _totalPendingWithdrawals -= shares;
@@ -333,6 +343,7 @@ abstract contract OrionVault is
             uint256 amount = amounts[i];
             uint256 shares = previewDeposit(amount);
 
+            // slither-disable-next-line unused-return
             _depositRequests.remove(user);
 
             _mint(user, shares);
@@ -357,11 +368,15 @@ abstract contract OrionVault is
             sharesArray[i] = shares;
         }
 
+        // Reset the cached total since all requests will be processed
+        _totalPendingWithdrawals = 0;
+
         // Process all requests
         for (uint256 i = 0; i < length; i++) {
             address user = users[i];
             uint256 shares = sharesArray[i];
 
+            // slither-disable-next-line unused-return
             _withdrawRequests.remove(user);
 
             _burn(address(this), shares);
@@ -370,9 +385,6 @@ abstract contract OrionVault is
 
             emit EventsLib.WithdrawProcessed(user, shares);
         }
-
-        // Reset the cached total since all requests were processed
-        _totalPendingWithdrawals = 0;
     }
 
     /// --------- ABSTRACT FUNCTIONS ---------
