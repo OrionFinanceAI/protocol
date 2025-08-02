@@ -53,13 +53,13 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
  * 4. Portfolio Weights (w_0) [shares] - Current portfolio expressed as the number of shares per asset.
  *    - Units: Number of shares
  *    - Using shares instead of percentages allows the estimated TVL to be derived by multiplying with estimated prices.
- *      This reduces reliance on on-chain price oracles and allows the oracle contract to remain stateless.
+ *      This reduces reliance on on-chain price adapters and allows the adapter contract to remain stateless.
  *
  * 5. Curator Intent (w_1) [%] - Target portfolio expressed in percentage of total assets.
  *    - Units: Percentage points
  *    - This value must be specified in percentage of total supply because
  *      the curator does not know the point-in-time amount of assets in the vault at the time of intent submission.
- *      While the curator can estimate this value reading the vault's state and oracle prices,
+ *      While the curator can estimate this value reading the vault's state and adapter prices,
  *      the actual value at time of execution may differ.
  */
 abstract contract OrionVault is

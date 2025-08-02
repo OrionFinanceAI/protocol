@@ -11,7 +11,7 @@ import { ErrorsLib } from "./libraries/ErrorsLib.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { EventsLib } from "./libraries/EventsLib.sol";
-import "./interfaces/IOracleRegistry.sol";
+import "./interfaces/IPriceAdapterRegistry.sol";
 import "./interfaces/ILiquidityOrchestrator.sol";
 import "./interfaces/IPriceAdapter.sol";
 import "./interfaces/IExecutionAdapter.sol";
@@ -33,7 +33,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     address public internalStatesOrchestrator;
     address public liquidityOrchestrator;
     address public vaultFactory;
-    address public oracleRegistry;
+    address public priceAdapterRegistry;
 
     // Curator-specific configuration
     uint8 public curatorIntentDecimals;
@@ -81,17 +81,17 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         address liquidityOrchestrator_,
         uint8 curatorIntentDecimals_,
         address factory_,
-        address oracleRegistry_
+        address priceAdapterRegistry_
     ) external onlyOwner {
         if (liquidityOrchestrator_ == address(0)) revert ErrorsLib.ZeroAddress();
         if (factory_ == address(0)) revert ErrorsLib.ZeroAddress();
-        if (oracleRegistry_ == address(0)) revert ErrorsLib.ZeroAddress();
+        if (priceAdapterRegistry_ == address(0)) revert ErrorsLib.ZeroAddress();
 
         liquidityOrchestrator = liquidityOrchestrator_;
 
         curatorIntentDecimals = curatorIntentDecimals_;
         vaultFactory = factory_;
-        oracleRegistry = oracleRegistry_;
+        priceAdapterRegistry = priceAdapterRegistry_;
 
         emit EventsLib.ProtocolParamsUpdated();
     }
@@ -99,13 +99,13 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     // === Whitelist Functions ===
 
     /// @inheritdoc IOrionConfig
-    function addWhitelistedAsset(address asset, address oracleAdapter, address executionAdapter) external onlyOwner {
+    function addWhitelistedAsset(address asset, address priceAdapter, address executionAdapter) external onlyOwner {
         bool inserted = whitelistedAssets.add(asset);
         if (!inserted) revert ErrorsLib.AlreadyWhitelisted();
 
         // Register the adapters
-        IOracleRegistry(oracleRegistry).setAdapter(asset, IPriceAdapter(oracleAdapter));
-        ILiquidityOrchestrator(liquidityOrchestrator).setAdapter(asset, IExecutionAdapter(executionAdapter));
+        IPriceAdapterRegistry(priceAdapterRegistry).setPriceAdapter(asset, IPriceAdapter(priceAdapter));
+        ILiquidityOrchestrator(liquidityOrchestrator).setExecutionAdapter(asset, IExecutionAdapter(executionAdapter));
 
         emit EventsLib.WhitelistedAssetAdded(asset);
     }
@@ -115,8 +115,8 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         bool removed = whitelistedAssets.remove(asset);
         if (!removed) revert ErrorsLib.TokenNotWhitelisted(asset);
 
-        IOracleRegistry(oracleRegistry).unsetAdapter(asset);
-        ILiquidityOrchestrator(liquidityOrchestrator).unsetAdapter(asset);
+        IPriceAdapterRegistry(priceAdapterRegistry).unsetPriceAdapter(asset);
+        ILiquidityOrchestrator(liquidityOrchestrator).unsetExecutionAdapter(asset);
 
         emit EventsLib.WhitelistedAssetRemoved(asset);
     }

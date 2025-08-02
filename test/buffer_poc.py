@@ -41,7 +41,7 @@ np.random.seed(42)
 # Models continuous, minor slippage due to market impact + micro-volatility (e.g., drift and diffusion in a Brownian motion).
 base_slippage = np.random.normal(0.0005, 0.001, size=epochs)
 
-# Simulates rare market stress conditions — oracle mismatch, liquidity crunch, MEV front-runs, stale pricing.
+# Simulates rare market stress conditions — adapter mismatch, liquidity crunch, MEV front-runs, stale pricing.
 extreme_events = np.random.binomial(1, 0.02, size=epochs) 
 extreme_slippage = np.random.normal(0.0, 0.03, size=epochs) * extreme_events
 
@@ -124,8 +124,11 @@ fee_controller = SmoothFeeController(
     target_ratio=target_ratio,
     smoothing_factor=0.05,
 )
-# + protocol_gas_epoch (oracle for USDC/ETH exchange to compute one part, historical average for the other?) + zama_decryption_costs # + 50% of the estimated savings due to netting (can we compute it?)
-
+# + protocol_gas_epoch
+# (chainlink price for USDC/ETH exchange to compute one part, historical average gwei per protocol epoch for the other?) 
+# + zama_decryption_costs 
+# # + 50% of the estimated savings due to netting (can we compute it?)
+# + protocol_fee?
 
 # Original simple fee function for comparison
 def simple_fee_rate(current_buffer, current_tvl):

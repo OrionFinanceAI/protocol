@@ -9,25 +9,6 @@
         {
           "indexed": true,
           "internalType": "address",
-          "name": "asset",
-          "type": "address"
-        },
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "adapter",
-          "type": "address"
-        }
-      ],
-      "name": "AdapterSet",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
           "name": "newAutomationRegistry",
           "type": "address"
         }
@@ -90,6 +71,25 @@
         }
       ],
       "name": "DepositRequested",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "asset",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "adapter",
+          "type": "address"
+        }
+      ],
+      "name": "ExecutionAdapterSet",
       "type": "event"
     },
     {
@@ -179,6 +179,25 @@
       "anonymous": false,
       "inputs": [],
       "name": "PortfolioRebalanced",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "asset",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "adapter",
+          "type": "address"
+        }
+      ],
+      "name": "PriceAdapterSet",
       "type": "event"
     },
     {
@@ -284,8 +303,8 @@
       "type": "event"
     }
   ],
-  "bytecode": "0x6055604b600b8282823980515f1a607314603f577f4e487b71000000000000000000000000000000000000000000000000000000005f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f5ffdfea2646970667358221220feb223e9ff3a57d73b5a74197cd8f9ad8a8d47e46422b58101a5ba70291db2ee64736f6c634300081c0033",
-  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f5ffdfea2646970667358221220feb223e9ff3a57d73b5a74197cd8f9ad8a8d47e46422b58101a5ba70291db2ee64736f6c634300081c0033",
+  "bytecode": "0x60556032600b8282823980515f1a607314602657634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f5ffdfea2646970667358221220a2a2fbf6bc6bdb57621d9b3d1ec19470af0f95f11a7489fac9c81be0a2e1414f64736f6c634300081c0033",
+  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f5ffdfea2646970667358221220a2a2fbf6bc6bdb57621d9b3d1ec19470af0f95f11a7489fac9c81be0a2e1414f64736f6c634300081c0033",
   "linkReferences": {},
   "deployedLinkReferences": {}
 }

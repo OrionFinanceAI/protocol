@@ -10,7 +10,7 @@ import {
   MockERC4626Asset,
   MockPriceAdapter,
   MockUnderlyingAsset,
-  OracleRegistry,
+  PriceAdapterRegistry,
   OrionConfig,
   OrionEncryptedVault,
   OrionTransparentVault,
@@ -25,7 +25,7 @@ describe("OnlyOwner Functions - Comprehensive Test Suite", function () {
 
   // Contract instances
   let orionConfig: OrionConfig;
-  let oracleRegistry: OracleRegistry;
+  let priceAdapterRegistry: PriceAdapterRegistry;
   let liquidityOrchestrator: LiquidityOrchestrator;
   let orionVaultFactory: OrionVaultFactory;
   let internalStatesOrchestrator: InternalStatesOrchestrator;
@@ -62,13 +62,17 @@ describe("OnlyOwner Functions - Comprehensive Test Suite", function () {
     await orionConfig.waitForDeployment();
     await orionConfig.setUnderlyingAsset(mockUnderlyingAsset.target);
 
-    // Deploy OracleRegistry
-    const OracleRegistryFactory = await ethers.getContractFactory("OracleRegistry");
-    oracleRegistry = await upgrades.deployProxy(OracleRegistryFactory, [owner.address, orionConfig.target], {
-      kind: "uups",
-      initializer: "initialize",
-    });
-    await oracleRegistry.waitForDeployment();
+    // Deploy PriceAdapterRegistryFactory
+    const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistry");
+    priceAdapterRegistry = await upgrades.deployProxy(
+      PriceAdapterRegistryFactory,
+      [owner.address, orionConfig.target],
+      {
+        kind: "uups",
+        initializer: "initialize",
+      },
+    );
+    await priceAdapterRegistry.waitForDeployment();
 
     // Deploy MockPriceAdapter
     const MockPriceAdapterFactory = await ethers.getContractFactory("MockPriceAdapter");

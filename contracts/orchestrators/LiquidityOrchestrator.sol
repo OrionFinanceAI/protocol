@@ -17,22 +17,12 @@ import "../interfaces/IExecutionAdapter.sol";
 import "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
 /// @title Liquidity Orchestrator
-/// @notice Orchestrates transaction execution and vault state modifications
 /// @dev This contract is responsible for:
-///      - Executing actual transactions on vaults and external protocols
-///      - Processing deposit and withdrawal requests from vaults
-///      - Writing and updating vault states based on executed transactions
-///      - Handling slippage and market execution differences from oracle estimates
-///      - Managing curator fees.
-///
-///      IMPORTANT: This contract is triggered by the Internal States Orchestrator
-///      and is responsible for all state-modifying operations.
-///      The Internal States Orchestrator only reads states and performs estimations.
-///      This contract handles the actual execution and state writing.
-///
-///      Note: The post execution portfolio state may differ from the intent
-///      not only due to slippage, but also because asset prices can evolve
-///      between the oracle call and execution.
+///      - Executing actual buy and sell orders on investment universe;
+///      - Processing actual curator fees with vaults and protocol fees;
+///      - Processing deposit and withdrawal requests from LPs;
+///      - Updating vault states (post-execution, checks-effects-interactions pattern at the protocol level);
+///      - Handling slippage and market execution differences from adapter estimates via liquidity buffer.
 contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable, ILiquidityOrchestrator {
     /* -------------------------------------------------------------------------- */
     /*                                 CONTRACTS                                  */
@@ -108,39 +98,34 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         _;
     }
 
-    /// @notice Updates the Chainlink Automation Registry address
-    /// @param newAutomationRegistry The new automation registry address
+    /// @inheritdoc ILiquidityOrchestrator
     function updateAutomationRegistry(address newAutomationRegistry) external onlyOwner {
         if (newAutomationRegistry == address(0)) revert ErrorsLib.ZeroAddress();
         automationRegistry = newAutomationRegistry;
         emit EventsLib.AutomationRegistryUpdated(newAutomationRegistry);
     }
 
-    /// @notice Updates the Orion Config contract address
-    /// @param newConfig The new config address
+    /// @inheritdoc ILiquidityOrchestrator
     function updateConfig(address newConfig) external onlyOwner {
         if (newConfig == address(0)) revert ErrorsLib.ZeroAddress();
         config = IOrionConfig(newConfig);
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function setAdapter(address asset, IExecutionAdapter adapter) external onlyConfig {
+    function setExecutionAdapter(address asset, IExecutionAdapter adapter) external onlyConfig {
         if (asset == address(0) || address(adapter) == address(0)) revert ErrorsLib.ZeroAddress();
         executionAdapterOf[asset] = adapter;
-        emit EventsLib.AdapterSet(asset, address(adapter));
+        emit EventsLib.ExecutionAdapterSet(asset, address(adapter));
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function unsetAdapter(address asset) external onlyConfig {
+    function unsetExecutionAdapter(address asset) external onlyConfig {
         if (asset == address(0)) revert ErrorsLib.ZeroAddress();
         delete executionAdapterOf[asset];
-        emit EventsLib.AdapterSet(asset, address(0));
+        emit EventsLib.ExecutionAdapterSet(asset, address(0));
     }
 
-    /// @notice Return deposit funds to a user who cancelled their deposit request
-    /// @dev Called by vault contracts when users cancel deposit requests
-    /// @param user The user to return funds to
-    /// @param amount The amount to return
+    /// @inheritdoc ILiquidityOrchestrator
     function returnDepositFunds(address user, uint256 amount) external {
         // Verify the caller is a registered vault
         if (!config.isOrionVault(msg.sender)) revert ErrorsLib.NotAuthorized();
@@ -149,10 +134,7 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         if (!success) revert ErrorsLib.TransferFailed();
     }
 
-    /// @notice Return withdrawal shares to a user who cancelled their withdrawal request
-    /// @dev Called by vault contracts when users cancel withdrawal requests
-    /// @param user The user to return shares to
-    /// @param shares The amount of shares to return
+    /// @inheritdoc ILiquidityOrchestrator
     function returnWithdrawShares(address user, uint256 shares) external {
         // Verify the caller is a registered vault
         if (!config.isOrionVault(msg.sender)) revert ErrorsLib.NotAuthorized();
@@ -165,9 +147,7 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         if (!success) revert ErrorsLib.TransferFailed();
     }
 
-    /// @notice Checks if upkeep is needed by comparing epoch counters
-    /// @return upkeepNeeded True if rebalancing is needed
-    /// @return performData Data to pass to performUpkeep
+    // TODO: docs when implemented.
     function checkUpkeep(bytes calldata) external view override returns (bool upkeepNeeded, bytes memory performData) {
         uint256 currentEpoch = internalStatesOrchestrator.epochCounter();
         if (currentEpoch > lastProcessedEpoch && currentPhase == UpkeepPhase.Idle) {
@@ -183,7 +163,7 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
     }
 
     // TODO: refacto for scalability, same as internal states orchestrator.
-    /// @notice Performs the rebalancing.
+    // TODO: docs when implemented.
     function performUpkeep(bytes calldata) external override onlyAutomationRegistry {
         uint256 currentEpoch = internalStatesOrchestrator.epochCounter();
         if (currentEpoch <= lastProcessedEpoch) {
@@ -195,7 +175,7 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         uint256 initialUnderlyingBalance = IERC20(underlyingAsset).balanceOf(address(this));
 
         // TODO: buy and sell orders all in shares at this point, fix execution adapter API accordingly.
-        // this implies we can match intents with oracle price and use those variables to update vault states
+        // this implies we can match intents with adapter price and use those variables to update vault states
         // we nonetheless do this update after the actual execution, in line with a re-entrancy protection design.
         // Here we are dealing with multiple transactions, not a single one, so the pattern has not the same use.
 
@@ -271,15 +251,15 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
 
         // TODO: DepositRequest and WithdrawRequest in Vaults to be processed post t0 update, and removed from
         // vault state as pending requests.
-        // Opportunity to net actual transactions (not just intents), performing minting and burning operation at the same time.
-        // TODO: process curators (sending underlying to vault as escrow for curator to redeem) and protocol fees to separate escrow/wallet.
+        // Opportunity to net actual transactions (not just intents),
+        // performing minting and burning operation at the same time.
+        // TODO: process curators (sending underlying to vault as escrow for curator to redeem)
+        // and protocol fees to separate escrow/wallet.
 
         emit EventsLib.PortfolioRebalanced();
     }
 
-    /// @notice Internal function to execute a sell order directly through the adapter
-    /// @param asset The address of the asset to sell
-    /// @param amount The amount of shares to sell
+    // TODO: docs when implemented.
     function _executeSell(address asset, uint256 amount) internal {
         IExecutionAdapter adapter = executionAdapterOf[asset];
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
@@ -288,20 +268,20 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         bool success = IERC20(asset).approve(address(adapter), amount);
         if (!success) revert ErrorsLib.TransferFailed();
 
-        // TODO: setting slippage tolerance at the protocol level, passing oracle price for specific asset to execution adapter,
+        // TODO: setting slippage tolerance at the protocol level,
+        // passing adapter price for specific asset to execution adapter,
         // and not performing trade if slippage is too high.
         // TODO: same for buy orders.
 
-        // TODO: underlying asset/numeraire needs to be part of the whitelisted investment universe, as if an order does not pass the underlying equivalent
+        // TODO: underlying asset/numeraire needs to be part of the whitelisted investment universe,
+        // as if an order does not pass the underlying equivalent
         // is set into the portfolio state for all vaults. As before, clear how to handle this point with privacy.
 
         // Execute sell through adapter, pull shares from this contract and push underlying assets to it.
         adapter.sell(asset, amount);
     }
 
-    /// @notice Internal function to execute a buy order directly through the adapter
-    /// @param asset The address of the asset to buy
-    /// @param amount The amount of underlying assets to use for buying
+    // TODO: docs when implemented.
     function _executeBuy(address asset, uint256 amount) internal {
         IExecutionAdapter adapter = executionAdapterOf[asset];
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();

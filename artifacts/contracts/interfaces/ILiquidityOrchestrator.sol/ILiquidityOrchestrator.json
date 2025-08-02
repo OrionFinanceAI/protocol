@@ -108,7 +108,7 @@
           "type": "address"
         }
       ],
-      "name": "setAdapter",
+      "name": "setExecutionAdapter",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
@@ -121,7 +121,7 @@
           "type": "address"
         }
       ],
-      "name": "unsetAdapter",
+      "name": "unsetExecutionAdapter",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

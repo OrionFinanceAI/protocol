@@ -40,7 +40,7 @@ beforeEach(async function () {
     other.address, // liquidityOrchestrator
     6, // curatorIntentDecimals
     await orionVaultFactory.getAddress(), // factory
-    other.address, // oracleRegistry
+    other.address, // priceAdapterRegistry
   );
 
   const VaultImplementationsFactory = await ethers.getContractFactory("VaultImplementations");

@@ -32,8 +32,8 @@ library EventsLib {
     // Liquidity Orchestrator Events
     event PortfolioRebalanced();
 
-    // Oracle Registry Events
-    event AdapterSet(address indexed asset, address indexed adapter);
+    event PriceAdapterSet(address indexed asset, address indexed adapter);
+    event ExecutionAdapterSet(address indexed asset, address indexed adapter);
 
     // Orion Vault Factory Events
     enum VaultType {

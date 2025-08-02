@@ -11,7 +11,7 @@ import "../interfaces/IOrionConfig.sol";
 import "../interfaces/IOrionVault.sol";
 import "../interfaces/IOrionTransparentVault.sol";
 import "../interfaces/IOrionEncryptedVault.sol";
-import "../interfaces/IOracleRegistry.sol";
+import "../interfaces/IPriceAdapterRegistry.sol";
 import "../interfaces/IInternalStateOrchestrator.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { EventsLib } from "../libraries/EventsLib.sol";
@@ -45,14 +45,14 @@ contract InternalStatesOrchestrator is
     /// @notice Orion Config contract address
     IOrionConfig public config;
 
-    /// @notice Oracle Registry contract
-    IOracleRegistry public registry;
+    /// @notice Price Adapter Registry contract
+    IPriceAdapterRegistry public registry;
 
     /* -------------------------------------------------------------------------- */
     /*                                 CONSTANTS                                  */
     /* -------------------------------------------------------------------------- */
-    /// @notice Oracle price precision (18 decimals)
-    uint256 private constant ORACLE_PRECISION = 1e18;
+    /// @notice Price Adapter price precision (18 decimals)
+    uint256 private constant PRICE_ADAPTER_PRECISION = 1e18;
 
     /// @notice Intent factor for calculations
     uint256 public intentFactor;
@@ -142,7 +142,7 @@ contract InternalStatesOrchestrator is
         automationRegistry = automationRegistry_;
         config = IOrionConfig(config_);
 
-        registry = IOracleRegistry(config.oracleRegistry());
+        registry = IPriceAdapterRegistry(config.priceAdapterRegistry());
         intentFactor = 10 ** config.curatorIntentDecimals();
         underlyingDecimals = IERC20Metadata(address(config.underlyingAsset())).decimals();
 
@@ -204,7 +204,7 @@ contract InternalStatesOrchestrator is
 
     /// @notice Performs state reading and estimation operations
     /// @dev This function:
-    ///      - Reads current vault states and oracle prices;
+    ///      - Reads current vault states and adapter prices;
     ///      - Computes estimated system states;
     ///      - Updates epoch state to trigger the Liquidity Orchestrator
     function performUpkeep(bytes calldata performData) external override onlyAutomationRegistry nonReentrant {
@@ -418,7 +418,7 @@ contract InternalStatesOrchestrator is
                 expectedUnderlyingSellAmount += sellAmountInUnderlying;
 
                 // Convert from underlying assets to shares for LiquidityOrchestrator._executeSell
-                // Necessary to compute the number of shares to sell based on oracle price to have consistency with
+                // Necessary to compute the number of shares to sell based on adapter price to have consistency with
                 // portfolio intent. Alternative, selling underlying-equivalent would lead to a previewWithdraw call
                 // or similar, giving a different number of shares.
                 uint256 sellAmountInShares = _calculateTokenShares(
@@ -461,7 +461,7 @@ contract InternalStatesOrchestrator is
 
     /// @notice Calculates token value in underlying asset decimals
     /// @dev Handles decimal conversion from token decimals to underlying asset decimals
-    ///      Formula: value = (price * shares) / ORACLE_PRECISION * 10^(underlyingDecimals - tokenDecimals)
+    ///      Formula: value = (price * shares) / PRICE_ADAPTER_PRECISION * 10^(underlyingDecimals - tokenDecimals)
     ///      This safely handles cases where underlying has more or fewer decimals than the token
     /// @param price The price of the token in underlying asset (18 decimals)
     /// @param shares The amount of token shares (in token decimals)
@@ -474,7 +474,7 @@ contract InternalStatesOrchestrator is
     ) internal view returns (uint256 value) {
         uint256 baseValue = price * shares;
         uint256 scaledValue = _convertDecimals(baseValue, tokenDecimals, underlyingDecimals);
-        value = scaledValue / ORACLE_PRECISION;
+        value = scaledValue / PRICE_ADAPTER_PRECISION;
     }
 
     /// @notice Calculates encrypted token value in underlying asset decimals
@@ -489,7 +489,7 @@ contract InternalStatesOrchestrator is
 
     /// @notice Calculates token shares from underlying asset value (inverse of _calculateTokenValue)
     /// @dev Handles decimal conversion from underlying asset decimals to token decimals
-    ///      Formula: shares = (value * ORACLE_PRECISION) / (price * 10^(underlyingDecimals - tokenDecimals))
+    ///      Formula: shares = (value * PRICE_ADAPTER_PRECISION) / (price * 10^(underlyingDecimals - tokenDecimals))
     ///      This safely handles cases where underlying has more or fewer decimals than the token
     /// @param price The price of the token in underlying asset (18 decimals)
     /// @param value The value in underlying asset decimals
@@ -501,7 +501,7 @@ contract InternalStatesOrchestrator is
         uint8 tokenDecimals
     ) internal view returns (uint256 shares) {
         uint256 scaledValue = _convertDecimals(value, underlyingDecimals, tokenDecimals);
-        shares = (scaledValue * ORACLE_PRECISION) / price;
+        shares = (scaledValue * PRICE_ADAPTER_PRECISION) / price;
     }
 
     /* -------------------------------------------------------------------------- */

@@ -75,7 +75,7 @@ describe("OrionConfig", function () {
       ).to.be.revertedWithCustomError(orionConfig, "ZeroAddress");
     });
 
-    it("reverts if oracleRegistry is zero", async function () {
+    it("reverts if priceAdapterRegistry is zero", async function () {
       await expect(
         orionConfig.connect(owner).setProtocolParams(other.address, 8, vaultFactory.address, ZERO),
       ).to.be.revertedWithCustomError(orionConfig, "ZeroAddress");
@@ -94,7 +94,7 @@ describe("OrionConfig", function () {
       expect(await orionConfig.liquidityOrchestrator()).to.equal(vaultFactory.address);
       expect(await orionConfig.curatorIntentDecimals()).to.equal(6);
       expect(await orionConfig.vaultFactory()).to.equal(vaultFactory.address);
-      expect(await orionConfig.oracleRegistry()).to.equal(other.address);
+      expect(await orionConfig.priceAdapterRegistry()).to.equal(other.address);
     });
 
     it("only owner can call setProtocolParams", async function () {

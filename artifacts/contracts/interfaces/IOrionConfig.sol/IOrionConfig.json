@@ -30,7 +30,7 @@
         },
         {
           "internalType": "address",
-          "name": "oracleAdapter",
+          "name": "priceAdapter",
           "type": "address"
         },
         {
@@ -174,7 +174,7 @@
     },
     {
       "inputs": [],
-      "name": "oracleRegistry",
+      "name": "priceAdapterRegistry",
       "outputs": [
         {
           "internalType": "address",
@@ -248,7 +248,7 @@
         },
         {
           "internalType": "address",
-          "name": "_oracleRegistry",
+          "name": "_priceAdapterRegistry",
           "type": "address"
         }
       ],

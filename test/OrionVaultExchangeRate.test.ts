@@ -27,7 +27,7 @@ describe("OrionVault Exchange Rate Tests", function () {
       liquidityOrchestrator.address,
       6, // curatorIntentDecimals
       owner.address, // factory
-      owner.address, // oracleRegistry
+      owner.address, // priceAdapterRegistry
     );
 
     // Deploy OrionTransparentVault

@@ -4,12 +4,12 @@ pragma solidity ^0.8.28;
 import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import "../interfaces/IOracleRegistry.sol";
+import "../interfaces/IPriceAdapterRegistry.sol";
 import "../interfaces/IPriceAdapter.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { EventsLib } from "../libraries/EventsLib.sol";
 
-contract OracleRegistry is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable, IOracleRegistry {
+contract PriceAdapterRegistry is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable, IPriceAdapterRegistry {
     mapping(address => IPriceAdapter) public adapterOf;
     address public configAddress;
 
@@ -31,18 +31,18 @@ contract OracleRegistry is Initializable, Ownable2StepUpgradeable, UUPSUpgradeab
         // Only the owner can upgrade the contract
     }
 
-    /// @inheritdoc IOracleRegistry
-    function setAdapter(address asset, IPriceAdapter adapter) external onlyConfig {
+    /// @inheritdoc IPriceAdapterRegistry
+    function setPriceAdapter(address asset, IPriceAdapter adapter) external onlyConfig {
         if (asset == address(0) || address(adapter) == address(0)) revert ErrorsLib.ZeroAddress();
         adapterOf[asset] = adapter;
-        emit EventsLib.AdapterSet(asset, address(adapter));
+        emit EventsLib.PriceAdapterSet(asset, address(adapter));
     }
 
-    /// @inheritdoc IOracleRegistry
-    function unsetAdapter(address asset) external onlyConfig {
+    /// @inheritdoc IPriceAdapterRegistry
+    function unsetPriceAdapter(address asset) external onlyConfig {
         if (asset == address(0)) revert ErrorsLib.ZeroAddress();
         delete adapterOf[asset];
-        emit EventsLib.AdapterSet(asset, address(0));
+        emit EventsLib.PriceAdapterSet(asset, address(0));
     }
 
     /// @notice Returns the price of the given asset via its assigned price adapter.

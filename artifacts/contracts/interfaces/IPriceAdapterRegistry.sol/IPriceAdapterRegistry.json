@@ -1,7 +1,7 @@
 {
   "_format": "hh-sol-artifact-1",
-  "contractName": "IOracleRegistry",
-  "sourceName": "contracts/interfaces/IOracleRegistry.sol",
+  "contractName": "IPriceAdapterRegistry",
+  "sourceName": "contracts/interfaces/IPriceAdapterRegistry.sol",
   "abi": [
     {
       "inputs": [
@@ -35,7 +35,7 @@
           "type": "address"
         }
       ],
-      "name": "setAdapter",
+      "name": "setPriceAdapter",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
@@ -48,7 +48,7 @@
           "type": "address"
         }
       ],
-      "name": "unsetAdapter",
+      "name": "unsetPriceAdapter",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

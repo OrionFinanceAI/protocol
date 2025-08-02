@@ -30,10 +30,10 @@ interface IOrionConfig {
     /// @return The address of the underlying asset contract
     function underlyingAsset() external view returns (IERC20);
 
-    /// @notice Returns the address of the oracle registry contract
-    /// @dev This registry is responsible for managing asset price oracles
-    /// @return The address of the oracle registry
-    function oracleRegistry() external view returns (address);
+    /// @notice Returns the address of the price adapter registry contract
+    /// @dev This registry is responsible for managing asset price adapters
+    /// @return The address of the price adapter registry
+    function priceAdapterRegistry() external view returns (address);
 
     /// @notice Sets the underlying asset for the protocol
     /// @dev Can only be called by the contract owner
@@ -50,20 +50,20 @@ interface IOrionConfig {
     /// @param _liquidityOrchestrator The address of the liquidity orchestrator
     /// @param _curatorIntentDecimals The number of decimal places for curator intents
     /// @param _factory The address of the vault factory
-    /// @param _oracleRegistry The address of the oracle registry
+    /// @param _priceAdapterRegistry The address of the price adapter registry
     function setProtocolParams(
         address _liquidityOrchestrator,
         uint8 _curatorIntentDecimals,
         address _factory,
-        address _oracleRegistry
+        address _priceAdapterRegistry
     ) external;
 
     /// @notice Adds an asset to the whitelist
     /// @dev Can only be called by the contract owner
     /// @param asset The address of the asset to whitelist
-    /// @param oracleAdapter The address of the oracle adapter
+    /// @param priceAdapter The address of the price adapter
     /// @param executionAdapter The address of the execution adapter
-    function addWhitelistedAsset(address asset, address oracleAdapter, address executionAdapter) external;
+    function addWhitelistedAsset(address asset, address priceAdapter, address executionAdapter) external;
 
     /// @notice Removes an asset from the whitelist
     /// @dev Can only be called by the contract owner

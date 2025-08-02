@@ -51,11 +51,11 @@ describe("End-to-End Protocol Simulation", function () {
     await config.initialize(owner.address);
     await config.setUnderlyingAsset(await underlyingAsset.getAddress());
 
-    // Deploy OracleRegistry
-    const OracleRegistryFactory = await ethers.getContractFactory("OracleRegistry");
-    const oracleRegistry = await OracleRegistryFactory.deploy();
-    await oracleRegistry.waitForDeployment();
-    await oracleRegistry.initialize(owner.address, await config.getAddress());
+    // Deploy PriceAdapterRegistry
+    const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistry");
+    const priceAdapterRegistry = await PriceAdapterRegistryFactory.deploy();
+    await priceAdapterRegistry.waitForDeployment();
+    await priceAdapterRegistry.initialize(owner.address, await config.getAddress());
 
     // Deploy InternalStatesOrchestrator
     const InternalStatesOrchestratorFactory = await ethers.getContractFactory("InternalStatesOrchestrator");
@@ -95,10 +95,10 @@ describe("End-to-End Protocol Simulation", function () {
       await liquidityOrchestratorContract.getAddress(),
       6, // curatorIntentDecimals
       await orionVaultFactory.getAddress(), // factory
-      await oracleRegistry.getAddress(),
+      await priceAdapterRegistry.getAddress(),
     );
 
-    // Deploy price adapters for oracles
+    // Deploy price adapters for prices
     const ERC4626PriceAdapterFactory = await ethers.getContractFactory("ERC4626PriceAdapter");
 
     const erc4626Oracle = await ERC4626PriceAdapterFactory.deploy();
@@ -155,7 +155,7 @@ describe("End-to-End Protocol Simulation", function () {
 
     return {
       config,
-      oracleRegistry,
+      priceAdapterRegistry,
       internalStatesOrchestrator,
       liquidityOrchestratorContract,
       underlyingAsset,
