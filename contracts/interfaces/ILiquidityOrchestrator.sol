@@ -36,6 +36,4 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @param user The user to return shares to
     /// @param shares The amount of shares to return
     function returnWithdrawShares(address user, uint256 shares) external;
-
-    function executionAdapterOf(address asset) external view returns (IExecutionAdapter);
 }

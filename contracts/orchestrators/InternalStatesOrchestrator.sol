@@ -20,15 +20,13 @@ import { FHE, euint32 } from "@fhevm/solidity/lib/FHE.sol";
 /// @title Internal States Orchestrator
 /// @notice Orchestrates state reading and estimation operations triggered by Chainlink Automation
 /// @dev This contract is responsible for:
-///      - Reading current vault states and market data
-///      - Computing state estimations for Liquidity Orchestrator
-///      - Emitting events to trigger the Liquidity Orchestrator
-///
+///      - Reading current vault states and market data;
+///      - Computing state estimations for Liquidity Orchestrator;
+///      - Trigger the Liquidity Orchestrator
 ///      IMPORTANT: This contract does NOT execute transactions or write vault states.
 ///      It only performs read operations and calculations to estimate state changes.
-///      Actual state modifications and transaction execution are handled by the
-///      Liquidity Orchestrator contract.
-///      Variable naming distinguishes measurements (x) from estimations (x_hat).
+///      Actual state modifications and transaction execution are handled by the Liquidity Orchestrator contract.
+///      Variable naming distinguishes measurements (x) from estimations (xHat).
 contract InternalStatesOrchestrator is
     Initializable,
     Ownable2StepUpgradeable,
@@ -119,9 +117,9 @@ contract InternalStatesOrchestrator is
     /// @notice Counter for tracking processing cycles
     uint256 public epochCounter;
     /// @notice Timestamp when the next upkeep is allowed
-    uint256 public nextUpdateTime;
+    uint256 private _nextUpdateTime;
     /// @notice Epoch duration
-    uint256 public constant updateInterval = 1 minutes;
+    uint256 public constant UPDATE_INTERVAL = 1 minutes;
 
     /// @notice Upkeep phase
     UpkeepPhase public currentPhase;
@@ -146,7 +144,7 @@ contract InternalStatesOrchestrator is
         intentFactor = 10 ** config.curatorIntentDecimals();
         underlyingDecimals = IERC20Metadata(address(config.underlyingAsset())).decimals();
 
-        nextUpdateTime = _computeNextUpdateTime(block.timestamp);
+        _nextUpdateTime = _computeNextUpdateTime(block.timestamp);
         epochCounter = 0;
 
         currentPhase = UpkeepPhase.Idle;
@@ -348,21 +346,21 @@ contract InternalStatesOrchestrator is
     /// @dev If upkeep should be triggered, updates the next update time
     function _checkAndCountEpoch() internal {
         if (!_shouldTriggerUpkeep()) revert ErrorsLib.TooEarly();
-        nextUpdateTime = _computeNextUpdateTime(block.timestamp);
+        _nextUpdateTime = _computeNextUpdateTime(block.timestamp);
     }
 
     /// @notice Computes the next update time based on current timestamp
     /// @param currentTime Current block timestamp
     /// @return Next update time
     function _computeNextUpdateTime(uint256 currentTime) internal pure returns (uint256) {
-        return currentTime + updateInterval;
+        return currentTime + UPDATE_INTERVAL;
     }
 
     /// @notice Checks if upkeep should be triggered based on time
     /// @return True if upkeep should be triggered
     function _shouldTriggerUpkeep() internal view returns (bool) {
         // slither-disable-next-line timestamp
-        return block.timestamp >= nextUpdateTime;
+        return block.timestamp >= _nextUpdateTime;
     }
 
     /// @notice Resets the previous epoch state variables

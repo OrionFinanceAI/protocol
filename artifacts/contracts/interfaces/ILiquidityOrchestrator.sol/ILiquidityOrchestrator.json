@@ -30,25 +30,6 @@
     {
       "inputs": [
         {
-          "internalType": "address",
-          "name": "asset",
-          "type": "address"
-        }
-      ],
-      "name": "executionAdapterOf",
-      "outputs": [
-        {
-          "internalType": "contract IExecutionAdapter",
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
           "internalType": "bytes",
           "name": "performData",
           "type": "bytes"
