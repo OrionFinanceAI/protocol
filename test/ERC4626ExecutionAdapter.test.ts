@@ -247,7 +247,7 @@ describe("ERC4626ExecutionAdapter", function () {
 
       await expect(
         adapter.connect(liquidityOrchestrator).sell(await erc4626Vault.getAddress(), 0),
-      ).to.be.revertedWithCustomError(adapter, "SharesMustBeGreaterThanZero");
+      ).to.be.revertedWithCustomError(adapter, "AmountMustBeGreaterThanZero");
     });
 
     it("Should revert if orchestrator doesn't have enough shares or allowance", async function () {

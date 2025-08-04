@@ -108,7 +108,7 @@ describe("OrionConfig", function () {
     it("only factory can add/remove vaults", async function () {
       await expect(
         orionConfig.connect(other).addOrionVault(addr1.address, VaultType.Encrypted),
-      ).to.be.revertedWithCustomError(orionConfig, "NotFactory");
+      ).to.be.revertedWithCustomError(orionConfig, "UnauthorizedAccess");
 
       await orionConfig.connect(owner).setProtocolParams(vaultFactory.address, 6, vaultFactory.address, other.address);
 
@@ -118,7 +118,7 @@ describe("OrionConfig", function () {
       // others can't remove vault
       await expect(
         orionConfig.connect(other).removeOrionVault(addr1.address, VaultType.Encrypted),
-      ).to.be.revertedWithCustomError(orionConfig, "NotFactory");
+      ).to.be.revertedWithCustomError(orionConfig, "UnauthorizedAccess");
 
       // factory can remove vault
       await orionConfig.connect(vaultFactory).removeOrionVault(addr1.address, VaultType.Encrypted);
@@ -139,7 +139,7 @@ describe("OrionConfig", function () {
 
       await expect(
         orionConfig.connect(vaultFactory).addOrionVault(addr1.address, VaultType.Encrypted),
-      ).to.be.revertedWithCustomError(orionConfig, "AlreadyAnOrionVault");
+      ).to.be.revertedWithCustomError(orionConfig, "AlreadyRegistered");
     });
 
     it("reverts removing vault not added", async function () {
@@ -147,7 +147,7 @@ describe("OrionConfig", function () {
 
       await expect(
         orionConfig.connect(vaultFactory).removeOrionVault(addr1.address, VaultType.Encrypted),
-      ).to.be.revertedWithCustomError(orionConfig, "NotAnOrionVault");
+      ).to.be.revertedWithCustomError(orionConfig, "UnauthorizedAccess");
     });
 
     it("adds/removes both Encrypted and Transparent vaults correctly and emits events", async function () {

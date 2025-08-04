@@ -102,7 +102,7 @@ describe("OrionTransparentVault", function () {
       await vault.waitForDeployment();
       await expect(
         vault.initialize(ethers.ZeroAddress, await config.getAddress(), "Test Vault", "TV"),
-      ).to.be.revertedWithCustomError(vault, "InvalidCuratorAddress");
+      ).to.be.revertedWithCustomError(vault, "InvalidAddress");
     });
     it("Should revert if initialized with zero config address", async function () {
       const { curator } = await loadFixture(deployVaultFixture);
@@ -111,7 +111,7 @@ describe("OrionTransparentVault", function () {
       await vault.waitForDeployment();
       await expect(
         vault.initialize(curator.address, ethers.ZeroAddress, "Test Vault", "TV"),
-      ).to.be.revertedWithCustomError(vault, "InvalidConfigAddress");
+      ).to.be.revertedWithCustomError(vault, "InvalidAddress");
     });
   });
 
@@ -119,27 +119,30 @@ describe("OrionTransparentVault", function () {
     it("Should only allow curator to submit order intents", async function () {
       const { vault, unauthorized } = await loadFixture(deployVaultFixture);
       const order = [{ token: ethers.ZeroAddress, value: 1000000 }];
-      await expect(vault.connect(unauthorized).submitIntent(order)).to.be.revertedWithCustomError(vault, "NotCurator");
+      await expect(vault.connect(unauthorized).submitIntent(order)).to.be.revertedWithCustomError(
+        vault,
+        "UnauthorizedAccess",
+      );
     });
     it("Should only allow liquidity orchestrator to update vault state", async function () {
       const { vault, unauthorized } = await loadFixture(deployVaultFixture);
       const portfolio = [{ token: ethers.ZeroAddress, value: 1000000 }];
       await expect(
         vault.connect(unauthorized).updateVaultState(portfolio, ethers.parseUnits("1.1", 6)),
-      ).to.be.revertedWithCustomError(vault, "NotLiquidityOrchestrator");
+      ).to.be.revertedWithCustomError(vault, "UnauthorizedAccess");
     });
     it("Should only allow liquidity orchestrator to process deposit requests", async function () {
       const { vault, unauthorized } = await loadFixture(deployVaultFixture);
       await expect(vault.connect(unauthorized).processDepositRequests()).to.be.revertedWithCustomError(
         vault,
-        "NotLiquidityOrchestrator",
+        "UnauthorizedAccess",
       );
     });
     it("Should only allow liquidity orchestrator to process withdrawal requests", async function () {
       const { vault, unauthorized } = await loadFixture(deployVaultFixture);
       await expect(vault.connect(unauthorized).processWithdrawRequests()).to.be.revertedWithCustomError(
         vault,
-        "NotLiquidityOrchestrator",
+        "UnauthorizedAccess",
       );
     });
   });
@@ -259,7 +262,7 @@ describe("OrionTransparentVault", function () {
       const { vault, lp1 } = await loadFixture(deployVaultFixture);
       await expect(vault.connect(lp1).requestWithdraw(0)).to.be.revertedWithCustomError(
         vault,
-        "SharesMustBeGreaterThanZero",
+        "AmountMustBeGreaterThanZero",
       );
     });
     it("Should revert withdrawal request with insufficient shares", async function () {

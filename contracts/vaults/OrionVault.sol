@@ -100,17 +100,17 @@ abstract contract OrionVault is
     uint256 private _deltaFactor;
 
     modifier onlyCurator() {
-        if (msg.sender != curator) revert ErrorsLib.NotCurator();
+        if (msg.sender != curator) revert ErrorsLib.UnauthorizedAccess();
         _;
     }
 
     modifier onlyInternalStatesOrchestrator() {
-        if (msg.sender != config.internalStatesOrchestrator()) revert ErrorsLib.NotInternalStatesOrchestrator();
+        if (msg.sender != config.internalStatesOrchestrator()) revert ErrorsLib.UnauthorizedAccess();
         _;
     }
 
     modifier onlyLiquidityOrchestrator() {
-        if (msg.sender != config.liquidityOrchestrator()) revert ErrorsLib.NotLiquidityOrchestrator();
+        if (msg.sender != config.liquidityOrchestrator()) revert ErrorsLib.UnauthorizedAccess();
         _;
     }
 
@@ -122,8 +122,8 @@ abstract contract OrionVault is
         string memory name_,
         string memory symbol_
     ) internal onlyInitializing {
-        if (curator_ == address(0)) revert ErrorsLib.InvalidCuratorAddress();
-        if (address(config_) == address(0)) revert ErrorsLib.InvalidConfigAddress();
+        if (curator_ == address(0)) revert ErrorsLib.InvalidAddress();
+        if (address(config_) == address(0)) revert ErrorsLib.InvalidAddress();
 
         __ERC20_init(name_, symbol_);
         __ERC4626_init(config_.underlyingAsset());
@@ -253,7 +253,7 @@ abstract contract OrionVault is
 
     /// @inheritdoc IOrionVault
     function requestWithdraw(uint256 shares) external {
-        if (shares == 0) revert ErrorsLib.SharesMustBeGreaterThanZero();
+        if (shares == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(address(this));
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         uint256 senderBalance = balanceOf(msg.sender);
@@ -273,7 +273,7 @@ abstract contract OrionVault is
 
     /// @inheritdoc IOrionVault
     function cancelWithdrawRequest(uint256 shares) external nonReentrant {
-        if (shares == 0) revert ErrorsLib.SharesMustBeGreaterThanZero();
+        if (shares == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(address(this));
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         // slither-disable-next-line unused-return

@@ -81,7 +81,7 @@ contract OrionAssetERC4626ExecutionAdapter is
     function sell(address vaultAsset, uint256 amount) external override {
         address vaultUnderlyingAsset = IERC4626(vaultAsset).asset();
         if (vaultUnderlyingAsset != underlyingAsset) revert ErrorsLib.InvalidAsset();
-        if (amount == 0) revert ErrorsLib.SharesMustBeGreaterThanZero();
+        if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(vaultAsset);
 
         IERC20 vault = IERC20(vaultAsset);
         // Pull vault shares from the caller (LiquidityOrchestrator)

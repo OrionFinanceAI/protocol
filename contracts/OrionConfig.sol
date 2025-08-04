@@ -48,7 +48,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     EnumerableSet.AddressSet private encryptedVaults;
 
     modifier onlyFactory() {
-        if (msg.sender != vaultFactory) revert ErrorsLib.NotFactory();
+        if (msg.sender != vaultFactory) revert ErrorsLib.UnauthorizedAccess();
         _;
     }
 
@@ -102,7 +102,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     /// @inheritdoc IOrionConfig
     function addWhitelistedAsset(address asset, address priceAdapter, address executionAdapter) external onlyOwner {
         bool inserted = whitelistedAssets.add(asset);
-        if (!inserted) revert ErrorsLib.AlreadyWhitelisted();
+        if (!inserted) revert ErrorsLib.AlreadyRegistered();
 
         // Register the adapters
         IPriceAdapterRegistry(priceAdapterRegistry).setPriceAdapter(asset, IPriceAdapter(priceAdapter));
@@ -160,7 +160,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
             inserted = transparentVaults.add(vault);
         }
 
-        if (!inserted) revert ErrorsLib.AlreadyAnOrionVault();
+        if (!inserted) revert ErrorsLib.AlreadyRegistered();
         emit EventsLib.OrionVaultAdded(vault);
     }
 
@@ -173,7 +173,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
             removed = transparentVaults.remove(vault);
         }
 
-        if (!removed) revert ErrorsLib.NotAnOrionVault();
+        if (!removed) revert ErrorsLib.UnauthorizedAccess();
         emit EventsLib.OrionVaultRemoved(vault);
     }
 
