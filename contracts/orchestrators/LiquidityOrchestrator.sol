@@ -16,13 +16,15 @@ import "../interfaces/IOrionVault.sol";
 import "../interfaces/IExecutionAdapter.sol";
 import "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
-/// @title Liquidity Orchestrator
-/// @dev This contract is responsible for:
-///      - Executing actual buy and sell orders on investment universe;
-///      - Processing actual curator fees with vaults and protocol fees;
-///      - Processing deposit and withdrawal requests from LPs;
-///      - Updating vault states (post-execution, checks-effects-interactions pattern at the protocol level);
-///      - Handling slippage and market execution differences from adapter estimates via liquidity buffer.
+/**
+ * @title Liquidity Orchestrator
+ * @dev This contract is responsible for:
+ *      - Executing actual buy and sell orders on investment universe;
+ *      - Processing actual curator fees with vaults and protocol fees;
+ *      - Processing deposit and withdrawal requests from LPs;
+ *      - Updating vault states (post-execution, checks-effects-interactions pattern at the protocol level);
+ *      - Handling slippage and market execution differences from adapter estimates via liquidity buffer.
+ */
 contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable, ILiquidityOrchestrator {
     /* -------------------------------------------------------------------------- */
     /*                                 CONTRACTS                                  */
@@ -285,10 +287,6 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
     function _executeBuy(address asset, uint256 amount) internal {
         IExecutionAdapter adapter = executionAdapterOf[asset];
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
-
-        // Get the underlying asset from the adapter (assumes it's an ERC4626 adapter)
-        // TODO: fix, This declaration shadows an existing declaration.
-        address underlyingAsset = IERC4626(asset).asset();
 
         // Approve adapter to spend underlying assets
         bool success = IERC20(underlyingAsset).approve(address(adapter), amount);

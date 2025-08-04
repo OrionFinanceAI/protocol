@@ -9,12 +9,22 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     /// @notice Returns the current epoch counter
     function epochCounter() external view returns (uint256);
 
-    // Configuration functions
+    /// @notice Updates the Chainlink Automation Registry address
+    /// @param newAutomationRegistry The new automation registry address
     function updateAutomationRegistry(address newAutomationRegistry) external;
+
+    /// @notice Updates the Orion Config contract address
+    /// @param newConfig The new config address
     function updateConfig(address newConfig) external;
 
-    // Rebalancing orders functions
+    /// @notice Get the selling orders
+    /// @return tokens The tokens to sell
+    /// @return amounts The amounts to sell in shares (converted from underlying assets)
     function getSellingOrders() external view returns (address[] memory, uint256[] memory);
+
+    /// @notice Get the buying orders
+    /// @return tokens The tokens to buy
+    /// @return amounts The amounts to buy in underlying assets (as expected by LiquidityOrchestrator)
     function getBuyingOrders() external view returns (address[] memory, uint256[] memory);
 
     // Tracking error functions

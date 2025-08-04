@@ -4,7 +4,6 @@ pragma solidity ^0.8.28;
 import "./IOrionVault.sol";
 
 /// @title IOrionTransparentVault
-/// @notice Extends the Orion Vault with plaintext portfolio intent submission and plaintextportfolio querying.
 interface IOrionTransparentVault is IOrionVault {
     /// @dev Struct representing a token and its value in a portfolio.
     /// @param token The address of the ERC20 token.
@@ -20,10 +19,14 @@ interface IOrionTransparentVault is IOrionVault {
     /// @param order Position structs array containing the tokens and plaintext weights.
     function submitIntent(Position[] calldata order) external;
 
-    /// @notice Returns the current portfolio (w_0).
+    /// @notice Get the transparent portfolio.
+    /// @return tokens The tokens in the portfolio.
+    /// @return sharesPerAsset The shares per asset in the portfolio.
     function getPortfolio() external view returns (address[] memory tokens, uint256[] memory sharesPerAsset);
 
-    /// @notice Returns the current portfolio intent (w_1).
+    /// @notice Get the transparent intent.
+    /// @return tokens The tokens in the intent.
+    /// @return weights The weights in the intent.
     function getIntent() external view returns (address[] memory tokens, uint256[] memory weights);
 
     /// @notice Updates the vault's portfolio state and total assets

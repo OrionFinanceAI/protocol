@@ -43,12 +43,12 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
  * 2. Deposit Requests (DR_a) [assets] - Pending deposit requests from liquidity providers
  *    - Stored in: _depositRequests mapping
  *    - Units: Asset tokens (e.g., USDC, ETH)
- *    - Note: These are denominated in underlying asset units, not shares
+ *    - @dev These are denominated in underlying asset units, not shares
  *
  * 3. Withdraw Requests (WR_s) [shares] - Pending withdrawal requests from liquidity providers
  *    - Stored in: _withdrawRequests mapping
  *    - Units: Vault share tokens
- *    - Note: These are denominated in vault share units, not underlying assets
+ *    - @dev These are denominated in vault share units, not underlying assets
  *
  * 4. Portfolio Weights (w_0) [shares] - Current portfolio expressed as the number of shares per asset.
  *    - Units: Number of shares
@@ -188,6 +188,7 @@ abstract contract OrionVault is
         return convertToAssetsWithPITTotalAssets(shares, _totalAssets, rounding);
     }
 
+    /// @inheritdoc IOrionVault
     function convertToAssetsWithPITTotalAssets(
         uint256 shares,
         uint256 pointInTimeTotalAssets,
@@ -204,11 +205,7 @@ abstract contract OrionVault is
 
     /// --------- LP FUNCTIONS ---------
 
-    /// @notice Submit an asynchronous deposit request.
-    /// @dev No share tokens are minted immediately. The specified amount of underlying tokens
-    ///      is transferred to the liquidity orchestrator for centralized liquidity management.
-    ///      LPs can later cancel this request to withdraw their funds before any minting occurs.
-    /// @param amount The amount of the underlying asset to deposit.
+    /// @inheritdoc IOrionVault
     function requestDeposit(uint256 amount) external nonReentrant {
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
         uint256 senderBalance = IERC20(asset()).balanceOf(msg.sender);
@@ -226,11 +223,7 @@ abstract contract OrionVault is
         emit EventsLib.DepositRequested(msg.sender, amount);
     }
 
-    /// @notice Cancel a previously submitted deposit request.
-    /// @dev Allows LPs to withdraw their funds before any share tokens are minted.
-    ///      The request must still have enough balance remaining to cover the cancellation.
-    ///      Funds are returned from the liquidity orchestrator.
-    /// @param amount The amount of funds to withdraw.
+    /// @inheritdoc IOrionVault
     function cancelDepositRequest(uint256 amount) external nonReentrant {
         // Checks first
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
@@ -255,11 +248,7 @@ abstract contract OrionVault is
         emit EventsLib.DepositRequestCancelled(msg.sender, amount);
     }
 
-    /// @notice Submit an asynchronous withdrawal request.
-    /// @dev No share tokens are burned immediately. The specified amount of share tokens
-    ///      is transferred to the liquidity orchestrator for centralized liquidity management.
-    ///      LPs can later cancel this request to withdraw their funds before any burning occurs.
-    /// @param shares The amount of the share tokens to withdraw.
+    /// @inheritdoc IOrionVault
     function requestWithdraw(uint256 shares) external {
         if (shares == 0) revert ErrorsLib.SharesMustBeGreaterThanZero();
         uint256 senderBalance = balanceOf(msg.sender);
@@ -277,11 +266,7 @@ abstract contract OrionVault is
         emit EventsLib.WithdrawRequested(msg.sender, shares);
     }
 
-    /// @notice Cancel a previously submitted withdrawal request.
-    /// @dev Allows LPs to recover their share tokens before any burning occurs.
-    ///      The request must still have enough shares remaining to cover the cancellation.
-    ///      Share tokens are returned from the liquidity orchestrator.
-    /// @param shares The amount of share tokens to recover.
+    /// @inheritdoc IOrionVault
     function cancelWithdrawRequest(uint256 shares) external nonReentrant {
         // Checks first
         if (shares == 0) revert ErrorsLib.SharesMustBeGreaterThanZero();
@@ -308,23 +293,19 @@ abstract contract OrionVault is
 
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
 
-    /// @notice Get total pending deposit amount across all users
-    /// @return Total pending deposits denominated in underlying asset units (e.g., USDC, ETH)
-    /// Note: This returns asset amounts, not share amounts
+    /// @inheritdoc IOrionVault
     function getPendingDeposits() external view returns (uint256) {
         return _totalPendingDeposits;
     }
 
-    /// @notice Get total pending withdrawal shares across all users
-    /// @return Total pending withdrawals denominated in vault share units
-    /// Note: This returns share amounts, not underlying asset amounts
+    /// @inheritdoc IOrionVault
     function getPendingWithdrawals() external view returns (uint256) {
         return _totalPendingWithdrawals;
     }
 
     /// --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
 
-    /// @notice Process deposit requests from LPs and reset the requestor's request amount
+    /// @inheritdoc IOrionVault
     function processDepositRequests() external onlyLiquidityOrchestrator nonReentrant {
         uint256 length = _depositRequests.length();
         // Collect all requests first to avoid index shifting issues when removing during iteration
@@ -355,7 +336,7 @@ abstract contract OrionVault is
         _totalPendingDeposits = 0;
     }
 
-    /// @notice Process withdrawal requests from LPs
+    /// @inheritdoc IOrionVault
     function processWithdrawRequests() external onlyLiquidityOrchestrator nonReentrant {
         uint256 length = _withdrawRequests.length();
         // Collect all requests first to avoid index shifting issues when removing during iteration
@@ -386,7 +367,4 @@ abstract contract OrionVault is
             emit EventsLib.WithdrawProcessed(user, shares);
         }
     }
-
-    /// --------- ABSTRACT FUNCTIONS ---------
-    /// @notice Derived contracts implement their specific submitIntent functions
 }

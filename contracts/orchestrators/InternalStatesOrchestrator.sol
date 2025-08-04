@@ -17,16 +17,19 @@ import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { EventsLib } from "../libraries/EventsLib.sol";
 import { FHE, euint32 } from "@fhevm/solidity/lib/FHE.sol";
 
-/// @title Internal States Orchestrator
-/// @notice Orchestrates state reading and estimation operations triggered by Chainlink Automation
-/// @dev This contract is responsible for:
-///      - Reading current vault states and market data;
-///      - Computing state estimations for Liquidity Orchestrator;
-///      - Trigger the Liquidity Orchestrator
-///      IMPORTANT: This contract does NOT execute transactions or write vault states.
-///      It only performs read operations and calculations to estimate state changes.
-///      Actual state modifications and transaction execution are handled by the Liquidity Orchestrator contract.
-///      Variable naming distinguishes measurements (x) from estimations (xHat).
+/**
+ * @title Internal States Orchestrator
+ * @notice Orchestrates state reading and estimation operations triggered by Chainlink Automation
+ * @dev This contract is responsible for:
+ *      - Reading current vault states and market data;
+ *      - Computing state estimations for Liquidity Orchestrator;
+ *      - Trigger the Liquidity Orchestrator.
+ *
+ *      This contract does NOT execute transactions or write vault states.
+ *      It only performs read operations and calculations to estimate state changes.
+ *      Actual state modifications and transaction execution are handled by the Liquidity Orchestrator contract.
+ *      Variable naming distinguishes measurements (x) from estimations (xHat).
+ */
 contract InternalStatesOrchestrator is
     Initializable,
     Ownable2StepUpgradeable,
@@ -162,16 +165,14 @@ contract InternalStatesOrchestrator is
         _;
     }
 
-    /// @notice Updates the Chainlink Automation Registry address
-    /// @param newAutomationRegistry The new automation registry address
+    /// @inheritdoc IInternalStateOrchestrator
     function updateAutomationRegistry(address newAutomationRegistry) external onlyOwner {
         if (newAutomationRegistry == address(0)) revert ErrorsLib.ZeroAddress();
         automationRegistry = newAutomationRegistry;
         emit EventsLib.AutomationRegistryUpdated(newAutomationRegistry);
     }
 
-    /// @notice Updates the Orion Config contract address
-    /// @param newConfig The new config address
+    /// @inheritdoc IInternalStateOrchestrator
     function updateConfig(address newConfig) external onlyOwner {
         if (newConfig == address(0)) revert ErrorsLib.ZeroAddress();
         config = IOrionConfig(newConfig);
@@ -506,9 +507,7 @@ contract InternalStatesOrchestrator is
     /*                      LIQUIDITY ORCHESTRATOR FUNCTIONS                      */
     /* -------------------------------------------------------------------------- */
 
-    /// @notice Get the selling orders
-    /// @return tokens The tokens to sell
-    /// @return amounts The amounts to sell in shares (converted from underlying assets)
+    /// @inheritdoc IInternalStateOrchestrator
     function getSellingOrders() external view returns (address[] memory tokens, uint256[] memory amounts) {
         address[] memory allTokens = _currentEpoch.tokens;
         uint256 allTokensLength = allTokens.length;
@@ -538,9 +537,7 @@ contract InternalStatesOrchestrator is
         }
     }
 
-    /// @notice Get the buying orders
-    /// @return tokens The tokens to buy
-    /// @return amounts The amounts to buy in underlying assets (as expected by LiquidityOrchestrator)
+    /// @inheritdoc IInternalStateOrchestrator
     function getBuyingOrders() external view returns (address[] memory tokens, uint256[] memory amounts) {
         address[] memory allTokens = _currentEpoch.tokens;
         uint256 allTokensLength = allTokens.length;

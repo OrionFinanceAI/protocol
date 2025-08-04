@@ -11,6 +11,11 @@ import "../interfaces/IOrionVault.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { EventsLib } from "../libraries/EventsLib.sol";
 
+/**
+ * @title OrionVaultFactory
+ * @notice A factory contract for creating Orion vaults
+ * @dev This contract is responsible for creating new transparent and encrypted vaults.
+ */
 contract OrionVaultFactory is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable, ReentrancyGuardUpgradeable {
     address public deployer;
     IOrionConfig public config;
@@ -46,6 +51,11 @@ contract OrionVaultFactory is Initializable, Ownable2StepUpgradeable, UUPSUpgrad
         encryptedVaultImplementation = encryptedImpl;
     }
 
+    /// @notice Creates a new transparent vault
+    /// @param curator The address of the curator
+    /// @param name The name of the vault
+    /// @param symbol The symbol of the vault
+    /// @return vault The address of the new vault
     function createOrionTransparentVault(
         address curator,
         string calldata name,
@@ -64,6 +74,11 @@ contract OrionVaultFactory is Initializable, Ownable2StepUpgradeable, UUPSUpgrad
         emit EventsLib.OrionVaultCreated(vault, curator, msg.sender, EventsLib.VaultType.Transparent);
     }
 
+    /// @notice Creates a new encrypted vault
+    /// @param curator The address of the curator
+    /// @param name The name of the vault
+    /// @param symbol The symbol of the vault
+    /// @return vault The address of the new vault
     function createOrionEncryptedVault(
         address curator,
         string calldata name,

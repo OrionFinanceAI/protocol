@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../libraries/EventsLib.sol";
 
+/// @title IOrionConfig
 interface IOrionConfig {
     /// @notice Returns the address of the internal states orchestrator contract
     /// @dev This orchestrator manages the internal state transitions of the protocol

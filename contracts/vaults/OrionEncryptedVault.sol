@@ -39,9 +39,7 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
 
     /// --------- CURATOR FUNCTIONS ---------
 
-    /// @notice Submit an encrypted portfolio intent.
-    /// @param order EncryptedPosition struct containing the tokens and encrypted weights.
-    /// @dev The weights are interpreted as percentage of total supply.
+    /// @inheritdoc IOrionEncryptedVault
     function submitIntent(EncryptedPosition[] calldata order) external onlyCurator nonReentrant {
         if (order.length == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
 
@@ -95,9 +93,7 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
 
     // --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
 
-    /// @notice Get the encrypted portfolio.
-    /// @return tokens The tokens in the portfolio.
-    /// @return sharesPerAsset The shares per asset in the portfolio.
+    /// @inheritdoc IOrionEncryptedVault
     function getPortfolio() external view returns (address[] memory tokens, euint32[] memory sharesPerAsset) {
         uint256 length = _portfolioKeys.length;
         tokens = new address[](length);
@@ -109,6 +105,7 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
         }
     }
 
+    /// @inheritdoc IOrionEncryptedVault
     function getIntent() external view returns (address[] memory tokens, euint32[] memory weights) {
         uint256 length = _intentKeys.length;
         tokens = new address[](length);
