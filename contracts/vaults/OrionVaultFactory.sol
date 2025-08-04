@@ -39,10 +39,18 @@ contract OrionVaultFactory is Initializable, Ownable2StepUpgradeable, UUPSUpgrad
         // Only the owner can upgrade the contract
     }
 
+    /// @notice Updates the config address
+    /// @param newConfig The new config address
     function updateConfig(address newConfig) external onlyOwner {
+        if (newConfig == address(0)) revert ErrorsLib.ZeroAddress();
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+
         config = IOrionConfig(newConfig);
     }
 
+    /// @notice Sets the implementation addresses for the vaults
+    /// @param transparentImpl The address of the transparent vault implementation
+    /// @param encryptedImpl The address of the encrypted vault implementation
     function setImplementations(address transparentImpl, address encryptedImpl) external onlyOwner {
         if (transparentImpl == address(0)) revert ErrorsLib.ZeroAddress();
         if (encryptedImpl == address(0)) revert ErrorsLib.ZeroAddress();
@@ -63,6 +71,7 @@ contract OrionVaultFactory is Initializable, Ownable2StepUpgradeable, UUPSUpgrad
     ) external nonReentrant onlyOwner returns (address vault) {
         if (curator == address(0)) revert ErrorsLib.ZeroAddress();
         if (transparentVaultImplementation == address(0)) revert ErrorsLib.ZeroAddress();
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         // Create proxy for transparent vault
         bytes memory initData = abi.encodeWithSelector(IOrionVault.initialize.selector, curator, config, name, symbol);
@@ -86,6 +95,7 @@ contract OrionVaultFactory is Initializable, Ownable2StepUpgradeable, UUPSUpgrad
     ) external nonReentrant onlyOwner returns (address vault) {
         if (curator == address(0)) revert ErrorsLib.ZeroAddress();
         if (encryptedVaultImplementation == address(0)) revert ErrorsLib.ZeroAddress();
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         // Create proxy for encrypted vault
         bytes memory initData = abi.encodeWithSelector(IOrionVault.initialize.selector, curator, config, name, symbol);

@@ -29,6 +29,19 @@
     },
     {
       "inputs": [],
+      "name": "currentPhase",
+      "outputs": [
+        {
+          "internalType": "enum IInternalStateOrchestrator.InternalUpkeepPhase",
+          "name": "",
+          "type": "uint8"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
       "name": "epochCounter",
       "outputs": [
         {

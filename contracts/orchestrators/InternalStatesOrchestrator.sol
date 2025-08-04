@@ -105,27 +105,18 @@ contract InternalStatesOrchestrator is
     /* -------------------------------------------------------------------------- */
     /*                               UPKEEP STATE                                 */
     /* -------------------------------------------------------------------------- */
-    /// @notice Upkeep phase
-    enum UpkeepPhase {
-        Idle,
-        ProcessingTransparentVaults,
-        ProcessingEncryptedVaults,
-        Aggregating
-    }
-    // TODO: protect against adding/removing vaults when UpkeepPhase != Idle. Same for the Liquidity Orchestrator
-    // Same for adding/removing whitelisted assets. Potentially others.
-    // Some protocol interactions need to be disabled when the rebalancing is in progres.
-    // Reblancing is in progress if at least one orchestrator is not idle.
 
     /// @notice Counter for tracking processing cycles
     uint256 public epochCounter;
     /// @notice Timestamp when the next upkeep is allowed
     uint256 private _nextUpdateTime;
+
+    // TODO: make this configurable by the owner.
     /// @notice Epoch duration
     uint256 public constant UPDATE_INTERVAL = 1 minutes;
 
     /// @notice Upkeep phase
-    UpkeepPhase public currentPhase;
+    InternalUpkeepPhase public currentPhase;
     /// @notice Current vault index
     uint256 public currentVaultIndex;
     /// @notice Transparent vaults associated to the current epoch
@@ -150,7 +141,7 @@ contract InternalStatesOrchestrator is
         _nextUpdateTime = _computeNextUpdateTime(block.timestamp);
         epochCounter = 0;
 
-        currentPhase = UpkeepPhase.Idle;
+        currentPhase = InternalUpkeepPhase.Idle;
         currentVaultIndex = 0;
     }
 
@@ -168,6 +159,8 @@ contract InternalStatesOrchestrator is
     /// @inheritdoc IInternalStateOrchestrator
     function updateAutomationRegistry(address newAutomationRegistry) external onlyOwner {
         if (newAutomationRegistry == address(0)) revert ErrorsLib.ZeroAddress();
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+
         automationRegistry = newAutomationRegistry;
         emit EventsLib.AutomationRegistryUpdated(newAutomationRegistry);
     }
@@ -175,24 +168,27 @@ contract InternalStatesOrchestrator is
     /// @inheritdoc IInternalStateOrchestrator
     function updateConfig(address newConfig) external onlyOwner {
         if (newConfig == address(0)) revert ErrorsLib.ZeroAddress();
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+
         config = IOrionConfig(newConfig);
     }
 
     /// @notice Checks if upkeep is needed based on time interval
     /// @dev https://docs.chain.link/chainlink-automation/reference/automation-interfaces
     function checkUpkeep(bytes calldata) external view override returns (bool upkeepNeeded, bytes memory performData) {
-        if (currentPhase == UpkeepPhase.Idle && _shouldTriggerUpkeep()) {
+        if (config.isSystemIdle() && _shouldTriggerUpkeep()) {
             upkeepNeeded = true;
             performData = abi.encodePacked(ACTION_START);
         } else if (
-            currentPhase == UpkeepPhase.ProcessingTransparentVaults && currentVaultIndex < transparentVaultsEpoch.length
+            currentPhase == InternalUpkeepPhase.ProcessingTransparentVaults &&
+            currentVaultIndex < transparentVaultsEpoch.length
         ) {
             upkeepNeeded = true;
             performData = abi.encodePacked(ACTION_PROCESS_TRANSPARENT_VAULT, currentVaultIndex);
-        } else if (currentPhase == UpkeepPhase.ProcessingEncryptedVaults) {
+        } else if (currentPhase == InternalUpkeepPhase.ProcessingEncryptedVaults) {
             upkeepNeeded = true;
             performData = abi.encodePacked(ACTION_PROCESS_ENCRYPTED_VAULTS);
-        } else if (currentPhase == UpkeepPhase.Aggregating) {
+        } else if (currentPhase == InternalUpkeepPhase.Aggregating) {
             upkeepNeeded = true;
             performData = abi.encodePacked(ACTION_AGGREGATE);
         } else {
@@ -216,7 +212,7 @@ contract InternalStatesOrchestrator is
             _resetEpochState();
             transparentVaultsEpoch = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
             currentVaultIndex = 0;
-            currentPhase = UpkeepPhase.ProcessingTransparentVaults;
+            currentPhase = InternalUpkeepPhase.ProcessingTransparentVaults;
         } else if (action == ACTION_PROCESS_TRANSPARENT_VAULT) {
             uint256 index = abi.decode(performData[4:], (uint256));
             _processTransparentVault(index);
@@ -229,7 +225,7 @@ contract InternalStatesOrchestrator is
             // Compute selling and buying orders based on portfolio differences
             _computeRebalancingOrders();
 
-            currentPhase = UpkeepPhase.Idle;
+            currentPhase = InternalUpkeepPhase.Idle;
             delete transparentVaultsEpoch;
             epochCounter++;
             emit EventsLib.InternalStateProcessed(epochCounter);
@@ -295,7 +291,7 @@ contract InternalStatesOrchestrator is
         currentVaultIndex++;
 
         if (currentVaultIndex >= transparentVaultsEpoch.length) {
-            currentPhase = UpkeepPhase.ProcessingEncryptedVaults;
+            currentPhase = InternalUpkeepPhase.ProcessingEncryptedVaults;
         }
     }
 
@@ -336,7 +332,7 @@ contract InternalStatesOrchestrator is
             // Protocol fee here can be different from the transparent vaults because of added costs.
         }
 
-        currentPhase = UpkeepPhase.Aggregating;
+        currentPhase = InternalUpkeepPhase.Aggregating;
     }
 
     /* -------------------------------------------------------------------------- */

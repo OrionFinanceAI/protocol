@@ -15,6 +15,7 @@ import "./interfaces/IPriceAdapterRegistry.sol";
 import "./interfaces/ILiquidityOrchestrator.sol";
 import "./interfaces/IPriceAdapter.sol";
 import "./interfaces/IExecutionAdapter.sol";
+import "./interfaces/IInternalStateOrchestrator.sol";
 
 /**
  *     ██████╗ ██████╗ ██╗ ██████╗ ███╗   ██╗    ███████╗██╗███╗   ██╗ █████╗ ███╗   ██╗ ██████╗███████╗
@@ -192,5 +193,14 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     /// @inheritdoc IOrionConfig
     function isOrionVault(address vault) external view returns (bool) {
         return encryptedVaults.contains(vault) || transparentVaults.contains(vault);
+    }
+
+    /// @inheritdoc IOrionConfig
+    function isSystemIdle() external view returns (bool) {
+        return
+            ILiquidityOrchestrator(liquidityOrchestrator).currentPhase() ==
+            ILiquidityOrchestrator.LiquidityUpkeepPhase.Idle &&
+            IInternalStateOrchestrator(internalStatesOrchestrator).currentPhase() ==
+            IInternalStateOrchestrator.InternalUpkeepPhase.Idle;
     }
 }

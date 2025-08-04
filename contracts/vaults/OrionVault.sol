@@ -208,6 +208,8 @@ abstract contract OrionVault is
     /// @inheritdoc IOrionVault
     function requestDeposit(uint256 amount) external nonReentrant {
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+
         uint256 senderBalance = IERC20(asset()).balanceOf(msg.sender);
         if (amount > senderBalance) revert ErrorsLib.InsufficientFunds(msg.sender, senderBalance, amount);
 
@@ -225,8 +227,9 @@ abstract contract OrionVault is
 
     /// @inheritdoc IOrionVault
     function cancelDepositRequest(uint256 amount) external nonReentrant {
-        // Checks first
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+
         // slither-disable-next-line unused-return
         (, uint256 currentAmount) = _depositRequests.tryGet(msg.sender);
         if (currentAmount < amount) revert ErrorsLib.NotEnoughDepositRequest();
@@ -251,6 +254,8 @@ abstract contract OrionVault is
     /// @inheritdoc IOrionVault
     function requestWithdraw(uint256 shares) external {
         if (shares == 0) revert ErrorsLib.SharesMustBeGreaterThanZero();
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+
         uint256 senderBalance = balanceOf(msg.sender);
         if (shares > senderBalance) revert ErrorsLib.InsufficientFunds(msg.sender, senderBalance, shares);
 
@@ -268,8 +273,9 @@ abstract contract OrionVault is
 
     /// @inheritdoc IOrionVault
     function cancelWithdrawRequest(uint256 shares) external nonReentrant {
-        // Checks first
         if (shares == 0) revert ErrorsLib.SharesMustBeGreaterThanZero();
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+
         // slither-disable-next-line unused-return
         (, uint256 currentShares) = _withdrawRequests.tryGet(msg.sender);
         if (currentShares < shares) revert ErrorsLib.NotEnoughWithdrawRequest();

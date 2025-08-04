@@ -6,6 +6,18 @@ import "./IOrionConfig.sol";
 
 /// @title IInternalStateOrchestrator
 interface IInternalStateOrchestrator is AutomationCompatibleInterface {
+    /// @notice Upkeep phase
+    enum InternalUpkeepPhase {
+        Idle,
+        ProcessingTransparentVaults,
+        ProcessingEncryptedVaults,
+        Aggregating
+    }
+
+    /// @notice Returns the current upkeep phase
+    /// @return The current InternalUpkeepPhase
+    function currentPhase() external view returns (InternalUpkeepPhase);
+
     /// @notice Returns the current epoch counter
     function epochCounter() external view returns (uint256);
 

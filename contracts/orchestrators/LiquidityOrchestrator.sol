@@ -47,19 +47,12 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
     /* -------------------------------------------------------------------------- */
     /*                               UPKEEP STATE                                 */
     /* -------------------------------------------------------------------------- */
-    /// @notice Upkeep phase
-    enum UpkeepPhase {
-        Idle,
-        SellingLeg,
-        BuyingLeg,
-        StateUpdate
-    }
 
     /// @notice Last processed epoch counter from Internal States Orchestrator
     uint256 public lastProcessedEpoch;
 
     /// @notice Upkeep phase
-    UpkeepPhase public currentPhase;
+    LiquidityUpkeepPhase public currentPhase;
 
     /// @notice Number of orders processed in the current leg
     uint256 public processedLegOrders;
@@ -80,7 +73,7 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
 
         lastProcessedEpoch = 0;
 
-        currentPhase = UpkeepPhase.Idle;
+        currentPhase = LiquidityUpkeepPhase.Idle;
         processedLegOrders = 0;
     }
 
@@ -103,6 +96,7 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
     /// @inheritdoc ILiquidityOrchestrator
     function updateAutomationRegistry(address newAutomationRegistry) external onlyOwner {
         if (newAutomationRegistry == address(0)) revert ErrorsLib.ZeroAddress();
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         automationRegistry = newAutomationRegistry;
         emit EventsLib.AutomationRegistryUpdated(newAutomationRegistry);
     }
@@ -110,6 +104,7 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
     /// @inheritdoc ILiquidityOrchestrator
     function updateConfig(address newConfig) external onlyOwner {
         if (newConfig == address(0)) revert ErrorsLib.ZeroAddress();
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         config = IOrionConfig(newConfig);
     }
 
@@ -152,7 +147,7 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
     // TODO: docs when implemented.
     function checkUpkeep(bytes calldata) external view override returns (bool upkeepNeeded, bytes memory performData) {
         uint256 currentEpoch = internalStatesOrchestrator.epochCounter();
-        if (currentEpoch > lastProcessedEpoch && currentPhase == UpkeepPhase.Idle) {
+        if (currentEpoch > lastProcessedEpoch && config.isSystemIdle()) {
             upkeepNeeded = true;
             // TODO: same as internal states orchestrator, use bytes4 and encodePacked.
             performData = abi.encode("start");

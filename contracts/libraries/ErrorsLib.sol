@@ -34,4 +34,5 @@ library ErrorsLib {
     error WithdrawRequestCancelled(address user, uint256 shares);
     error InvalidArguments();
     error InvalidState();
+    error SystemNotIdle();
 }

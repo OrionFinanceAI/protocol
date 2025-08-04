@@ -306,6 +306,11 @@
     },
     {
       "inputs": [],
+      "name": "SystemNotIdle",
+      "type": "error"
+    },
+    {
+      "inputs": [],
       "name": "TransferFailed",
       "type": "error"
     },
