@@ -29,6 +29,10 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     /// @param newConfig The new config address
     function updateConfig(address newConfig) external;
 
+    /// @notice Updates the update interval
+    /// @param newUpdateInterval The new update interval in seconds
+    function updateUpdateInterval(uint256 newUpdateInterval) external;
+
     /// @notice Get the selling orders
     /// @return tokens The tokens to sell
     /// @return amounts The amounts to sell in shares (converted from underlying assets)

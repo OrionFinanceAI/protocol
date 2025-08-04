@@ -54,10 +54,14 @@ contract OrionAssetERC4626ExecutionAdapter is
     /// @dev The adapter will pull the underlying assets from the caller (LiquidityOrchestrator)
     ///      and push the resulting shares.
     function buy(address vaultAsset, uint256 amount) external override {
-        IERC4626 vault = IERC4626(vaultAsset);
-        address vaultUnderlyingAsset = vault.asset();
-        if (vaultUnderlyingAsset != underlyingAsset) revert ErrorsLib.InvalidAsset();
+        try IERC4626(vaultAsset).asset() returns (address vaultUnderlyingAsset) {
+            if (vaultUnderlyingAsset != underlyingAsset) revert ErrorsLib.InvalidAsset();
+        } catch {
+            revert ErrorsLib.InvalidAsset(); // Not a valid ERC4626 vault
+        }
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(vaultAsset);
+
+        IERC4626 vault = IERC4626(vaultAsset);
 
         // Pull underlying assets from the caller (LiquidityOrchestrator)
         underlyingAssetToken.safeTransferFrom(msg.sender, address(this), amount);
@@ -79,11 +83,15 @@ contract OrionAssetERC4626ExecutionAdapter is
     /// @dev The adapter will pull the vault shares from the caller (LiquidityOrchestrator)
     ///      and push the resulting underlying assets.
     function sell(address vaultAsset, uint256 amount) external override {
-        address vaultUnderlyingAsset = IERC4626(vaultAsset).asset();
-        if (vaultUnderlyingAsset != underlyingAsset) revert ErrorsLib.InvalidAsset();
+        try IERC4626(vaultAsset).asset() returns (address vaultUnderlyingAsset) {
+            if (vaultUnderlyingAsset != underlyingAsset) revert ErrorsLib.InvalidAsset();
+        } catch {
+            revert ErrorsLib.InvalidAsset(); // Not a valid ERC4626 vault
+        }
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(vaultAsset);
 
         IERC20 vault = IERC20(vaultAsset);
+
         // Pull vault shares from the caller (LiquidityOrchestrator)
         vault.safeTransferFrom(msg.sender, address(this), amount);
         // Approve vault to spend shares

@@ -44,8 +44,11 @@ contract OrionAssetERC4626PriceAdapter is Initializable, Ownable2StepUpgradeable
     /// @return The price of one share, normalized to 18 decimals.
     /// @dev The price is always scaled to 18 decimals, regardless of the vault decimals.
     function price(address vaultAsset) external view returns (uint256) {
-        address vaultUnderlyingAsset = IERC4626(vaultAsset).asset();
-        if (vaultUnderlyingAsset != underlyingAsset) revert ErrorsLib.InvalidAsset();
+        try IERC4626(vaultAsset).asset() returns (address vaultUnderlyingAsset) {
+            if (vaultUnderlyingAsset != underlyingAsset) revert ErrorsLib.InvalidAsset();
+        } catch {
+            revert ErrorsLib.InvalidAsset(); // Not a valid ERC4626 vault
+        }
 
         uint8 vaultAssetDecimals = IERC20Metadata(vaultAsset).decimals();
 

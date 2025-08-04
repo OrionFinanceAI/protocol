@@ -28,6 +28,8 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
     /// @notice Temporary mapping to track seen tokens during submitIntent to check for duplicates
     mapping(address => bool) internal _seenTokens;
 
+    euint32 internal _ezero;
+
     function initialize(
         address curatorAddress,
         IOrionConfig configAddress,
@@ -35,6 +37,8 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
         string calldata symbol
     ) public initializer {
         __OrionVault_init(curatorAddress, configAddress, name, symbol);
+
+        _ezero = FHE.asEuint32(0);
     }
 
     /// --------- CURATOR FUNCTIONS ---------
@@ -44,8 +48,7 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
         if (order.length == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
 
         uint256 orderLength = order.length;
-        euint32 ezero = FHE.asEuint32(0);
-        euint32 totalWeight = ezero;
+        euint32 totalWeight = _ezero;
 
         address[] memory tempKeys = new address[](orderLength);
         euint32[] memory tempWeights = new euint32[](orderLength);
@@ -55,9 +58,14 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
             euint32 weight = order[i].value;
 
             if (!config.isWhitelisted(token)) revert ErrorsLib.TokenNotWhitelisted(token);
+
+            // TODO: Additional check:
+            // https://docs.zama.ai/protocol/solidity-guides/smart-contract/inputs#validating-encrypted-inputs
+
             // TODO: Zama coprocessor to check isWeightValid == true, else
             // ebool isWeightValid = FHE.gt(weight, ezero);
             // ErrorsLib.AmountMustBeGreaterThanZero(token);
+
             if (_seenTokens[token]) revert ErrorsLib.TokenAlreadyInOrder(token);
 
             _seenTokens[token] = true;
@@ -77,7 +85,7 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
         // Clear previous intent by setting weights to zero (state write after all external calls)
         uint256 intentLength = _intentKeys.length;
         for (uint256 i = 0; i < intentLength; i++) {
-            _intent[_intentKeys[i]] = ezero;
+            _intent[_intentKeys[i]] = _ezero;
         }
         delete _intentKeys;
 
@@ -123,12 +131,10 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
         EncryptedPosition[] calldata portfolio,
         uint256 newTotalAssets
     ) external onlyLiquidityOrchestrator {
-        euint32 ezero = FHE.asEuint32(0);
-
         // Clear previous portfolio by setting weights to zero
         uint256 portfolioLength = _portfolioKeys.length;
         for (uint256 i = 0; i < portfolioLength; i++) {
-            _portfolio[_portfolioKeys[i]] = ezero;
+            _portfolio[_portfolioKeys[i]] = _ezero;
         }
         delete _portfolioKeys;
 

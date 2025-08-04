@@ -111,9 +111,8 @@ contract InternalStatesOrchestrator is
     /// @notice Timestamp when the next upkeep is allowed
     uint256 private _nextUpdateTime;
 
-    // TODO: make this configurable by the owner.
     /// @notice Epoch duration
-    uint256 public constant UPDATE_INTERVAL = 1 minutes;
+    uint256 public updateInterval;
 
     /// @notice Upkeep phase
     InternalUpkeepPhase public currentPhase;
@@ -141,6 +140,7 @@ contract InternalStatesOrchestrator is
         _nextUpdateTime = _computeNextUpdateTime(block.timestamp);
         epochCounter = 0;
 
+        updateInterval = 1 minutes;
         currentPhase = InternalUpkeepPhase.Idle;
         currentVaultIndex = 0;
     }
@@ -171,6 +171,12 @@ contract InternalStatesOrchestrator is
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         config = IOrionConfig(newConfig);
+    }
+
+    /// @inheritdoc IInternalStateOrchestrator
+    function updateUpdateInterval(uint256 newUpdateInterval) external onlyOwner {
+        if (newUpdateInterval == 0) revert ErrorsLib.InvalidArguments();
+        updateInterval = newUpdateInterval;
     }
 
     /// @notice Checks if upkeep is needed based on time interval
@@ -217,6 +223,9 @@ contract InternalStatesOrchestrator is
             uint256 index = abi.decode(performData[4:], (uint256));
             _processTransparentVault(index);
         } else if (action == ACTION_PROCESS_ENCRYPTED_VAULTS) {
+            // TODO: process encrypted vaults in minibatches, not a single batch,
+            // for scalability (even if not possible to process one by one like transparent one).
+            // Set minibatch size as a configurable parameter in the contract.
             _processEncryptedVaults();
         } else if (action == ACTION_AGGREGATE) {
             // TODO: Finally sum up decrypted_encryptedBatchPortfolio to get _finalBatchPortfolioHat
@@ -349,8 +358,8 @@ contract InternalStatesOrchestrator is
     /// @notice Computes the next update time based on current timestamp
     /// @param currentTime Current block timestamp
     /// @return Next update time
-    function _computeNextUpdateTime(uint256 currentTime) internal pure returns (uint256) {
-        return currentTime + UPDATE_INTERVAL;
+    function _computeNextUpdateTime(uint256 currentTime) internal view returns (uint256) {
+        return currentTime + updateInterval;
     }
 
     /// @notice Checks if upkeep should be triggered based on time
