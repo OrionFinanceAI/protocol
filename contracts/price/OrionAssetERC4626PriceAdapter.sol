@@ -62,5 +62,7 @@ contract OrionAssetERC4626PriceAdapter is Initializable, Ownable2StepUpgradeable
         } else {
             return underlyingAssetAmount / (10 ** (underlyingAssetDecimals - 18));
         }
+        // TODO: same logic as _convertDecimals from InternalStatesOrchestrator.sol, avoid code duplication
+        // for security and readability.
     }
 }

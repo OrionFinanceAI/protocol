@@ -99,6 +99,10 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
 
     // === Whitelist Functions ===
 
+    // TODO: have the underlying asset as part of the whitelist investment universe,
+    // set oracle price defaulting to 1 and the execution defaulting to doing nothing.
+    // needed to gracefully handle reverted transactions due to high slippage.
+
     /// @inheritdoc IOrionConfig
     function addWhitelistedAsset(address asset, address priceAdapter, address executionAdapter) external onlyOwner {
         bool inserted = whitelistedAssets.add(asset);
@@ -110,6 +114,11 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
 
         emit EventsLib.WhitelistedAssetAdded(asset);
     }
+
+    // TODO: removeWhitelistedAsset being called on the config by the owner should have big implications on strategies,
+    // leading to forced liquidations of positions on that asset for each vault
+    // and starting to reject intents for that product.
+    // How to correctly handle internal accounting on this? And how to deal with intents that are already in the system?
 
     /// @inheritdoc IOrionConfig
     function removeWhitelistedAsset(address asset) external onlyOwner {

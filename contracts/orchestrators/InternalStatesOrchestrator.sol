@@ -225,7 +225,7 @@ contract InternalStatesOrchestrator is
         } else if (action == ACTION_PROCESS_ENCRYPTED_VAULTS) {
             // TODO: process encrypted vaults in minibatches, not a single batch,
             // for scalability (even if not possible to process one by one like transparent one).
-            // Set minibatch size as a configurable parameter in the contract.
+            // Set minibatch size as a configurable parameter in the contract, have a variable akin to currentVaultIndex
             _processEncryptedVaults();
         } else if (action == ACTION_AGGREGATE) {
             // TODO: Finally sum up decrypted_encryptedBatchPortfolio to get _finalBatchPortfolioHat
@@ -283,6 +283,10 @@ contract InternalStatesOrchestrator is
         // Calculate estimated (active and passive) total assets (t_2), same decimals as underlying.
         uint256 t2Hat = t1Hat + vault.getPendingDeposits() - pendingWithdrawalsHat;
         // TODO: - curator_fee(TVL, return, ...) - protocol_fee(vault)
+
+        // TODO: Can we compute the amount of netting performed each epoch and use that as a proxy for epoch fees?
+        // This should model the capital saved by lack of market impact/slippage associated with netted transaction.
+        // Then 50 50 between vault and protocol?
 
         (address[] memory intentTokens, uint256[] memory intentWeights) = vault.getIntent();
         uint256 intentLength = intentTokens.length;

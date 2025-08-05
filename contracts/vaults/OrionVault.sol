@@ -140,6 +140,9 @@ abstract contract OrionVault is
         _totalPendingDeposits = 0;
         _totalPendingWithdrawals = 0;
 
+        /// TODO: underlyingDecimals computed both here and in InternalStatesOrchestrator.sol, avoid code duplication,
+        // compute it when setting underlying asset in the config contract.
+
         uint8 underlyingDecimals = IERC20Metadata(address(config_.underlyingAsset())).decimals();
         if (underlyingDecimals > 18) revert ErrorsLib.InvalidUnderlyingDecimals();
         uint8 deltaDecimals = uint8(18 - underlyingDecimals);
@@ -297,6 +300,11 @@ abstract contract OrionVault is
         emit EventsLib.WithdrawRequestCancelled(msg.sender, shares);
     }
 
+    /// --------- CURATOR FUNCTIONS ---------
+
+    // TODO: Curator to add vault-specific whitelist (as long as subset of protocol whitelist) for higher auditability.
+    // Defaulting to protocol whitelist (so when protocol whitelist updated, vault whitelist is updated as well).
+
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
 
     /// @inheritdoc IOrionVault
@@ -369,6 +377,10 @@ abstract contract OrionVault is
             _burn(address(this), shares);
             uint256 underlyingAmount = previewRedeem(shares);
             if (!IERC20(asset()).transfer(user, underlyingAmount)) revert ErrorsLib.TransferFailed();
+
+            // TODO: Not sure about processWithdrawRequests logic,
+            // I am not transferring LP share tokens back to the vault and
+            // I am not taking USDC from the liquidity orchestrator. Please fix.
 
             emit EventsLib.WithdrawProcessed(user, shares);
         }

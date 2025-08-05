@@ -36,6 +36,9 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
     /// --------- CURATOR FUNCTIONS ---------
 
+    // TODO: Enable stricter auditability properties: curator to set max position size in % TVL.
+    // Default value to 10 ** curatorIntentDecimals.
+
     /// @inheritdoc IOrionTransparentVault
     function submitIntent(Position[] calldata order) external onlyCurator {
         if (order.length == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
