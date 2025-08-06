@@ -1,12 +1,18 @@
-import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
+import { impersonateAccount, loadFixture, setBalance } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 
 describe("OrionVault Exchange Rate Tests", function () {
+  // Helper function to impersonate liquidity orchestrator
+  async function impersonateLiquidityOrchestrator(liquidityOrchestratorAddress: string) {
+    await impersonateAccount(liquidityOrchestratorAddress);
+    await setBalance(liquidityOrchestratorAddress, ethers.parseEther("1"));
+    return await ethers.getSigner(liquidityOrchestratorAddress);
+  }
+
   // Test fixture setup
   async function deployVaultFixture() {
-    const [owner, curator, lp1, lp2, lp3, internalOrchestrator, liquidityOrchestrator, attacker] =
-      await ethers.getSigners();
+    const [owner, curator, lp1, lp2, lp3, liquidityOrchestratorSigner, attacker] = await ethers.getSigners();
 
     // Deploy mock underlying asset (6 decimals)
     const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
@@ -16,25 +22,50 @@ describe("OrionVault Exchange Rate Tests", function () {
 
     // Deploy OrionConfig
     const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
-    const config = await OrionConfigFactory.deploy();
+    const config = await OrionConfigFactory.deploy(owner.address);
     await config.waitForDeployment();
     const configAddress = await config.getAddress();
-    await config.initialize(owner.address);
     await config.setUnderlyingAsset(underlyingAssetAddress);
+
+    // Deploy PriceAdapterRegistry
+    const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistry");
+    const priceAdapterRegistry = await PriceAdapterRegistryFactory.deploy(owner.address, configAddress);
+    await priceAdapterRegistry.waitForDeployment();
+
+    // Deploy InternalStatesOrchestrator
+    const InternalStatesOrchestratorFactory = await ethers.getContractFactory("InternalStatesOrchestrator");
+    const internalStatesOrchestrator = await InternalStatesOrchestratorFactory.deploy(
+      owner.address,
+      configAddress,
+      liquidityOrchestratorSigner.address,
+    );
+    await internalStatesOrchestrator.waitForDeployment();
+
+    // Deploy LiquidityOrchestrator
+    const LiquidityOrchestratorFactory = await ethers.getContractFactory("LiquidityOrchestrator");
+    const liquidityOrchestratorContract = await LiquidityOrchestratorFactory.deploy(
+      owner.address,
+      configAddress,
+      liquidityOrchestratorSigner.address,
+    );
+    await liquidityOrchestratorContract.waitForDeployment();
+
+    // Set orchestrators in config
+    await config.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
+    await config.setLiquidityOrchestrator(await liquidityOrchestratorContract.getAddress());
+    await config.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
 
     // Set protocol parameters
     await config.setProtocolParams(
-      liquidityOrchestrator.address,
       6, // curatorIntentDecimals
-      owner.address, // factory
-      owner.address, // priceAdapterRegistry
+      6, // priceAdapterDecimals
+      1000, // encryptedMinibatchSize
     );
 
-    // Deploy OrionTransparentVault
+    // Deploy OrionTransparentVault with correct constructor parameters
     const OrionTransparentVaultFactory = await ethers.getContractFactory("OrionTransparentVault");
-    const vault = await OrionTransparentVaultFactory.deploy();
+    const vault = await OrionTransparentVaultFactory.deploy(curator.address, configAddress, "Test Vault", "TV");
     await vault.waitForDeployment();
-    await vault.initialize(curator.address, configAddress, "Test Vault", "TV");
 
     // Mint underlying assets to all participants
     await underlyingAsset.mint(lp1.address, ethers.parseUnits("1000000000000", 6));
@@ -51,8 +82,10 @@ describe("OrionVault Exchange Rate Tests", function () {
       lp1,
       lp2,
       lp3,
-      internalOrchestrator,
-      liquidityOrchestrator,
+      internalStatesOrchestrator: internalStatesOrchestrator,
+      liquidityOrchestrator: liquidityOrchestratorSigner,
+      liquidityOrchestratorContract,
+      liquidityOrchestratorAddress: await liquidityOrchestratorContract.getAddress(),
       attacker,
     };
   }
@@ -86,7 +119,7 @@ describe("OrionVault Exchange Rate Tests", function () {
 
   describe("Exchange Rate After Initial Deposit", function () {
     it("Should maintain 1:1 exchange rate after first deposit", async function () {
-      const { vault, underlyingAsset, lp1, liquidityOrchestrator } = await loadFixture(deployVaultFixture);
+      const { vault, underlyingAsset, lp1, liquidityOrchestratorAddress } = await loadFixture(deployVaultFixture);
 
       const depositAmount = ethers.parseUnits("1000", 6);
 
@@ -94,11 +127,14 @@ describe("OrionVault Exchange Rate Tests", function () {
       await underlyingAsset.connect(lp1).approve(await vault.getAddress(), depositAmount);
       await vault.connect(lp1).requestDeposit(depositAmount);
 
+      // Impersonate the liquidity orchestrator contract to call vault functions
+      const impersonatedLiquidityOrchestrator = await impersonateLiquidityOrchestrator(liquidityOrchestratorAddress);
+
       // Process deposit
-      await vault.connect(liquidityOrchestrator).processDepositRequests();
+      await vault.connect(impersonatedLiquidityOrchestrator).processDepositRequests();
 
       // Update vault state with the new total assets
-      await vault.connect(liquidityOrchestrator).updateVaultState([], depositAmount);
+      await vault.connect(impersonatedLiquidityOrchestrator).updateVaultState([], depositAmount);
 
       // Check exchange rate
       const shares = await vault.balanceOf(lp1.address);
@@ -110,7 +146,7 @@ describe("OrionVault Exchange Rate Tests", function () {
     });
 
     it("Should handle multiple deposits correctly", async function () {
-      const { vault, underlyingAsset, lp1, lp2, liquidityOrchestrator } = await loadFixture(deployVaultFixture);
+      const { vault, underlyingAsset, lp1, lp2, liquidityOrchestratorAddress } = await loadFixture(deployVaultFixture);
 
       const deposit1 = ethers.parseUnits("1000", 6);
       const deposit2 = ethers.parseUnits("500", 6);
@@ -118,14 +154,16 @@ describe("OrionVault Exchange Rate Tests", function () {
       // First deposit
       await underlyingAsset.connect(lp1).approve(await vault.getAddress(), deposit1);
       await vault.connect(lp1).requestDeposit(deposit1);
-      await vault.connect(liquidityOrchestrator).processDepositRequests();
-      await vault.connect(liquidityOrchestrator).updateVaultState([], deposit1);
+      const impersonatedLiquidityOrchestrator1 = await impersonateLiquidityOrchestrator(liquidityOrchestratorAddress);
+      await vault.connect(impersonatedLiquidityOrchestrator1).processDepositRequests();
+      await vault.connect(impersonatedLiquidityOrchestrator1).updateVaultState([], deposit1);
 
       // Second deposit
       await underlyingAsset.connect(lp2).approve(await vault.getAddress(), deposit2);
       await vault.connect(lp2).requestDeposit(deposit2);
-      await vault.connect(liquidityOrchestrator).processDepositRequests();
-      await vault.connect(liquidityOrchestrator).updateVaultState([], deposit1 + deposit2);
+      const impersonatedLiquidityOrchestrator2 = await impersonateLiquidityOrchestrator(liquidityOrchestratorAddress);
+      await vault.connect(impersonatedLiquidityOrchestrator2).processDepositRequests();
+      await vault.connect(impersonatedLiquidityOrchestrator2).updateVaultState([], deposit1 + deposit2);
 
       // Check exchange rates
       const shares1 = await vault.balanceOf(lp1.address);
@@ -140,15 +178,16 @@ describe("OrionVault Exchange Rate Tests", function () {
 
   describe("Exchange Rate Consistency", function () {
     it("Should maintain consistent exchange rate for round-trip conversions", async function () {
-      const { vault, underlyingAsset, lp1, liquidityOrchestrator } = await loadFixture(deployVaultFixture);
+      const { vault, underlyingAsset, lp1, liquidityOrchestratorAddress } = await loadFixture(deployVaultFixture);
 
       const depositAmount = ethers.parseUnits("1000", 6);
 
       // Setup initial deposit
       await underlyingAsset.connect(lp1).approve(await vault.getAddress(), depositAmount);
       await vault.connect(lp1).requestDeposit(depositAmount);
-      await vault.connect(liquidityOrchestrator).processDepositRequests();
-      await vault.connect(liquidityOrchestrator).updateVaultState([], depositAmount);
+      const impersonatedLiquidityOrchestrator = await impersonateLiquidityOrchestrator(liquidityOrchestratorAddress);
+      await vault.connect(impersonatedLiquidityOrchestrator).processDepositRequests();
+      await vault.connect(impersonatedLiquidityOrchestrator).updateVaultState([], depositAmount);
 
       const shares = await vault.balanceOf(lp1.address);
 
@@ -161,15 +200,16 @@ describe("OrionVault Exchange Rate Tests", function () {
     });
 
     it("Should handle various asset amounts consistently", async function () {
-      const { vault, underlyingAsset, lp1, liquidityOrchestrator } = await loadFixture(deployVaultFixture);
+      const { vault, underlyingAsset, lp1, liquidityOrchestratorAddress } = await loadFixture(deployVaultFixture);
 
       const depositAmount = ethers.parseUnits("1000", 6);
 
       // Setup initial deposit
       await underlyingAsset.connect(lp1).approve(await vault.getAddress(), depositAmount);
       await vault.connect(lp1).requestDeposit(depositAmount);
-      await vault.connect(liquidityOrchestrator).processDepositRequests();
-      await vault.connect(liquidityOrchestrator).updateVaultState([], depositAmount);
+      const impersonatedLiquidityOrchestrator = await impersonateLiquidityOrchestrator(liquidityOrchestratorAddress);
+      await vault.connect(impersonatedLiquidityOrchestrator).processDepositRequests();
+      await vault.connect(impersonatedLiquidityOrchestrator).updateVaultState([], depositAmount);
 
       // Test various conversion amounts
       const testAmounts = [
@@ -192,15 +232,17 @@ describe("OrionVault Exchange Rate Tests", function () {
 
   describe("Inflation Attack Protection", function () {
     it("Should be protected against donation‑based inflation attacks", async function () {
-      const { vault, underlyingAsset, lp1, attacker, liquidityOrchestrator } = await loadFixture(deployVaultFixture);
+      const { vault, underlyingAsset, lp1, attacker, liquidityOrchestratorAddress } =
+        await loadFixture(deployVaultFixture);
 
       /* ── 1. Legitimate deposit ────────────────────────────────────────────── */
       const initialDeposit = ethers.parseUnits("1000", 6); // 1000 USDC
       await underlyingAsset.connect(lp1).approve(await vault.getAddress(), initialDeposit);
 
       await vault.connect(lp1).requestDeposit(initialDeposit);
-      await vault.connect(liquidityOrchestrator).processDepositRequests();
-      await vault.connect(liquidityOrchestrator).updateVaultState([], initialDeposit);
+      const impersonatedLiquidityOrchestrator1 = await impersonateLiquidityOrchestrator(liquidityOrchestratorAddress);
+      await vault.connect(impersonatedLiquidityOrchestrator1).processDepositRequests();
+      await vault.connect(impersonatedLiquidityOrchestrator1).updateVaultState([], initialDeposit);
 
       const initialShares = await vault.balanceOf(lp1.address);
       const initialAssets = await vault.convertToAssets(initialShares);
@@ -210,7 +252,8 @@ describe("OrionVault Exchange Rate Tests", function () {
       await underlyingAsset.connect(attacker).transfer(await vault.getAddress(), donationAmount);
 
       // Tell the vault the donation arrived (update total assets to include both initial deposit and donation)
-      await vault.connect(liquidityOrchestrator).updateVaultState([], initialDeposit + donationAmount);
+      const impersonatedLiquidityOrchestrator2 = await impersonateLiquidityOrchestrator(liquidityOrchestratorAddress);
+      await vault.connect(impersonatedLiquidityOrchestrator2).updateVaultState([], initialDeposit + donationAmount);
 
       /* ── 3. Post‑donation balances ────────────────────────────────────────── */
       const sharesAfterDonation = await vault.balanceOf(lp1.address);
@@ -234,7 +277,7 @@ describe("OrionVault Exchange Rate Tests", function () {
     });
 
     it("Should maintain exchange rate stability with multiple users", async function () {
-      const { vault, underlyingAsset, lp1, lp2, attacker, liquidityOrchestrator } =
+      const { vault, underlyingAsset, lp1, lp2, attacker, liquidityOrchestratorAddress } =
         await loadFixture(deployVaultFixture);
 
       // Multiple users deposit
@@ -247,8 +290,9 @@ describe("OrionVault Exchange Rate Tests", function () {
       await underlyingAsset.connect(lp2).approve(await vault.getAddress(), deposit2);
       await vault.connect(lp2).requestDeposit(deposit2);
 
-      await vault.connect(liquidityOrchestrator).processDepositRequests();
-      await vault.connect(liquidityOrchestrator).updateVaultState([], deposit1 + deposit2);
+      const impersonatedLiquidityOrchestrator1 = await impersonateLiquidityOrchestrator(liquidityOrchestratorAddress);
+      await vault.connect(impersonatedLiquidityOrchestrator1).processDepositRequests();
+      await vault.connect(impersonatedLiquidityOrchestrator1).updateVaultState([], deposit1 + deposit2);
 
       const shares1Before = await vault.balanceOf(lp1.address);
       const shares2Before = await vault.balanceOf(lp2.address);
@@ -260,7 +304,8 @@ describe("OrionVault Exchange Rate Tests", function () {
       await underlyingAsset.connect(attacker).transfer(await vault.getAddress(), donation);
 
       // Update total assets to include the donation
-      await vault.connect(liquidityOrchestrator).updateVaultState([], deposit1 + deposit2 + donation);
+      const impersonatedLiquidityOrchestrator2 = await impersonateLiquidityOrchestrator(liquidityOrchestratorAddress);
+      await vault.connect(impersonatedLiquidityOrchestrator2).updateVaultState([], deposit1 + deposit2 + donation);
 
       const shares1After = await vault.balanceOf(lp1.address);
       const shares2After = await vault.balanceOf(lp2.address);
@@ -281,14 +326,15 @@ describe("OrionVault Exchange Rate Tests", function () {
 
   describe("Virtual Offset Protection", function () {
     it("Should handle very small amounts with virtual offset", async function () {
-      const { vault, underlyingAsset, lp1, liquidityOrchestrator } = await loadFixture(deployVaultFixture);
+      const { vault, underlyingAsset, lp1, liquidityOrchestratorAddress } = await loadFixture(deployVaultFixture);
 
       // Very small initial deposit
       const tinyDeposit = 1; // 1 wei
       await underlyingAsset.connect(lp1).approve(await vault.getAddress(), tinyDeposit);
       await vault.connect(lp1).requestDeposit(tinyDeposit);
-      await vault.connect(liquidityOrchestrator).processDepositRequests();
-      await vault.connect(liquidityOrchestrator).updateVaultState([], tinyDeposit);
+      const impersonatedLiquidityOrchestrator = await impersonateLiquidityOrchestrator(liquidityOrchestratorAddress);
+      await vault.connect(impersonatedLiquidityOrchestrator).processDepositRequests();
+      await vault.connect(impersonatedLiquidityOrchestrator).updateVaultState([], tinyDeposit);
 
       const shares = await vault.balanceOf(lp1.address);
       const assets = await vault.convertToAssets(shares);
@@ -299,15 +345,16 @@ describe("OrionVault Exchange Rate Tests", function () {
     });
 
     it("Should maintain precision with virtual offset", async function () {
-      const { vault, underlyingAsset, lp1, liquidityOrchestrator } = await loadFixture(deployVaultFixture);
+      const { vault, underlyingAsset, lp1, liquidityOrchestratorAddress } = await loadFixture(deployVaultFixture);
 
       const depositAmount = ethers.parseUnits("1000", 6);
 
       // Setup initial deposit
       await underlyingAsset.connect(lp1).approve(await vault.getAddress(), depositAmount);
       await vault.connect(lp1).requestDeposit(depositAmount);
-      await vault.connect(liquidityOrchestrator).processDepositRequests();
-      await vault.connect(liquidityOrchestrator).updateVaultState([], depositAmount);
+      const impersonatedLiquidityOrchestrator = await impersonateLiquidityOrchestrator(liquidityOrchestratorAddress);
+      await vault.connect(impersonatedLiquidityOrchestrator).processDepositRequests();
+      await vault.connect(impersonatedLiquidityOrchestrator).updateVaultState([], depositAmount);
 
       // Test precision with various amounts
       const testAmounts = [
@@ -329,7 +376,8 @@ describe("OrionVault Exchange Rate Tests", function () {
 
   describe("Edge Cases and Boundary Conditions", function () {
     it("Should maintain exchange rate under stress conditions", async function () {
-      const { vault, underlyingAsset, lp1, lp2, lp3, liquidityOrchestrator } = await loadFixture(deployVaultFixture);
+      const { vault, underlyingAsset, lp1, lp2, lp3, liquidityOrchestratorAddress } =
+        await loadFixture(deployVaultFixture);
 
       // Multiple deposits and withdrawals to stress the system
       const deposit1 = ethers.parseUnits("1000", 6);
@@ -339,8 +387,9 @@ describe("OrionVault Exchange Rate Tests", function () {
       // First user deposits
       await underlyingAsset.connect(lp1).approve(await vault.getAddress(), deposit1);
       await vault.connect(lp1).requestDeposit(deposit1);
-      await vault.connect(liquidityOrchestrator).processDepositRequests();
-      await vault.connect(liquidityOrchestrator).updateVaultState([], deposit1);
+      const impersonatedLiquidityOrchestrator1 = await impersonateLiquidityOrchestrator(liquidityOrchestratorAddress);
+      await vault.connect(impersonatedLiquidityOrchestrator1).processDepositRequests();
+      await vault.connect(impersonatedLiquidityOrchestrator1).updateVaultState([], deposit1);
 
       const shares1 = await vault.balanceOf(lp1.address);
       const assets1 = await vault.convertToAssets(shares1);
@@ -348,8 +397,9 @@ describe("OrionVault Exchange Rate Tests", function () {
       // Second user deposits
       await underlyingAsset.connect(lp2).approve(await vault.getAddress(), deposit2);
       await vault.connect(lp2).requestDeposit(deposit2);
-      await vault.connect(liquidityOrchestrator).processDepositRequests();
-      await vault.connect(liquidityOrchestrator).updateVaultState([], deposit1 + deposit2);
+      const impersonatedLiquidityOrchestrator2 = await impersonateLiquidityOrchestrator(liquidityOrchestratorAddress);
+      await vault.connect(impersonatedLiquidityOrchestrator2).processDepositRequests();
+      await vault.connect(impersonatedLiquidityOrchestrator2).updateVaultState([], deposit1 + deposit2);
 
       const shares2 = await vault.balanceOf(lp2.address);
       const assets2 = await vault.convertToAssets(shares2);
@@ -357,8 +407,9 @@ describe("OrionVault Exchange Rate Tests", function () {
       // Third user deposits
       await underlyingAsset.connect(lp3).approve(await vault.getAddress(), deposit3);
       await vault.connect(lp3).requestDeposit(deposit3);
-      await vault.connect(liquidityOrchestrator).processDepositRequests();
-      await vault.connect(liquidityOrchestrator).updateVaultState([], deposit1 + deposit2 + deposit3);
+      const impersonatedLiquidityOrchestrator3 = await impersonateLiquidityOrchestrator(liquidityOrchestratorAddress);
+      await vault.connect(impersonatedLiquidityOrchestrator3).processDepositRequests();
+      await vault.connect(impersonatedLiquidityOrchestrator3).updateVaultState([], deposit1 + deposit2 + deposit3);
 
       const shares3 = await vault.balanceOf(lp3.address);
       const assets3 = await vault.convertToAssets(shares3);
@@ -372,13 +423,14 @@ describe("OrionVault Exchange Rate Tests", function () {
 
   describe("Mathematical Properties", function () {
     it("Should maintain monotonicity in conversions", async function () {
-      const { vault, underlyingAsset, lp1, liquidityOrchestrator } = await loadFixture(deployVaultFixture);
+      const { vault, underlyingAsset, lp1, liquidityOrchestratorAddress } = await loadFixture(deployVaultFixture);
 
       const depositAmount = ethers.parseUnits("1000", 6);
       await underlyingAsset.connect(lp1).approve(await vault.getAddress(), depositAmount);
       await vault.connect(lp1).requestDeposit(depositAmount);
-      await vault.connect(liquidityOrchestrator).processDepositRequests();
-      await vault.connect(liquidityOrchestrator).updateVaultState([], depositAmount);
+      const impersonatedLiquidityOrchestrator = await impersonateLiquidityOrchestrator(liquidityOrchestratorAddress);
+      await vault.connect(impersonatedLiquidityOrchestrator).processDepositRequests();
+      await vault.connect(impersonatedLiquidityOrchestrator).updateVaultState([], depositAmount);
 
       // Test monotonicity: larger inputs should produce larger outputs
       const amount1 = ethers.parseUnits("100", 6);
@@ -396,13 +448,14 @@ describe("OrionVault Exchange Rate Tests", function () {
     });
 
     it("Should handle proportional relationships correctly", async function () {
-      const { vault, underlyingAsset, lp1, liquidityOrchestrator } = await loadFixture(deployVaultFixture);
+      const { vault, underlyingAsset, lp1, liquidityOrchestratorAddress } = await loadFixture(deployVaultFixture);
 
       const depositAmount = ethers.parseUnits("1000", 6);
       await underlyingAsset.connect(lp1).approve(await vault.getAddress(), depositAmount);
       await vault.connect(lp1).requestDeposit(depositAmount);
-      await vault.connect(liquidityOrchestrator).processDepositRequests();
-      await vault.connect(liquidityOrchestrator).updateVaultState([], depositAmount);
+      const impersonatedLiquidityOrchestrator = await impersonateLiquidityOrchestrator(liquidityOrchestratorAddress);
+      await vault.connect(impersonatedLiquidityOrchestrator).processDepositRequests();
+      await vault.connect(impersonatedLiquidityOrchestrator).updateVaultState([], depositAmount);
 
       // Test proportional relationships
       const baseAmount = ethers.parseUnits("100", 6);
