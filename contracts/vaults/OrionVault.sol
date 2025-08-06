@@ -2,12 +2,10 @@
 pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
-import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "../interfaces/IOrionConfig.sol";
 import "../interfaces/IOrionVault.sol";
 import "../interfaces/ILiquidityOrchestrator.sol";
@@ -62,14 +60,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
  *      While the curator can estimate this value reading the vault's state and adapter prices,
  *      the actual value at time of execution may differ.
  */
-abstract contract OrionVault is
-    Initializable,
-    ERC4626Upgradeable,
-    ReentrancyGuardUpgradeable,
-    Ownable2StepUpgradeable,
-    UUPSUpgradeable,
-    IOrionVault
-{
+abstract contract OrionVault is ERC4626, ReentrancyGuard, Ownable, IOrionVault {
     using Math for uint256;
     using EnumerableMap for EnumerableMap.AddressToUintMap;
 
@@ -114,24 +105,14 @@ abstract contract OrionVault is
         _;
     }
 
-    // slither-disable-next-line naming-convention
-    // solhint-disable-next-line func-name-mixedcase
-    function __OrionVault_init(
+    constructor(
         address curator_,
         IOrionConfig config_,
         string memory name_,
         string memory symbol_
-    ) internal onlyInitializing {
+    ) ERC20(name_, symbol_) ERC4626(IERC20Metadata(address(config_.underlyingAsset()))) Ownable(curator_) {
         if (curator_ == address(0)) revert ErrorsLib.InvalidAddress();
         if (address(config_) == address(0)) revert ErrorsLib.InvalidAddress();
-
-        __ERC20_init(name_, symbol_);
-        __ERC4626_init(config_.underlyingAsset());
-        __ReentrancyGuard_init();
-
-        __Ownable_init(curator_);
-        __Ownable2Step_init();
-        __UUPSUpgradeable_init();
 
         deployer = msg.sender;
         curator = curator_;
@@ -149,39 +130,34 @@ abstract contract OrionVault is
         _deltaFactor = 10 ** deltaDecimals;
     }
 
-    // solhint-disable-next-line no-empty-blocks
-    function _authorizeUpgrade(address newImplementation) internal override onlyCurator {
-        // Only the curator can upgrade the contract
-    }
-
     /// @notice Disable direct deposits and withdrawals on ERC4626 to enforce async only
-    function deposit(uint256, address) public pure override(ERC4626Upgradeable, IERC4626) returns (uint256) {
+    function deposit(uint256, address) public pure override(ERC4626, IERC4626) returns (uint256) {
         revert ErrorsLib.SynchronousCallDisabled();
     }
 
-    function mint(uint256, address) public pure override(ERC4626Upgradeable, IERC4626) returns (uint256) {
+    function mint(uint256, address) public pure override(ERC4626, IERC4626) returns (uint256) {
         revert ErrorsLib.SynchronousCallDisabled();
     }
 
-    function withdraw(uint256, address, address) public pure override(ERC4626Upgradeable, IERC4626) returns (uint256) {
+    function withdraw(uint256, address, address) public pure override(ERC4626, IERC4626) returns (uint256) {
         revert ErrorsLib.SynchronousCallDisabled();
     }
 
-    function redeem(uint256, address, address) public pure override(ERC4626Upgradeable, IERC4626) returns (uint256) {
+    function redeem(uint256, address, address) public pure override(ERC4626, IERC4626) returns (uint256) {
         revert ErrorsLib.SynchronousCallDisabled();
     }
 
-    function totalAssets() public view override(ERC4626Upgradeable, IERC4626) returns (uint256) {
+    function totalAssets() public view override(ERC4626, IERC4626) returns (uint256) {
         return _totalAssets;
     }
 
     /* ---------- CONVERSION FUNCTIONS ---------- */
 
-    function convertToShares(uint256 assets) public view override(ERC4626Upgradeable, IERC4626) returns (uint256) {
+    function convertToShares(uint256 assets) public view override(ERC4626, IERC4626) returns (uint256) {
         return _convertToShares(assets, Math.Rounding.Floor);
     }
 
-    function convertToAssets(uint256 shares) public view override(ERC4626Upgradeable, IERC4626) returns (uint256) {
+    function convertToAssets(uint256 shares) public view override(ERC4626, IERC4626) returns (uint256) {
         return _convertToAssets(shares, Math.Rounding.Floor);
     }
 

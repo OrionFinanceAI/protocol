@@ -30,14 +30,12 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
 
     euint32 internal _ezero;
 
-    function initialize(
+    constructor(
         address curatorAddress,
         IOrionConfig configAddress,
-        string calldata name,
-        string calldata symbol
-    ) public initializer {
-        __OrionVault_init(curatorAddress, configAddress, name, symbol);
-
+        string memory name,
+        string memory symbol
+    ) OrionVault(curatorAddress, configAddress, name, symbol) {
         _ezero = FHE.asEuint32(0);
     }
 

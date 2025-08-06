@@ -25,13 +25,13 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     /// @notice Curator intent (w_1) - mapping of token address to target allocation
     EnumerableMap.AddressToUintMap internal _portfolioIntent;
 
-    function initialize(
+    constructor(
         address curatorAddress,
         IOrionConfig configAddress,
-        string calldata name,
-        string calldata symbol
-    ) public initializer {
-        __OrionVault_init(curatorAddress, configAddress, name, symbol);
+        string memory name,
+        string memory symbol
+    ) OrionVault(curatorAddress, configAddress, name, symbol) {
+        // Constructor body is empty as all initialization is handled by the base contract
     }
 
     /// --------- CURATOR FUNCTIONS ---------

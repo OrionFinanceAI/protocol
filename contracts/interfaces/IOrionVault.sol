@@ -7,14 +7,6 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /// @title IOrionVault
 interface IOrionVault is IERC4626 {
-    // Initialization
-    function initialize(
-        address curatorAddress,
-        IOrionConfig configAddress,
-        string calldata name,
-        string calldata symbol
-    ) external;
-
     // State variables (public getters)
     function config() external view returns (IOrionConfig);
     function curator() external view returns (address);

@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "./interfaces/IOrionConfig.sol";
 import "./interfaces/IOrionVault.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import { ErrorsLib } from "./libraries/ErrorsLib.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
@@ -28,17 +26,17 @@ import "./interfaces/IInternalStateOrchestrator.sol";
  * @title OrionConfig
  * @notice This contract is responsible for configuring the Orion protocol.
  */
-contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable, IOrionConfig {
+contract OrionConfig is Ownable, IOrionConfig {
     // Protocol-wide configuration
     IERC20 public underlyingAsset;
     address public internalStatesOrchestrator;
     address public liquidityOrchestrator;
     address public vaultFactory;
     address public priceAdapterRegistry;
+
+    // Protocol parameters
     uint8 public priceAdapterDecimals;
     uint256 public encryptedMinibatchSize;
-
-    // Curator-specific configuration
     uint8 public curatorIntentDecimals;
 
     // Vault-specific configuration
@@ -54,16 +52,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         _;
     }
 
-    function initialize(address initialOwner) public initializer {
-        __Ownable_init(initialOwner);
-        __Ownable2Step_init();
-        __UUPSUpgradeable_init();
-    }
-
-    // solhint-disable-next-line no-empty-blocks
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {
-        // Only the owner can upgrade the contract
-    }
+    constructor(address initialOwner) Ownable(initialOwner) {}
 
     // === Protocol Configuration ===
 
