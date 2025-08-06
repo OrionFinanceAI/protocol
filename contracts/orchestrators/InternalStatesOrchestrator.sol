@@ -90,17 +90,13 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
     uint256 public epochCounter;
     /// @notice Timestamp when the next upkeep is allowed
     uint256 private _nextUpdateTime;
-
     /// @notice Epoch duration
     uint256 public updateInterval;
-
     /// @notice Encrypted minibatch size
     uint256 public encryptedMinibatchSize;
-
     /// @notice Upkeep phase
     InternalUpkeepPhase public currentPhase;
     /// @notice Current transparent vault index
-
     uint256 public currentTransparentVaultIndex;
     /// @notice Transparent vaults associated to the current epoch
     address[] public transparentVaultsEpoch;
@@ -117,14 +113,18 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
 
     constructor(
         address initialOwner,
-        address automationRegistry_,
-        address config_
+        address config_,
+        address automationRegistry_
     ) Ownable(initialOwner) ReentrancyGuard() {
         if (config_ == address(0)) revert ErrorsLib.ZeroAddress();
         if (automationRegistry_ == address(0)) revert ErrorsLib.ZeroAddress();
 
         config = IOrionConfig(config_);
-        updateFromConfig();
+        registry = IPriceAdapterRegistry(config.priceAdapterRegistry());
+        intentFactor = 10 ** config.curatorIntentDecimals();
+        underlyingDecimals = IERC20Metadata(address(config.underlyingAsset())).decimals();
+        priceAdapterPrecision = 10 ** config.priceAdapterDecimals();
+        encryptedMinibatchSize = config.encryptedMinibatchSize();
 
         automationRegistry = automationRegistry_;
 
@@ -223,6 +223,10 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
             revert ErrorsLib.InvalidArguments();
         }
     }
+
+    /* -------------------------------------------------------------------------- */
+    /*                               INTERNAL LOGIC                               */
+    /* -------------------------------------------------------------------------- */
 
     /// @notice Processes a transparent vault
     /// @param vaultIndex The index of the transparent vault to process
@@ -329,7 +333,7 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
                 encryptedT1Hat = FHE.add(encryptedT1Hat, value);
                 // TODO...
             }
-            (address[] memory intentTokens, euint32[] memory intentWeights) = vault.getIntent();
+            // (address[] memory intentTokens, euint32[] memory intentWeights) = vault.getIntent();
             // TODO...
 
             // TODO: curator fee(TVL, return,...) - protocol fee(vault).
@@ -341,10 +345,6 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
         currentEncryptedMinibatchIndex++;
     }
     // slither-disable-end reentrancy-no-eth
-
-    /* -------------------------------------------------------------------------- */
-    /*                               INTERNAL LOGIC                               */
-    /* -------------------------------------------------------------------------- */
 
     /// @notice Checks if upkeep should be triggered based on time
     /// @dev If upkeep should be triggered, updates the next update time
