@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "../interfaces/IExecutionAdapter.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import "@openzeppelin/contracts/interfaces/IERC4626.sol";
@@ -17,13 +15,11 @@ import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
  * @dev This adapter handles the conversion between underlying assets and vault shares.
  *      It is not safe to use this adapter with vaults that are based on a different asset.
  */
-contract OrionAssetERC4626ExecutionAdapter is
-    Initializable,
-    Ownable2StepUpgradeable,
-    UUPSUpgradeable,
-    IExecutionAdapter
-{
+contract OrionAssetERC4626ExecutionAdapter is Ownable, IExecutionAdapter {
     using SafeERC20 for IERC20;
+
+    /// @notice The Orion config contract
+    IOrionConfig public config;
 
     /// @notice Underlying asset address
     address public underlyingAsset;
@@ -31,29 +27,29 @@ contract OrionAssetERC4626ExecutionAdapter is
     /// @notice The underlying asset as an IERC20 interface
     IERC20 public underlyingAssetToken;
 
-    /// @param initialOwner The address of the initial owner
-    function initialize(address initialOwner, address _configAddress) public initializer {
-        __Ownable_init(initialOwner);
-        __Ownable2Step_init();
-        __UUPSUpgradeable_init();
+    /// @notice The address of the liquidity orchestrator
+    address public liquidityOrchestrator;
 
-        if (_configAddress == address(0)) revert ErrorsLib.ZeroAddress();
-
-        underlyingAsset = address(IOrionConfig(_configAddress).underlyingAsset());
-        underlyingAssetToken = IERC20(underlyingAsset);
+    modifier onlyLiquidityOrchestrator() {
+        if (msg.sender != liquidityOrchestrator) revert ErrorsLib.UnauthorizedAccess();
+        _;
     }
 
-    // solhint-disable-next-line no-empty-blocks
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {
-        // Only the owner can upgrade the contract
+    /// @param initialOwner The address of the initial owner
+    /// @param configAddress The address of the Orion config contract
+    constructor(address initialOwner, address configAddress) Ownable(initialOwner) {
+        if (configAddress == address(0)) revert ErrorsLib.ZeroAddress();
+
+        config = IOrionConfig(configAddress);
+        updateFromConfig();
     }
 
     /// @notice Executes a buy operation by depositing underlying assets to get vault shares
     /// @param vaultAsset The address of the vault to buy
     /// @param amount The amount of underlying assets to deposit
-    /// @dev The adapter will pull the underlying assets from the caller (LiquidityOrchestrator)
+    /// @dev The adapter will pull the underlying assets from the caller
     ///      and push the resulting shares.
-    function buy(address vaultAsset, uint256 amount) external override {
+    function buy(address vaultAsset, uint256 amount) external override onlyLiquidityOrchestrator {
         try IERC4626(vaultAsset).asset() returns (address vaultUnderlyingAsset) {
             if (vaultUnderlyingAsset != underlyingAsset) revert ErrorsLib.InvalidAsset();
         } catch {
@@ -63,7 +59,7 @@ contract OrionAssetERC4626ExecutionAdapter is
 
         IERC4626 vault = IERC4626(vaultAsset);
 
-        // Pull underlying assets from the caller (LiquidityOrchestrator)
+        // Pull underlying assets from the caller
         underlyingAssetToken.safeTransferFrom(msg.sender, address(this), amount);
         // Approve vault to spend underlying assets
         underlyingAssetToken.forceApprove(vaultAsset, amount);
@@ -72,7 +68,7 @@ contract OrionAssetERC4626ExecutionAdapter is
         // Clean up approval
         underlyingAssetToken.forceApprove(vaultAsset, 0);
 
-        // Push the received shares to the caller (LiquidityOrchestrator)
+        // Push the received shares to the caller
         bool success = vault.transfer(msg.sender, shares);
         if (!success) revert ErrorsLib.TransferFailed();
     }
@@ -80,9 +76,9 @@ contract OrionAssetERC4626ExecutionAdapter is
     /// @notice Executes a sell operation by redeeming vault shares to get underlying assets
     /// @param vaultAsset The address of the vault to sell
     /// @param amount The amount of vault shares to redeem
-    /// @dev The adapter will pull the vault shares from the caller (LiquidityOrchestrator)
+    /// @dev The adapter will pull the vault shares from the caller
     ///      and push the resulting underlying assets.
-    function sell(address vaultAsset, uint256 amount) external override {
+    function sell(address vaultAsset, uint256 amount) external override onlyLiquidityOrchestrator {
         try IERC4626(vaultAsset).asset() returns (address vaultUnderlyingAsset) {
             if (vaultUnderlyingAsset != underlyingAsset) revert ErrorsLib.InvalidAsset();
         } catch {
@@ -92,7 +88,7 @@ contract OrionAssetERC4626ExecutionAdapter is
 
         IERC20 vault = IERC20(vaultAsset);
 
-        // Pull vault shares from the caller (LiquidityOrchestrator)
+        // Pull vault shares from the caller
         vault.safeTransferFrom(msg.sender, address(this), amount);
         // Approve vault to spend shares
         vault.forceApprove(vaultAsset, amount);
@@ -101,8 +97,17 @@ contract OrionAssetERC4626ExecutionAdapter is
         // Clean up approval
         vault.forceApprove(vaultAsset, 0);
 
-        // Push the received underlying assets to the caller (LiquidityOrchestrator)
+        // Push the received underlying assets to the caller
         bool success = underlyingAssetToken.transfer(msg.sender, assets);
         if (!success) revert ErrorsLib.TransferFailed();
+    }
+
+    /// @notice Updates the adapter from the config contract
+    /// @dev This function is called by the owner to update the adapter
+    ///      when the config contract is updated.
+    function updateFromConfig() public onlyOwner {
+        underlyingAsset = address(config.underlyingAsset());
+        underlyingAssetToken = IERC20(underlyingAsset);
+        liquidityOrchestrator = config.liquidityOrchestrator();
     }
 }

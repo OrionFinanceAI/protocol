@@ -309,15 +309,19 @@ contract InternalStatesOrchestrator is
     }
 
     /// @notice Processes encrypted vaults
-    function _processEncryptedVaults() internal {
+    // slither-disable-start reentrancy-no-eth
+    // Safe: external calls are view; nonReentrant applied to caller.
+    function _processEncryptedVaults() internal nonReentrant {
         address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
 
         for (uint256 i = 0; i < encryptedVaults.length; i++) {
             IOrionEncryptedVault vault = IOrionEncryptedVault(encryptedVaults[i]);
+
             (address[] memory portfolioTokens, euint32[] memory sharesPerAsset) = vault.getPortfolio();
 
             // Calculate estimated active total assets (t_1) and populate batch portfolio
             euint32 encryptedT1Hat = FHE.asEuint32(0);
+
             for (uint256 j = 0; j < portfolioTokens.length; j++) {
                 address token = portfolioTokens[j];
 
@@ -347,6 +351,7 @@ contract InternalStatesOrchestrator is
 
         currentPhase = InternalUpkeepPhase.Aggregating;
     }
+    // slither-disable-end reentrancy-no-eth
 
     /* -------------------------------------------------------------------------- */
     /*                               INTERNAL LOGIC                               */
