@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "../interfaces/IPriceAdapter.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
@@ -16,7 +14,10 @@ import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
  * @dev This adapter assumes that the target vault and the Orion protocol use the same underlying asset.
  *      It is not safe to use this adapter with vaults that are based on a different asset.
  */
-contract OrionAssetERC4626PriceAdapter is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable, IPriceAdapter {
+contract OrionAssetERC4626PriceAdapter is Ownable, IPriceAdapter {
+    /// @notice Orion Config contract address
+    IOrionConfig public config;
+
     /// @notice Underlying asset address
     address public underlyingAsset;
 
@@ -26,21 +27,25 @@ contract OrionAssetERC4626PriceAdapter is Initializable, Ownable2StepUpgradeable
     /// @notice Price Adapter Precision
     uint8 public priceAdapterDecimals;
 
-    function initialize(address initialOwner, address _configAddress) public initializer {
-        __Ownable_init(initialOwner);
-        __Ownable2Step_init();
-        __UUPSUpgradeable_init();
+    constructor(address initialOwner, address configAddress) Ownable(initialOwner) {
+        if (configAddress == address(0)) revert ErrorsLib.ZeroAddress();
 
-        if (_configAddress == address(0)) revert ErrorsLib.ZeroAddress();
+        config = IOrionConfig(configAddress);
 
-        underlyingAsset = address(IOrionConfig(_configAddress).underlyingAsset());
+        underlyingAsset = address(config.underlyingAsset());
         underlyingAssetDecimals = IERC20Metadata(underlyingAsset).decimals();
-        priceAdapterDecimals = IOrionConfig(_configAddress).priceAdapterDecimals(); // TODO: set these in a function.
+        priceAdapterDecimals = config.priceAdapterDecimals();
     }
 
-    // solhint-disable-next-line no-empty-blocks
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {
-        // Only the owner can upgrade the contract
+    /// @notice Updates the adapter from the config contract
+    /// @dev This function is called by the owner to update the adapter
+    ///      when the config contract is updated.
+    function updateFromConfig() public onlyOwner {
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+
+        underlyingAsset = address(config.underlyingAsset());
+        underlyingAssetDecimals = IERC20Metadata(underlyingAsset).decimals();
+        priceAdapterDecimals = config.priceAdapterDecimals();
     }
 
     /// @notice Returns the normalized price of one share of the given ERC4626 vault.
