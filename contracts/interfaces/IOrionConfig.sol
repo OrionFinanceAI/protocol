@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../libraries/EventsLib.sol";
 
+/// @title IOrionConfig
 interface IOrionConfig {
     /// @notice Returns the address of the internal states orchestrator contract
     /// @dev This orchestrator manages the internal state transitions of the protocol
@@ -14,11 +15,6 @@ interface IOrionConfig {
     /// @dev This orchestrator manages liquidity operations and coordination
     /// @return The address of the liquidity orchestrator
     function liquidityOrchestrator() external view returns (address);
-
-    /// @notice Returns the address of the vault factory contract
-    /// @dev This factory is responsible for creating new Orion vaults
-    /// @return The address of the vault factory
-    function vaultFactory() external view returns (address);
 
     /// @notice Returns the number of decimal places used for curator intent calculations
     /// @dev This value is used to scale curator intent values for precision
@@ -35,6 +31,16 @@ interface IOrionConfig {
     /// @return The address of the price adapter registry
     function priceAdapterRegistry() external view returns (address);
 
+    /// @notice Returns the number of decimal places used for price adapters
+    /// @dev This value is used to scale price adapter values for precision
+    /// @return The number of decimal places for price adapters
+    function priceAdapterDecimals() external view returns (uint8);
+
+    /// @notice Returns the encrypted minibatch size
+    /// @dev This value is used to determine the size of the encrypted minibatch
+    /// @return The encrypted minibatch size
+    function encryptedMinibatchSize() external view returns (uint256);
+
     /// @notice Sets the underlying asset for the protocol
     /// @dev Can only be called by the contract owner
     /// @param asset The address of the underlying asset contract
@@ -45,17 +51,31 @@ interface IOrionConfig {
     /// @param orchestrator The address of the internal states orchestrator
     function setInternalStatesOrchestrator(address orchestrator) external;
 
+    /// @notice Sets the liquidity orchestrator for the protocol
+    /// @dev Can only be called by the contract owner
+    /// @param orchestrator The address of the liquidity orchestrator
+    function setLiquidityOrchestrator(address orchestrator) external;
+
+    /// @notice Sets the vault factories for the protocol
+    /// @dev Can only be called by the contract owner
+    /// @param transparentFactory The address of the transparent vault factory
+    /// @param encryptedFactory The address of the encrypted vault factory
+    function setVaultFactories(address transparentFactory, address encryptedFactory) external;
+
+    /// @notice Sets the price adapter registry for the protocol
+    /// @dev Can only be called by the contract owner
+    /// @param registry The address of the price adapter registry
+    function setPriceAdapterRegistry(address registry) external;
+
     /// @notice Sets the core protocol parameters in a single transaction
     /// @dev Can only be called by the contract owner
-    /// @param _liquidityOrchestrator The address of the liquidity orchestrator
     /// @param _curatorIntentDecimals The number of decimal places for curator intents
-    /// @param _factory The address of the vault factory
-    /// @param _priceAdapterRegistry The address of the price adapter registry
+    /// @param _priceAdapterDecimals The number of decimal places for price adapters
+    /// @param _encryptedMinibatchSize The size of the encrypted minibatch
     function setProtocolParams(
-        address _liquidityOrchestrator,
         uint8 _curatorIntentDecimals,
-        address _factory,
-        address _priceAdapterRegistry
+        uint8 _priceAdapterDecimals,
+        uint256 _encryptedMinibatchSize
     ) external;
 
     /// @notice Adds an asset to the whitelist
@@ -90,15 +110,17 @@ interface IOrionConfig {
     function isWhitelisted(address asset) external view returns (bool);
 
     /// @notice Adds a new Orion vault to the protocol registry
-    /// @dev Only callable by the vault factory contract
+    /// @dev Only callable by the vault factories contracts
     /// @param vault The address of the vault to add to the registry
     /// @param vaultType Whether the vault is encrypted or transparent
     function addOrionVault(address vault, EventsLib.VaultType vaultType) external;
 
-    /// @notice Removes an Orion vault from the protocol registry
-    /// @dev Only callable by the vault factory contract
-    /// @param vault The address of the vault to remove from the registry
-    /// @param vaultType Whether the vault is encrypted or transparent
+    /// @notice Deregisters an Orion vault from the protocol's registry
+    /// @dev Callable exclusively by the contract owner. This action does not destroy the vault itself;
+    /// @dev it merely disconnects the vault from the protocol, which causes the share price to stale
+    /// @dev and renders curator intents inactive.
+    /// @param vault The address of the vault to be removed from the registry
+    /// @param vaultType The type of the vault—either encrypted or transparent
     function removeOrionVault(address vault, EventsLib.VaultType vaultType) external;
 
     /// @notice Returns all Orion vault addresses
@@ -111,4 +133,9 @@ interface IOrionConfig {
     /// @param vault The address of the vault to check
     /// @return True if the address is a registered Orion vault, false otherwise
     function isOrionVault(address vault) external view returns (bool);
+
+    /// @notice Checks if the system is idle
+    /// @dev This function checks if both the liquidity orchestrator and the internal states orchestrator are idle
+    /// @return True if the system is idle, false otherwise
+    function isSystemIdle() external view returns (bool);
 }

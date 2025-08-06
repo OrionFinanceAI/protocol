@@ -29,33 +29,20 @@
     },
     {
       "inputs": [],
+      "name": "currentPhase",
+      "outputs": [
+        {
+          "internalType": "enum IInternalStateOrchestrator.InternalUpkeepPhase",
+          "name": "",
+          "type": "uint8"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
       "name": "epochCounter",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "expectedUnderlyingBuyAmount",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "expectedUnderlyingSellAmount",
       "outputs": [
         {
           "internalType": "uint256",
@@ -131,12 +118,12 @@
     {
       "inputs": [
         {
-          "internalType": "address",
-          "name": "newConfig",
-          "type": "address"
+          "internalType": "uint256",
+          "name": "newUpdateInterval",
+          "type": "uint256"
         }
       ],
-      "name": "updateConfig",
+      "name": "updateUpdateInterval",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

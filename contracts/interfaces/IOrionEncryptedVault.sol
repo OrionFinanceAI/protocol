@@ -5,6 +5,7 @@ import { euint32 } from "@fhevm/solidity/lib/FHE.sol";
 
 import "./IOrionVault.sol";
 
+/// @title IOrionEncryptedVault
 interface IOrionEncryptedVault is IOrionVault {
     /// @dev Struct representing a token and its value in a portfolio.
     /// @param token The address of the ERC20 token.
@@ -18,9 +19,12 @@ interface IOrionEncryptedVault is IOrionVault {
 
     /// @notice Submit an encrypted portfolio intent.
     /// @param order EncryptedPosition struct containing the tokens and encrypted weights.
+    /// @dev The weights are interpreted as percentage of total supply.
     function submitIntent(EncryptedPosition[] calldata order) external;
 
-    /// @notice Returns the current portfolio (w_0)
+    /// @notice Returns the current encrypted portfolio (w_0)
+    /// @return tokens The tokens in the portfolio.
+    /// @return sharesPerAsset The shares per asset in the portfolio.
     function getPortfolio() external view returns (address[] memory tokens, euint32[] memory sharesPerAsset);
 
     /// @notice Get the encrypted intent.

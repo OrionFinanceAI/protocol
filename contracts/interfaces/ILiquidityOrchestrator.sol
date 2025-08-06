@@ -6,13 +6,21 @@ import "./IExecutionAdapter.sol";
 
 /// @title ILiquidityOrchestrator
 interface ILiquidityOrchestrator is AutomationCompatibleInterface {
+    /// @notice Upkeep phase enum for liquidity orchestration
+    enum LiquidityUpkeepPhase {
+        Idle,
+        SellingLeg,
+        BuyingLeg,
+        StateUpdate
+    }
+
+    /// @notice Returns the current upkeep phase
+    /// @return The current LiquidityUpkeepPhase
+    function currentPhase() external view returns (LiquidityUpkeepPhase);
+
     /// @notice Updates the Chainlink Automation Registry address
     /// @param newAutomationRegistry The new automation registry address
     function updateAutomationRegistry(address newAutomationRegistry) external;
-
-    /// @notice Updates the Orion Config contract address
-    /// @param newConfig The new config address
-    function updateConfig(address newConfig) external;
 
     /// @notice Register or replace the execution adapter for an asset.
     /// @param asset The address of the asset.

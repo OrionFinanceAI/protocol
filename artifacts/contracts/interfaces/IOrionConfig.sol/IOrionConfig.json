@@ -58,6 +58,19 @@
       "type": "function"
     },
     {
+      "inputs": [],
+      "name": "encryptedMinibatchSize",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
       "inputs": [
         {
           "internalType": "enum EventsLib.VaultType",
@@ -141,6 +154,19 @@
       "type": "function"
     },
     {
+      "inputs": [],
+      "name": "isSystemIdle",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
       "inputs": [
         {
           "internalType": "address",
@@ -167,6 +193,19 @@
           "internalType": "address",
           "name": "",
           "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "priceAdapterDecimals",
+      "outputs": [
+        {
+          "internalType": "uint8",
+          "name": "",
+          "type": "uint8"
         }
       ],
       "stateMutability": "view",
@@ -233,23 +272,44 @@
       "inputs": [
         {
           "internalType": "address",
-          "name": "_liquidityOrchestrator",
+          "name": "orchestrator",
           "type": "address"
-        },
+        }
+      ],
+      "name": "setLiquidityOrchestrator",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "registry",
+          "type": "address"
+        }
+      ],
+      "name": "setPriceAdapterRegistry",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
         {
           "internalType": "uint8",
           "name": "_curatorIntentDecimals",
           "type": "uint8"
         },
         {
-          "internalType": "address",
-          "name": "_factory",
-          "type": "address"
+          "internalType": "uint8",
+          "name": "_priceAdapterDecimals",
+          "type": "uint8"
         },
         {
-          "internalType": "address",
-          "name": "_priceAdapterRegistry",
-          "type": "address"
+          "internalType": "uint256",
+          "name": "_encryptedMinibatchSize",
+          "type": "uint256"
         }
       ],
       "name": "setProtocolParams",
@@ -271,24 +331,29 @@
       "type": "function"
     },
     {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "transparentFactory",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "encryptedFactory",
+          "type": "address"
+        }
+      ],
+      "name": "setVaultFactories",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
       "inputs": [],
       "name": "underlyingAsset",
       "outputs": [
         {
           "internalType": "contract IERC20",
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "vaultFactory",
-      "outputs": [
-        {
-          "internalType": "address",
           "name": "",
           "type": "address"
         }

@@ -28,6 +28,19 @@
       "type": "function"
     },
     {
+      "inputs": [],
+      "name": "currentPhase",
+      "outputs": [
+        {
+          "internalType": "enum ILiquidityOrchestrator.LiquidityUpkeepPhase",
+          "name": "",
+          "type": "uint8"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
       "inputs": [
         {
           "internalType": "bytes",
@@ -116,19 +129,6 @@
         }
       ],
       "name": "updateAutomationRegistry",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "newConfig",
-          "type": "address"
-        }
-      ],
-      "name": "updateConfig",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

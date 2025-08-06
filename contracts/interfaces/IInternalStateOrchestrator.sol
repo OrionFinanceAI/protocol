@@ -6,18 +6,36 @@ import "./IOrionConfig.sol";
 
 /// @title IInternalStateOrchestrator
 interface IInternalStateOrchestrator is AutomationCompatibleInterface {
+    /// @notice Upkeep phase
+    enum InternalUpkeepPhase {
+        Idle,
+        ProcessingTransparentVaults,
+        ProcessingEncryptedVaults,
+        Aggregating
+    }
+
+    /// @notice Returns the current upkeep phase
+    /// @return The current InternalUpkeepPhase
+    function currentPhase() external view returns (InternalUpkeepPhase);
+
     /// @notice Returns the current epoch counter
     function epochCounter() external view returns (uint256);
 
-    // Configuration functions
+    /// @notice Updates the Chainlink Automation Registry address
+    /// @param newAutomationRegistry The new automation registry address
     function updateAutomationRegistry(address newAutomationRegistry) external;
-    function updateConfig(address newConfig) external;
 
-    // Rebalancing orders functions
+    /// @notice Updates the update interval
+    /// @param newUpdateInterval The new update interval in seconds
+    function updateUpdateInterval(uint256 newUpdateInterval) external;
+
+    /// @notice Get the selling orders
+    /// @return tokens The tokens to sell
+    /// @return amounts The amounts to sell in shares (converted from underlying assets)
     function getSellingOrders() external view returns (address[] memory, uint256[] memory);
-    function getBuyingOrders() external view returns (address[] memory, uint256[] memory);
 
-    // Tracking error functions
-    function expectedUnderlyingSellAmount() external view returns (uint256);
-    function expectedUnderlyingBuyAmount() external view returns (uint256);
+    /// @notice Get the buying orders
+    /// @return tokens The tokens to buy
+    /// @return amounts The amounts to buy in underlying assets (as expected by LiquidityOrchestrator)
+    function getBuyingOrders() external view returns (address[] memory, uint256[] memory);
 }

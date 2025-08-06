@@ -1,24 +1,13 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 import { IPriceAdapter } from "../interfaces/IPriceAdapter.sol";
 
 /// @title Price Adapter mock
 /// @notice One instance per asset. Produces pseudo‑random prices for testing.
-contract MockPriceAdapter is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable, IPriceAdapter {
-    function initialize(address initialOwner) external initializer {
-        __Ownable_init(initialOwner);
-        __Ownable2Step_init();
-        __UUPSUpgradeable_init();
-    }
-
-    // solhint-disable-next-line no-empty-blocks
-    function _authorizeUpgrade(address) internal override onlyOwner {
-        // Only the owner can upgrade the contract
-    }
+contract MockPriceAdapter is Ownable, IPriceAdapter {
+    constructor(address initialOwner) Ownable(initialOwner) {}
 
     /// @inheritdoc IPriceAdapter
     function price(address asset) external view returns (uint256) {
