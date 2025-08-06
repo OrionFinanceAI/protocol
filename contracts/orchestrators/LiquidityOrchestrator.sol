@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "../interfaces/ILiquidityOrchestrator.sol";
 import "../interfaces/IOrionConfig.sol";
 import "../interfaces/IInternalStateOrchestrator.sol";
@@ -25,7 +23,7 @@ import "@openzeppelin/contracts/interfaces/IERC4626.sol";
  *      - Updating vault states (post-execution, checks-effects-interactions pattern at the protocol level);
  *      - Handling slippage and market execution differences from adapter estimates via liquidity buffer.
  */
-contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable, ILiquidityOrchestrator {
+contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
     /* -------------------------------------------------------------------------- */
     /*                                 CONTRACTS                                  */
     /* -------------------------------------------------------------------------- */
@@ -54,33 +52,9 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
     /// @notice Upkeep phase
     LiquidityUpkeepPhase public currentPhase;
 
-    /// @notice Number of orders processed in the current leg
-    uint256 public processedLegOrders;
-
-    function initialize(address initialOwner, address automationRegistry_, address config_) external initializer {
-        __Ownable_init(initialOwner);
-        __Ownable2Step_init();
-        __UUPSUpgradeable_init();
-
-        if (automationRegistry_ == address(0)) revert ErrorsLib.ZeroAddress();
-        if (config_ == address(0)) revert ErrorsLib.ZeroAddress();
-
-        automationRegistry = automationRegistry_;
-        config = IOrionConfig(config_);
-        internalStatesOrchestrator = IInternalStateOrchestrator(config.internalStatesOrchestrator());
-
-        underlyingAsset = address(config.underlyingAsset());
-
-        lastProcessedEpoch = 0;
-
-        currentPhase = LiquidityUpkeepPhase.Idle;
-        processedLegOrders = 0;
-    }
-
-    // solhint-disable-next-line no-empty-blocks
-    function _authorizeUpgrade(address) internal override onlyOwner {
-        // Only the owner can upgrade the contract
-    }
+    /* -------------------------------------------------------------------------- */
+    /*                               MODIFIERS                                  */
+    /* -------------------------------------------------------------------------- */
 
     /// @dev Restricts function to only Chainlink Automation registry
     modifier onlyAutomationRegistry() {
@@ -93,10 +67,34 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         _;
     }
 
+    constructor(address initialOwner, address config_, address automationRegistry_) Ownable(initialOwner) {
+        if (config_ == address(0)) revert ErrorsLib.ZeroAddress();
+        if (automationRegistry_ == address(0)) revert ErrorsLib.ZeroAddress();
+
+        config = IOrionConfig(config_);
+        internalStatesOrchestrator = IInternalStateOrchestrator(config.internalStatesOrchestrator());
+        underlyingAsset = address(config.underlyingAsset());
+
+        automationRegistry = automationRegistry_;
+        lastProcessedEpoch = 0;
+        currentPhase = LiquidityUpkeepPhase.Idle;
+    }
+
+    /// @notice Updates the orchestrator from the config contract
+    /// @dev This function is called by the owner to update the orchestrator
+    ///      when the config contract is updated.
+    function updateFromConfig() public onlyOwner {
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+
+        internalStatesOrchestrator = IInternalStateOrchestrator(config.internalStatesOrchestrator());
+        underlyingAsset = address(config.underlyingAsset());
+    }
+
     /// @inheritdoc ILiquidityOrchestrator
     function updateAutomationRegistry(address newAutomationRegistry) external onlyOwner {
         if (newAutomationRegistry == address(0)) revert ErrorsLib.ZeroAddress();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+
         automationRegistry = newAutomationRegistry;
         emit EventsLib.AutomationRegistryUpdated(newAutomationRegistry);
     }
@@ -104,6 +102,7 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
     /// @inheritdoc ILiquidityOrchestrator
     function setExecutionAdapter(address asset, IExecutionAdapter adapter) external onlyConfig {
         if (asset == address(0) || address(adapter) == address(0)) revert ErrorsLib.ZeroAddress();
+
         executionAdapterOf[asset] = adapter;
         emit EventsLib.ExecutionAdapterSet(asset, address(adapter));
     }
@@ -111,6 +110,7 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
     /// @inheritdoc ILiquidityOrchestrator
     function unsetExecutionAdapter(address asset) external onlyConfig {
         if (asset == address(0)) revert ErrorsLib.ZeroAddress();
+
         delete executionAdapterOf[asset];
         emit EventsLib.ExecutionAdapterSet(asset, address(0));
     }
@@ -162,7 +162,7 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         lastProcessedEpoch = currentEpoch;
 
         // Measure initial underlying balance of this contract.
-        uint256 initialUnderlyingBalance = IERC20(underlyingAsset).balanceOf(address(this));
+        // uint256 initialUnderlyingBalance = IERC20(underlyingAsset).balanceOf(address(this));
 
         // TODO: buy and sell orders all in shares at this point, fix execution adapter API accordingly.
         // this implies we can match intents with adapter price and use those variables to update vault states
