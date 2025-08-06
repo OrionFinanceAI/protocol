@@ -3,11 +3,10 @@ import { expect } from "chai";
 import { Log } from "ethers";
 import { ethers } from "hardhat";
 
-import { MockUnderlyingAsset, OrionConfig, OrionVaultFactory, VaultImplementations } from "../typechain-types";
+import { MockUnderlyingAsset, OrionConfig, OrionVaultFactory } from "../typechain-types";
 
 let orionVaultFactory: OrionVaultFactory;
 let orionConfig: OrionConfig;
-let vaultImplementations: VaultImplementations;
 let underlyingAsset: MockUnderlyingAsset;
 
 let owner: SignerWithAddress, curator: SignerWithAddress, other: SignerWithAddress;
@@ -24,17 +23,18 @@ beforeEach(async function () {
   await underlyingAsset.waitForDeployment();
 
   const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
-  orionConfig = await OrionConfigFactory.deploy();
+  orionConfig = await OrionConfigFactory.deploy(owner.address);
   await orionConfig.waitForDeployment();
-  await orionConfig.initialize(owner.address);
-  await orionConfig.setUnderlyingAsset(await underlyingAsset.getAddress());
-  await orionConfig.setInternalStatesOrchestrator(await other.address);
 
   const OrionVaultFactoryFactory = await ethers.getContractFactory("OrionVaultFactory");
-  const factoryInstance = await OrionVaultFactoryFactory.deploy();
-  await factoryInstance.waitForDeployment();
-  await factoryInstance.initialize(owner.address, await orionConfig.getAddress());
-  orionVaultFactory = await ethers.getContractAt("OrionVaultFactory", await factoryInstance.getAddress());
+  orionVaultFactory = await OrionVaultFactoryFactory.deploy(owner.address, await orionConfig.getAddress());
+  await orionVaultFactory.waitForDeployment();
+
+  await orionConfig.setUnderlyingAsset(await underlyingAsset.getAddress());
+  await orionConfig.setInternalStatesOrchestrator(await other.address);
+  await orionConfig.setLiquidityOrchestrator(await other.address);
+  await orionConfig.setVaultFactory(await orionVaultFactory.getAddress());
+  await orionConfig.setPriceAdapterRegistry(await other.address);
 
   await orionConfig.setProtocolParams(
     other.address, // liquidityOrchestrator

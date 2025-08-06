@@ -2,7 +2,6 @@
 pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "../interfaces/IOrionConfig.sol";
 import "../interfaces/IOrionVault.sol";
 import "./OrionTransparentVault.sol";
@@ -15,7 +14,7 @@ import { EventsLib } from "../libraries/EventsLib.sol";
  * @notice A factory contract for creating Orion vaults
  * @dev This contract is responsible for creating new transparent and encrypted vaults.
  */
-contract OrionVaultFactory is Ownable, ReentrancyGuard {
+contract OrionVaultFactory is Ownable {
     /// @notice Orion Config contract address
     IOrionConfig public config;
 
@@ -26,43 +25,30 @@ contract OrionVaultFactory is Ownable, ReentrancyGuard {
         config = IOrionConfig(configAddress);
     }
 
-    /// @notice Creates a new transparent vault
+    /// @notice Creates a new vault
+    /// @param vaultType The type of the vault
     /// @param curator The address of the curator
     /// @param name The name of the vault
     /// @param symbol The symbol of the vault
     /// @return vault The address of the new vault
-    function createOrionTransparentVault(
+    function createVault(
+        EventsLib.VaultType vaultType,
         address curator,
         string calldata name,
         string calldata symbol
-    ) external nonReentrant onlyOwner returns (address vault) {
+    ) external onlyOwner returns (address vault) {
         if (curator == address(0)) revert ErrorsLib.ZeroAddress();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
-        OrionTransparentVault transparentVault = new OrionTransparentVault(curator, config, name, symbol);
-        vault = address(transparentVault);
-        config.addOrionVault(vault, EventsLib.VaultType.Transparent);
+        if (vaultType == EventsLib.VaultType.Transparent) {
+            OrionTransparentVault transparentVault = new OrionTransparentVault(curator, config, name, symbol);
+            vault = address(transparentVault);
+        } else if (vaultType == EventsLib.VaultType.Encrypted) {
+            OrionEncryptedVault encryptedVault = new OrionEncryptedVault(curator, config, name, symbol);
+            vault = address(encryptedVault);
+        }
 
-        emit EventsLib.OrionVaultCreated(vault, curator, msg.sender, EventsLib.VaultType.Transparent);
-    }
-
-    /// @notice Creates a new encrypted vault
-    /// @param curator The address of the curator
-    /// @param name The name of the vault
-    /// @param symbol The symbol of the vault
-    /// @return vault The address of the new vault
-    function createOrionEncryptedVault(
-        address curator,
-        string calldata name,
-        string calldata symbol
-    ) external nonReentrant onlyOwner returns (address vault) {
-        if (curator == address(0)) revert ErrorsLib.ZeroAddress();
-        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
-
-        OrionEncryptedVault encryptedVault = new OrionEncryptedVault(curator, config, name, symbol);
-        vault = address(encryptedVault);
-        config.addOrionVault(vault, EventsLib.VaultType.Encrypted);
-
-        emit EventsLib.OrionVaultCreated(vault, curator, msg.sender, EventsLib.VaultType.Encrypted);
+        config.addOrionVault(vault, vaultType);
+        emit EventsLib.OrionVaultCreated(vault, curator, msg.sender, vaultType);
     }
 }
