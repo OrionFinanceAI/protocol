@@ -16,11 +16,6 @@ interface IOrionConfig {
     /// @return The address of the liquidity orchestrator
     function liquidityOrchestrator() external view returns (address);
 
-    /// @notice Returns the address of the vault factory contract
-    /// @dev This factory is responsible for creating new Orion vaults
-    /// @return The address of the vault factory
-    function vaultFactory() external view returns (address);
-
     /// @notice Returns the number of decimal places used for curator intent calculations
     /// @dev This value is used to scale curator intent values for precision
     /// @return The number of decimal places for curator intents
@@ -61,10 +56,11 @@ interface IOrionConfig {
     /// @param orchestrator The address of the liquidity orchestrator
     function setLiquidityOrchestrator(address orchestrator) external;
 
-    /// @notice Sets the vault factory for the protocol
+    /// @notice Sets the vault factories for the protocol
     /// @dev Can only be called by the contract owner
-    /// @param factory The address of the vault factory
-    function setVaultFactory(address factory) external;
+    /// @param transparentFactory The address of the transparent vault factory
+    /// @param encryptedFactory The address of the encrypted vault factory
+    function setVaultFactories(address transparentFactory, address encryptedFactory) external;
 
     /// @notice Sets the price adapter registry for the protocol
     /// @dev Can only be called by the contract owner
@@ -114,15 +110,17 @@ interface IOrionConfig {
     function isWhitelisted(address asset) external view returns (bool);
 
     /// @notice Adds a new Orion vault to the protocol registry
-    /// @dev Only callable by the vault factory contract
+    /// @dev Only callable by the vault factories contracts
     /// @param vault The address of the vault to add to the registry
     /// @param vaultType Whether the vault is encrypted or transparent
     function addOrionVault(address vault, EventsLib.VaultType vaultType) external;
 
-    /// @notice Removes an Orion vault from the protocol registry
-    /// @dev Only callable by the vault factory contract
-    /// @param vault The address of the vault to remove from the registry
-    /// @param vaultType Whether the vault is encrypted or transparent
+    /// @notice Deregisters an Orion vault from the protocol's registry
+    /// @dev Callable exclusively by the contract owner. This action does not destroy the vault itself;
+    /// @dev it merely disconnects the vault from the protocol, which causes the share price to stale
+    /// @dev and renders curator intents inactive.
+    /// @param vault The address of the vault to be removed from the registry
+    /// @param vaultType The type of the vault—either encrypted or transparent
     function removeOrionVault(address vault, EventsLib.VaultType vaultType) external;
 
     /// @notice Returns all Orion vault addresses

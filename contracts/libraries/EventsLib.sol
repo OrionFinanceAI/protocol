@@ -98,10 +98,6 @@ library EventsLib {
     /// @param adapter The address of the execution adapter.
     event ExecutionAdapterSet(address indexed asset, address indexed adapter);
 
-    // ================================
-    // === Orion Vault Factory ===
-    // ================================
-
     /// @notice Enumeration of available vault types.
     enum VaultType {
         Transparent,

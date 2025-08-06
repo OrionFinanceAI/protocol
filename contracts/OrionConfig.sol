@@ -31,7 +31,10 @@ contract OrionConfig is Ownable, IOrionConfig {
     IERC20 public underlyingAsset;
     address public internalStatesOrchestrator;
     address public liquidityOrchestrator;
-    address public vaultFactory;
+
+    address public transparentVaultFactory;
+    address public encryptedVaultFactory;
+
     address public priceAdapterRegistry;
 
     // Protocol parameters
@@ -47,8 +50,9 @@ contract OrionConfig is Ownable, IOrionConfig {
     EnumerableSet.AddressSet private transparentVaults;
     EnumerableSet.AddressSet private encryptedVaults;
 
-    modifier onlyFactory() {
-        if (msg.sender != vaultFactory) revert ErrorsLib.UnauthorizedAccess();
+    modifier onlyFactories() {
+        if (msg.sender != transparentVaultFactory && msg.sender != encryptedVaultFactory)
+            revert ErrorsLib.UnauthorizedAccess();
         _;
     }
 
@@ -75,10 +79,12 @@ contract OrionConfig is Ownable, IOrionConfig {
     }
 
     /// @inheritdoc IOrionConfig
-    function setVaultFactory(address factory) external onlyOwner {
+    function setVaultFactories(address transparentFactory, address encryptedFactory) external onlyOwner {
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
-        if (factory == address(0)) revert ErrorsLib.ZeroAddress();
-        vaultFactory = factory;
+        if (transparentFactory == address(0)) revert ErrorsLib.ZeroAddress();
+        if (encryptedFactory == address(0)) revert ErrorsLib.ZeroAddress();
+        transparentVaultFactory = transparentFactory;
+        encryptedVaultFactory = encryptedFactory;
     }
 
     /// @inheritdoc IOrionConfig
@@ -169,7 +175,7 @@ contract OrionConfig is Ownable, IOrionConfig {
     // === Orion Vaults ===
 
     /// @inheritdoc IOrionConfig
-    function addOrionVault(address vault, EventsLib.VaultType vaultType) external onlyFactory {
+    function addOrionVault(address vault, EventsLib.VaultType vaultType) external onlyFactories {
         if (vault == address(0)) revert ErrorsLib.ZeroAddress();
 
         bool inserted;
@@ -184,7 +190,7 @@ contract OrionConfig is Ownable, IOrionConfig {
     }
 
     /// @inheritdoc IOrionConfig
-    function removeOrionVault(address vault, EventsLib.VaultType vaultType) external onlyFactory {
+    function removeOrionVault(address vault, EventsLib.VaultType vaultType) external onlyOwner {
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         bool removed;

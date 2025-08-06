@@ -334,11 +334,16 @@
       "inputs": [
         {
           "internalType": "address",
-          "name": "factory",
+          "name": "transparentFactory",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "encryptedFactory",
           "type": "address"
         }
       ],
-      "name": "setVaultFactory",
+      "name": "setVaultFactories",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
@@ -349,19 +354,6 @@
       "outputs": [
         {
           "internalType": "contract IERC20",
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "vaultFactory",
-      "outputs": [
-        {
-          "internalType": "address",
           "name": "",
           "type": "address"
         }
