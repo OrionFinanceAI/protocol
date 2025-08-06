@@ -39,15 +39,6 @@ contract OrionVaultFactory is Initializable, Ownable2StepUpgradeable, UUPSUpgrad
         // Only the owner can upgrade the contract
     }
 
-    /// @notice Updates the config address
-    /// @param newConfig The new config address
-    function updateConfig(address newConfig) external onlyOwner {
-        if (newConfig == address(0)) revert ErrorsLib.ZeroAddress();
-        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
-
-        config = IOrionConfig(newConfig);
-    }
-
     /// @notice Sets the implementation addresses for the vaults
     /// @param transparentImpl The address of the transparent vault implementation
     /// @param encryptedImpl The address of the encrypted vault implementation

@@ -55,32 +55,6 @@
     },
     {
       "inputs": [],
-      "name": "expectedUnderlyingBuyAmount",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "expectedUnderlyingSellAmount",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
       "name": "getBuyingOrders",
       "outputs": [
         {
@@ -137,19 +111,6 @@
         }
       ],
       "name": "updateAutomationRegistry",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "newConfig",
-          "type": "address"
-        }
-      ],
-      "name": "updateConfig",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

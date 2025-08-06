@@ -16,9 +16,9 @@ interface IPriceAdapterRegistry {
 
     /// @notice Returns the price of the given asset via its assigned price adapter.
     /// @param asset The address of the asset.
-    /// @return The price of the asset, normalized to 18 decimals.
+    /// @return The price of the asset, normalized to priceAdapterDecimals decimals.
     /// @dev The asset shall be whitelisted in the OrionConfig contract,
     ///      therefore assigned an adapter in `adapterOf`.
-    ///      Returned value is always expected to have 18 decimals.
+    ///      Returned value is always expected to have priceAdapterDecimals decimals.
     function getPrice(address asset) external view returns (uint256);
 }

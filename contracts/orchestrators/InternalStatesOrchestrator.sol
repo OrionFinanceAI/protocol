@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "../interfaces/IOrionConfig.sol";
@@ -30,16 +28,7 @@ import { FHE, euint32 } from "@fhevm/solidity/lib/FHE.sol";
  *      Actual state modifications and transaction execution are handled by the Liquidity Orchestrator contract.
  *      Variable naming distinguishes measurements (x) from estimations (xHat).
  */
-contract InternalStatesOrchestrator is
-    Initializable,
-    Ownable2StepUpgradeable,
-    ReentrancyGuardUpgradeable,
-    UUPSUpgradeable,
-    IInternalStateOrchestrator
-{
-    /* -------------------------------------------------------------------------- */
-    /*                                 CONTRACTS                                  */
-    /* -------------------------------------------------------------------------- */
+contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateOrchestrator {
     /// @notice Chainlink Automation Registry address
     address public automationRegistry;
 
@@ -49,11 +38,8 @@ contract InternalStatesOrchestrator is
     /// @notice Price Adapter Registry contract
     IPriceAdapterRegistry public registry;
 
-    /* -------------------------------------------------------------------------- */
-    /*                                 CONSTANTS                                  */
-    /* -------------------------------------------------------------------------- */
-    /// @notice Price Adapter price precision (18 decimals)
-    uint256 private constant PRICE_ADAPTER_PRECISION = 1e18;
+    /// @notice Price Adapter Precision
+    uint256 public priceAdapterPrecision;
 
     /// @notice Intent factor for calculations
     uint256 public intentFactor;
@@ -64,7 +50,7 @@ contract InternalStatesOrchestrator is
     /// @notice Action constants for checkUpkeep and performUpkeep
     bytes4 private constant ACTION_START = bytes4(keccak256("start()"));
     bytes4 private constant ACTION_PROCESS_TRANSPARENT_VAULT = bytes4(keccak256("processTransparentVault(uint256)"));
-    bytes4 private constant ACTION_PROCESS_ENCRYPTED_VAULTS = bytes4(keccak256("processEncryptedVaults()"));
+    bytes4 private constant ACTION_PROCESS_ENCRYPTED_VAULTS = bytes4(keccak256("processEncryptedVaults(uint256)"));
     bytes4 private constant ACTION_AGGREGATE = bytes4(keccak256("aggregate()"));
 
     /* -------------------------------------------------------------------------- */
@@ -96,12 +82,6 @@ contract InternalStatesOrchestrator is
     /// @notice Encrypted batch portfolio - mapping of token address to encrypted value [assets]
     mapping(address => euint32) internal _encryptedBatchPortfolio;
 
-    /// @notice Expected underlying sell amount to be able to measure tracking error during sell execution.
-    uint256 public expectedUnderlyingSellAmount;
-
-    /// @notice Expected underlying buy amount to be able to compute the tracking error during buy execution.
-    uint256 public expectedUnderlyingBuyAmount;
-
     /* -------------------------------------------------------------------------- */
     /*                               UPKEEP STATE                                 */
     /* -------------------------------------------------------------------------- */
@@ -114,46 +94,60 @@ contract InternalStatesOrchestrator is
     /// @notice Epoch duration
     uint256 public updateInterval;
 
+    /// @notice Encrypted minibatch size
+    uint256 public encryptedMinibatchSize;
+
     /// @notice Upkeep phase
     InternalUpkeepPhase public currentPhase;
-    /// @notice Current vault index
-    uint256 public currentVaultIndex;
+    /// @notice Current transparent vault index
+
+    uint256 public currentTransparentVaultIndex;
     /// @notice Transparent vaults associated to the current epoch
     address[] public transparentVaultsEpoch;
-
-    function initialize(address initialOwner, address automationRegistry_, address config_) public initializer {
-        __Ownable_init(initialOwner);
-        __Ownable2Step_init();
-        __ReentrancyGuard_init();
-        __UUPSUpgradeable_init();
-
-        if (automationRegistry_ == address(0)) revert ErrorsLib.ZeroAddress();
-        if (config_ == address(0)) revert ErrorsLib.ZeroAddress();
-
-        automationRegistry = automationRegistry_;
-        config = IOrionConfig(config_);
-
-        registry = IPriceAdapterRegistry(config.priceAdapterRegistry());
-        intentFactor = 10 ** config.curatorIntentDecimals();
-        underlyingDecimals = IERC20Metadata(address(config.underlyingAsset())).decimals();
-
-        _nextUpdateTime = _computeNextUpdateTime(block.timestamp);
-        epochCounter = 0;
-
-        updateInterval = 1 minutes;
-        currentPhase = InternalUpkeepPhase.Idle;
-        currentVaultIndex = 0;
-    }
-
-    // solhint-disable-next-line no-empty-blocks
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {
-        // Only the owner can upgrade the contract
-    }
+    /// @notice Current encrypted minibatch index
+    uint256 public currentEncryptedMinibatchIndex;
+    /// @notice Encrypted vaults associated to the current epoch
+    address[] public encryptedVaultsEpoch;
 
     /// @dev Restricts function to only Chainlink Automation registry
     modifier onlyAutomationRegistry() {
         if (msg.sender != automationRegistry) revert ErrorsLib.NotAuthorized();
         _;
+    }
+
+    constructor(
+        address initialOwner,
+        address automationRegistry_,
+        address config_
+    ) Ownable(initialOwner) ReentrancyGuard() {
+        if (config_ == address(0)) revert ErrorsLib.ZeroAddress();
+        if (automationRegistry_ == address(0)) revert ErrorsLib.ZeroAddress();
+
+        config = IOrionConfig(config_);
+        updateFromConfig();
+
+        automationRegistry = automationRegistry_;
+
+        updateInterval = 1 days;
+        _nextUpdateTime = _computeNextUpdateTime(block.timestamp);
+
+        currentPhase = InternalUpkeepPhase.Idle;
+        epochCounter = 0;
+        currentTransparentVaultIndex = 0;
+        currentEncryptedMinibatchIndex = 0;
+    }
+
+    /// @notice Updates the orchestrator from the config contract
+    /// @dev This function is called by the owner to update the orchestrator
+    ///      when the config contract is updated.
+    function updateFromConfig() public onlyOwner {
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+
+        registry = IPriceAdapterRegistry(config.priceAdapterRegistry());
+        intentFactor = 10 ** config.curatorIntentDecimals();
+        underlyingDecimals = IERC20Metadata(address(config.underlyingAsset())).decimals();
+        priceAdapterPrecision = 10 ** config.priceAdapterDecimals();
+        encryptedMinibatchSize = config.encryptedMinibatchSize();
     }
 
     /// @inheritdoc IInternalStateOrchestrator
@@ -166,16 +160,10 @@ contract InternalStatesOrchestrator is
     }
 
     /// @inheritdoc IInternalStateOrchestrator
-    function updateConfig(address newConfig) external onlyOwner {
-        if (newConfig == address(0)) revert ErrorsLib.ZeroAddress();
-        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
-
-        config = IOrionConfig(newConfig);
-    }
-
-    /// @inheritdoc IInternalStateOrchestrator
     function updateUpdateInterval(uint256 newUpdateInterval) external onlyOwner {
         if (newUpdateInterval == 0) revert ErrorsLib.InvalidArguments();
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+
         updateInterval = newUpdateInterval;
     }
 
@@ -185,15 +173,12 @@ contract InternalStatesOrchestrator is
         if (config.isSystemIdle() && _shouldTriggerUpkeep()) {
             upkeepNeeded = true;
             performData = abi.encodePacked(ACTION_START);
-        } else if (
-            currentPhase == InternalUpkeepPhase.ProcessingTransparentVaults &&
-            currentVaultIndex < transparentVaultsEpoch.length
-        ) {
+        } else if (currentPhase == InternalUpkeepPhase.ProcessingTransparentVaults) {
             upkeepNeeded = true;
-            performData = abi.encodePacked(ACTION_PROCESS_TRANSPARENT_VAULT, currentVaultIndex);
+            performData = abi.encodePacked(ACTION_PROCESS_TRANSPARENT_VAULT, currentTransparentVaultIndex);
         } else if (currentPhase == InternalUpkeepPhase.ProcessingEncryptedVaults) {
             upkeepNeeded = true;
-            performData = abi.encodePacked(ACTION_PROCESS_ENCRYPTED_VAULTS);
+            performData = abi.encodePacked(ACTION_PROCESS_ENCRYPTED_VAULTS, currentEncryptedMinibatchIndex);
         } else if (currentPhase == InternalUpkeepPhase.Aggregating) {
             upkeepNeeded = true;
             performData = abi.encodePacked(ACTION_AGGREGATE);
@@ -216,26 +201,22 @@ contract InternalStatesOrchestrator is
         if (action == ACTION_START) {
             _checkAndCountEpoch();
             _resetEpochState();
+
             transparentVaultsEpoch = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
-            currentVaultIndex = 0;
+            encryptedVaultsEpoch = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
+
             currentPhase = InternalUpkeepPhase.ProcessingTransparentVaults;
         } else if (action == ACTION_PROCESS_TRANSPARENT_VAULT) {
-            uint256 index = abi.decode(performData[4:], (uint256));
-            _processTransparentVault(index);
+            uint256 vaultIndex = abi.decode(performData[4:], (uint256));
+            _processTransparentVault(vaultIndex);
         } else if (action == ACTION_PROCESS_ENCRYPTED_VAULTS) {
-            // TODO: process encrypted vaults in minibatches, not a single batch,
-            // for scalability (even if not possible to process one by one like transparent one).
-            // Set minibatch size as a configurable parameter in the contract, have a variable akin to currentVaultIndex
-            _processEncryptedVaults();
+            uint256 minibatchIndex = abi.decode(performData[4:], (uint256));
+            _processEncryptedVaults(minibatchIndex);
         } else if (action == ACTION_AGGREGATE) {
-            // TODO: Finally sum up decrypted_encryptedBatchPortfolio to get _finalBatchPortfolioHat
-            // TODO: same for estimated total assets and for initial batch portfolio.
-
             // Compute selling and buying orders based on portfolio differences
             _computeRebalancingOrders();
 
             currentPhase = InternalUpkeepPhase.Idle;
-            delete transparentVaultsEpoch;
             epochCounter++;
             emit EventsLib.InternalStateProcessed(epochCounter);
         } else {
@@ -244,9 +225,9 @@ contract InternalStatesOrchestrator is
     }
 
     /// @notice Processes a transparent vault
-    /// @param index The index of the transparent vault to process
-    function _processTransparentVault(uint256 index) internal {
-        IOrionTransparentVault vault = IOrionTransparentVault(transparentVaultsEpoch[index]);
+    /// @param vaultIndex The index of the transparent vault to process
+    function _processTransparentVault(uint256 vaultIndex) internal {
+        IOrionTransparentVault vault = IOrionTransparentVault(transparentVaultsEpoch[vaultIndex]);
 
         (address[] memory portfolioTokens, uint256[] memory sharesPerAsset) = vault.getPortfolio();
 
@@ -301,9 +282,9 @@ contract InternalStatesOrchestrator is
             _addTokenIfNotExists(token);
         }
 
-        currentVaultIndex++;
+        currentTransparentVaultIndex++;
 
-        if (currentVaultIndex >= transparentVaultsEpoch.length) {
+        if (currentTransparentVaultIndex >= transparentVaultsEpoch.length) {
             currentPhase = InternalUpkeepPhase.ProcessingEncryptedVaults;
         }
     }
@@ -311,11 +292,17 @@ contract InternalStatesOrchestrator is
     /// @notice Processes encrypted vaults
     // slither-disable-start reentrancy-no-eth
     // Safe: external calls are view; nonReentrant applied to caller.
-    function _processEncryptedVaults() internal nonReentrant {
-        address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
+    function _processEncryptedVaults(uint256 minibatchIndex) internal nonReentrant {
+        uint256 i0 = minibatchIndex * encryptedMinibatchSize;
+        uint256 i1 = i0 + encryptedMinibatchSize;
+        if (i1 > encryptedVaultsEpoch.length) {
+            i1 = encryptedVaultsEpoch.length;
+            // Last minibatch, go to aggregating phase next.
+            currentPhase = InternalUpkeepPhase.Aggregating;
+        }
 
-        for (uint256 i = 0; i < encryptedVaults.length; i++) {
-            IOrionEncryptedVault vault = IOrionEncryptedVault(encryptedVaults[i]);
+        for (uint256 i = i0; i < i1; i++) {
+            IOrionEncryptedVault vault = IOrionEncryptedVault(encryptedVaultsEpoch[i]);
 
             (address[] memory portfolioTokens, euint32[] memory sharesPerAsset) = vault.getPortfolio();
 
@@ -348,8 +335,10 @@ contract InternalStatesOrchestrator is
             // TODO: curator fee(TVL, return,...) - protocol fee(vault).
             // Protocol fee here can be different from the transparent vaults because of added costs.
         }
+        // TODO: decrypot minibatch and incrementally add to initialBatchPortfolioHat, finalBatchPortfolioHat.
 
-        currentPhase = InternalUpkeepPhase.Aggregating;
+        // TODO: same for estimated total assets.
+        currentEncryptedMinibatchIndex++;
     }
     // slither-disable-end reentrancy-no-eth
 
@@ -397,6 +386,14 @@ contract InternalStatesOrchestrator is
 
         // Clear the tokens array
         delete _currentEpoch.tokens;
+
+        // Clear the vaults arrays
+        delete transparentVaultsEpoch;
+        delete encryptedVaultsEpoch;
+
+        // Reset indices for next epoch
+        currentTransparentVaultIndex = 0;
+        currentEncryptedMinibatchIndex = 0;
     }
 
     /// @notice Adds a token to the current epoch if it doesn't exist
@@ -416,9 +413,6 @@ contract InternalStatesOrchestrator is
         address[] memory tokens = _currentEpoch.tokens;
         uint256 length = tokens.length;
 
-        // Compute expected underlying sell amount to be able to compute the tracking error during sell execution.
-        expectedUnderlyingSellAmount = 0;
-        expectedUnderlyingBuyAmount = 0;
         for (uint256 i = 0; i < length; i++) {
             address token = tokens[i];
             uint256 initialValue = _currentEpoch.initialBatchPortfolioHat[token];
@@ -427,8 +421,6 @@ contract InternalStatesOrchestrator is
 
             if (initialValue > finalValue) {
                 uint256 sellAmountInUnderlying = initialValue - finalValue;
-
-                expectedUnderlyingSellAmount += sellAmountInUnderlying;
 
                 // Convert from underlying assets to shares for LiquidityOrchestrator._executeSell
                 // Necessary to compute the number of shares to sell based on adapter price to have consistency with
@@ -442,7 +434,6 @@ contract InternalStatesOrchestrator is
                 _currentEpoch.sellingOrders[token] = sellAmountInShares;
             } else if (finalValue > initialValue) {
                 uint256 buyAmount = finalValue - initialValue;
-                expectedUnderlyingBuyAmount += buyAmount;
                 // Keep buying orders in underlying assets as expected by LiquidityOrchestrator._executeBuy
                 _currentEpoch.buyingOrders[token] = buyAmount;
             }
@@ -474,9 +465,9 @@ contract InternalStatesOrchestrator is
 
     /// @notice Calculates token value in underlying asset decimals
     /// @dev Handles decimal conversion from token decimals to underlying asset decimals
-    ///      Formula: value = (price * shares) / PRICE_ADAPTER_PRECISION * 10^(underlyingDecimals - tokenDecimals)
+    ///      Formula: value = (price * shares) / priceAdapterPrecision * 10^(underlyingDecimals - tokenDecimals)
     ///      This safely handles cases where underlying has more or fewer decimals than the token
-    /// @param price The price of the token in underlying asset (18 decimals)
+    /// @param price The price of the token in underlying asset (priceAdapterDecimals decimals)
     /// @param shares The amount of token shares (in token decimals)
     /// @param tokenDecimals The decimals of the token
     /// @return value The value in underlying asset decimals
@@ -487,7 +478,7 @@ contract InternalStatesOrchestrator is
     ) internal view returns (uint256 value) {
         uint256 baseValue = price * shares;
         uint256 scaledValue = _convertDecimals(baseValue, tokenDecimals, underlyingDecimals);
-        value = scaledValue / PRICE_ADAPTER_PRECISION;
+        value = scaledValue / priceAdapterPrecision;
     }
 
     /// @notice Calculates encrypted token value in underlying asset decimals
@@ -502,9 +493,9 @@ contract InternalStatesOrchestrator is
 
     /// @notice Calculates token shares from underlying asset value (inverse of _calculateTokenValue)
     /// @dev Handles decimal conversion from underlying asset decimals to token decimals
-    ///      Formula: shares = (value * PRICE_ADAPTER_PRECISION) / (price * 10^(underlyingDecimals - tokenDecimals))
+    ///      Formula: shares = (value * priceAdapterPrecision) / (price * 10^(underlyingDecimals - tokenDecimals))
     ///      This safely handles cases where underlying has more or fewer decimals than the token
-    /// @param price The price of the token in underlying asset (18 decimals)
+    /// @param price The price of the token in underlying asset (priceAdapterDecimals decimals)
     /// @param value The value in underlying asset decimals
     /// @param tokenDecimals The decimals of the token
     /// @return shares The amount of token shares (in token decimals)
@@ -514,7 +505,7 @@ contract InternalStatesOrchestrator is
         uint8 tokenDecimals
     ) internal view returns (uint256 shares) {
         uint256 scaledValue = _convertDecimals(value, underlyingDecimals, tokenDecimals);
-        shares = (scaledValue * PRICE_ADAPTER_PRECISION) / price;
+        shares = (scaledValue * priceAdapterPrecision) / price;
     }
 
     /* -------------------------------------------------------------------------- */

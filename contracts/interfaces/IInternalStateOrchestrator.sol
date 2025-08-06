@@ -25,10 +25,6 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     /// @param newAutomationRegistry The new automation registry address
     function updateAutomationRegistry(address newAutomationRegistry) external;
 
-    /// @notice Updates the Orion Config contract address
-    /// @param newConfig The new config address
-    function updateConfig(address newConfig) external;
-
     /// @notice Updates the update interval
     /// @param newUpdateInterval The new update interval in seconds
     function updateUpdateInterval(uint256 newUpdateInterval) external;
@@ -42,8 +38,4 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     /// @return tokens The tokens to buy
     /// @return amounts The amounts to buy in underlying assets (as expected by LiquidityOrchestrator)
     function getBuyingOrders() external view returns (address[] memory, uint256[] memory);
-
-    // Tracking error functions
-    function expectedUnderlyingSellAmount() external view returns (uint256);
-    function expectedUnderlyingBuyAmount() external view returns (uint256);
 }

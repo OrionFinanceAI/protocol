@@ -35,6 +35,8 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     address public liquidityOrchestrator;
     address public vaultFactory;
     address public priceAdapterRegistry;
+    uint8 public priceAdapterDecimals;
+    uint256 public encryptedMinibatchSize;
 
     // Curator-specific configuration
     uint8 public curatorIntentDecimals;
@@ -78,21 +80,36 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     }
 
     /// @inheritdoc IOrionConfig
+    function setLiquidityOrchestrator(address orchestrator) external onlyOwner {
+        if (orchestrator == address(0)) revert ErrorsLib.ZeroAddress();
+        liquidityOrchestrator = orchestrator;
+    }
+
+    /// @inheritdoc IOrionConfig
+    function setVaultFactory(address factory) external onlyOwner {
+        if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+        if (factory == address(0)) revert ErrorsLib.ZeroAddress();
+        vaultFactory = factory;
+    }
+
+    /// @inheritdoc IOrionConfig
+    function setPriceAdapterRegistry(address registry) external onlyOwner {
+        if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+        if (registry == address(0)) revert ErrorsLib.ZeroAddress();
+        priceAdapterRegistry = registry;
+    }
+
+    /// @inheritdoc IOrionConfig
     function setProtocolParams(
-        address liquidityOrchestrator_,
-        uint8 curatorIntentDecimals_,
-        address factory_,
-        address priceAdapterRegistry_
+        uint8 _curatorIntentDecimals,
+        uint8 _priceAdapterDecimals,
+        uint256 _encryptedMinibatchSize
     ) external onlyOwner {
-        if (liquidityOrchestrator_ == address(0)) revert ErrorsLib.ZeroAddress();
-        if (factory_ == address(0)) revert ErrorsLib.ZeroAddress();
-        if (priceAdapterRegistry_ == address(0)) revert ErrorsLib.ZeroAddress();
+        if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
-        liquidityOrchestrator = liquidityOrchestrator_;
-
-        curatorIntentDecimals = curatorIntentDecimals_;
-        vaultFactory = factory_;
-        priceAdapterRegistry = priceAdapterRegistry_;
+        curatorIntentDecimals = _curatorIntentDecimals;
+        priceAdapterDecimals = _priceAdapterDecimals;
+        encryptedMinibatchSize = _encryptedMinibatchSize;
 
         emit EventsLib.ProtocolParamsUpdated();
     }
@@ -105,6 +122,8 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
 
     /// @inheritdoc IOrionConfig
     function addWhitelistedAsset(address asset, address priceAdapter, address executionAdapter) external onlyOwner {
+        if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+
         bool inserted = whitelistedAssets.add(asset);
         if (!inserted) revert ErrorsLib.AlreadyRegistered();
 
@@ -122,6 +141,8 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
 
     /// @inheritdoc IOrionConfig
     function removeWhitelistedAsset(address asset) external onlyOwner {
+        if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+
         bool removed = whitelistedAssets.remove(asset);
         if (!removed) revert ErrorsLib.TokenNotWhitelisted(asset);
 
@@ -175,6 +196,8 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
 
     /// @inheritdoc IOrionConfig
     function removeOrionVault(address vault, EventsLib.VaultType vaultType) external onlyFactory {
+        if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+
         bool removed;
         if (vaultType == EventsLib.VaultType.Encrypted) {
             removed = encryptedVaults.remove(vault);
@@ -205,7 +228,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     }
 
     /// @inheritdoc IOrionConfig
-    function isSystemIdle() external view returns (bool) {
+    function isSystemIdle() public view returns (bool) {
         return
             ILiquidityOrchestrator(liquidityOrchestrator).currentPhase() ==
             ILiquidityOrchestrator.LiquidityUpkeepPhase.Idle &&

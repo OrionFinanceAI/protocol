@@ -22,10 +22,6 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @param newAutomationRegistry The new automation registry address
     function updateAutomationRegistry(address newAutomationRegistry) external;
 
-    /// @notice Updates the Orion Config contract address
-    /// @param newConfig The new config address
-    function updateConfig(address newConfig) external;
-
     /// @notice Register or replace the execution adapter for an asset.
     /// @param asset The address of the asset.
     /// @param adapter The execution adapter for the asset.

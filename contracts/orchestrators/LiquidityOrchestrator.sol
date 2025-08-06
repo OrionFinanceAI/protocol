@@ -102,13 +102,6 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function updateConfig(address newConfig) external onlyOwner {
-        if (newConfig == address(0)) revert ErrorsLib.ZeroAddress();
-        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
-        config = IOrionConfig(newConfig);
-    }
-
-    /// @inheritdoc ILiquidityOrchestrator
     function setExecutionAdapter(address asset, IExecutionAdapter adapter) external onlyConfig {
         if (asset == address(0) || address(adapter) == address(0)) revert ErrorsLib.ZeroAddress();
         executionAdapterOf[asset] = adapter;
@@ -194,31 +187,9 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
         // minimizing liquidity orchestrator market impact.
 
         // Measure intermediate underlying balance of this contract.
-        uint256 intermediateUnderlyingBalance = IERC20(underlyingAsset).balanceOf(address(this));
-
-        // Compute tracking error.
-        // ||Delta_S||_L1
-        uint256 executedUnderlyingSellAmount = intermediateUnderlyingBalance - initialUnderlyingBalance;
-        // ||Delta_S_hat||_L1
-        uint256 expectedUnderlyingSellAmount = internalStatesOrchestrator.expectedUnderlyingSellAmount();
-        uint256 epsilon = executedUnderlyingSellAmount - expectedUnderlyingSellAmount;
-
-        // ||Delta_B_hat||_L1
-        uint256 expectedUnderlyingBuyAmount = internalStatesOrchestrator.expectedUnderlyingBuyAmount();
-
-        // Tracking error factor gamma
-        uint256 trackingErrorFactor = 1e18;
-        if (expectedUnderlyingBuyAmount > 0) {
-            trackingErrorFactor = 1e18 + (epsilon * 1e18) / expectedUnderlyingBuyAmount;
-        }
+        // uint256 intermediateUnderlyingBalance = IERC20(underlyingAsset).balanceOf(address(this));
 
         (address[] memory buyingTokens, uint256[] memory buyingAmounts) = internalStatesOrchestrator.getBuyingOrders();
-        // Scaling the buy leg to absorb the tracking error, protecting LPs from execution slippage.
-        // This is a global compensation factor, applied uniformly to all vaults, it ensures full collateralization
-        // of the overall portfolio.
-        for (uint256 i = 0; i < buyingTokens.length; i++) {
-            buyingAmounts[i] = (buyingAmounts[i] * trackingErrorFactor) / 1e18;
-        }
 
         for (uint256 i = 0; i < buyingTokens.length; i++) {
             address token = buyingTokens[i];
@@ -226,8 +197,6 @@ contract LiquidityOrchestrator is Initializable, Ownable2StepUpgradeable, UUPSUp
             _executeBuy(token, amount);
         }
 
-        // As per the portfolio states, we can distribute the tracking error to each vault
-        // with a weight proportional to t_1.
         address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
         uint256 length = transparentVaults.length;
         for (uint256 i = 0; i < length; i++) {

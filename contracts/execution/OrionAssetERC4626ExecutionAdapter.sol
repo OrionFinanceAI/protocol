@@ -106,6 +106,8 @@ contract OrionAssetERC4626ExecutionAdapter is Ownable, IExecutionAdapter {
     /// @dev This function is called by the owner to update the adapter
     ///      when the config contract is updated.
     function updateFromConfig() public onlyOwner {
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+
         underlyingAsset = address(config.underlyingAsset());
         underlyingAssetToken = IERC20(underlyingAsset);
         liquidityOrchestrator = config.liquidityOrchestrator();

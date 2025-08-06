@@ -36,6 +36,16 @@ interface IOrionConfig {
     /// @return The address of the price adapter registry
     function priceAdapterRegistry() external view returns (address);
 
+    /// @notice Returns the number of decimal places used for price adapters
+    /// @dev This value is used to scale price adapter values for precision
+    /// @return The number of decimal places for price adapters
+    function priceAdapterDecimals() external view returns (uint8);
+
+    /// @notice Returns the encrypted minibatch size
+    /// @dev This value is used to determine the size of the encrypted minibatch
+    /// @return The encrypted minibatch size
+    function encryptedMinibatchSize() external view returns (uint256);
+
     /// @notice Sets the underlying asset for the protocol
     /// @dev Can only be called by the contract owner
     /// @param asset The address of the underlying asset contract
@@ -46,17 +56,30 @@ interface IOrionConfig {
     /// @param orchestrator The address of the internal states orchestrator
     function setInternalStatesOrchestrator(address orchestrator) external;
 
+    /// @notice Sets the liquidity orchestrator for the protocol
+    /// @dev Can only be called by the contract owner
+    /// @param orchestrator The address of the liquidity orchestrator
+    function setLiquidityOrchestrator(address orchestrator) external;
+
+    /// @notice Sets the vault factory for the protocol
+    /// @dev Can only be called by the contract owner
+    /// @param factory The address of the vault factory
+    function setVaultFactory(address factory) external;
+
+    /// @notice Sets the price adapter registry for the protocol
+    /// @dev Can only be called by the contract owner
+    /// @param registry The address of the price adapter registry
+    function setPriceAdapterRegistry(address registry) external;
+
     /// @notice Sets the core protocol parameters in a single transaction
     /// @dev Can only be called by the contract owner
-    /// @param _liquidityOrchestrator The address of the liquidity orchestrator
     /// @param _curatorIntentDecimals The number of decimal places for curator intents
-    /// @param _factory The address of the vault factory
-    /// @param _priceAdapterRegistry The address of the price adapter registry
+    /// @param _priceAdapterDecimals The number of decimal places for price adapters
+    /// @param _encryptedMinibatchSize The size of the encrypted minibatch
     function setProtocolParams(
-        address _liquidityOrchestrator,
         uint8 _curatorIntentDecimals,
-        address _factory,
-        address _priceAdapterRegistry
+        uint8 _priceAdapterDecimals,
+        uint256 _encryptedMinibatchSize
     ) external;
 
     /// @notice Adds an asset to the whitelist
