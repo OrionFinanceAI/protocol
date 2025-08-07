@@ -97,9 +97,9 @@
       "inputs": [
         {
           "indexed": false,
-          "internalType": "uint256",
+          "internalType": "uint16",
           "name": "epochCounter",
-          "type": "uint256"
+          "type": "uint16"
         }
       ],
       "name": "InternalStateProcessed",
@@ -143,13 +143,13 @@
         {
           "indexed": true,
           "internalType": "address",
-          "name": "curator",
+          "name": "vaultOwner",
           "type": "address"
         },
         {
           "indexed": true,
           "internalType": "address",
-          "name": "deployer",
+          "name": "curator",
           "type": "address"
         },
         {
@@ -303,8 +303,8 @@
       "type": "event"
     }
   ],
-  "bytecode": "0x60556032600b8282823980515f1a607314602657634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f5ffdfea26469706673582212207062e6a85e2177ac4622f32b02e49669b7d926ac5f071c692b594753cf73227164736f6c634300081c0033",
-  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f5ffdfea26469706673582212207062e6a85e2177ac4622f32b02e49669b7d926ac5f071c692b594753cf73227164736f6c634300081c0033",
+  "bytecode": "0x60556032600b8282823980515f1a607314602657634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f5ffdfea26469706673582212209065b0d0200cbbd2702b3ed219c2889140192f93129ea775dd70535d950dae1e64736f6c634300081c0033",
+  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f5ffdfea26469706673582212209065b0d0200cbbd2702b3ed219c2889140192f93129ea775dd70535d950dae1e64736f6c634300081c0033",
   "linkReferences": {},
   "deployedLinkReferences": {}
 }

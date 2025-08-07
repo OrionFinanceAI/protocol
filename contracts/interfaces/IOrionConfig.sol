@@ -36,13 +36,12 @@ interface IOrionConfig {
     /// @return The number of decimal places for price adapters
     function priceAdapterDecimals() external view returns (uint8);
 
-    /// @notice Returns the encrypted minibatch size
-    /// @dev This value is used to determine the size of the encrypted minibatch
-    /// @return The encrypted minibatch size
-    function encryptedMinibatchSize() external view returns (uint256);
-
     /// @notice Sets the underlying asset for the protocol
     /// @dev Can only be called by the contract owner
+    /// @dev The underlying asset is automatically added to the investment universe whitelist because:
+    /// @dev - Curators may decide to be underleveraged in their active positions;
+    /// @dev - High slippage transactions may revert and force liquidations from whitelisted assets;
+    /// @dev - removeWhitelistedAsset could trigger forced liquidations.
     /// @param asset The address of the underlying asset contract
     function setUnderlyingAsset(address asset) external;
 
@@ -71,12 +70,7 @@ interface IOrionConfig {
     /// @dev Can only be called by the contract owner
     /// @param _curatorIntentDecimals The number of decimal places for curator intents
     /// @param _priceAdapterDecimals The number of decimal places for price adapters
-    /// @param _encryptedMinibatchSize The size of the encrypted minibatch
-    function setProtocolParams(
-        uint8 _curatorIntentDecimals,
-        uint8 _priceAdapterDecimals,
-        uint256 _encryptedMinibatchSize
-    ) external;
+    function setProtocolParams(uint8 _curatorIntentDecimals, uint8 _priceAdapterDecimals) external;
 
     /// @notice Adds an asset to the whitelist
     /// @dev Can only be called by the contract owner
@@ -92,13 +86,13 @@ interface IOrionConfig {
 
     /// @notice Returns the total number of whitelisted assets
     /// @return The count of whitelisted assets
-    function whitelistedAssetsLength() external view returns (uint256);
+    function whitelistedAssetsLength() external view returns (uint16);
 
     /// @notice Returns the whitelisted asset address at the specified index
     /// @dev Uses EnumerableSet ordering, which may change when assets are added/removed
     /// @param index The index of the asset to retrieve
     /// @return The address of the whitelisted asset at the given index
-    function getWhitelistedAssetAt(uint256 index) external view returns (address);
+    function getWhitelistedAssetAt(uint16 index) external view returns (address);
 
     /// @notice Returns all whitelisted assets
     /// @return An array of whitelisted asset addresses

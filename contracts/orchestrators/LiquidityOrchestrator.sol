@@ -47,10 +47,13 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
     /* -------------------------------------------------------------------------- */
 
     /// @notice Last processed epoch counter from Internal States Orchestrator
-    uint256 public lastProcessedEpoch;
+    uint16 public lastProcessedEpoch;
 
     /// @notice Upkeep phase
     LiquidityUpkeepPhase public currentPhase;
+
+    /// @notice Execution minibatch size
+    uint8 public executionMinibatchSize;
 
     /* -------------------------------------------------------------------------- */
     /*                               MODIFIERS                                  */
@@ -78,6 +81,7 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
         automationRegistry = automationRegistry_;
         lastProcessedEpoch = 0;
         currentPhase = LiquidityUpkeepPhase.Idle;
+        executionMinibatchSize = 1;
     }
 
     /// @notice Updates the orchestrator from the config contract
@@ -88,6 +92,13 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
 
         internalStatesOrchestrator = IInternalStateOrchestrator(config.internalStatesOrchestrator());
         underlyingAsset = address(config.underlyingAsset());
+    }
+
+    /// @inheritdoc ILiquidityOrchestrator
+    function updateExecutionMinibatchSize(uint8 _executionMinibatchSize) external onlyOwner {
+        if (_executionMinibatchSize == 0) revert ErrorsLib.InvalidArguments();
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+        executionMinibatchSize = _executionMinibatchSize;
     }
 
     /// @inheritdoc ILiquidityOrchestrator
@@ -139,7 +150,7 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
 
     // TODO: docs when implemented.
     function checkUpkeep(bytes calldata) external view override returns (bool upkeepNeeded, bytes memory performData) {
-        uint256 currentEpoch = internalStatesOrchestrator.epochCounter();
+        uint16 currentEpoch = internalStatesOrchestrator.epochCounter();
         if (currentEpoch > lastProcessedEpoch && config.isSystemIdle()) {
             upkeepNeeded = true;
             // TODO: same as internal states orchestrator, use bytes4 and encodePacked.
@@ -155,7 +166,7 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
     // TODO: refacto for scalability, same as internal states orchestrator.
     // TODO: docs when implemented.
     function performUpkeep(bytes calldata) external override onlyAutomationRegistry {
-        uint256 currentEpoch = internalStatesOrchestrator.epochCounter();
+        uint16 currentEpoch = internalStatesOrchestrator.epochCounter();
         if (currentEpoch <= lastProcessedEpoch) {
             return;
         }
@@ -175,31 +186,32 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
         (address[] memory sellingTokens, uint256[] memory sellingAmounts) = internalStatesOrchestrator
             .getSellingOrders();
 
+        // TODO: use executionMinibatchSize, akin to internal states orchestrator.
+
+        // TODO: analogous to internal state orchestrator,
+        // if (token == address(config.underlyingAsset())) pass for both sell and buy
+
         // Sell before buy, avoid undercollateralization risk.
-        for (uint256 i = 0; i < sellingTokens.length; i++) {
+        for (uint16 i = 0; i < sellingTokens.length; i++) {
             address token = sellingTokens[i];
             uint256 amount = sellingAmounts[i];
             _executeSell(token, amount);
         }
-
-        // TODO: Execution methodology could go further than batched buy/sell,
-        // breaking down each selling/buying order into multiple transactions,
-        // minimizing liquidity orchestrator market impact.
 
         // Measure intermediate underlying balance of this contract.
         // uint256 intermediateUnderlyingBalance = IERC20(underlyingAsset).balanceOf(address(this));
 
         (address[] memory buyingTokens, uint256[] memory buyingAmounts) = internalStatesOrchestrator.getBuyingOrders();
 
-        for (uint256 i = 0; i < buyingTokens.length; i++) {
+        for (uint16 i = 0; i < buyingTokens.length; i++) {
             address token = buyingTokens[i];
             uint256 amount = buyingAmounts[i];
             _executeBuy(token, amount);
         }
 
         address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
-        uint256 length = transparentVaults.length;
-        for (uint256 i = 0; i < length; i++) {
+        uint16 length = uint16(transparentVaults.length);
+        for (uint16 i = 0; i < length; i++) {
             IOrionTransparentVault vault = IOrionTransparentVault(transparentVaults[i]);
             // TODO: implement.
             // vault.updateVaultState(?, ?);
@@ -208,8 +220,8 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
         // TODO: to updateVaultState of encrypted vaults, get the encrypted sharesPerAsset executed by the liquidity
 
         address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
-        length = encryptedVaults.length;
-        for (uint256 i = 0; i < length; i++) {
+        length = uint16(encryptedVaults.length);
+        for (uint16 i = 0; i < length; i++) {
             IOrionEncryptedVault vault = IOrionEncryptedVault(encryptedVaults[i]);
             // TODO: implement.
             // vault.updateVaultState(?, ?);
@@ -241,7 +253,7 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
 
         // TODO: underlying asset/numeraire needs to be part of the whitelisted investment universe,
         // as if an order does not pass the underlying equivalent
-        // is set into the portfolio state for all vaults. As before, clear how to handle this point with privacy.
+        // is set into the portfolio state for all vaults.
 
         // Execute sell through adapter, pull shares from this contract and push underlying assets to it.
         adapter.sell(asset, amount);

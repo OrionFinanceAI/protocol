@@ -2,12 +2,11 @@
 pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract MockUnderlyingAsset is ERC20, Ownable {
+contract MockUnderlyingAsset is ERC20 {
     uint8 private _decimals;
 
-    constructor(uint8 decimals_) ERC20("USD Coin", "USDC") Ownable(msg.sender) {
+    constructor(uint8 decimals_) ERC20("USD Coin", "USDC") {
         _decimals = decimals_;
     }
 
@@ -15,7 +14,7 @@ contract MockUnderlyingAsset is ERC20, Ownable {
         return _decimals;
     }
 
-    function mint(address to, uint256 amount) external onlyOwner {
+    function mint(address to, uint256 amount) external {
         _mint(to, amount);
     }
 }

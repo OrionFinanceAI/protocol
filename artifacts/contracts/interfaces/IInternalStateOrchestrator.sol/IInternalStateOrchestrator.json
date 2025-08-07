@@ -45,9 +45,9 @@
       "name": "epochCounter",
       "outputs": [
         {
-          "internalType": "uint256",
+          "internalType": "uint16",
           "name": "",
-          "type": "uint256"
+          "type": "uint16"
         }
       ],
       "stateMutability": "view",
@@ -118,9 +118,27 @@
     {
       "inputs": [
         {
-          "internalType": "uint256",
+          "internalType": "uint8",
+          "name": "_transparentMinibatchSize",
+          "type": "uint8"
+        },
+        {
+          "internalType": "uint8",
+          "name": "_encryptedMinibatchSize",
+          "type": "uint8"
+        }
+      ],
+      "name": "updateMinibatchSizes",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint32",
           "name": "newUpdateInterval",
-          "type": "uint256"
+          "type": "uint32"
         }
       ],
       "name": "updateUpdateInterval",

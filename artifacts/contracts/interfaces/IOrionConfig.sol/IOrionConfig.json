@@ -58,19 +58,6 @@
       "type": "function"
     },
     {
-      "inputs": [],
-      "name": "encryptedMinibatchSize",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
       "inputs": [
         {
           "internalType": "enum EventsLib.VaultType",
@@ -105,9 +92,9 @@
     {
       "inputs": [
         {
-          "internalType": "uint256",
+          "internalType": "uint16",
           "name": "index",
-          "type": "uint256"
+          "type": "uint16"
         }
       ],
       "name": "getWhitelistedAssetAt",
@@ -305,11 +292,6 @@
           "internalType": "uint8",
           "name": "_priceAdapterDecimals",
           "type": "uint8"
-        },
-        {
-          "internalType": "uint256",
-          "name": "_encryptedMinibatchSize",
-          "type": "uint256"
         }
       ],
       "name": "setProtocolParams",
@@ -366,9 +348,9 @@
       "name": "whitelistedAssetsLength",
       "outputs": [
         {
-          "internalType": "uint256",
+          "internalType": "uint16",
           "name": "",
-          "type": "uint256"
+          "type": "uint16"
         }
       ],
       "stateMutability": "view",

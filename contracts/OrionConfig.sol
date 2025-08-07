@@ -29,17 +29,15 @@ import "./interfaces/IInternalStateOrchestrator.sol";
 contract OrionConfig is Ownable, IOrionConfig {
     // Protocol-wide configuration
     IERC20 public underlyingAsset;
+
     address public internalStatesOrchestrator;
     address public liquidityOrchestrator;
-
     address public transparentVaultFactory;
     address public encryptedVaultFactory;
-
     address public priceAdapterRegistry;
 
     // Protocol parameters
     uint8 public priceAdapterDecimals;
-    uint256 public encryptedMinibatchSize;
     uint8 public curatorIntentDecimals;
 
     // Vault-specific configuration
@@ -64,6 +62,11 @@ contract OrionConfig is Ownable, IOrionConfig {
     function setUnderlyingAsset(address asset) external onlyOwner {
         if (asset == address(0)) revert ErrorsLib.ZeroAddress();
         underlyingAsset = IERC20(asset);
+
+        bool inserted = whitelistedAssets.add(asset);
+        if (!inserted) revert ErrorsLib.AlreadyRegistered();
+
+        emit EventsLib.WhitelistedAssetAdded(asset);
     }
 
     /// @inheritdoc IOrionConfig
@@ -95,25 +98,16 @@ contract OrionConfig is Ownable, IOrionConfig {
     }
 
     /// @inheritdoc IOrionConfig
-    function setProtocolParams(
-        uint8 _curatorIntentDecimals,
-        uint8 _priceAdapterDecimals,
-        uint256 _encryptedMinibatchSize
-    ) external onlyOwner {
+    function setProtocolParams(uint8 _curatorIntentDecimals, uint8 _priceAdapterDecimals) external onlyOwner {
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         curatorIntentDecimals = _curatorIntentDecimals;
         priceAdapterDecimals = _priceAdapterDecimals;
-        encryptedMinibatchSize = _encryptedMinibatchSize;
 
         emit EventsLib.ProtocolParamsUpdated();
     }
 
     // === Whitelist Functions ===
-
-    // TODO: have the underlying asset as part of the whitelist investment universe,
-    // set oracle price defaulting to 1 and the execution defaulting to doing nothing.
-    // needed to gracefully handle reverted transactions due to high slippage.
 
     /// @inheritdoc IOrionConfig
     function addWhitelistedAsset(address asset, address priceAdapter, address executionAdapter) external onlyOwner {
@@ -129,11 +123,6 @@ contract OrionConfig is Ownable, IOrionConfig {
         emit EventsLib.WhitelistedAssetAdded(asset);
     }
 
-    // TODO: removeWhitelistedAsset being called on the config by the owner should have big implications on strategies,
-    // leading to forced liquidations of positions on that asset for each vault
-    // and starting to reject intents for that product.
-    // How to correctly handle internal accounting on this? And how to deal with intents that are already in the system?
-
     /// @inheritdoc IOrionConfig
     function removeWhitelistedAsset(address asset) external onlyOwner {
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
@@ -148,20 +137,20 @@ contract OrionConfig is Ownable, IOrionConfig {
     }
 
     /// @inheritdoc IOrionConfig
-    function whitelistedAssetsLength() external view returns (uint256) {
-        return whitelistedAssets.length();
+    function whitelistedAssetsLength() external view returns (uint16) {
+        return uint16(whitelistedAssets.length());
     }
 
     /// @inheritdoc IOrionConfig
-    function getWhitelistedAssetAt(uint256 index) external view returns (address) {
+    function getWhitelistedAssetAt(uint16 index) external view returns (address) {
         return whitelistedAssets.at(index);
     }
 
     /// @inheritdoc IOrionConfig
     function getAllWhitelistedAssets() external view returns (address[] memory assets) {
-        uint256 length = whitelistedAssets.length();
+        uint16 length = uint16(whitelistedAssets.length());
         assets = new address[](length);
-        for (uint256 i = 0; i < length; ++i) {
+        for (uint16 i = 0; i < length; ++i) {
             assets[i] = whitelistedAssets.at(i);
         }
         return assets;
@@ -209,9 +198,9 @@ contract OrionConfig is Ownable, IOrionConfig {
         EnumerableSet.AddressSet storage vaults = vaultType == EventsLib.VaultType.Encrypted
             ? encryptedVaults
             : transparentVaults;
-        uint256 length = vaults.length();
+        uint16 length = uint16(vaults.length());
         address[] memory vaultArray = new address[](length);
-        for (uint256 i = 0; i < length; ++i) {
+        for (uint16 i = 0; i < length; ++i) {
             vaultArray[i] = vaults.at(i);
         }
         return vaultArray;

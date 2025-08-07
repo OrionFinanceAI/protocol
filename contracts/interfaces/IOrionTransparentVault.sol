@@ -16,8 +16,8 @@ interface IOrionTransparentVault is IOrionVault {
     }
 
     /// @notice Submit a plaintext portfolio intent.
-    /// @param order Position structs array containing the tokens and plaintext weights.
-    function submitIntent(Position[] calldata order) external;
+    /// @param intent Position structs array containing the tokens and plaintext weights.
+    function submitIntent(Position[] calldata intent) external;
 
     /// @notice Get the transparent portfolio.
     /// @return tokens The tokens in the portfolio.
@@ -27,7 +27,7 @@ interface IOrionTransparentVault is IOrionVault {
     /// @notice Get the transparent intent.
     /// @return tokens The tokens in the intent.
     /// @return weights The weights in the intent.
-    function getIntent() external view returns (address[] memory tokens, uint256[] memory weights);
+    function getIntent() external view returns (address[] memory tokens, uint32[] memory weights);
 
     /// @notice Updates the vault's portfolio state and total assets
     /// @dev Can only be called by the liquidity orchestrator.

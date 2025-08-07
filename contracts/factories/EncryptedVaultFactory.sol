@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
 import "../interfaces/IOrionConfig.sol";
 import "../interfaces/IOrionVault.sol";
 import "../vaults/OrionEncryptedVault.sol";
@@ -13,11 +12,11 @@ import { EventsLib } from "../libraries/EventsLib.sol";
  * @notice A factory contract for creating Orion encrypted vaults
  * @dev This contract is responsible for creating new encrypted vaults only.
  */
-contract EncryptedVaultFactory is Ownable {
+contract EncryptedVaultFactory {
     /// @notice Orion Config contract address
     IOrionConfig public config;
 
-    constructor(address initialOwner, address configAddress) Ownable(initialOwner) {
+    constructor(address configAddress) {
         if (configAddress == address(0)) revert ErrorsLib.ZeroAddress();
 
         config = IOrionConfig(configAddress);
@@ -32,14 +31,17 @@ contract EncryptedVaultFactory is Ownable {
         address curator,
         string calldata name,
         string calldata symbol
-    ) external onlyOwner returns (address vault) {
+    ) external returns (address vault) {
+        address vaultOwner = msg.sender;
+
+        if (vaultOwner == address(0)) revert ErrorsLib.ZeroAddress();
         if (curator == address(0)) revert ErrorsLib.ZeroAddress();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
-        OrionEncryptedVault encryptedVault = new OrionEncryptedVault(curator, config, name, symbol);
+        OrionEncryptedVault encryptedVault = new OrionEncryptedVault(vaultOwner, curator, config, name, symbol);
         vault = address(encryptedVault);
 
         config.addOrionVault(vault, EventsLib.VaultType.Encrypted);
-        emit EventsLib.OrionVaultCreated(vault, curator, msg.sender, EventsLib.VaultType.Encrypted);
+        emit EventsLib.OrionVaultCreated(vault, vaultOwner, curator, EventsLib.VaultType.Encrypted);
     }
 }

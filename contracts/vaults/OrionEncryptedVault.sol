@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
+import { SepoliaConfig } from "@fhevm/solidity/config/ZamaConfig.sol";
 import { euint32, ebool, FHE } from "@fhevm/solidity/lib/FHE.sol";
 import "./OrionVault.sol";
 import "../interfaces/IOrionConfig.sol";
@@ -16,7 +17,7 @@ import { EventsLib } from "../libraries/EventsLib.sol";
  * The intents are submitted and stored in encrypted form using FHEVM, making this suitable for use cases requiring
  * privacy of the portfolio allocation strategy, while maintaining capital efficiency.
  */
-contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
+contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault {
     /// @notice Current portfolio shares per asset (w_0) - mapping of token address to live allocation
     mapping(address => euint32) internal _portfolio;
     address[] internal _portfolioKeys;
@@ -29,40 +30,48 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
     mapping(address => bool) internal _seenTokens;
 
     euint32 internal _ezero;
+    ebool internal _eTrue;
+
+    bool internal _isIntentValid;
 
     constructor(
-        address curatorAddress,
+        address vaultOwner,
+        address curator,
         IOrionConfig configAddress,
         string memory name,
         string memory symbol
-    ) OrionVault(curatorAddress, configAddress, name, symbol) {
+    ) OrionVault(vaultOwner, curator, configAddress, name, symbol) {
         _ezero = FHE.asEuint32(0);
+        _eTrue = FHE.asEbool(true);
     }
 
     /// --------- CURATOR FUNCTIONS ---------
 
     /// @inheritdoc IOrionEncryptedVault
-    function submitIntent(EncryptedPosition[] calldata order) external onlyCurator nonReentrant {
-        if (order.length == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
+    function submitIntent(
+        EncryptedIntent[] calldata intent,
+        bytes calldata inputProof
+    ) external onlyCurator nonReentrant {
+        if (intent.length == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
 
-        uint256 orderLength = order.length;
+        uint16 intentLength = uint16(intent.length);
         euint32 totalWeight = _ezero;
 
-        address[] memory tempKeys = new address[](orderLength);
-        euint32[] memory tempWeights = new euint32[](orderLength);
+        address[] memory tempKeys = new address[](intentLength);
+        euint32[] memory tempWeights = new euint32[](intentLength);
 
-        for (uint256 i = 0; i < orderLength; i++) {
-            address token = order[i].token;
-            euint32 weight = order[i].value;
+        ebool areWeightsValid = _eTrue;
 
+        for (uint16 i = 0; i < intentLength; i++) {
+            address token = intent[i].token;
             if (!config.isWhitelisted(token)) revert ErrorsLib.TokenNotWhitelisted(token);
 
-            // TODO: Additional check:
-            // https://docs.zama.ai/protocol/solidity-guides/smart-contract/inputs#validating-encrypted-inputs
+            euint32 weight = FHE.fromExternal(intent[i].weight, inputProof);
+            // slither-disable-next-line unused-return
+            FHE.allowThis(weight);
 
-            // TODO: Zama coprocessor to check isWeightValid == true, else
-            // ebool isWeightValid = FHE.gt(weight, ezero);
-            // ErrorsLib.AmountMustBeGreaterThanZero(token);
+            ebool isWeightValid = FHE.gt(weight, _ezero);
+            areWeightsValid = FHE.and(areWeightsValid, isWeightValid);
 
             if (_seenTokens[token]) revert ErrorsLib.TokenAlreadyInOrder(token);
 
@@ -73,21 +82,42 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
         }
         euint32 encryptedTotalWeight = FHE.asEuint32(uint32(10 ** config.curatorIntentDecimals()));
         ebool isTotalWeightValid = FHE.eq(totalWeight, encryptedTotalWeight);
-        // TODO: Zama coprocessor to check isTotalWeightValid
-        // bytes32[] memory cts = new bytes32[](1);
-        // cts[0] = FHE.toBytes32(isTotalWeightValid);
+
+        ebool isIntentEValid = FHE.and(areWeightsValid, isTotalWeightValid);
+        // slither-disable-next-line unused-return
+        FHE.allowThis(isIntentEValid);
+
+        bytes32[] memory cypherTexts = new bytes32[](1);
+        cypherTexts[0] = FHE.toBytes32(isIntentEValid);
+
+        // TODO: avoid multiple decryption requests, see:
         // https://docs.zama.ai/protocol/solidity-guides/smart-contract/oracle#overview
-        // else
-        // ErrorsLib.InvalidTotalWeight()
+
+        // slither-disable-next-line unused-return
+        FHE.requestDecryption(
+            // the list of encrypte values we want to decrypt
+            cypherTexts,
+            // the function selector the FHEVM backend will callback with the clear values as arguments
+            this.callbackDecryptSingleEbool.selector
+        );
+
+        // TODO: because of the asyncronicity of the FHEVM backend, we need to let the intent submission pass, the
+        // decrypted boolean will be stored in the _isIntentValid variable.
+        // This means the orcherstrator will then need to pull
+        // that value and check if it's true, dealing with the invalid vault.
+        // Also, think about hedge cases: should orchestrator force the bool
+        // to false after a batch? What if the curator's target portfolio
+        // is the previous epoch one?
+        // On the other hand, what if the curator submitted an invalid intent,
+        // but FHEVM backend didn't catch it and stored it yet? Need a third state.
 
         // Clear previous intent by setting weights to zero (state write after all external calls)
-        uint256 intentLength = _intentKeys.length;
-        for (uint256 i = 0; i < intentLength; i++) {
+        for (uint16 i = 0; i < uint16(_intentKeys.length); i++) {
             _intent[_intentKeys[i]] = _ezero;
         }
         delete _intentKeys;
 
-        for (uint256 i = 0; i < orderLength; i++) {
+        for (uint16 i = 0; i < intentLength; i++) {
             address token = tempKeys[i];
             _intent[token] = tempWeights[i];
             _intentKeys.push(token);
@@ -101,10 +131,10 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
 
     /// @inheritdoc IOrionEncryptedVault
     function getPortfolio() external view returns (address[] memory tokens, euint32[] memory sharesPerAsset) {
-        uint256 length = _portfolioKeys.length;
+        uint16 length = uint16(_portfolioKeys.length);
         tokens = new address[](length);
         sharesPerAsset = new euint32[](length);
-        for (uint256 i = 0; i < length; i++) {
+        for (uint16 i = 0; i < length; i++) {
             address token = _portfolioKeys[i];
             tokens[i] = token;
             sharesPerAsset[i] = _portfolio[token];
@@ -113,10 +143,10 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
 
     /// @inheritdoc IOrionEncryptedVault
     function getIntent() external view returns (address[] memory tokens, euint32[] memory weights) {
-        uint256 length = _intentKeys.length;
+        uint16 length = uint16(_intentKeys.length);
         tokens = new address[](length);
         weights = new euint32[](length);
-        for (uint256 i = 0; i < length; i++) {
+        for (uint16 i = 0; i < length; i++) {
             tokens[i] = _intentKeys[i];
             weights[i] = _intent[_intentKeys[i]];
         }
@@ -126,18 +156,18 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
 
     /// @inheritdoc IOrionEncryptedVault
     function updateVaultState(
-        EncryptedPosition[] calldata portfolio,
+        EncryptedPortfolio[] calldata portfolio,
         uint256 newTotalAssets
     ) external onlyLiquidityOrchestrator {
         // Clear previous portfolio by setting weights to zero
-        uint256 portfolioLength = _portfolioKeys.length;
-        for (uint256 i = 0; i < portfolioLength; i++) {
+        uint16 portfolioLength = uint16(_portfolioKeys.length);
+        for (uint16 i = 0; i < portfolioLength; i++) {
             _portfolio[_portfolioKeys[i]] = _ezero;
         }
         delete _portfolioKeys;
 
         // Update portfolio
-        for (uint256 i = 0; i < portfolioLength; i++) {
+        for (uint16 i = 0; i < portfolioLength; i++) {
             _portfolio[portfolio[i].token] = portfolio[i].value;
             _portfolioKeys.push(portfolio[i].token);
         }
@@ -146,5 +176,10 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
 
         // Emit event for tracking state updates
         emit EventsLib.VaultStateUpdated(newTotalAssets);
+    }
+
+    function callbackDecryptSingleEbool(uint256 requestID, bool decryptedInput, bytes[] memory signatures) external {
+        FHE.checkSignatures(requestID, signatures);
+        _isIntentValid = decryptedInput;
     }
 }
