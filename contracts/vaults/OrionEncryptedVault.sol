@@ -30,6 +30,9 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
     mapping(address => bool) internal _seenTokens;
 
     euint32 internal _ezero;
+    ebool internal _eTrue;
+
+    bool internal _isIntentValid;
 
     constructor(
         address vaultOwner,
@@ -39,32 +42,35 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
         string memory symbol
     ) OrionVault(vaultOwner, curator, configAddress, name, symbol) {
         _ezero = FHE.asEuint32(0);
+        _eTrue = FHE.asEbool(true);
     }
 
     /// --------- CURATOR FUNCTIONS ---------
 
     /// @inheritdoc IOrionEncryptedVault
-    function submitIntent(EncryptedPosition[] calldata order) external onlyCurator nonReentrant {
-        if (order.length == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
+    function submitIntent(
+        EncryptedIntent[] calldata intent,
+        bytes calldata inputProof
+    ) external onlyCurator nonReentrant {
+        if (intent.length == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
 
-        uint16 orderLength = uint16(order.length);
+        uint16 intentLength = uint16(intent.length);
         euint32 totalWeight = _ezero;
 
-        address[] memory tempKeys = new address[](orderLength);
-        euint32[] memory tempWeights = new euint32[](orderLength);
+        address[] memory tempKeys = new address[](intentLength);
+        euint32[] memory tempWeights = new euint32[](intentLength);
 
-        for (uint16 i = 0; i < orderLength; i++) {
-            address token = order[i].token;
-            euint32 weight = order[i].value;
+        ebool areWeightsValid = _eTrue;
 
+        for (uint16 i = 0; i < intentLength; i++) {
+            address token = intent[i].token;
             if (!config.isWhitelisted(token)) revert ErrorsLib.TokenNotWhitelisted(token);
 
-            // TODO: Additional check:
-            // https://docs.zama.ai/protocol/solidity-guides/smart-contract/inputs#validating-encrypted-inputs
+            euint32 weight = FHE.fromExternal(intent[i].weight, inputProof);
+            FHE.allowThis(weight);
 
-            // TODO: Zama coprocessor to check isWeightValid == true, else
-            // ebool isWeightValid = FHE.gt(weight, ezero);
-            // ErrorsLib.AmountMustBeGreaterThanZero(token);
+            ebool isWeightValid = FHE.gt(weight, _ezero);
+            areWeightsValid = FHE.and(areWeightsValid, isWeightValid);
 
             if (_seenTokens[token]) revert ErrorsLib.TokenAlreadyInOrder(token);
 
@@ -75,21 +81,40 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
         }
         euint32 encryptedTotalWeight = FHE.asEuint32(uint32(10 ** config.curatorIntentDecimals()));
         ebool isTotalWeightValid = FHE.eq(totalWeight, encryptedTotalWeight);
-        // TODO: Zama coprocessor to check isTotalWeightValid
-        // bytes32[] memory cts = new bytes32[](1);
-        // cts[0] = FHE.toBytes32(isTotalWeightValid);
+
+        ebool isIntentEValid = FHE.and(areWeightsValid, isTotalWeightValid);
+        FHE.allowThis(isIntentEValid);
+
+        bytes32[] memory cypherTexts = new bytes32[](1);
+        cypherTexts[0] = FHE.toBytes32(isIntentEValid);
+
+        // TODO: avoid multiple decryption requests, see:
         // https://docs.zama.ai/protocol/solidity-guides/smart-contract/oracle#overview
-        // else
-        // ErrorsLib.InvalidTotalWeight()
+
+        FHE.requestDecryption(
+            // the list of encrypte values we want to decrypt
+            cypherTexts,
+            // the function selector the FHEVM backend will callback with the clear values as arguments
+            this.callbackDecryptSingleEbool.selector
+        );
+
+        // TODO: because of the asyncronicity of the FHEVM backend, we need to let the intent submission pass, the
+        // decrypted boolean will be stored in the _isIntentValid variable.
+        // This means the orcherstrator will then need to pull
+        // that value and check if it's true, dealing with the invalid vault.
+        // Also, think about hedge cases: should orchestrator force the bool
+        // to false after a batch? What if the curator's target portfolio
+        // is the previous epoch one?
+        // On the other hand, what if the curator submitted an invalid intent,
+        // but FHEVM backend didn't catch it and stored it yet? Need a third state.
 
         // Clear previous intent by setting weights to zero (state write after all external calls)
-        uint16 intentLength = uint16(_intentKeys.length);
-        for (uint16 i = 0; i < intentLength; i++) {
+        for (uint16 i = 0; i < uint16(_intentKeys.length); i++) {
             _intent[_intentKeys[i]] = _ezero;
         }
         delete _intentKeys;
 
-        for (uint16 i = 0; i < orderLength; i++) {
+        for (uint16 i = 0; i < intentLength; i++) {
             address token = tempKeys[i];
             _intent[token] = tempWeights[i];
             _intentKeys.push(token);
@@ -128,7 +153,7 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
 
     /// @inheritdoc IOrionEncryptedVault
     function updateVaultState(
-        EncryptedPosition[] calldata portfolio,
+        EncryptedPortfolio[] calldata portfolio,
         uint256 newTotalAssets
     ) external onlyLiquidityOrchestrator {
         // Clear previous portfolio by setting weights to zero
@@ -148,5 +173,10 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
 
         // Emit event for tracking state updates
         emit EventsLib.VaultStateUpdated(newTotalAssets);
+    }
+
+    function callbackDecryptSingleEbool(uint256 requestID, bool decryptedInput, bytes[] memory signatures) external {
+        FHE.checkSignatures(requestID, signatures);
+        _isIntentValid = decryptedInput;
     }
 }

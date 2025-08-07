@@ -687,14 +687,19 @@
               "type": "address"
             },
             {
-              "internalType": "euint32",
-              "name": "value",
+              "internalType": "externalEuint32",
+              "name": "weight",
               "type": "bytes32"
             }
           ],
-          "internalType": "struct IOrionEncryptedVault.EncryptedPosition[]",
-          "name": "order",
+          "internalType": "struct IOrionEncryptedVault.EncryptedIntent[]",
+          "name": "intent",
           "type": "tuple[]"
+        },
+        {
+          "internalType": "bytes",
+          "name": "inputProof",
+          "type": "bytes"
         }
       ],
       "name": "submitIntent",
@@ -822,7 +827,7 @@
               "type": "bytes32"
             }
           ],
-          "internalType": "struct IOrionEncryptedVault.EncryptedPosition[]",
+          "internalType": "struct IOrionEncryptedVault.EncryptedPortfolio[]",
           "name": "portfolio",
           "type": "tuple[]"
         },

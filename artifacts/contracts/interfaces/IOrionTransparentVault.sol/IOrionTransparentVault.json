@@ -693,7 +693,7 @@
             }
           ],
           "internalType": "struct IOrionTransparentVault.Position[]",
-          "name": "order",
+          "name": "intent",
           "type": "tuple[]"
         }
       ],

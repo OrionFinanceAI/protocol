@@ -36,16 +36,16 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     /// --------- CURATOR FUNCTIONS ---------
 
     /// @inheritdoc IOrionTransparentVault
-    function submitIntent(Position[] calldata order) external onlyCurator {
-        if (order.length == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
+    function submitIntent(Position[] calldata intent) external onlyCurator {
+        if (intent.length == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
 
         _portfolioIntent.clear();
 
         uint256 totalWeight = 0;
-        uint16 orderLength = uint16(order.length);
-        for (uint16 i = 0; i < orderLength; i++) {
-            address token = order[i].token;
-            uint32 weight = order[i].value;
+        uint16 intentLength = uint16(intent.length);
+        for (uint16 i = 0; i < intentLength; i++) {
+            address token = intent[i].token;
+            uint32 weight = intent[i].value;
             if (!config.isWhitelisted(token)) revert ErrorsLib.TokenNotWhitelisted(token);
             if (weight == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(token);
             bool inserted = _portfolioIntent.set(token, weight);
