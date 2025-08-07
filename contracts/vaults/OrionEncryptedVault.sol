@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
+import { SepoliaConfig } from "@fhevm/solidity/config/ZamaConfig.sol";
 import { euint32, ebool, FHE } from "@fhevm/solidity/lib/FHE.sol";
 import "./OrionVault.sol";
 import "../interfaces/IOrionConfig.sol";
@@ -16,7 +17,7 @@ import { EventsLib } from "../libraries/EventsLib.sol";
  * The intents are submitted and stored in encrypted form using FHEVM, making this suitable for use cases requiring
  * privacy of the portfolio allocation strategy, while maintaining capital efficiency.
  */
-contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
+contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault {
     /// @notice Current portfolio shares per asset (w_0) - mapping of token address to live allocation
     mapping(address => euint32) internal _portfolio;
     address[] internal _portfolioKeys;

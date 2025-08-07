@@ -15,6 +15,7 @@ import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { EventsLib } from "../libraries/EventsLib.sol";
 import { UtilitiesLib } from "../libraries/UtilitiesLib.sol";
 import { FHE, euint32 } from "@fhevm/solidity/lib/FHE.sol";
+import { SepoliaConfig } from "@fhevm/solidity/config/ZamaConfig.sol";
 
 /**
  * @title Internal States Orchestrator
@@ -29,7 +30,7 @@ import { FHE, euint32 } from "@fhevm/solidity/lib/FHE.sol";
  *      Actual state modifications and transaction execution are handled by the Liquidity Orchestrator contract.
  *      Variable naming distinguishes measurements (x) from estimations (xHat).
  */
-contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateOrchestrator {
+contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, IInternalStateOrchestrator {
     /// @notice Chainlink Automation Registry address
     address public automationRegistry;
 
