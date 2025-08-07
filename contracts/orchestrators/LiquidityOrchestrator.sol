@@ -52,6 +52,9 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
     /// @notice Upkeep phase
     LiquidityUpkeepPhase public currentPhase;
 
+    /// @notice Execution minibatch size
+    uint8 public executionMinibatchSize;
+
     /* -------------------------------------------------------------------------- */
     /*                               MODIFIERS                                  */
     /* -------------------------------------------------------------------------- */
@@ -78,6 +81,7 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
         automationRegistry = automationRegistry_;
         lastProcessedEpoch = 0;
         currentPhase = LiquidityUpkeepPhase.Idle;
+        executionMinibatchSize = 1;
     }
 
     /// @notice Updates the orchestrator from the config contract
@@ -88,6 +92,13 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
 
         internalStatesOrchestrator = IInternalStateOrchestrator(config.internalStatesOrchestrator());
         underlyingAsset = address(config.underlyingAsset());
+    }
+
+    /// @inheritdoc ILiquidityOrchestrator
+    function updateExecutionMinibatchSize(uint8 _executionMinibatchSize) external onlyOwner {
+        if (_executionMinibatchSize == 0) revert ErrorsLib.InvalidArguments();
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+        executionMinibatchSize = _executionMinibatchSize;
     }
 
     /// @inheritdoc ILiquidityOrchestrator
@@ -175,16 +186,20 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
         (address[] memory sellingTokens, uint256[] memory sellingAmounts) = internalStatesOrchestrator
             .getSellingOrders();
 
+        // TODO: use executionMinibatchSiz, akin to internal states orchestrator.
+
+        // TODO: Execution methodology could go further than batched buy/sell,
+        // breaking down each selling/buying order into multiple transactions,
+        // minimizing liquidity orchestrator market impact. Use a flag to interpret the minibath parameter
+        // as the number of trades to execute in a single transaction vs the number of transactions to
+        // break down the execution of a single trade.
+
         // Sell before buy, avoid undercollateralization risk.
         for (uint16 i = 0; i < sellingTokens.length; i++) {
             address token = sellingTokens[i];
             uint256 amount = sellingAmounts[i];
             _executeSell(token, amount);
         }
-
-        // TODO: Execution methodology could go further than batched buy/sell,
-        // breaking down each selling/buying order into multiple transactions,
-        // minimizing liquidity orchestrator market impact.
 
         // Measure intermediate underlying balance of this contract.
         // uint256 intermediateUnderlyingBalance = IERC20(underlyingAsset).balanceOf(address(this));

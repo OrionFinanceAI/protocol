@@ -38,8 +38,6 @@ contract OrionConfig is Ownable, IOrionConfig {
 
     // Protocol parameters
     uint8 public priceAdapterDecimals;
-    uint8 public transparentMinibatchSize;
-    uint8 public encryptedMinibatchSize;
     uint8 public curatorIntentDecimals;
 
     // Vault-specific configuration
@@ -95,27 +93,16 @@ contract OrionConfig is Ownable, IOrionConfig {
     }
 
     /// @inheritdoc IOrionConfig
-    function setProtocolParams(
-        uint8 _curatorIntentDecimals,
-        uint8 _priceAdapterDecimals,
-        uint8 _transparentMinibatchSize,
-        uint8 _encryptedMinibatchSize
-    ) external onlyOwner {
+    function setProtocolParams(uint8 _curatorIntentDecimals, uint8 _priceAdapterDecimals) external onlyOwner {
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         curatorIntentDecimals = _curatorIntentDecimals;
         priceAdapterDecimals = _priceAdapterDecimals;
-        transparentMinibatchSize = _transparentMinibatchSize;
-        encryptedMinibatchSize = _encryptedMinibatchSize;
 
         emit EventsLib.ProtocolParamsUpdated();
     }
 
     // === Whitelist Functions ===
-
-    // TODO: have the underlying asset as part of the whitelist investment universe,
-    // set oracle price defaulting to 1 and the execution defaulting to doing nothing.
-    // needed to gracefully handle reverted transactions due to high slippage.
 
     /// @inheritdoc IOrionConfig
     function addWhitelistedAsset(address asset, address priceAdapter, address executionAdapter) external onlyOwner {
@@ -130,14 +117,6 @@ contract OrionConfig is Ownable, IOrionConfig {
 
         emit EventsLib.WhitelistedAssetAdded(asset);
     }
-
-    // TODO: removeWhitelistedAsset being called on the config by the owner should have big implications on strategies,
-    // leading to forced liquidations of positions on that asset for each vault
-    // and starting to reject intents for that product from the next epoch.
-    // TODO: How to correctly handle internal accounting on this?
-    // And how to deal with intents that are already in the system?
-    // Treat the order on the newly blacklisted asset as an high slippage one,
-    // keeping that money in underyling token ready for next rebalancing.
 
     /// @inheritdoc IOrionConfig
     function removeWhitelistedAsset(address asset) external onlyOwner {

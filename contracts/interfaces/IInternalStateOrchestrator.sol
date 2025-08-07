@@ -29,6 +29,11 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     /// @param newUpdateInterval The new update interval in seconds
     function updateUpdateInterval(uint32 newUpdateInterval) external;
 
+    /// @notice Updates the minibatch sizes
+    /// @param _transparentMinibatchSize The new transparent minibatch size
+    /// @param _encryptedMinibatchSize The new encrypted minibatch size
+    function updateMinibatchSizes(uint8 _transparentMinibatchSize, uint8 _encryptedMinibatchSize) external;
+
     /// @notice Get the selling orders
     /// @return tokens The tokens to sell
     /// @return amounts The amounts to sell in shares (converted from underlying assets)

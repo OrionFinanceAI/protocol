@@ -126,8 +126,8 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
         intentFactor = 10 ** config.curatorIntentDecimals();
         underlyingDecimals = IERC20Metadata(address(config.underlyingAsset())).decimals();
         priceAdapterPrecision = 10 ** config.priceAdapterDecimals();
-        transparentMinibatchSize = config.transparentMinibatchSize();
-        encryptedMinibatchSize = config.encryptedMinibatchSize();
+        transparentMinibatchSize = 1;
+        encryptedMinibatchSize = 1;
 
         automationRegistry = automationRegistry_;
 
@@ -149,8 +149,6 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
         intentFactor = 10 ** config.curatorIntentDecimals();
         underlyingDecimals = IERC20Metadata(address(config.underlyingAsset())).decimals();
         priceAdapterPrecision = 10 ** config.priceAdapterDecimals();
-        transparentMinibatchSize = config.transparentMinibatchSize();
-        encryptedMinibatchSize = config.encryptedMinibatchSize();
     }
 
     /// @inheritdoc IInternalStateOrchestrator
@@ -168,6 +166,15 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         updateInterval = newUpdateInterval;
+    }
+
+    /// @inheritdoc IInternalStateOrchestrator
+    function updateMinibatchSizes(uint8 _transparentMinibatchSize, uint8 _encryptedMinibatchSize) external onlyOwner {
+        if (_transparentMinibatchSize == 0 || _encryptedMinibatchSize == 0) revert ErrorsLib.InvalidArguments();
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+
+        transparentMinibatchSize = _transparentMinibatchSize;
+        encryptedMinibatchSize = _encryptedMinibatchSize;
     }
 
     /// @notice Checks if upkeep is needed based on time interval

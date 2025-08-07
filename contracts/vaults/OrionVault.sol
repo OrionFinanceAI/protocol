@@ -288,7 +288,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
     // TODO: Vault Owner to add vault-specific whitelist
     // (as long as subset of protocol whitelist) for higher auditability.
-    // Defaulting to protocol whitelist .
+    // Defaulting to protocol whitelist.
 
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
 

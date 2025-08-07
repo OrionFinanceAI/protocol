@@ -13,11 +13,14 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
         BuyingLeg,
         StateUpdate
     }
-    // TODO: assess the possibility of having a single Execution phase for both buy and sell legs.
 
     /// @notice Returns the current upkeep phase
     /// @return The current LiquidityUpkeepPhase
     function currentPhase() external view returns (LiquidityUpkeepPhase);
+
+    /// @notice Updates the execution minibatch size
+    /// @param _executionMinibatchSize The new execution minibatch size
+    function updateExecutionMinibatchSize(uint8 _executionMinibatchSize) external;
 
     /// @notice Updates the Chainlink Automation Registry address
     /// @param newAutomationRegistry The new automation registry address
