@@ -348,7 +348,11 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                 // Get and cache price if not already cached
                 uint256 price = _currentEpoch.priceHat[token];
                 if (price == 0) {
-                    price = registry.getPrice(token);
+                    if (token == address(config.underlyingAsset())) {
+                        price = 10 ** underlyingDecimals;
+                    } else {
+                        price = registry.getPrice(token);
+                    }
                     _currentEpoch.priceHat[token] = price;
                 }
 

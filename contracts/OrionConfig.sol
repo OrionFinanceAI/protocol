@@ -62,6 +62,11 @@ contract OrionConfig is Ownable, IOrionConfig {
     function setUnderlyingAsset(address asset) external onlyOwner {
         if (asset == address(0)) revert ErrorsLib.ZeroAddress();
         underlyingAsset = IERC20(asset);
+
+        bool inserted = whitelistedAssets.add(asset);
+        if (!inserted) revert ErrorsLib.AlreadyRegistered();
+
+        emit EventsLib.WhitelistedAssetAdded(asset);
     }
 
     /// @inheritdoc IOrionConfig

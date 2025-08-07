@@ -194,6 +194,9 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
         // as the number of trades to execute in a single transaction vs the number of transactions to
         // break down the execution of a single trade.
 
+        // TODO: analogous to internal state orchestrator,
+        // if (token == address(config.underlyingAsset())) pass for both sell and buy
+
         // Sell before buy, avoid undercollateralization risk.
         for (uint16 i = 0; i < sellingTokens.length; i++) {
             address token = sellingTokens[i];
