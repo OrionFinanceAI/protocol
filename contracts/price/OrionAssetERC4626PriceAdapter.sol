@@ -31,10 +31,7 @@ contract OrionAssetERC4626PriceAdapter is Ownable, IPriceAdapter {
         if (configAddress == address(0)) revert ErrorsLib.ZeroAddress();
 
         config = IOrionConfig(configAddress);
-
-        underlyingAsset = address(config.underlyingAsset());
-        underlyingAssetDecimals = IERC20Metadata(underlyingAsset).decimals();
-        priceAdapterDecimals = config.priceAdapterDecimals();
+        updateFromConfig();
     }
 
     /// @notice Updates the adapter from the config contract

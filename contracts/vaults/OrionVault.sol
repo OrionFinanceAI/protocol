@@ -121,9 +121,6 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, Ownable, IOrionVault {
         _totalPendingDeposits = 0;
         _totalPendingWithdrawals = 0;
 
-        /// TODO: underlyingDecimals computed both here and in InternalStatesOrchestrator.sol, avoid code duplication,
-        // compute it when setting underlying asset in the config contract.
-
         uint8 underlyingDecimals = IERC20Metadata(address(config_.underlyingAsset())).decimals();
         if (underlyingDecimals > 18) revert ErrorsLib.InvalidUnderlyingDecimals();
         uint8 deltaDecimals = uint8(18 - underlyingDecimals);

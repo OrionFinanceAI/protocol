@@ -131,8 +131,11 @@ contract OrionConfig is Ownable, IOrionConfig {
 
     // TODO: removeWhitelistedAsset being called on the config by the owner should have big implications on strategies,
     // leading to forced liquidations of positions on that asset for each vault
-    // and starting to reject intents for that product.
-    // How to correctly handle internal accounting on this? And how to deal with intents that are already in the system?
+    // and starting to reject intents for that product from the next epoch.
+    // TODO: How to correctly handle internal accounting on this?
+    // And how to deal with intents that are already in the system?
+    // Treat the order on the newly blacklisted asset as an high slippage one,
+    // keeping that money in underyling token ready for next rebalancing.
 
     /// @inheritdoc IOrionConfig
     function removeWhitelistedAsset(address asset) external onlyOwner {

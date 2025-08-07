@@ -13,6 +13,7 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
         BuyingLeg,
         StateUpdate
     }
+    // TODO: assess the possibility of having a single Execution phase for both buy and sell legs.
 
     /// @notice Returns the current upkeep phase
     /// @return The current LiquidityUpkeepPhase

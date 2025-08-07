@@ -339,7 +339,7 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
             // TODO: curator fee(TVL, return,...) - protocol fee(vault).
             // Protocol fee here can be different from the transparent vaults because of added costs.
         }
-        // TODO: decrypot minibatch and incrementally add to initialBatchPortfolioHat, finalBatchPortfolioHat.
+        // TODO: decrypt minibatch and incrementally add to initialBatchPortfolioHat, finalBatchPortfolioHat.
 
         // TODO: same for estimated total assets.
         currentEncryptedMinibatchIndex++;

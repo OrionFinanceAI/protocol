@@ -30,14 +30,9 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
         IOrionConfig configAddress,
         string memory name,
         string memory symbol
-    ) OrionVault(curatorAddress, configAddress, name, symbol) {
-        // Constructor body is empty as all initialization is handled by the base contract
-    }
+    ) OrionVault(curatorAddress, configAddress, name, symbol) {}
 
     /// --------- CURATOR FUNCTIONS ---------
-
-    // TODO: Enable stricter auditability properties: curator to set max position size in % TVL.
-    // Default value to 10 ** curatorIntentDecimals.
 
     /// @inheritdoc IOrionTransparentVault
     function submitIntent(Position[] calldata order) external onlyCurator {
