@@ -67,6 +67,7 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
             if (!config.isWhitelisted(token)) revert ErrorsLib.TokenNotWhitelisted(token);
 
             euint32 weight = FHE.fromExternal(intent[i].weight, inputProof);
+            // slither-disable-next-line unused-return
             FHE.allowThis(weight);
 
             ebool isWeightValid = FHE.gt(weight, _ezero);
@@ -83,6 +84,7 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
         ebool isTotalWeightValid = FHE.eq(totalWeight, encryptedTotalWeight);
 
         ebool isIntentEValid = FHE.and(areWeightsValid, isTotalWeightValid);
+        // slither-disable-next-line unused-return
         FHE.allowThis(isIntentEValid);
 
         bytes32[] memory cypherTexts = new bytes32[](1);
@@ -91,6 +93,7 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
         // TODO: avoid multiple decryption requests, see:
         // https://docs.zama.ai/protocol/solidity-guides/smart-contract/oracle#overview
 
+        // slither-disable-next-line unused-return
         FHE.requestDecryption(
             // the list of encrypte values we want to decrypt
             cypherTexts,
