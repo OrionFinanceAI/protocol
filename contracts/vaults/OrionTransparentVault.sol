@@ -26,11 +26,12 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     EnumerableMap.AddressToUintMap internal _portfolioIntent;
 
     constructor(
-        address curatorAddress,
+        address vaultOwner,
+        address curator,
         IOrionConfig configAddress,
         string memory name,
         string memory symbol
-    ) OrionVault(curatorAddress, configAddress, name, symbol) {}
+    ) OrionVault(vaultOwner, curator, configAddress, name, symbol) {}
 
     /// --------- CURATOR FUNCTIONS ---------
 

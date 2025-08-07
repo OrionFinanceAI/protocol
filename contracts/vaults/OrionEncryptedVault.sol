@@ -31,11 +31,12 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
     euint32 internal _ezero;
 
     constructor(
-        address curatorAddress,
+        address vaultOwner,
+        address curator,
         IOrionConfig configAddress,
         string memory name,
         string memory symbol
-    ) OrionVault(curatorAddress, configAddress, name, symbol) {
+    ) OrionVault(vaultOwner, curator, configAddress, name, symbol) {
         _ezero = FHE.asEuint32(0);
     }
 

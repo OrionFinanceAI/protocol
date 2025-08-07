@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
 import "../interfaces/IExecutionAdapter.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import "@openzeppelin/contracts/interfaces/IERC4626.sol";
@@ -15,7 +14,7 @@ import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
  * @dev This adapter handles the conversion between underlying assets and vault shares.
  *      It is not safe to use this adapter with vaults that are based on a different asset.
  */
-contract OrionAssetERC4626ExecutionAdapter is Ownable, IExecutionAdapter {
+contract OrionAssetERC4626ExecutionAdapter is IExecutionAdapter {
     using SafeERC20 for IERC20;
 
     /// @notice The Orion config contract
@@ -35,13 +34,14 @@ contract OrionAssetERC4626ExecutionAdapter is Ownable, IExecutionAdapter {
         _;
     }
 
-    /// @param initialOwner The address of the initial owner
     /// @param configAddress The address of the Orion config contract
-    constructor(address initialOwner, address configAddress) Ownable(initialOwner) {
+    constructor(address configAddress) {
         if (configAddress == address(0)) revert ErrorsLib.ZeroAddress();
 
         config = IOrionConfig(configAddress);
-        updateFromConfig();
+        underlyingAsset = address(config.underlyingAsset());
+        underlyingAssetToken = IERC20(underlyingAsset);
+        liquidityOrchestrator = config.liquidityOrchestrator();
     }
 
     /// @notice Executes a buy operation by depositing underlying assets to get vault shares
@@ -100,16 +100,5 @@ contract OrionAssetERC4626ExecutionAdapter is Ownable, IExecutionAdapter {
         // Push the received underlying assets to the caller
         bool success = underlyingAssetToken.transfer(msg.sender, assets);
         if (!success) revert ErrorsLib.TransferFailed();
-    }
-
-    /// @notice Updates the adapter from the config contract
-    /// @dev This function is called by the owner to update the adapter
-    ///      when the config contract is updated.
-    function updateFromConfig() public onlyOwner {
-        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
-
-        underlyingAsset = address(config.underlyingAsset());
-        underlyingAssetToken = IERC20(underlyingAsset);
-        liquidityOrchestrator = config.liquidityOrchestrator();
     }
 }

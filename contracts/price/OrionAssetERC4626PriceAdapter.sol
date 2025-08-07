@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
 import "../interfaces/IPriceAdapter.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
@@ -14,7 +13,7 @@ import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
  * @dev This adapter assumes that the target vault and the Orion protocol use the same underlying asset.
  *      It is not safe to use this adapter with vaults that are based on a different asset.
  */
-contract OrionAssetERC4626PriceAdapter is Ownable, IPriceAdapter {
+contract OrionAssetERC4626PriceAdapter is IPriceAdapter {
     /// @notice Orion Config contract address
     IOrionConfig public config;
 
@@ -27,19 +26,10 @@ contract OrionAssetERC4626PriceAdapter is Ownable, IPriceAdapter {
     /// @notice Price Adapter Precision
     uint8 public priceAdapterDecimals;
 
-    constructor(address initialOwner, address configAddress) Ownable(initialOwner) {
+    constructor(address configAddress) {
         if (configAddress == address(0)) revert ErrorsLib.ZeroAddress();
 
         config = IOrionConfig(configAddress);
-        updateFromConfig();
-    }
-
-    /// @notice Updates the adapter from the config contract
-    /// @dev This function is called by the owner to update the adapter
-    ///      when the config contract is updated.
-    function updateFromConfig() public onlyOwner {
-        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
-
         underlyingAsset = address(config.underlyingAsset());
         underlyingAssetDecimals = IERC20Metadata(underlyingAsset).decimals();
         priceAdapterDecimals = config.priceAdapterDecimals();

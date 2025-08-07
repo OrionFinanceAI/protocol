@@ -30,7 +30,7 @@ beforeEach(async function () {
   await orionConfig.waitForDeployment();
 
   const TransparentVaultFactoryFactory = await ethers.getContractFactory("TransparentVaultFactory");
-  transparentVaultFactory = await TransparentVaultFactoryFactory.deploy(owner.address, await orionConfig.getAddress());
+  transparentVaultFactory = await TransparentVaultFactoryFactory.deploy(await orionConfig.getAddress());
   await transparentVaultFactory.waitForDeployment();
 
   await orionConfig.setUnderlyingAsset(await underlyingAsset.getAddress());
@@ -66,7 +66,6 @@ beforeEach(async function () {
 describe("TransparentVaultFactory", function () {
   describe("Initialization", function () {
     it("Should initialize with correct parameters", async function () {
-      expect(await transparentVaultFactory.owner()).to.equal(owner.address);
       expect(await transparentVaultFactory.config()).to.equal(await orionConfig.getAddress());
     });
   });

@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
-
 import "../interfaces/IPriceAdapterRegistry.sol";
 import "../interfaces/IPriceAdapter.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
@@ -13,7 +11,7 @@ import { EventsLib } from "../libraries/EventsLib.sol";
  * @notice A registry contract that manages price adapters for different assets in the Orion protocol.
  * @dev This contract allows the configuration of price adapters for various assets in the investment universe.
  */
-contract PriceAdapterRegistry is Ownable, IPriceAdapterRegistry {
+contract PriceAdapterRegistry is IPriceAdapterRegistry {
     /// @notice Orion Config contract address
     address public configAddress;
 
@@ -25,7 +23,7 @@ contract PriceAdapterRegistry is Ownable, IPriceAdapterRegistry {
         _;
     }
 
-    constructor(address initialOwner, address configAddress_) Ownable(initialOwner) {
+    constructor(address configAddress_) {
         if (configAddress_ == address(0)) revert ErrorsLib.ZeroAddress();
 
         configAddress = configAddress_;

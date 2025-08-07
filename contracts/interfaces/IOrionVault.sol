@@ -9,10 +9,21 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 interface IOrionVault is IERC4626 {
     // State variables (public getters)
     function config() external view returns (IOrionConfig);
+    function vaultOwner() external view returns (address);
     function curator() external view returns (address);
-    function deployer() external view returns (address);
 
-    // LP Functions
+    /// @notice Convert shares to assets with point in time total assets.
+    /// @param shares The amount of shares to convert.
+    /// @param pointInTimeTotalAssets The point in time total assets.
+    /// @param rounding The rounding mode.
+    /// @return The amount of assets.
+    function convertToAssetsWithPITTotalAssets(
+        uint256 shares,
+        uint256 pointInTimeTotalAssets,
+        Math.Rounding rounding
+    ) external view returns (uint256);
+
+    /// --------- LP FUNCTIONS ---------
 
     /// @notice Submit an asynchronous deposit request.
     /// @dev No share tokens are minted immediately. The specified amount of underlying tokens
@@ -42,18 +53,16 @@ interface IOrionVault is IERC4626 {
     /// @param shares The amount of share tokens to recover.
     function cancelWithdrawRequest(uint256 shares) external;
 
-    /// @notice Convert shares to assets with point in time total assets.
-    /// @param shares The amount of shares to convert.
-    /// @param pointInTimeTotalAssets The point in time total assets.
-    /// @param rounding The rounding mode.
-    /// @return The amount of assets.
-    function convertToAssetsWithPITTotalAssets(
-        uint256 shares,
-        uint256 pointInTimeTotalAssets,
-        Math.Rounding rounding
-    ) external view returns (uint256);
+    // --------- VAULT OWNER AND CURATOR FUNCTIONS ---------
 
-    // Internal States Orchestrator Functions
+    /// @notice Update the vault curator address
+    /// @param newCurator The new curator address. Must be non-zero.
+    /// @dev The curator is responsible for setting allocation strategy for the vault's assets.
+    ///      This function enables vault owners to change allocation strategies by updating the curator.
+    ///      This is particularly important when curators are smart contracts, not just addresses.
+    function updateCurator(address newCurator) external;
+
+    /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
 
     /// @notice Get total pending deposit amount across all users
     /// @return Total pending deposits denominated in underlying asset units (e.g., USDC, ETH)
@@ -65,7 +74,7 @@ interface IOrionVault is IERC4626 {
     /// @dev This returns share amounts, not underlying asset amounts
     function getPendingWithdrawals() external view returns (uint256);
 
-    // Liquidity Orchestrator Functions
+    /// --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
 
     /// @notice Process deposit requests from LPs and reset the requestor's request amount
     function processDepositRequests() external;

@@ -4,7 +4,6 @@ pragma solidity ^0.8.28;
 import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "../interfaces/IOrionConfig.sol";
 import "../interfaces/IOrionVault.sol";
@@ -60,13 +59,13 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
  *      While the curator can estimate this value reading the vault's state and adapter prices,
  *      the actual value at time of execution may differ.
  */
-abstract contract OrionVault is ERC4626, ReentrancyGuard, Ownable, IOrionVault {
+abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     using Math for uint256;
     using EnumerableMap for EnumerableMap.AddressToUintMap;
 
     IOrionConfig public config;
+    address public vaultOwner;
     address public curator;
-    address public deployer;
 
     /// @notice Total assets under management (t_0) - denominated in underlying asset units
     uint256 internal _totalAssets;
@@ -90,31 +89,41 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, Ownable, IOrionVault {
     /// @notice Factor to convert between underlying and share decimals
     uint256 private _deltaFactor;
 
+    /// @dev Restricts function to only vault owner
+    modifier onlyVaultOwner() {
+        if (msg.sender != vaultOwner) revert ErrorsLib.UnauthorizedAccess();
+        _;
+    }
+
+    /// @dev Restricts function to only vault curator
     modifier onlyCurator() {
         if (msg.sender != curator) revert ErrorsLib.UnauthorizedAccess();
         _;
     }
 
+    /// @dev Restricts function to only internal states orchestrator
     modifier onlyInternalStatesOrchestrator() {
         if (msg.sender != config.internalStatesOrchestrator()) revert ErrorsLib.UnauthorizedAccess();
         _;
     }
 
+    /// @dev Restricts function to only liquidity orchestrator
     modifier onlyLiquidityOrchestrator() {
         if (msg.sender != config.liquidityOrchestrator()) revert ErrorsLib.UnauthorizedAccess();
         _;
     }
 
     constructor(
+        address vaultOwner_,
         address curator_,
         IOrionConfig config_,
         string memory name_,
         string memory symbol_
-    ) ERC20(name_, symbol_) ERC4626(IERC20Metadata(address(config_.underlyingAsset()))) Ownable(curator_) {
+    ) ERC20(name_, symbol_) ERC4626(IERC20Metadata(address(config_.underlyingAsset()))) {
         if (curator_ == address(0)) revert ErrorsLib.InvalidAddress();
         if (address(config_) == address(0)) revert ErrorsLib.InvalidAddress();
 
-        deployer = msg.sender;
+        vaultOwner = vaultOwner_;
         curator = curator_;
         config = config_;
         _totalAssets = 0;
@@ -158,8 +167,8 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, Ownable, IOrionVault {
         return _convertToAssets(shares, Math.Rounding.Floor);
     }
 
-    // Defends with a "virtual offset"‑free formula recommended by OZ
-    // https://docs.openzeppelin.com/contracts/5.x/erc4626#defending_with_a_virtual_offset
+    /// @dev Defends with a "virtual offset"‑free formula recommended by OZ
+    /// @dev https://docs.openzeppelin.com/contracts/5.x/erc4626#defending_with_a_virtual_offset
     function _convertToAssets(uint256 shares, Math.Rounding rounding) internal view override returns (uint256) {
         return convertToAssetsWithPITTotalAssets(shares, _totalAssets, rounding);
     }
@@ -269,10 +278,17 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, Ownable, IOrionVault {
         emit EventsLib.WithdrawRequestCancelled(msg.sender, shares);
     }
 
-    /// --------- CURATOR FUNCTIONS ---------
+    /// --------- VAULT OWNER AND CURATOR FUNCTIONS ---------
 
-    // TODO: Curator to add vault-specific whitelist (as long as subset of protocol whitelist) for higher auditability.
-    // Defaulting to protocol whitelist (so when protocol whitelist updated, vault whitelist is updated as well).
+    /// @inheritdoc IOrionVault
+    function updateCurator(address newCurator) external onlyVaultOwner {
+        if (newCurator == address(0)) revert ErrorsLib.InvalidAddress();
+        curator = newCurator;
+    }
+
+    // TODO: Vault Owner to add vault-specific whitelist
+    // (as long as subset of protocol whitelist) for higher auditability.
+    // Defaulting to protocol whitelist .
 
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
 

@@ -29,7 +29,7 @@ describe("OrionVault Exchange Rate Tests", function () {
 
     // Deploy PriceAdapterRegistry
     const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistry");
-    const priceAdapterRegistry = await PriceAdapterRegistryFactory.deploy(owner.address, configAddress);
+    const priceAdapterRegistry = await PriceAdapterRegistryFactory.deploy(configAddress);
     await priceAdapterRegistry.waitForDeployment();
 
     // Deploy InternalStatesOrchestrator
@@ -64,7 +64,13 @@ describe("OrionVault Exchange Rate Tests", function () {
 
     // Deploy OrionTransparentVault with correct constructor parameters
     const OrionTransparentVaultFactory = await ethers.getContractFactory("OrionTransparentVault");
-    const vault = await OrionTransparentVaultFactory.deploy(curator.address, configAddress, "Test Vault", "TV");
+    const vault = await OrionTransparentVaultFactory.deploy(
+      owner.address,
+      curator.address,
+      configAddress,
+      "Test Vault",
+      "TV",
+    );
     await vault.waitForDeployment();
 
     // Mint underlying assets to all participants

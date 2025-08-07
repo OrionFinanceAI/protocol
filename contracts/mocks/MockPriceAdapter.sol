@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
 import { IPriceAdapter } from "../interfaces/IPriceAdapter.sol";
 
 /// @title Price Adapter mock
 /// @notice One instance per asset. Produces pseudo‑random prices for testing.
-contract MockPriceAdapter is Ownable, IPriceAdapter {
-    constructor(address initialOwner) Ownable(initialOwner) {}
+contract MockPriceAdapter is IPriceAdapter {
+    constructor() {}
 
     /// @inheritdoc IPriceAdapter
     function price(address asset) external view returns (uint256) {

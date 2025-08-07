@@ -106,13 +106,13 @@ library EventsLib {
 
     /// @notice A new Orion Vault has been created.
     /// @param vault The address of the newly created vault.
+    /// @param vaultOwner The address of the vault's owner.
     /// @param curator The address of the vault's curator.
-    /// @param deployer The address of the vault's deployer.
     /// @param vaultType The type of vault that was created (Transparent or Encrypted).
     event OrionVaultCreated(
         address indexed vault,
+        address indexed vaultOwner,
         address indexed curator,
-        address indexed deployer,
         VaultType vaultType
     );
 }
