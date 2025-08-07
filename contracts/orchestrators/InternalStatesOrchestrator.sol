@@ -13,6 +13,7 @@ import "../interfaces/IPriceAdapterRegistry.sol";
 import "../interfaces/IInternalStateOrchestrator.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { EventsLib } from "../libraries/EventsLib.sol";
+import { UtilitiesLib } from "../libraries/UtilitiesLib.sol";
 import { FHE, euint32 } from "@fhevm/solidity/lib/FHE.sol";
 
 /**
@@ -457,28 +458,6 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
         }
     }
 
-    /// @notice Helper function to convert value between token decimals and underlying asset decimals
-    /// @param amount The amount to convert
-    /// @param fromDecimals The decimals of the original amount
-    /// @param toDecimals The decimals to convert to
-    /// @return scaledAmount The amount converted to the target decimals
-    function _convertDecimals(
-        uint256 amount,
-        uint8 fromDecimals,
-        uint8 toDecimals
-    ) internal pure returns (uint256 scaledAmount) {
-        if (toDecimals > fromDecimals) {
-            // Scale up: multiply by the difference
-            scaledAmount = amount * (10 ** (toDecimals - fromDecimals));
-        } else if (toDecimals < fromDecimals) {
-            // Scale down: divide by the difference
-            scaledAmount = amount / (10 ** (fromDecimals - toDecimals));
-        } else {
-            // No conversion needed if decimals are the same
-            scaledAmount = amount;
-        }
-    }
-
     /// @notice Calculates token value in underlying asset decimals
     /// @dev Handles decimal conversion from token decimals to underlying asset decimals
     ///      Formula: value = (price * shares) / priceAdapterPrecision * 10^(underlyingDecimals - tokenDecimals)
@@ -493,7 +472,7 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
         uint8 tokenDecimals
     ) internal view returns (uint256 value) {
         uint256 baseValue = price * shares;
-        uint256 scaledValue = _convertDecimals(baseValue, tokenDecimals, underlyingDecimals);
+        uint256 scaledValue = UtilitiesLib.convertDecimals(baseValue, tokenDecimals, underlyingDecimals);
         value = scaledValue / priceAdapterPrecision;
     }
 
@@ -520,7 +499,7 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
         uint256 value,
         uint8 tokenDecimals
     ) internal view returns (uint256 shares) {
-        uint256 scaledValue = _convertDecimals(value, underlyingDecimals, tokenDecimals);
+        uint256 scaledValue = UtilitiesLib.convertDecimals(value, underlyingDecimals, tokenDecimals);
         shares = (scaledValue * priceAdapterPrecision) / price;
     }
 

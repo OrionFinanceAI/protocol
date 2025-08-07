@@ -5,6 +5,7 @@ import "../interfaces/IPriceAdapterRegistry.sol";
 import "../interfaces/IPriceAdapter.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { EventsLib } from "../libraries/EventsLib.sol";
+import { UtilitiesLib } from "../libraries/UtilitiesLib.sol";
 import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
@@ -64,27 +65,6 @@ contract PriceAdapterRegistry is IPriceAdapterRegistry, Ownable {
 
         (uint256 rawPrice, uint8 priceDecimals) = adapter.getPriceData(asset);
 
-        return _normalizePrice(rawPrice, priceDecimals, priceAdapterDecimals);
+        return UtilitiesLib.convertDecimals(rawPrice, priceDecimals, priceAdapterDecimals);
     }
-
-    /// @notice Normalizes a price from source decimals to target decimals
-    /// @param price The raw price to normalize
-    /// @param sourceDecimals The number of decimals in the source price
-    /// @param targetDecimals The number of decimals to normalize to
-    /// @return The normalized price
-    function _normalizePrice(
-        uint256 price,
-        uint8 sourceDecimals,
-        uint8 targetDecimals
-    ) internal pure returns (uint256) {
-        if (sourceDecimals == targetDecimals) {
-            return price;
-        } else if (sourceDecimals < targetDecimals) {
-            return price * (10 ** (targetDecimals - sourceDecimals));
-        } else {
-            return price / (10 ** (sourceDecimals - targetDecimals));
-        }
-    }
-    // TODO: same logic as _convertDecimals from InternalStatesOrchestrator.sol, avoid code duplication
-    // for security and readability.
 }
