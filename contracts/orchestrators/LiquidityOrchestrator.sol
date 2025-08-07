@@ -241,7 +241,7 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
 
         // TODO: underlying asset/numeraire needs to be part of the whitelisted investment universe,
         // as if an order does not pass the underlying equivalent
-        // is set into the portfolio state for all vaults. As before, clear how to handle this point with privacy.
+        // is set into the portfolio state for all vaults.
 
         // Execute sell through adapter, pull shares from this contract and push underlying assets to it.
         adapter.sell(asset, amount);
