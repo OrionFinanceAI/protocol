@@ -38,6 +38,10 @@ interface IOrionConfig {
 
     /// @notice Sets the underlying asset for the protocol
     /// @dev Can only be called by the contract owner
+    /// @dev The underlying asset is automatically added to the investment universe whitelist because:
+    /// @dev - Curators may decide to be underleveraged in their active positions;
+    /// @dev - High slippage transactions may revert and force liquidations from whitelisted assets;
+    /// @dev - removeWhitelistedAsset could trigger forced liquidations.
     /// @param asset The address of the underlying asset contract
     function setUnderlyingAsset(address asset) external;
 

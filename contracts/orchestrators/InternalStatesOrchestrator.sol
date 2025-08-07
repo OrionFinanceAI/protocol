@@ -274,7 +274,11 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                 // Get and cache price if not already cached
                 uint256 price = _currentEpoch.priceHat[token];
                 if (price == 0) {
-                    price = registry.getPrice(token);
+                    if (token == address(config.underlyingAsset())) {
+                        price = 10 ** underlyingDecimals;
+                    } else {
+                        price = registry.getPrice(token);
+                    }
                     _currentEpoch.priceHat[token] = price;
                 }
 
@@ -293,6 +297,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             // Calculate estimated (active and passive) total assets (t_2), same decimals as underlying.
             uint256 t2Hat = t1Hat + vault.getPendingDeposits() - pendingWithdrawalsHat;
             // TODO: - curator_fee(TVL, return, ...) - protocol_fee(vault)
+            // About protocol fee, add a comment saying we apply it to t2 and not t1 to avoid double counting.
 
             // TODO: Can we compute the amount of netting performed each epoch and use that as a proxy for epoch fees?
             // This should model the capital saved by lack of market impact/slippage associated with netted transaction.
@@ -312,6 +317,9 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             }
         }
     }
+
+    // TODO: a lot of code duplication _processEncryptedMinibatch
+    // and _processTransparentMinibatch, try to refactor.
 
     /// @notice Processes minibatch of encrypted vaults
     // slither-disable-start reentrancy-no-eth

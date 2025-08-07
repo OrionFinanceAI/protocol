@@ -186,13 +186,7 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
         (address[] memory sellingTokens, uint256[] memory sellingAmounts) = internalStatesOrchestrator
             .getSellingOrders();
 
-        // TODO: use executionMinibatchSiz, akin to internal states orchestrator.
-
-        // TODO: Execution methodology could go further than batched buy/sell,
-        // breaking down each selling/buying order into multiple transactions,
-        // minimizing liquidity orchestrator market impact. Use a flag to interpret the minibath parameter
-        // as the number of trades to execute in a single transaction vs the number of transactions to
-        // break down the execution of a single trade.
+        // TODO: use executionMinibatchSize, akin to internal states orchestrator.
 
         // TODO: analogous to internal state orchestrator,
         // if (token == address(config.underlyingAsset())) pass for both sell and buy
