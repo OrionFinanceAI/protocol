@@ -9,8 +9,10 @@ contract MockPriceAdapter is IPriceAdapter {
     constructor() {}
 
     /// @inheritdoc IPriceAdapter
-    function price(address asset) external view returns (uint256) {
+    function getPriceData(address asset) external view returns (uint256 price, uint8 decimals) {
         // *** Mock randomness *** — DO NOT use in production, returning values between 1 and 100
-        return (uint256(keccak256(abi.encodePacked(blockhash(block.number - 1), block.timestamp, asset))) % 100) + 1;
+        uint256 mockPrice = (uint256(keccak256(abi.encodePacked(blockhash(block.number - 1), block.timestamp, asset))) %
+            100) + 1;
+        return (mockPrice, 18); // Mock price with 18 decimals
     }
 }

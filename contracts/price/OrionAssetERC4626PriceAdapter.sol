@@ -23,23 +23,20 @@ contract OrionAssetERC4626PriceAdapter is IPriceAdapter {
     /// @notice Decimals of the underlying asset
     uint8 public underlyingAssetDecimals;
 
-    /// @notice Price Adapter Precision
-    uint8 public priceAdapterDecimals;
-
     constructor(address configAddress) {
         if (configAddress == address(0)) revert ErrorsLib.ZeroAddress();
 
         config = IOrionConfig(configAddress);
         underlyingAsset = address(config.underlyingAsset());
         underlyingAssetDecimals = IERC20Metadata(underlyingAsset).decimals();
-        priceAdapterDecimals = config.priceAdapterDecimals();
     }
 
-    /// @notice Returns the normalized price of one share of the given ERC4626 vault.
+    /// @inheritdoc IPriceAdapter
+    /// @notice Returns the raw price of one share of the given ERC4626 vault in underlying asset decimals.
     /// @param vaultAsset The address of the ERC4626-compliant vault.
-    /// @return The price of one share, normalized to priceAdapterDecimals decimals.
-    /// @dev The price is always scaled to priceAdapterDecimals decimals, regardless of the vault decimals.
-    function price(address vaultAsset) external view returns (uint256) {
+    /// @return price The raw price of one share in underlying asset decimals
+    /// @return decimals The number of decimals for the returned price (underlying asset decimals)
+    function getPriceData(address vaultAsset) external view returns (uint256 price, uint8 decimals) {
         try IERC4626(vaultAsset).asset() returns (address vaultUnderlyingAsset) {
             if (vaultUnderlyingAsset != underlyingAsset) revert ErrorsLib.InvalidAsset();
         } catch {
@@ -47,18 +44,9 @@ contract OrionAssetERC4626PriceAdapter is IPriceAdapter {
         }
 
         uint8 vaultAssetDecimals = IERC20Metadata(vaultAsset).decimals();
-
         uint256 oneShare = 10 ** vaultAssetDecimals;
         uint256 underlyingAssetAmount = IERC4626(vaultAsset).convertToAssets(oneShare);
-        // Normalize the price to priceAdapterDecimals decimals regardless of vault decimals
-        if (underlyingAssetDecimals == priceAdapterDecimals) {
-            return underlyingAssetAmount;
-        } else if (underlyingAssetDecimals < priceAdapterDecimals) {
-            return underlyingAssetAmount * (10 ** (priceAdapterDecimals - underlyingAssetDecimals));
-        } else {
-            return underlyingAssetAmount / (10 ** (underlyingAssetDecimals - priceAdapterDecimals));
-        }
-        // TODO: same logic as _convertDecimals from InternalStatesOrchestrator.sol, avoid code duplication
-        // for security and readability.
+
+        return (underlyingAssetAmount, underlyingAssetDecimals);
     }
 }

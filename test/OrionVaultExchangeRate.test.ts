@@ -29,7 +29,7 @@ describe("OrionVault Exchange Rate Tests", function () {
 
     // Deploy PriceAdapterRegistry
     const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistry");
-    const priceAdapterRegistry = await PriceAdapterRegistryFactory.deploy(configAddress);
+    const priceAdapterRegistry = await PriceAdapterRegistryFactory.deploy(owner.address, configAddress);
     await priceAdapterRegistry.waitForDeployment();
 
     // Deploy InternalStatesOrchestrator
