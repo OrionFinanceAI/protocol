@@ -59,7 +59,8 @@ describe("OrionVault Exchange Rate Tests", function () {
     await config.setProtocolParams(
       6, // curatorIntentDecimals
       6, // priceAdapterDecimals
-      1000, // encryptedMinibatchSize
+      100, // transparentMinibatchSize
+      150, // encryptedMinibatchSize
     );
 
     // Deploy OrionTransparentVault with correct constructor parameters

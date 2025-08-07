@@ -29,17 +29,17 @@ import "./interfaces/IInternalStateOrchestrator.sol";
 contract OrionConfig is Ownable, IOrionConfig {
     // Protocol-wide configuration
     IERC20 public underlyingAsset;
+
     address public internalStatesOrchestrator;
     address public liquidityOrchestrator;
-
     address public transparentVaultFactory;
     address public encryptedVaultFactory;
-
     address public priceAdapterRegistry;
 
     // Protocol parameters
     uint8 public priceAdapterDecimals;
-    uint256 public encryptedMinibatchSize;
+    uint8 public transparentMinibatchSize;
+    uint8 public encryptedMinibatchSize;
     uint8 public curatorIntentDecimals;
 
     // Vault-specific configuration
@@ -98,12 +98,14 @@ contract OrionConfig is Ownable, IOrionConfig {
     function setProtocolParams(
         uint8 _curatorIntentDecimals,
         uint8 _priceAdapterDecimals,
-        uint256 _encryptedMinibatchSize
+        uint8 _transparentMinibatchSize,
+        uint8 _encryptedMinibatchSize
     ) external onlyOwner {
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         curatorIntentDecimals = _curatorIntentDecimals;
         priceAdapterDecimals = _priceAdapterDecimals;
+        transparentMinibatchSize = _transparentMinibatchSize;
         encryptedMinibatchSize = _encryptedMinibatchSize;
 
         emit EventsLib.ProtocolParamsUpdated();

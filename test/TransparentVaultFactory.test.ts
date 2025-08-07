@@ -59,6 +59,7 @@ beforeEach(async function () {
   await orionConfig.setProtocolParams(
     6, // curatorIntentDecimals
     18, // priceAdapterDecimals
+    100, // transparentMinibatchSize
     100, // encryptedMinibatchSize
   );
 });

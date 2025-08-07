@@ -39,7 +39,12 @@ interface IOrionConfig {
     /// @notice Returns the encrypted minibatch size
     /// @dev This value is used to determine the size of the encrypted minibatch
     /// @return The encrypted minibatch size
-    function encryptedMinibatchSize() external view returns (uint256);
+    function transparentMinibatchSize() external view returns (uint8);
+
+    /// @notice Returns the encrypted minibatch size
+    /// @dev This value is used to determine the size of the encrypted minibatch
+    /// @return The encrypted minibatch size
+    function encryptedMinibatchSize() external view returns (uint8);
 
     /// @notice Sets the underlying asset for the protocol
     /// @dev Can only be called by the contract owner
@@ -70,13 +75,15 @@ interface IOrionConfig {
     /// @dev Can only be called by the contract owner
     /// @param _curatorIntentDecimals The number of decimal places for curator intents
     /// @param _priceAdapterDecimals The number of decimal places for price adapters
+    /// @param _transparentMinibatchSize The size of the transparent minibatch.
     /// @param _encryptedMinibatchSize The size of the encrypted minibatch. The owner can update this value while
     ///        the system is live (even if idle), to ensure that the number of vaults modulo minibatch size is not
     ///        too small.
     function setProtocolParams(
         uint8 _curatorIntentDecimals,
         uint8 _priceAdapterDecimals,
-        uint256 _encryptedMinibatchSize
+        uint8 _transparentMinibatchSize,
+        uint8 _encryptedMinibatchSize
     ) external;
 
     /// @notice Adds an asset to the whitelist
