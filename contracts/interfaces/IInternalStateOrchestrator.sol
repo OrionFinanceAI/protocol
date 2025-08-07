@@ -19,7 +19,7 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     function currentPhase() external view returns (InternalUpkeepPhase);
 
     /// @notice Returns the current epoch counter
-    function epochCounter() external view returns (uint256);
+    function epochCounter() external view returns (uint16);
 
     /// @notice Updates the Chainlink Automation Registry address
     /// @param newAutomationRegistry The new automation registry address
@@ -27,7 +27,7 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
 
     /// @notice Updates the update interval
     /// @param newUpdateInterval The new update interval in seconds
-    function updateUpdateInterval(uint256 newUpdateInterval) external;
+    function updateUpdateInterval(uint32 newUpdateInterval) external;
 
     /// @notice Get the selling orders
     /// @return tokens The tokens to sell

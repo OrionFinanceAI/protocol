@@ -42,8 +42,8 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
         _portfolioIntent.clear();
 
         uint256 totalWeight = 0;
-        uint256 orderLength = order.length;
-        for (uint256 i = 0; i < orderLength; i++) {
+        uint16 orderLength = uint16(order.length);
+        for (uint16 i = 0; i < orderLength; i++) {
             address token = order[i].token;
             uint32 weight = order[i].value;
             if (!config.isWhitelisted(token)) revert ErrorsLib.TokenNotWhitelisted(token);
@@ -63,10 +63,10 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
     /// @inheritdoc IOrionTransparentVault
     function getPortfolio() external view returns (address[] memory tokens, uint256[] memory sharesPerAsset) {
-        uint256 length = _portfolio.length();
+        uint16 length = uint16(_portfolio.length());
         tokens = new address[](length);
         sharesPerAsset = new uint256[](length);
-        for (uint256 i = 0; i < length; i++) {
+        for (uint16 i = 0; i < length; i++) {
             (address token, uint256 sharesPerAsset_) = _portfolio.at(i);
             tokens[i] = token;
             sharesPerAsset[i] = sharesPerAsset_;
@@ -74,14 +74,14 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     }
 
     /// @inheritdoc IOrionTransparentVault
-    function getIntent() external view returns (address[] memory tokens, uint256[] memory weights) {
-        uint256 length = _portfolioIntent.length();
+    function getIntent() external view returns (address[] memory tokens, uint32[] memory weights) {
+        uint16 length = uint16(_portfolioIntent.length());
         tokens = new address[](length);
-        weights = new uint256[](length);
-        for (uint256 i = 0; i < length; i++) {
+        weights = new uint32[](length);
+        for (uint16 i = 0; i < length; i++) {
             (address token, uint256 weight) = _portfolioIntent.at(i);
             tokens[i] = token;
-            weights[i] = weight;
+            weights[i] = uint32(weight);
         }
     }
 
@@ -94,8 +94,8 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     ) external onlyLiquidityOrchestrator {
         _portfolio.clear();
 
-        uint256 portfolioLength = portfolio.length;
-        for (uint256 i = 0; i < portfolioLength; i++) {
+        uint16 portfolioLength = uint16(portfolio.length);
+        for (uint16 i = 0; i < portfolioLength; i++) {
             // slither-disable-next-line unused-return
             _portfolio.set(portfolio[i].token, portfolio[i].value);
         }

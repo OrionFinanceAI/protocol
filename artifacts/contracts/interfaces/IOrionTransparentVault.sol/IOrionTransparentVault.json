@@ -367,9 +367,9 @@
           "type": "address[]"
         },
         {
-          "internalType": "uint256[]",
+          "internalType": "uint32[]",
           "name": "weights",
-          "type": "uint256[]"
+          "type": "uint32[]"
         }
       ],
       "stateMutability": "view",

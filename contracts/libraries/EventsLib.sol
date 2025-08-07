@@ -79,7 +79,7 @@ library EventsLib {
 
     /// @notice An internal state has been processed.
     /// @param epochCounter The current epoch counter after processing.
-    event InternalStateProcessed(uint256 epochCounter);
+    event InternalStateProcessed(uint16 epochCounter);
 
     // ================================
     // === Liquidity Orchestrator ===

@@ -49,8 +49,8 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
 
     /// @notice Action constants for checkUpkeep and performUpkeep
     bytes4 private constant ACTION_START = bytes4(keccak256("start()"));
-    bytes4 private constant ACTION_PROCESS_TRANSPARENT_VAULT = bytes4(keccak256("processTransparentVault(uint256)"));
-    bytes4 private constant ACTION_PROCESS_ENCRYPTED_VAULTS = bytes4(keccak256("processEncryptedVaults(uint256)"));
+    bytes4 private constant ACTION_PROCESS_TRANSPARENT_VAULT = bytes4(keccak256("processTransparentVault(uint8)"));
+    bytes4 private constant ACTION_PROCESS_ENCRYPTED_VAULTS = bytes4(keccak256("processEncryptedVaults(uint8)"));
     bytes4 private constant ACTION_AGGREGATE = bytes4(keccak256("aggregate()"));
 
     /* -------------------------------------------------------------------------- */
@@ -87,11 +87,11 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
     /* -------------------------------------------------------------------------- */
 
     /// @notice Counter for tracking processing cycles
-    uint256 public epochCounter;
+    uint16 public epochCounter;
     /// @notice Timestamp when the next upkeep is allowed
     uint256 private _nextUpdateTime;
     /// @notice Epoch duration
-    uint256 public updateInterval;
+    uint32 public updateInterval;
 
     /// @notice Minibatch sizes
     uint8 public transparentMinibatchSize;
@@ -101,7 +101,7 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
     InternalUpkeepPhase public currentPhase;
 
     /// @notice Current minibatch index
-    uint256 public currentMinibatchIndex;
+    uint8 public currentMinibatchIndex;
 
     /// @notice Vaults associated to the current epoch
     address[] public transparentVaultsEpoch;
@@ -163,7 +163,7 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
     }
 
     /// @inheritdoc IInternalStateOrchestrator
-    function updateUpdateInterval(uint256 newUpdateInterval) external onlyOwner {
+    function updateUpdateInterval(uint32 newUpdateInterval) external onlyOwner {
         if (newUpdateInterval == 0) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
@@ -236,16 +236,16 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
     function _processTransparentMinibatch(uint8 minibatchIndex) internal {
         currentMinibatchIndex++;
 
-        uint256 i0 = minibatchIndex * transparentMinibatchSize;
-        uint256 i1 = i0 + transparentMinibatchSize;
+        uint16 i0 = minibatchIndex * transparentMinibatchSize;
+        uint16 i1 = i0 + transparentMinibatchSize;
         if (i1 > transparentVaultsEpoch.length) {
-            i1 = transparentVaultsEpoch.length;
+            i1 = uint16(transparentVaultsEpoch.length);
             // Last minibatch, go to encrypted vaults phase next.
             currentPhase = InternalUpkeepPhase.ProcessingEncryptedVaults;
             currentMinibatchIndex = 0;
         }
 
-        for (uint256 i = i0; i < i1; i++) {
+        for (uint16 i = i0; i < i1; i++) {
             IOrionTransparentVault vault = IOrionTransparentVault(transparentVaultsEpoch[i]);
 
             (address[] memory portfolioTokens, uint256[] memory sharesPerAsset) = vault.getPortfolio();
@@ -253,7 +253,7 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
             // Calculate estimated active total assets (t_1) and populate batch portfolio
             uint256 t1Hat = 0;
 
-            for (uint256 j = 0; j < portfolioTokens.length; j++) {
+            for (uint16 j = 0; j < portfolioTokens.length; j++) {
                 address token = portfolioTokens[j];
 
                 // Get and cache token decimals if not already cached
@@ -289,11 +289,11 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
             // This should model the capital saved by lack of market impact/slippage associated with netted transaction.
             // Then 50 50 between vault and protocol?
 
-            (address[] memory intentTokens, uint256[] memory intentWeights) = vault.getIntent();
-            uint256 intentLength = intentTokens.length;
-            for (uint256 j = 0; j < intentLength; j++) {
+            (address[] memory intentTokens, uint32[] memory intentWeights) = vault.getIntent();
+            uint16 intentLength = uint16(intentTokens.length);
+            for (uint16 j = 0; j < intentLength; j++) {
                 address token = intentTokens[j];
-                uint256 weight = intentWeights[j];
+                uint32 weight = intentWeights[j];
 
                 // same decimals as underlying
                 uint256 value = (t2Hat * weight) / intentFactor;
@@ -310,16 +310,16 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
     function _processEncryptedMinibatch(uint8 minibatchIndex) internal nonReentrant {
         currentMinibatchIndex++;
 
-        uint256 i0 = minibatchIndex * encryptedMinibatchSize;
-        uint256 i1 = i0 + encryptedMinibatchSize;
+        uint16 i0 = minibatchIndex * encryptedMinibatchSize;
+        uint16 i1 = i0 + encryptedMinibatchSize;
         if (i1 > encryptedVaultsEpoch.length) {
-            i1 = encryptedVaultsEpoch.length;
+            i1 = uint16(encryptedVaultsEpoch.length);
             // Last minibatch, go to aggregating phase next.
             currentPhase = InternalUpkeepPhase.Aggregating;
             currentMinibatchIndex = 0;
         }
 
-        for (uint256 i = i0; i < i1; i++) {
+        for (uint16 i = i0; i < i1; i++) {
             IOrionEncryptedVault vault = IOrionEncryptedVault(encryptedVaultsEpoch[i]);
 
             (address[] memory portfolioTokens, euint32[] memory sharesPerAsset) = vault.getPortfolio();
@@ -327,7 +327,7 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
             // Calculate estimated active total assets (t_1) and populate batch portfolio
             euint32 encryptedT1Hat = FHE.asEuint32(0);
 
-            for (uint256 j = 0; j < portfolioTokens.length; j++) {
+            for (uint16 j = 0; j < portfolioTokens.length; j++) {
                 address token = portfolioTokens[j];
 
                 // Get and cache token decimals if not already cached
@@ -384,9 +384,9 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
     function _resetEpochState() internal {
         // Reset mappings for all tokens used in the previous epoch
         address[] memory tokens = _currentEpoch.tokens;
-        uint256 length = tokens.length;
+        uint16 length = uint16(tokens.length);
 
-        for (uint256 i = 0; i < length; i++) {
+        for (uint16 i = 0; i < length; i++) {
             address token = tokens[i];
             delete _currentEpoch.priceHat[token];
             delete _currentEpoch.initialBatchPortfolioHat[token];
@@ -420,9 +420,9 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
     ///      Buying orders remain in underlying assets as expected by the LiquidityOrchestrator
     function _computeRebalancingOrders() internal {
         address[] memory tokens = _currentEpoch.tokens;
-        uint256 length = tokens.length;
+        uint16 length = uint16(tokens.length);
 
-        for (uint256 i = 0; i < length; i++) {
+        for (uint16 i = 0; i < length; i++) {
             address token = tokens[i];
             uint256 initialValue = _currentEpoch.initialBatchPortfolioHat[token];
             uint256 finalValue = _currentEpoch.finalBatchPortfolioHat[token];
@@ -524,11 +524,11 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
     /// @inheritdoc IInternalStateOrchestrator
     function getSellingOrders() external view returns (address[] memory tokens, uint256[] memory amounts) {
         address[] memory allTokens = _currentEpoch.tokens;
-        uint256 allTokensLength = allTokens.length;
+        uint16 allTokensLength = uint16(allTokens.length);
 
         // Count non-zero selling orders
-        uint256 count = 0;
-        for (uint256 i = 0; i < allTokensLength; i++) {
+        uint16 count = 0;
+        for (uint16 i = 0; i < allTokensLength; i++) {
             if (_currentEpoch.sellingOrders[allTokens[i]] > 0) {
                 count++;
             }
@@ -539,8 +539,8 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
         amounts = new uint256[](count);
 
         // Fill arrays with non-zero values
-        uint256 index = 0;
-        for (uint256 i = 0; i < allTokensLength; i++) {
+        uint16 index = 0;
+        for (uint16 i = 0; i < allTokensLength; i++) {
             address token = allTokens[i];
             uint256 amount = _currentEpoch.sellingOrders[token];
             if (amount > 0) {
@@ -554,11 +554,11 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
     /// @inheritdoc IInternalStateOrchestrator
     function getBuyingOrders() external view returns (address[] memory tokens, uint256[] memory amounts) {
         address[] memory allTokens = _currentEpoch.tokens;
-        uint256 allTokensLength = allTokens.length;
+        uint16 allTokensLength = uint16(allTokens.length);
 
         // Count non-zero buying orders
-        uint256 count = 0;
-        for (uint256 i = 0; i < allTokensLength; i++) {
+        uint16 count = 0;
+        for (uint16 i = 0; i < allTokensLength; i++) {
             if (_currentEpoch.buyingOrders[allTokens[i]] > 0) {
                 count++;
             }
@@ -569,8 +569,8 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
         amounts = new uint256[](count);
 
         // Fill arrays with non-zero values
-        uint256 index = 0;
-        for (uint256 i = 0; i < allTokensLength; i++) {
+        uint16 index = 0;
+        for (uint16 i = 0; i < allTokensLength; i++) {
             address token = allTokens[i];
             uint256 amount = _currentEpoch.buyingOrders[token];
             if (amount > 0) {

@@ -46,13 +46,13 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
     function submitIntent(EncryptedPosition[] calldata order) external onlyCurator nonReentrant {
         if (order.length == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
 
-        uint256 orderLength = order.length;
+        uint16 orderLength = uint16(order.length);
         euint32 totalWeight = _ezero;
 
         address[] memory tempKeys = new address[](orderLength);
         euint32[] memory tempWeights = new euint32[](orderLength);
 
-        for (uint256 i = 0; i < orderLength; i++) {
+        for (uint16 i = 0; i < orderLength; i++) {
             address token = order[i].token;
             euint32 weight = order[i].value;
 
@@ -82,13 +82,13 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
         // ErrorsLib.InvalidTotalWeight()
 
         // Clear previous intent by setting weights to zero (state write after all external calls)
-        uint256 intentLength = _intentKeys.length;
-        for (uint256 i = 0; i < intentLength; i++) {
+        uint16 intentLength = uint16(_intentKeys.length);
+        for (uint16 i = 0; i < intentLength; i++) {
             _intent[_intentKeys[i]] = _ezero;
         }
         delete _intentKeys;
 
-        for (uint256 i = 0; i < orderLength; i++) {
+        for (uint16 i = 0; i < orderLength; i++) {
             address token = tempKeys[i];
             _intent[token] = tempWeights[i];
             _intentKeys.push(token);
@@ -102,10 +102,10 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
 
     /// @inheritdoc IOrionEncryptedVault
     function getPortfolio() external view returns (address[] memory tokens, euint32[] memory sharesPerAsset) {
-        uint256 length = _portfolioKeys.length;
+        uint16 length = uint16(_portfolioKeys.length);
         tokens = new address[](length);
         sharesPerAsset = new euint32[](length);
-        for (uint256 i = 0; i < length; i++) {
+        for (uint16 i = 0; i < length; i++) {
             address token = _portfolioKeys[i];
             tokens[i] = token;
             sharesPerAsset[i] = _portfolio[token];
@@ -114,10 +114,10 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
 
     /// @inheritdoc IOrionEncryptedVault
     function getIntent() external view returns (address[] memory tokens, euint32[] memory weights) {
-        uint256 length = _intentKeys.length;
+        uint16 length = uint16(_intentKeys.length);
         tokens = new address[](length);
         weights = new euint32[](length);
-        for (uint256 i = 0; i < length; i++) {
+        for (uint16 i = 0; i < length; i++) {
             tokens[i] = _intentKeys[i];
             weights[i] = _intent[_intentKeys[i]];
         }
@@ -131,14 +131,14 @@ contract OrionEncryptedVault is OrionVault, IOrionEncryptedVault {
         uint256 newTotalAssets
     ) external onlyLiquidityOrchestrator {
         // Clear previous portfolio by setting weights to zero
-        uint256 portfolioLength = _portfolioKeys.length;
-        for (uint256 i = 0; i < portfolioLength; i++) {
+        uint16 portfolioLength = uint16(_portfolioKeys.length);
+        for (uint16 i = 0; i < portfolioLength; i++) {
             _portfolio[_portfolioKeys[i]] = _ezero;
         }
         delete _portfolioKeys;
 
         // Update portfolio
-        for (uint256 i = 0; i < portfolioLength; i++) {
+        for (uint16 i = 0; i < portfolioLength; i++) {
             _portfolio[portfolio[i].token] = portfolio[i].value;
             _portfolioKeys.push(portfolio[i].token);
         }

@@ -153,20 +153,20 @@ contract OrionConfig is Ownable, IOrionConfig {
     }
 
     /// @inheritdoc IOrionConfig
-    function whitelistedAssetsLength() external view returns (uint256) {
-        return whitelistedAssets.length();
+    function whitelistedAssetsLength() external view returns (uint16) {
+        return uint16(whitelistedAssets.length());
     }
 
     /// @inheritdoc IOrionConfig
-    function getWhitelistedAssetAt(uint256 index) external view returns (address) {
+    function getWhitelistedAssetAt(uint16 index) external view returns (address) {
         return whitelistedAssets.at(index);
     }
 
     /// @inheritdoc IOrionConfig
     function getAllWhitelistedAssets() external view returns (address[] memory assets) {
-        uint256 length = whitelistedAssets.length();
+        uint16 length = uint16(whitelistedAssets.length());
         assets = new address[](length);
-        for (uint256 i = 0; i < length; ++i) {
+        for (uint16 i = 0; i < length; ++i) {
             assets[i] = whitelistedAssets.at(i);
         }
         return assets;
@@ -214,9 +214,9 @@ contract OrionConfig is Ownable, IOrionConfig {
         EnumerableSet.AddressSet storage vaults = vaultType == EventsLib.VaultType.Encrypted
             ? encryptedVaults
             : transparentVaults;
-        uint256 length = vaults.length();
+        uint16 length = uint16(vaults.length());
         address[] memory vaultArray = new address[](length);
-        for (uint256 i = 0; i < length; ++i) {
+        for (uint16 i = 0; i < length; ++i) {
             vaultArray[i] = vaults.at(i);
         }
         return vaultArray;

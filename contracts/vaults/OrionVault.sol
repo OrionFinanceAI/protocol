@@ -306,19 +306,19 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
     /// @inheritdoc IOrionVault
     function processDepositRequests() external onlyLiquidityOrchestrator nonReentrant {
-        uint256 length = _depositRequests.length();
+        uint32 length = uint32(_depositRequests.length());
         // Collect all requests first to avoid index shifting issues when removing during iteration
         address[] memory users = new address[](length);
         uint256[] memory amounts = new uint256[](length);
 
-        for (uint256 i = 0; i < length; i++) {
+        for (uint32 i = 0; i < length; i++) {
             (address user, uint256 amount) = _depositRequests.at(i);
             users[i] = user;
             amounts[i] = amount;
         }
 
         // Process all requests
-        for (uint256 i = 0; i < length; i++) {
+        for (uint32 i = 0; i < length; i++) {
             address user = users[i];
             uint256 amount = amounts[i];
             uint256 shares = previewDeposit(amount);
@@ -337,12 +337,12 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
     /// @inheritdoc IOrionVault
     function processWithdrawRequests() external onlyLiquidityOrchestrator nonReentrant {
-        uint256 length = _withdrawRequests.length();
+        uint32 length = uint32(_withdrawRequests.length());
         // Collect all requests first to avoid index shifting issues when removing during iteration
         address[] memory users = new address[](length);
         uint256[] memory sharesArray = new uint256[](length);
 
-        for (uint256 i = 0; i < length; i++) {
+        for (uint32 i = 0; i < length; i++) {
             (address user, uint256 shares) = _withdrawRequests.at(i);
             users[i] = user;
             sharesArray[i] = shares;
@@ -352,7 +352,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         _totalPendingWithdrawals = 0;
 
         // Process all requests
-        for (uint256 i = 0; i < length; i++) {
+        for (uint32 i = 0; i < length; i++) {
             address user = users[i];
             uint256 shares = sharesArray[i];
 
