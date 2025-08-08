@@ -285,13 +285,33 @@
       "inputs": [
         {
           "internalType": "uint8",
-          "name": "_curatorIntentDecimals",
+          "name": "curatorIntentDecimals",
           "type": "uint8"
         },
         {
           "internalType": "uint8",
-          "name": "_priceAdapterDecimals",
+          "name": "priceAdapterDecimals",
           "type": "uint8"
+        },
+        {
+          "internalType": "uint8",
+          "name": "curatorFeeDecimals",
+          "type": "uint8"
+        },
+        {
+          "internalType": "uint16",
+          "name": "maxManagementFee",
+          "type": "uint16"
+        },
+        {
+          "internalType": "uint16",
+          "name": "maxPerformanceFee",
+          "type": "uint16"
+        },
+        {
+          "internalType": "uint16",
+          "name": "riskFreeRate",
+          "type": "uint16"
         }
       ],
       "name": "setProtocolParams",

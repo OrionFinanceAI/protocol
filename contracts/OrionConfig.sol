@@ -37,8 +37,13 @@ contract OrionConfig is Ownable, IOrionConfig {
     address public priceAdapterRegistry;
 
     // Protocol parameters
-    uint8 public priceAdapterDecimals;
-    uint8 public curatorIntentDecimals;
+    uint8 public curatorIntentDecimals; // 9 for uint32
+    uint8 public priceAdapterDecimals; // 18 for uint256
+    uint8 public curatorFeeDecimals; // 4 for uint16
+
+    uint16 public maxManagementFee;
+    uint16 public maxPerformanceFee;
+    uint16 public riskFreeRate;
 
     // Vault-specific configuration
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -98,11 +103,22 @@ contract OrionConfig is Ownable, IOrionConfig {
     }
 
     /// @inheritdoc IOrionConfig
-    function setProtocolParams(uint8 _curatorIntentDecimals, uint8 _priceAdapterDecimals) external onlyOwner {
+    function setProtocolParams(
+        uint8 _curatorIntentDecimals,
+        uint8 _priceAdapterDecimals,
+        uint8 _curatorFeeDecimals,
+        uint16 _maxManagementFee,
+        uint16 _maxPerformanceFee,
+        uint16 _riskFreeRate
+    ) external onlyOwner {
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         curatorIntentDecimals = _curatorIntentDecimals;
         priceAdapterDecimals = _priceAdapterDecimals;
+        curatorFeeDecimals = _curatorFeeDecimals;
+        maxManagementFee = _maxManagementFee;
+        maxPerformanceFee = _maxPerformanceFee;
+        riskFreeRate = _riskFreeRate;
 
         emit EventsLib.ProtocolParamsUpdated();
     }

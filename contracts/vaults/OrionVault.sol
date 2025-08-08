@@ -65,6 +65,8 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
     using EnumerableSet for EnumerableSet.AddressSet;
 
+    uint32 constant YEAR_IN_SECONDS = 365 days;
+
     IOrionConfig public config;
     address public vaultOwner;
     address public curator;

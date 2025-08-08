@@ -66,11 +66,22 @@ interface IOrionConfig {
     /// @param registry The address of the price adapter registry
     function setPriceAdapterRegistry(address registry) external;
 
-    /// @notice Sets the core protocol parameters in a single transaction
+    /// @notice Sets the protocol parameters
     /// @dev Can only be called by the contract owner
-    /// @param _curatorIntentDecimals The number of decimal places for curator intents
-    /// @param _priceAdapterDecimals The number of decimal places for price adapters
-    function setProtocolParams(uint8 _curatorIntentDecimals, uint8 _priceAdapterDecimals) external;
+    /// @param curatorIntentDecimals The number of decimal places for curator intents
+    /// @param priceAdapterDecimals The number of decimal places for price adapters
+    /// @param curatorFeeDecimals The number of decimal places for curator fees
+    /// @param maxManagementFee The max management fee
+    /// @param maxPerformanceFee The max performance fee
+    /// @param riskFreeRate The risk-free rate
+    function setProtocolParams(
+        uint8 curatorIntentDecimals,
+        uint8 priceAdapterDecimals,
+        uint8 curatorFeeDecimals,
+        uint16 maxManagementFee,
+        uint16 maxPerformanceFee,
+        uint16 riskFreeRate
+    ) external;
 
     /// @notice Adds an asset to the whitelist
     /// @dev Can only be called by the contract owner

@@ -57,8 +57,12 @@ beforeEach(async function () {
   await orionConfig.setPriceAdapterRegistry(await other.address);
 
   await orionConfig.setProtocolParams(
-    6, // curatorIntentDecimals
+    9, // curatorIntentDecimals
     18, // priceAdapterDecimals
+    4, // curatorFeeDecimals
+    30000, // maxManagementFee
+    50000, // maxPerformanceFee
+    10000, // riskFreeRate
   );
 });
 
