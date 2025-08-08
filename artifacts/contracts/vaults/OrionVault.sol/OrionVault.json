@@ -241,6 +241,17 @@
       "type": "error"
     },
     {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "token",
+          "type": "address"
+        }
+      ],
+      "name": "TokenNotWhitelisted",
+      "type": "error"
+    },
+    {
       "inputs": [],
       "name": "TransferFailed",
       "type": "error"
@@ -1103,6 +1114,19 @@
         }
       ],
       "name": "updateCurator",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address[]",
+          "name": "assets",
+          "type": "address[]"
+        }
+      ],
+      "name": "updateVaultWhitelist",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

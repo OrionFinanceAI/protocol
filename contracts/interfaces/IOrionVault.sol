@@ -62,6 +62,10 @@ interface IOrionVault is IERC4626 {
     ///      This is particularly important when curators are smart contracts, not just addresses.
     function updateCurator(address newCurator) external;
 
+    /// @notice Update the vault whitelist
+    /// @param assets The new whitelist of assets.
+    function updateVaultWhitelist(address[] memory assets) external;
+
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
 
     /// @notice Get total pending deposit amount across all users

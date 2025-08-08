@@ -305,6 +305,20 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         curator = newCurator;
     }
 
+    /// @inheritdoc IOrionVault
+    function updateVaultWhitelist(address[] memory assets) external onlyVaultOwner {
+        _vaultWhitelistedAssets.clear();
+        for (uint256 i = 0; i < assets.length; i++) {
+            address token = assets[i];
+
+            // Protocol whitelist validation
+            if (!config.isWhitelisted(token)) revert ErrorsLib.TokenNotWhitelisted(token);
+
+            bool inserted = _vaultWhitelistedAssets.add(token);
+            if (!inserted) revert ErrorsLib.AlreadyRegistered();
+        }
+    }
+
     /// @notice Validate that all assets in an intent are whitelisted for this vault
     /// @param assets Array of asset addresses to validate
     /// @dev This function is used by derived contracts to validate curator intents
