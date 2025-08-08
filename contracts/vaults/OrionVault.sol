@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "../interfaces/IOrionConfig.sol";
 import "../interfaces/IOrionVault.sol";
 import "../interfaces/ILiquidityOrchestrator.sol";
@@ -62,10 +63,15 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     using Math for uint256;
     using EnumerableMap for EnumerableMap.AddressToUintMap;
+    using EnumerableSet for EnumerableSet.AddressSet;
 
     IOrionConfig public config;
     address public vaultOwner;
     address public curator;
+
+    /// @notice Vault-specific whitelist of assets for intent validation
+    /// @dev This is a subset of the protocol whitelist for higher auditability
+    EnumerableSet.AddressSet private _vaultWhitelistedAssets;
 
     /// @notice Total assets under management (t_0) - denominated in underlying asset units
     uint256 internal _totalAssets;
@@ -134,6 +140,19 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         if (underlyingDecimals > 18) revert ErrorsLib.InvalidUnderlyingDecimals();
         uint8 deltaDecimals = uint8(18 - underlyingDecimals);
         _deltaFactor = 10 ** deltaDecimals;
+
+        _initializeVaultWhitelist();
+    }
+
+    /// @notice Initialize the vault whitelist with all protocol whitelisted assets
+    /// @dev This sets the initial vault whitelist to match the protocol whitelist as a default.
+    ///      This can be overridden by the vault owner to set a subset of the protocol whitelist.
+    function _initializeVaultWhitelist() internal {
+        address[] memory protocolAssets = config.getAllWhitelistedAssets();
+        for (uint256 i = 0; i < protocolAssets.length; i++) {
+            bool inserted = _vaultWhitelistedAssets.add(protocolAssets[i]);
+            if (!inserted) revert ErrorsLib.AlreadyRegistered();
+        }
     }
 
     /// @notice Disable direct deposits and withdrawals on ERC4626 to enforce async only
@@ -286,9 +305,16 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         curator = newCurator;
     }
 
-    // TODO: Vault Owner to add vault-specific whitelist
-    // (as long as subset of protocol whitelist) for higher auditability.
-    // Defaulting to protocol whitelist.
+    /// @notice Validate that all assets in an intent are whitelisted for this vault
+    /// @param assets Array of asset addresses to validate
+    /// @dev This function is used by derived contracts to validate curator intents
+    function _validateIntentAssets(address[] memory assets) internal view {
+        for (uint256 i = 0; i < assets.length; i++) {
+            if (!_vaultWhitelistedAssets.contains(assets[i])) {
+                revert ErrorsLib.TokenNotWhitelisted(assets[i]);
+            }
+        }
+    }
 
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
 

@@ -4,6 +4,11 @@
   "sourceName": "contracts/vaults/OrionVault.sol",
   "abi": [
     {
+      "inputs": [],
+      "name": "AlreadyRegistered",
+      "type": "error"
+    },
+    {
       "inputs": [
         {
           "internalType": "address",
