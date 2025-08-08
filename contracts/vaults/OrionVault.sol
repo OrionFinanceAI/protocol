@@ -65,8 +65,6 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    uint32 constant YEAR_IN_SECONDS = 365 days;
-
     IOrionConfig public config;
     address public vaultOwner;
     address public curator;
@@ -96,6 +94,19 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
     /// @notice Factor to convert between underlying and share decimals
     uint256 private _deltaFactor;
+
+    /* -------------------------------------------------------------------------- */
+    /*                               CURATOR FEES                                 */
+    /* -------------------------------------------------------------------------- */
+
+    /// @notice Year in seconds
+    uint32 public constant YEAR_IN_SECONDS = 365 days;
+
+    /// @notice High watermark - tracks the highest share price reached
+    uint256 public highWatermark;
+
+    /// @notice Performance fee - charged on the performance of the vault
+    uint16 public performanceFee;
 
     /// @dev Restricts function to only vault owner
     modifier onlyVaultOwner() {
@@ -144,6 +155,9 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         _deltaFactor = 10 ** deltaDecimals;
 
         _initializeVaultWhitelist();
+
+        performanceFee = 0; // TODO.
+        highWatermark = 0; // TODO: Initialize high watermark to 1.0 in vault decimals
     }
 
     /// @notice Initialize the vault whitelist with all protocol whitelisted assets

@@ -60,9 +60,9 @@ beforeEach(async function () {
     9, // curatorIntentDecimals
     18, // priceAdapterDecimals
     4, // curatorFeeDecimals
-    30000, // maxManagementFee
-    50000, // maxPerformanceFee
-    10000, // riskFreeRate
+    300, // maxManagementFee
+    3000, // maxPerformanceFee
+    423, // riskFreeRate
   );
 });
 

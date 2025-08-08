@@ -2,7 +2,6 @@
 pragma solidity ^0.8.28;
 
 import "../interfaces/IOrionConfig.sol";
-import "../interfaces/IOrionVault.sol";
 import "../vaults/OrionEncryptedVault.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { EventsLib } from "../libraries/EventsLib.sol";
