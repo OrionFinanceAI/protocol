@@ -287,7 +287,12 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                 }
 
                 // Calculate estimated value of the asset in underlying asset decimals
-                uint256 value = _calculateTokenValue(price, sharesPerAsset[j], tokenDecimals);
+                uint256 value = UtilitiesLib.convertDecimals(
+                    price * sharesPerAsset[j],
+                    tokenDecimals,
+                    underlyingDecimals
+                ) / priceAdapterPrecision;
+
                 t1Hat += value;
                 _currentEpoch.initialBatchPortfolioHat[token] += value;
                 _addTokenIfNotExists(token);
@@ -366,8 +371,9 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                     _currentEpoch.priceHat[token] = price;
                 }
 
-                euint32 value = _calculateEncryptedTokenValue(price, sharesPerAsset[j], tokenDecimals);
-                encryptedT1Hat = FHE.add(encryptedT1Hat, value);
+                // TODO implement encrypted generalization for value calculation
+                // euint32 value = ...
+                // encryptedT1Hat = FHE.add(encryptedT1Hat, value);
                 // TODO...
             }
             // (address[] memory intentTokens, euint32[] memory intentWeights) = vault.getIntent();
@@ -475,34 +481,6 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             }
             // Else no change, do nothing.
         }
-    }
-
-    /// @notice Calculates token value in underlying asset decimals
-    /// @dev Handles decimal conversion from token decimals to underlying asset decimals
-    ///      Formula: value = (price * shares) / priceAdapterPrecision * 10^(underlyingDecimals - tokenDecimals)
-    ///      This safely handles cases where underlying has more or fewer decimals than the token
-    /// @param price The price of the token in underlying asset (priceAdapterDecimals decimals)
-    /// @param shares The amount of token shares (in token decimals)
-    /// @param tokenDecimals The decimals of the token
-    /// @return value The value in underlying asset decimals
-    function _calculateTokenValue(
-        uint256 price,
-        uint256 shares,
-        uint8 tokenDecimals
-    ) internal view returns (uint256 value) {
-        uint256 baseValue = price * shares;
-        uint256 scaledValue = UtilitiesLib.convertDecimals(baseValue, tokenDecimals, underlyingDecimals);
-        value = scaledValue / priceAdapterPrecision;
-    }
-
-    /// @notice Calculates encrypted token value in underlying asset decimals
-    /// @dev Same as _calculateTokenValue but with encrypted shares
-    function _calculateEncryptedTokenValue(
-        uint256 price,
-        euint32 shares,
-        uint8 tokenDecimals
-    ) internal view returns (euint32 value) {
-        // TODO...
     }
 
     /// @notice Calculates token shares from underlying asset value (inverse of _calculateTokenValue)
