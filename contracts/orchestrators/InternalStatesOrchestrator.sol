@@ -105,6 +105,9 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     /// @notice Current minibatch index
     uint8 public currentMinibatchIndex;
 
+    /// @notice FHE zero
+    euint32 internal _ezero;
+
     /// @notice Vaults associated to the current epoch
     address[] public transparentVaultsEpoch;
     address[] public encryptedVaultsEpoch;
@@ -122,7 +125,6 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     ) Ownable(initialOwner) ReentrancyGuard() {
         if (config_ == address(0)) revert ErrorsLib.ZeroAddress();
         if (automationRegistry_ == address(0)) revert ErrorsLib.ZeroAddress();
-
         config = IOrionConfig(config_);
         registry = IPriceAdapterRegistry(config.priceAdapterRegistry());
         intentFactor = 10 ** config.curatorIntentDecimals();
@@ -139,6 +141,8 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         currentPhase = InternalUpkeepPhase.Idle;
         epochCounter = 0;
         currentMinibatchIndex = 0;
+
+        _ezero = FHE.asEuint32(0);
     }
 
     /// @notice Updates the orchestrator from the config contract
@@ -294,14 +298,15 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                 t1Hat,
                 Math.Rounding.Floor
             );
+
             // Calculate estimated (active and passive) total assets (t_2), same decimals as underlying.
             uint256 t2Hat = t1Hat + vault.getPendingDeposits() - pendingWithdrawalsHat;
-            // TODO: - curator_fee(TVL, return, ...) - protocol_fee(vault)
-            // About protocol fee, add a comment saying we apply it to t2 and not t1 to avoid double counting.
+            // TODO: - curator_fee(TVL, return, ...)
 
-            // TODO: Can we compute the amount of netting performed each epoch and use that as a proxy for epoch fees?
-            // This should model the capital saved by lack of market impact/slippage associated with netted transaction.
-            // Then 50 50 between vault and protocol?
+            // Protocol fee is applied to t2 (not t1) to avoid double counting for withdrawals that have already been
+            // included in t1 when deposits are made.
+            t2Hat = t2Hat; // TODO: add - protocol_fee(vault)
+            // TODO; open issue to solve, how to distribute protocol fee to multiple vaults and a common buffer amount.
 
             (address[] memory intentTokens, uint32[] memory intentWeights) = vault.getIntent();
             uint16 intentLength = uint16(intentTokens.length);
@@ -317,9 +322,6 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             }
         }
     }
-
-    // TODO: a lot of code duplication _processEncryptedMinibatch
-    // and _processTransparentMinibatch, try to refactor.
 
     /// @notice Processes minibatch of encrypted vaults
     // slither-disable-start reentrancy-no-eth
@@ -342,7 +344,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             (address[] memory portfolioTokens, euint32[] memory sharesPerAsset) = vault.getPortfolio();
 
             // Calculate estimated active total assets (t_1) and populate batch portfolio
-            euint32 encryptedT1Hat = FHE.asEuint32(0);
+            euint32 encryptedT1Hat = _ezero;
 
             for (uint16 j = 0; j < portfolioTokens.length; j++) {
                 address token = portfolioTokens[j];
@@ -379,6 +381,10 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         // TODO: same for estimated total assets.
     }
     // slither-disable-end reentrancy-no-eth
+
+    // TODO: once _processEncryptedMinibatch populated:
+    // a lot of code duplication in _processEncryptedMinibatch and _processTransparentMinibatch,
+    // refactor.
 
     /// @notice Checks if upkeep should be triggered based on time
     /// @dev If upkeep should be triggered, updates the next update time
