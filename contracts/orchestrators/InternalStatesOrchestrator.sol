@@ -31,6 +31,8 @@ import { SepoliaConfig } from "@fhevm/solidity/config/ZamaConfig.sol";
  *      Variable naming distinguishes measurements (x) from estimations (xHat).
  */
 contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, IInternalStateOrchestrator {
+    using Math for uint256;
+
     /// @notice Chainlink Automation Registry address
     address public automationRegistry;
 
@@ -288,10 +290,10 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
                 // Calculate estimated value of the asset in underlying asset decimals
                 uint256 value = UtilitiesLib.convertDecimals(
-                    price * sharesPerAsset[j],
+                    price.mulDiv(sharesPerAsset[j], priceAdapterPrecision),
                     tokenDecimals,
                     underlyingDecimals
-                ) / priceAdapterPrecision;
+                );
 
                 t1Hat += value;
                 _currentEpoch.initialBatchPortfolioHat[token] += value;
@@ -304,9 +306,10 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                 Math.Rounding.Floor
             );
 
+            uint256 curatorFee = 0; // TODO: vault.getCuratorFee(t1Hat);
+
             // Calculate estimated (active and passive) total assets (t_2), same decimals as underlying.
-            uint256 t2Hat = t1Hat + vault.getPendingDeposits() - pendingWithdrawalsHat;
-            // TODO: - curator_fee(TVL, return, ...)
+            uint256 t2Hat = t1Hat + vault.getPendingDeposits() - pendingWithdrawalsHat - curatorFee;
 
             // Protocol fee is applied to t2 (not t1) to avoid double counting for withdrawals that have already been
             // included in t1 when deposits are made.
@@ -320,7 +323,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                 uint32 weight = intentWeights[j];
 
                 // same decimals as underlying
-                uint256 value = (t2Hat * weight) / intentFactor;
+                uint256 value = t2Hat.mulDiv(weight, intentFactor);
 
                 _currentEpoch.finalBatchPortfolioHat[token] += value;
                 _addTokenIfNotExists(token);
@@ -497,7 +500,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         uint8 tokenDecimals
     ) internal view returns (uint256 shares) {
         uint256 scaledValue = UtilitiesLib.convertDecimals(value, underlyingDecimals, tokenDecimals);
-        shares = (scaledValue * priceAdapterPrecision) / price;
+        shares = scaledValue.mulDiv(priceAdapterPrecision, price);
     }
 
     /* -------------------------------------------------------------------------- */

@@ -58,9 +58,8 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
         // Validate that all assets in the intent are whitelisted for this vault
         _validateIntentAssets(assets);
-
-        uint8 curatorIntentDecimals = config.curatorIntentDecimals();
-        if (totalWeight != 10 ** curatorIntentDecimals) revert ErrorsLib.InvalidTotalWeight();
+        // Validate that the total weight is 100%
+        if (totalWeight != 10 ** config.curatorIntentDecimals()) revert ErrorsLib.InvalidTotalWeight();
 
         emit EventsLib.OrderSubmitted(msg.sender);
     }
