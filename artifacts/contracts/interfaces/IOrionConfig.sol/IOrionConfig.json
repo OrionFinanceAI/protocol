@@ -297,35 +297,12 @@
     {
       "inputs": [
         {
-          "internalType": "uint8",
-          "name": "curatorIntentDecimals",
-          "type": "uint8"
-        },
-        {
-          "internalType": "uint8",
-          "name": "priceAdapterDecimals",
-          "type": "uint8"
-        },
-        {
           "internalType": "uint16",
           "name": "riskFreeRate",
           "type": "uint16"
         }
       ],
-      "name": "setProtocolParams",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "asset",
-          "type": "address"
-        }
-      ],
-      "name": "setUnderlyingAsset",
+      "name": "setProtocolRiskFreeRate",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

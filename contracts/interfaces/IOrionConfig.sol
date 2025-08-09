@@ -16,11 +16,6 @@ interface IOrionConfig {
     /// @return The address of the liquidity orchestrator
     function liquidityOrchestrator() external view returns (address);
 
-    /// @notice Returns the number of decimal places used for curator intent calculations
-    /// @dev This value is used to scale curator intent values for precision
-    /// @return The number of decimal places for curator intents
-    function curatorIntentDecimals() external view returns (uint8);
-
     /// @notice Returns the address of the underlying asset used by the protocol
     /// @dev This is the base asset that the protocol operates with
     /// @return The address of the underlying asset contract
@@ -31,6 +26,11 @@ interface IOrionConfig {
     /// @return The address of the price adapter registry
     function priceAdapterRegistry() external view returns (address);
 
+    /// @notice Returns the number of decimal places used for curator intent calculations
+    /// @dev This value is used to scale curator intent values for precision
+    /// @return The number of decimal places for curator intents
+    function curatorIntentDecimals() external view returns (uint8);
+
     /// @notice Returns the number of decimal places used for price adapters
     /// @dev This value is used to scale price adapter values for precision
     /// @return The number of decimal places for price adapters
@@ -39,15 +39,6 @@ interface IOrionConfig {
     /// @notice Returns the risk-free rate
     /// @return The risk-free rate
     function riskFreeRate() external view returns (uint16);
-
-    /// @notice Sets the underlying asset for the protocol
-    /// @dev Can only be called by the contract owner
-    /// @dev The underlying asset is automatically added to the investment universe whitelist because:
-    /// @dev - Curators may decide to be underleveraged in their active positions;
-    /// @dev - High slippage transactions may revert and force liquidations from whitelisted assets;
-    /// @dev - removeWhitelistedAsset could trigger forced liquidations.
-    /// @param asset The address of the underlying asset contract
-    function setUnderlyingAsset(address asset) external;
 
     /// @notice Sets the internal states orchestrator for the protocol
     /// @dev Can only be called by the contract owner
@@ -70,12 +61,10 @@ interface IOrionConfig {
     /// @param registry The address of the price adapter registry
     function setPriceAdapterRegistry(address registry) external;
 
-    /// @notice Sets the protocol parameters
+    /// @notice Sets the protocol risk-free rate
     /// @dev Can only be called by the contract owner
-    /// @param curatorIntentDecimals The number of decimal places for curator intents
-    /// @param priceAdapterDecimals The number of decimal places for price adapters
     /// @param riskFreeRate The risk-free rate
-    function setProtocolParams(uint8 curatorIntentDecimals, uint8 priceAdapterDecimals, uint16 riskFreeRate) external;
+    function setProtocolRiskFreeRate(uint16 riskFreeRate) external;
 
     /// @notice Adds an asset to the whitelist
     /// @dev Can only be called by the contract owner

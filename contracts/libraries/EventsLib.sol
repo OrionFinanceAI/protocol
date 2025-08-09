@@ -24,8 +24,9 @@ library EventsLib {
     /// @param vault The address of the removed vault.
     event OrionVaultRemoved(address indexed vault);
 
-    /// @notice Protocol-level parameters have been updated.
-    event ProtocolParamsUpdated();
+    /// @notice The risk-free rate has been updated.
+    /// @param riskFreeRate The new risk-free rate in basis points.
+    event RiskFreeRateUpdated(uint16 riskFreeRate);
 
     // =======================
     // === Vault Lifecycle ===

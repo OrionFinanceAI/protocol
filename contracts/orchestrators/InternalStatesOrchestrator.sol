@@ -146,18 +146,6 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         _ezero = FHE.asEuint32(0);
     }
 
-    /// @notice Updates the orchestrator from the config contract
-    /// @dev This function is called by the owner to update the orchestrator
-    ///      when the config contract is updated.
-    function updateFromConfig() public onlyOwner {
-        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
-
-        registry = IPriceAdapterRegistry(config.priceAdapterRegistry());
-        intentFactor = 10 ** config.curatorIntentDecimals();
-        underlyingDecimals = IERC20Metadata(address(config.underlyingAsset())).decimals();
-        priceAdapterPrecision = 10 ** config.priceAdapterDecimals();
-    }
-
     /// @inheritdoc IInternalStateOrchestrator
     function updateAutomationRegistry(address newAutomationRegistry) external onlyOwner {
         if (newAutomationRegistry == address(0)) revert ErrorsLib.ZeroAddress();
@@ -482,9 +470,10 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         }
     }
 
+    // TODO: docs inconsistency with implementation, check and fix.
     /// @notice Calculates token shares from underlying asset value (inverse of _calculateTokenValue)
     /// @dev Handles decimal conversion from underlying asset decimals to token decimals
-    ///      Formula: shares = (value * priceAdapterPrecision) / (price * 10^(underlyingDecimals - tokenDecimals))
+    ///      Formula: shares = (value * priceAdapterDecimals) / (price * 10^(underlyingDecimals - tokenDecimals))
     ///      This safely handles cases where underlying has more or fewer decimals than the token
     /// @param price The price of the token in underlying asset (priceAdapterDecimals decimals)
     /// @param value The value in underlying asset decimals

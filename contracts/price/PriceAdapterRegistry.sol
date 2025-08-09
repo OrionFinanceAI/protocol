@@ -34,13 +34,6 @@ contract PriceAdapterRegistry is IPriceAdapterRegistry, Ownable {
         if (configAddress_ == address(0)) revert ErrorsLib.ZeroAddress();
 
         configAddress = configAddress_;
-        updateFromConfig();
-    }
-
-    /// @notice Updates the price adapter precision from the config contract
-    /// @dev This function is called by the owner to update the price adapter precision
-    ///      when the config contract is updated.
-    function updateFromConfig() public onlyOwner {
         priceAdapterDecimals = IOrionConfig(configAddress).priceAdapterDecimals();
     }
 

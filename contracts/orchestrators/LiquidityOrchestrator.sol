@@ -84,16 +84,6 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
         executionMinibatchSize = 1;
     }
 
-    /// @notice Updates the orchestrator from the config contract
-    /// @dev This function is called by the owner to update the orchestrator
-    ///      when the config contract is updated.
-    function updateFromConfig() public onlyOwner {
-        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
-
-        internalStatesOrchestrator = IInternalStateOrchestrator(config.internalStatesOrchestrator());
-        underlyingAsset = address(config.underlyingAsset());
-    }
-
     /// @inheritdoc ILiquidityOrchestrator
     function updateExecutionMinibatchSize(uint8 _executionMinibatchSize) external onlyOwner {
         if (_executionMinibatchSize == 0) revert ErrorsLib.InvalidArguments();
