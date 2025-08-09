@@ -104,4 +104,13 @@ interface IOrionVault is IERC4626 {
     ///      Updates high watermark if current share price exceeds the previous high watermark.
     ///      This is used to calculate the performance fee.
     function updateHighWaterMark() external;
+
+    /// @notice Accrue curator fees for a specific epoch
+    /// @param epoch The epoch for which to accrue fees
+    /// @param feeAmount The amount of curator fees to accrue in underlying asset units
+    function accrueCuratorFees(uint256 epoch, uint256 feeAmount) external;
+
+    /// @notice Get the total pending curator fees across all epochs
+    /// @return The total pending curator fees in underlying asset units
+    function getPendingCuratorFees() external view returns (uint256);
 }

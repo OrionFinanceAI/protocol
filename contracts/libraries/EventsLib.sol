@@ -76,6 +76,11 @@ library EventsLib {
     /// @param managementFee The new management fee in basis points.
     event FeeModelUpdated(uint8 mode, uint16 performanceFee, uint16 managementFee);
 
+    /// @notice Curator fees have been accrued for a specific epoch.
+    /// @param epoch The epoch for which fees were accrued.
+    /// @param feeAmount The amount of fees accrued in underlying asset units.
+    event CuratorFeesAccrued(uint256 indexed epoch, uint256 feeAmount);
+
     // ====================================
     // === Internal States Orchestrator ===
     // ====================================

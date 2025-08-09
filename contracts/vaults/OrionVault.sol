@@ -65,6 +65,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     using Math for uint256;
     using EnumerableMap for EnumerableMap.AddressToUintMap;
+    using EnumerableMap for EnumerableMap.UintToUintMap;
     using EnumerableSet for EnumerableSet.AddressSet;
 
     address public vaultOwner;
@@ -79,21 +80,20 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     /// @notice Total assets under management (t_0) - denominated in underlying asset units
     uint256 internal _totalAssets;
 
-    /// @notice Deposit requests queue (D) - mapping of user address to requested asset amount
-    /// Units: Asset tokens (e.g., USDC, ETH), not shares
+    /// @notice Deposit requests queue (D) - mapping of user address to requested [asset] amount
     EnumerableMap.AddressToUintMap private _depositRequests;
 
-    /// @notice Withdraw requests queue (W) - mapping of user address to requested share amount
-    /// Units: Vault share tokens, not underlying assets
+    /// @notice Withdraw requests queue (W) - mapping of user address to requested [share] amount
     EnumerableMap.AddressToUintMap private _withdrawRequests;
 
-    /// @notice Cached total pending deposits - updated incrementally for gas efficiency
-    /// Units: Asset tokens (e.g., USDC, ETH), not shares
+    /// @notice Cached total pending deposits [assets] - updated incrementally for gas efficiency
     uint256 private _totalPendingDeposits;
 
-    /// @notice Cached total pending withdrawals - updated incrementally for gas efficiency
-    /// Units: Vault share tokens, not underlying assets
+    /// @notice Cached total pending withdrawals [shares] - updated incrementally for gas efficiency
     uint256 private _totalPendingWithdrawals;
+
+    /// @notice Pending curator fees queue - mapping of epoch to fee amount [assets]
+    EnumerableMap.UintToUintMap private _pendingCuratorFees;
 
     /// @notice Share token decimals
     uint8 public constant SHARE_DECIMALS = 18;
@@ -456,6 +456,34 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         return currentSharePrice.mulDiv(CURATOR_FEE_FACTOR + hurdleReturn, CURATOR_FEE_FACTOR);
     }
 
+    /// @notice Claim accrued curator fees when system is idle
+    /// @dev Only callable by vault owner, transfers full accrued fees from liquidity orchestrator to vault owner.
+    function claimCuratorFees() external onlyVaultOwner {
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+
+        uint256 pendingFees = this.getPendingCuratorFees();
+        if (pendingFees == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
+
+        // Reset pending fees before transfer
+        _pendingCuratorFees.clear();
+
+        // TODO: transfer fees from liquidity orchestrator to vault owner.
+    }
+
+    /// @inheritdoc IOrionVault
+    function getPendingCuratorFees() external view returns (uint256) {
+        uint256 totalFees = 0;
+        uint256 length = _pendingCuratorFees.length();
+
+        for (uint256 i = 0; i < length; i++) {
+            // slither-disable-next-line unused-return
+            (, uint256 feeAmount) = _pendingCuratorFees.at(i);
+            totalFees += feeAmount;
+        }
+
+        return totalFees;
+    }
+
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
 
     /// @inheritdoc IOrionVault
@@ -548,5 +576,21 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         if (currentSharePrice > feeModel.highWaterMark) {
             feeModel.highWaterMark = currentSharePrice;
         }
+    }
+
+    // TODO: may be more efficient to write this state from the internal state orchestrator.
+    // As long as curator needs system to be idle to withdraw, this should not be a problem
+    // and we can avoid explicitly passing curator fees to the liquidity orchestrator.
+
+    /// @inheritdoc IOrionVault
+    function accrueCuratorFees(uint256 epoch, uint256 feeAmount) external onlyLiquidityOrchestrator {
+        if (feeAmount == 0) return;
+
+        // slither-disable-next-line unused-return
+        (, uint256 currentAmount) = _pendingCuratorFees.tryGet(epoch);
+        // slither-disable-next-line unused-return
+        _pendingCuratorFees.set(epoch, currentAmount + feeAmount);
+
+        emit EventsLib.CuratorFeesAccrued(epoch, feeAmount);
     }
 }
