@@ -37,8 +37,11 @@ contract OrionConfig is Ownable, IOrionConfig {
     address public priceAdapterRegistry;
 
     // Protocol parameters
-    uint8 public priceAdapterDecimals;
     uint8 public curatorIntentDecimals;
+    uint8 public priceAdapterDecimals;
+
+    // Risk-free rate in basis points. Same decimals as CURATOR_FEE_FACTOR
+    uint16 public riskFreeRate;
 
     // Vault-specific configuration
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -54,30 +57,39 @@ contract OrionConfig is Ownable, IOrionConfig {
         _;
     }
 
-    constructor(address initialOwner) Ownable(initialOwner) {}
+    /// @notice The constructor sets the underlying asset for the protocol
+    /// @param initialOwner The address that will own this contract
+    /// @param underlyingAsset_ The address of the underlying asset contract
+    /// @dev The underlying asset is automatically added to the investment universe whitelist because:
+    /// @dev - Curators may decide to be underleveraged in their active positions;
+    /// @dev - High slippage transactions may revert and force liquidations from whitelisted assets;
+    /// @dev - removeWhitelistedAsset could trigger forced liquidations.
+    constructor(address initialOwner, address underlyingAsset_) Ownable(initialOwner) {
+        if (underlyingAsset_ == address(0)) revert ErrorsLib.ZeroAddress();
+        underlyingAsset = IERC20(underlyingAsset_);
+
+        curatorIntentDecimals = 9; // 9 for uint32
+        priceAdapterDecimals = 18; // 18 for uint256
+
+        // slither-disable-next-line unused-return
+        whitelistedAssets.add(underlyingAsset_);
+
+        emit EventsLib.WhitelistedAssetAdded(underlyingAsset_);
+    }
 
     // === Protocol Configuration ===
 
     /// @inheritdoc IOrionConfig
-    function setUnderlyingAsset(address asset) external onlyOwner {
-        if (asset == address(0)) revert ErrorsLib.ZeroAddress();
-        underlyingAsset = IERC20(asset);
-
-        bool inserted = whitelistedAssets.add(asset);
-        if (!inserted) revert ErrorsLib.AlreadyRegistered();
-
-        emit EventsLib.WhitelistedAssetAdded(asset);
-    }
-
-    /// @inheritdoc IOrionConfig
     function setInternalStatesOrchestrator(address orchestrator) external onlyOwner {
         if (orchestrator == address(0)) revert ErrorsLib.ZeroAddress();
+        if (internalStatesOrchestrator != address(0)) revert ErrorsLib.AlreadyRegistered();
         internalStatesOrchestrator = orchestrator;
     }
 
     /// @inheritdoc IOrionConfig
     function setLiquidityOrchestrator(address orchestrator) external onlyOwner {
         if (orchestrator == address(0)) revert ErrorsLib.ZeroAddress();
+        if (liquidityOrchestrator != address(0)) revert ErrorsLib.AlreadyRegistered();
         liquidityOrchestrator = orchestrator;
     }
 
@@ -86,6 +98,8 @@ contract OrionConfig is Ownable, IOrionConfig {
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         if (transparentFactory == address(0)) revert ErrorsLib.ZeroAddress();
         if (encryptedFactory == address(0)) revert ErrorsLib.ZeroAddress();
+        if (transparentVaultFactory != address(0) || encryptedVaultFactory != address(0))
+            revert ErrorsLib.AlreadyRegistered();
         transparentVaultFactory = transparentFactory;
         encryptedVaultFactory = encryptedFactory;
     }
@@ -94,17 +108,17 @@ contract OrionConfig is Ownable, IOrionConfig {
     function setPriceAdapterRegistry(address registry) external onlyOwner {
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         if (registry == address(0)) revert ErrorsLib.ZeroAddress();
+        if (priceAdapterRegistry != address(0)) revert ErrorsLib.AlreadyRegistered();
         priceAdapterRegistry = registry;
     }
 
     /// @inheritdoc IOrionConfig
-    function setProtocolParams(uint8 _curatorIntentDecimals, uint8 _priceAdapterDecimals) external onlyOwner {
+    function setProtocolRiskFreeRate(uint16 _riskFreeRate) external onlyOwner {
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
-        curatorIntentDecimals = _curatorIntentDecimals;
-        priceAdapterDecimals = _priceAdapterDecimals;
+        riskFreeRate = _riskFreeRate;
 
-        emit EventsLib.ProtocolParamsUpdated();
+        emit EventsLib.RiskFreeRateUpdated(riskFreeRate);
     }
 
     // === Whitelist Functions ===

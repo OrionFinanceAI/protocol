@@ -26,14 +26,12 @@ beforeEach(async function () {
   await underlyingAsset.waitForDeployment();
 
   const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
-  orionConfig = await OrionConfigFactory.deploy(owner.address);
+  orionConfig = await OrionConfigFactory.deploy(owner.address, await underlyingAsset.getAddress());
   await orionConfig.waitForDeployment();
 
   const TransparentVaultFactoryFactory = await ethers.getContractFactory("TransparentVaultFactory");
   transparentVaultFactory = await TransparentVaultFactoryFactory.deploy(await orionConfig.getAddress());
   await transparentVaultFactory.waitForDeployment();
-
-  await orionConfig.setUnderlyingAsset(await underlyingAsset.getAddress());
 
   const InternalStatesOrchestratorFactory = await ethers.getContractFactory("InternalStatesOrchestrator");
   internalStatesOrchestrator = await InternalStatesOrchestratorFactory.deploy(
@@ -56,10 +54,7 @@ beforeEach(async function () {
   await orionConfig.setVaultFactories(await transparentVaultFactory.getAddress(), other.address);
   await orionConfig.setPriceAdapterRegistry(await other.address);
 
-  await orionConfig.setProtocolParams(
-    6, // curatorIntentDecimals
-    18, // priceAdapterDecimals
-  );
+  await orionConfig.setProtocolRiskFreeRate(0.0423 * 10_000);
 });
 
 describe("TransparentVaultFactory", function () {

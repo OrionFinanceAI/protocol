@@ -22,10 +22,9 @@ describe("OrionVault Exchange Rate Tests", function () {
 
     // Deploy OrionConfig
     const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
-    const config = await OrionConfigFactory.deploy(owner.address);
+    const config = await OrionConfigFactory.deploy(owner.address, underlyingAssetAddress);
     await config.waitForDeployment();
     const configAddress = await config.getAddress();
-    await config.setUnderlyingAsset(underlyingAssetAddress);
 
     // Deploy PriceAdapterRegistry
     const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistry");
@@ -56,10 +55,7 @@ describe("OrionVault Exchange Rate Tests", function () {
     await config.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
 
     // Set protocol parameters
-    await config.setProtocolParams(
-      6, // curatorIntentDecimals
-      6, // priceAdapterDecimals
-    );
+    await config.setProtocolRiskFreeRate(0.0423 * 10_000);
 
     // Deploy OrionTransparentVault with correct constructor parameters
     const OrionTransparentVaultFactory = await ethers.getContractFactory("OrionTransparentVault");

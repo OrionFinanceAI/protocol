@@ -30,6 +30,9 @@ importers:
         specifier: ^5.1.6
         version: 5.1.6
     devDependencies:
+      '@fhevm/hardhat-plugin':
+        specifier: ^0.0.1-6
+        version: 0.0.1-6(@fhevm/mock-utils@0.0.1-6(@zama-fhe/relayer-sdk@0.1.2)(ethers@6.15.0)(typescript@5.8.3))(@fhevm/solidity@0.7.0)(@nomicfoundation/hardhat-ethers@3.1.0(ethers@6.15.0)(hardhat@2.26.2(ts-node@10.9.2(@types/node@20.19.9)(typescript@5.8.3))(typescript@5.8.3)))(@zama-fhe/oracle-solidity@0.1.0(@openzeppelin/contracts@5.4.0))(@zama-fhe/relayer-sdk@0.1.2)(encrypted-types@0.0.4)(ethers@6.15.0)(hardhat@2.26.2(ts-node@10.9.2(@types/node@20.19.9)(typescript@5.8.3))(typescript@5.8.3))
       '@nomicfoundation/hardhat-chai-matchers':
         specifier: ^2.1.0
         version: 2.1.0(@nomicfoundation/hardhat-ethers@3.1.0(ethers@6.15.0)(hardhat@2.26.2(ts-node@10.9.2(@types/node@20.19.9)(typescript@5.8.3))(typescript@5.8.3)))(chai@4.5.0)(ethers@6.15.0)(hardhat@2.26.2(ts-node@10.9.2(@types/node@20.19.9)(typescript@5.8.3))(typescript@5.8.3))
@@ -485,6 +488,32 @@ packages:
   '@fastify/busboy@2.1.1':
     resolution: {integrity: sha512-vBZP4NlzfOlerQTnba4aqZoMhE/a9HY7HRqoOPaETQcSQuWEIyZMHGfVu6w9wGtGK5fED5qRs2DteVCjOH60sA==}
     engines: {node: '>=14'}
+
+  '@fhevm/core-contracts@0.7.0-12':
+    resolution: {integrity: sha512-2dXrV8VJaVuXNED37f+/xl1puIQX5FWlCPrsjae2eGZqiOrnoMi8hvN4OaTo2jv41TWEYhbqSN9C9yvlE7aLnA==}
+
+  '@fhevm/hardhat-plugin@0.0.1-6':
+    resolution: {integrity: sha512-DBY7Fnxm+p0c85z4V3dtN1plT5+JTqiI1c71S1t4OhSR8E/hCGQCs9ZaRSk3THJnSrlWytJ/cuPX8Pi2G+DjDw==}
+    engines: {node: '>=20', npm: '>=7.0.0'}
+    peerDependencies:
+      '@fhevm/mock-utils': 0.0.1-6
+      '@fhevm/solidity': ^0.7.0
+      '@nomicfoundation/hardhat-ethers': ^3.0.8
+      '@zama-fhe/oracle-solidity': ^0.1.0
+      '@zama-fhe/relayer-sdk': ^0.1.2
+      encrypted-types: ^0.0.4
+      ethers: ^6.1.0
+      hardhat: ^2.0.0
+
+  '@fhevm/mock-utils@0.0.1-6':
+    resolution: {integrity: sha512-6ohiheNq6yKZ5vtMfuPfujUT+dx2VQnKS0xKHKY1/szVBPH4q23CfSi66S0TGn+eIF5K3UiYYjIGetTj9g97XQ==}
+    peerDependencies:
+      '@zama-fhe/relayer-sdk': ^0.1.2
+      ethers: ^6.1.0
+      typescript: '>=5.0.4'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
 
   '@fhevm/solidity@0.7.0':
     resolution: {integrity: sha512-WCS/QEA9qQSzISUfDm/jq24ZGykXq1OTzsT3flEkrO69MPoXOf0EufmrbKC6D6TeHw3KqOxlQY3XsXW4mtVc8w==}
@@ -1170,6 +1199,11 @@ packages:
   '@zama-fhe/oracle-solidity@0.1.0':
     resolution: {integrity: sha512-phRego2FW7SWgneQOES/iQ99c97ZCb+KZk5m+lT474dSNrsgEDh96W9T1+Owhc9C6VKtCpMLM43dHXwKHDIw6g==}
 
+  '@zama-fhe/relayer-sdk@0.1.2':
+    resolution: {integrity: sha512-xiNply3d8q6qC6hLfcE8BuPnguQZ9CHMbMcysoLMyN+H9UsQrXGwsdd7vA0DJS1aSvTiO54N/6u/E/FL2aHZlA==}
+    engines: {node: '>=20'}
+    hasBin: true
+
   abbrev@1.0.9:
     resolution: {integrity: sha512-LEyx4aLEC3x6T0UguF6YILf+ntvmOaWsVfENmIW0E9H09vKlLDGelMjjSm0jkDHALj8A8quZ/HapKNigzwge+Q==}
 
@@ -1561,6 +1595,10 @@ packages:
     resolution: {integrity: sha512-y4Mg2tXshplEbSGzx7amzPwKKOCGuoSRP/CjEdwwk0FOGlUbq6lKuoyDZTNZkmxHdJtp54hdfY/JUrdL7Xfdug==}
     engines: {node: '>=14'}
 
+  commander@14.0.0:
+    resolution: {integrity: sha512-2uM9rYjPvyq39NwLRqaiLtWHyDC1FvryJDa2ATTVims5YAS4PupsEQsDvP14FqhFr0P49CYDugi59xaxJlTXRA==}
+    engines: {node: '>=20'}
+
   commander@8.3.0:
     resolution: {integrity: sha512-OkTL9umf+He2DZkUq8f8J9of7yL6RJKI24dVITBmNfZBmri9zYZQrKkuXiKhyfPSu8tUhnVBB1iKXevvnlR4Ww==}
     engines: {node: '>= 12'}
@@ -1900,6 +1938,9 @@ packages:
     peerDependenciesMeta:
       picomatch:
         optional: true
+
+  fetch-retry@6.0.0:
+    resolution: {integrity: sha512-BUFj1aMubgib37I3v4q78fYo63Po7t4HUPTpQ6/QE6yK6cIQrP+W43FYToeTEyg5m2Y7eFUtijUuAv/PDlWuag==}
 
   file-entry-cache@6.0.1:
     resolution: {integrity: sha512-7Gps/XWymbLk2QLYK4NzpMOrYjMhdIxXuIvy2QBsLE6ljuodKvdkWs/cpyJJ3CVIVpH0Oi1Hvg1ovbMzLdFBBg==}
@@ -2596,6 +2637,12 @@ packages:
   node-seal@5.1.6:
     resolution: {integrity: sha512-LgJLhJZWYEDLjIN1eMzIgC8oQvUSrC5KPWvYNdryg/XEn7CZ6h2/X08COREy+DHMRTz0bsmiDtFxalzZSHt40w==}
 
+  node-tfhe@1.2.0:
+    resolution: {integrity: sha512-h+rVdBHpfAHukSyuPGNciKopnirW/gI4UibiR24/6R1+qC321R5u9gdfwOPSsSD1URokYAoo9HG7MOFnzS9/3A==}
+
+  node-tkms@0.11.0-rc20:
+    resolution: {integrity: sha512-Ez9Tnl1WQQ5+3jBTriu9t8K096zgND58R9lH8OSYPGjovNVSmYcvmCawVxz4y1fw2V3Q28JjNnqi6T/I98zeqA==}
+
   nofilter@3.1.0:
     resolution: {integrity: sha512-l2NNj07e9afPnhAhvgVrCD/oy2Ai1yfLpuo3EpiO1jFTsB4sFz6oIfAfSZyQzVpkZQ9xS8ZS5g1jCBgq4Hwo0g==}
     engines: {node: '>=12.19'}
@@ -3198,9 +3245,15 @@ packages:
   text-table@0.2.0:
     resolution: {integrity: sha512-N+8UisAXDGk8PFXP4HAzVR9nbfmVJ3zYLAWiTIoqC5v5isinhr+r5uaO8+7r3BMfuNIufIsA7RdpVgacC2cSpw==}
 
+  tfhe@1.2.0:
+    resolution: {integrity: sha512-+Ks02bMYs5Rlk1twydzFdi2mG24CIFoeP3klB2s/F9HspFG3F/V41fElkRKWF/sxahRhCxOuXlu3lQyBrS2vKQ==}
+
   tinyglobby@0.2.14:
     resolution: {integrity: sha512-tX5e7OM1HnYr2+a2C/4V0htOcSQcoSTH9KgJnVvNm5zm/cyEWKJ7j7YutsH9CxMdtOkkLFy2AHrMci9IM8IPZQ==}
     engines: {node: '>=12.0.0'}
+
+  tkms@0.11.0-rc20:
+    resolution: {integrity: sha512-TH+D1Oy78qntx2n6DYu1+qt0zl+5o6peL87SZM4xDHFinx8uyeNUNTyFt+ytOlDYF0aaOMumtYp5/6BlrI7AiA==}
 
   tmp@0.0.33:
     resolution: {integrity: sha512-jRCJlojKnZ3addtTOjdIqoRuPEKBvNXcGYqzO6zWZX8KfKEpnGY5jfggJQ3EjKuu8D4bJRr0y+cYJFmYbImXGw==}
@@ -3377,6 +3430,9 @@ packages:
     peerDependenciesMeta:
       typescript:
         optional: true
+
+  wasm-feature-detect@1.8.0:
+    resolution: {integrity: sha512-zksaLKM2fVlnB5jQQDqKXXwYHLQUVH9es+5TOOHwGOVJOCeRBCiPjwSg+3tN2AdTCzjgli4jijCH290kXb/zWQ==}
 
   web3-utils@1.10.4:
     resolution: {integrity: sha512-tsu8FiKJLk2PzhDl9fXbGUWTkkVXYhtTA+SmEFkKft+9BgwLxfCRpU96sWv7ICC8zixBNd3JURVoiR3dUXgP8A==}
@@ -4427,6 +4483,38 @@ snapshots:
 
   '@fastify/busboy@2.1.1': {}
 
+  '@fhevm/core-contracts@0.7.0-12':
+    dependencies:
+      encrypted-types: 0.0.4
+    optionalDependencies:
+      solidity-comments-darwin-arm64: 0.1.1
+      solidity-comments-linux-x64-gnu: 0.1.1
+
+  '@fhevm/hardhat-plugin@0.0.1-6(@fhevm/mock-utils@0.0.1-6(@zama-fhe/relayer-sdk@0.1.2)(ethers@6.15.0)(typescript@5.8.3))(@fhevm/solidity@0.7.0)(@nomicfoundation/hardhat-ethers@3.1.0(ethers@6.15.0)(hardhat@2.26.2(ts-node@10.9.2(@types/node@20.19.9)(typescript@5.8.3))(typescript@5.8.3)))(@zama-fhe/oracle-solidity@0.1.0(@openzeppelin/contracts@5.4.0))(@zama-fhe/relayer-sdk@0.1.2)(encrypted-types@0.0.4)(ethers@6.15.0)(hardhat@2.26.2(ts-node@10.9.2(@types/node@20.19.9)(typescript@5.8.3))(typescript@5.8.3))':
+    dependencies:
+      '@fhevm/core-contracts': 0.7.0-12
+      '@fhevm/mock-utils': 0.0.1-6(@zama-fhe/relayer-sdk@0.1.2)(ethers@6.15.0)(typescript@5.8.3)
+      '@fhevm/solidity': 0.7.0
+      '@nomicfoundation/hardhat-ethers': 3.1.0(ethers@6.15.0)(hardhat@2.26.2(ts-node@10.9.2(@types/node@20.19.9)(typescript@5.8.3))(typescript@5.8.3))
+      '@zama-fhe/oracle-solidity': 0.1.0(@openzeppelin/contracts@5.4.0)
+      '@zama-fhe/relayer-sdk': 0.1.2
+      debug: 4.4.1(supports-color@8.1.1)
+      dotenv: 16.6.1
+      encrypted-types: 0.0.4
+      ethers: 6.15.0
+      hardhat: 2.26.2(ts-node@10.9.2(@types/node@20.19.9)(typescript@5.8.3))(typescript@5.8.3)
+      picocolors: 1.1.1
+      resolve: 1.22.10
+    transitivePeerDependencies:
+      - supports-color
+
+  '@fhevm/mock-utils@0.0.1-6(@zama-fhe/relayer-sdk@0.1.2)(ethers@6.15.0)(typescript@5.8.3)':
+    dependencies:
+      '@zama-fhe/relayer-sdk': 0.1.2
+      ethers: 6.15.0
+    optionalDependencies:
+      typescript: 5.8.3
+
   '@fhevm/solidity@0.7.0':
     dependencies:
       encrypted-types: 0.0.4
@@ -5334,6 +5422,21 @@ snapshots:
     transitivePeerDependencies:
       - '@openzeppelin/contracts'
 
+  '@zama-fhe/relayer-sdk@0.1.2':
+    dependencies:
+      commander: 14.0.0
+      ethers: 6.15.0
+      fetch-retry: 6.0.0
+      keccak: 3.0.4
+      node-tfhe: 1.2.0
+      node-tkms: 0.11.0-rc20
+      tfhe: 1.2.0
+      tkms: 0.11.0-rc20
+      wasm-feature-detect: 1.8.0
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+
   abbrev@1.0.9: {}
 
   abitype@1.0.8(typescript@5.8.3):
@@ -5739,6 +5842,8 @@ snapshots:
       typical: 5.2.0
 
   commander@10.0.1: {}
+
+  commander@14.0.0: {}
 
   commander@8.3.0: {}
 
@@ -6159,6 +6264,8 @@ snapshots:
   fdir@6.4.6(picomatch@4.0.3):
     optionalDependencies:
       picomatch: 4.0.3
+
+  fetch-retry@6.0.0: {}
 
   file-entry-cache@6.0.1:
     dependencies:
@@ -6964,6 +7071,10 @@ snapshots:
 
   node-seal@5.1.6: {}
 
+  node-tfhe@1.2.0: {}
+
+  node-tkms@0.11.0-rc20: {}
+
   nofilter@3.1.0: {}
 
   nopt@3.0.6:
@@ -7604,10 +7715,14 @@ snapshots:
 
   text-table@0.2.0: {}
 
+  tfhe@1.2.0: {}
+
   tinyglobby@0.2.14:
     dependencies:
       fdir: 6.4.6(picomatch@4.0.3)
       picomatch: 4.0.3
+
+  tkms@0.11.0-rc20: {}
 
   tmp@0.0.33:
     dependencies:
@@ -7777,6 +7892,8 @@ snapshots:
       - bufferutil
       - utf-8-validate
       - zod
+
+  wasm-feature-detect@1.8.0: {}
 
   web3-utils@1.10.4:
     dependencies:

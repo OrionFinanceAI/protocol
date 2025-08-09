@@ -55,6 +55,19 @@
     },
     {
       "inputs": [],
+      "name": "epochDuration",
+      "outputs": [
+        {
+          "internalType": "uint32",
+          "name": "",
+          "type": "uint32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
       "name": "getBuyingOrders",
       "outputs": [
         {
@@ -118,6 +131,19 @@
     {
       "inputs": [
         {
+          "internalType": "uint32",
+          "name": "newEpochDuration",
+          "type": "uint32"
+        }
+      ],
+      "name": "updateEpochDuration",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
           "internalType": "uint8",
           "name": "_transparentMinibatchSize",
           "type": "uint8"
@@ -129,19 +155,6 @@
         }
       ],
       "name": "updateMinibatchSizes",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint32",
-          "name": "newUpdateInterval",
-          "type": "uint32"
-        }
-      ],
-      "name": "updateUpdateInterval",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

@@ -5,8 +5,10 @@ import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "../interfaces/IOrionConfig.sol";
 import "../interfaces/IOrionVault.sol";
+import "../interfaces/IInternalStateOrchestrator.sol";
 import "../interfaces/ILiquidityOrchestrator.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { EventsLib } from "../libraries/EventsLib.sol";
@@ -17,7 +19,8 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
  * @notice A modular asset management vault powered by curator intents, with asynchronous deposits and withdrawals
  * @dev
  * OrionVault is an abstract base contract that provides common functionality for transparent and encrypted vaults.
- * It implements the asynchronous pattern for deposits and withdrawals as defined in EIP-7540.
+ * It implements the asynchronous pattern for deposits and withdrawals based on the EIP-7540 standard:
+ * https://eips.ethereum.org/EIPS/eip-7540.
  * The vault interprets curator-submitted intents as portfolio allocation targets, expressed as percentages
  * of the total value locked (TVL). These intents define how assets should be allocated or rebalanced over time.
  *
@@ -62,32 +65,74 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     using Math for uint256;
     using EnumerableMap for EnumerableMap.AddressToUintMap;
+    using EnumerableMap for EnumerableMap.UintToUintMap;
+    using EnumerableSet for EnumerableSet.AddressSet;
 
-    IOrionConfig public config;
     address public vaultOwner;
     address public curator;
+    IOrionConfig public config;
+    IInternalStateOrchestrator public internalStatesOrchestrator;
+
+    /// @notice Vault-specific whitelist of assets for intent validation
+    /// @dev This is a subset of the protocol whitelist for higher auditability
+    EnumerableSet.AddressSet private _vaultWhitelistedAssets;
 
     /// @notice Total assets under management (t_0) - denominated in underlying asset units
     uint256 internal _totalAssets;
 
-    /// @notice Deposit requests queue (D) - mapping of user address to requested asset amount
-    /// Units: Asset tokens (e.g., USDC, ETH), not shares
+    /// @notice Deposit requests queue (D) - mapping of user address to requested [asset] amount
     EnumerableMap.AddressToUintMap private _depositRequests;
 
-    /// @notice Withdraw requests queue (W) - mapping of user address to requested share amount
-    /// Units: Vault share tokens, not underlying assets
+    /// @notice Withdraw requests queue (W) - mapping of user address to requested [share] amount
     EnumerableMap.AddressToUintMap private _withdrawRequests;
 
-    /// @notice Cached total pending deposits - updated incrementally for gas efficiency
-    /// Units: Asset tokens (e.g., USDC, ETH), not shares
+    /// @notice Cached total pending deposits [assets] - updated incrementally for gas efficiency
     uint256 private _totalPendingDeposits;
 
-    /// @notice Cached total pending withdrawals - updated incrementally for gas efficiency
-    /// Units: Vault share tokens, not underlying assets
+    /// @notice Cached total pending withdrawals [shares] - updated incrementally for gas efficiency
     uint256 private _totalPendingWithdrawals;
 
-    /// @notice Factor to convert between underlying and share decimals
-    uint256 private _deltaFactor;
+    /// @notice Pending curator fees queue - mapping of epoch to fee amount [assets]
+    EnumerableMap.UintToUintMap private _pendingCuratorFees;
+
+    /// @notice Share token decimals
+    uint8 public constant SHARE_DECIMALS = 18;
+
+    /* -------------------------------------------------------------------------- */
+    /*                               CURATOR FEES                                 */
+    /* -------------------------------------------------------------------------- */
+
+    /// @notice Year in seconds
+    uint32 public constant YEAR_IN_SECONDS = 365 days;
+
+    uint16 public constant CURATOR_FEE_FACTOR = 10_000;
+    uint16 public constant MAX_MANAGEMENT_FEE = 300; // 3%
+    uint16 public constant MAX_PERFORMANCE_FEE = 3_000; // 30%
+
+    /// @notice Calculation mode
+    enum CalcMode {
+        ABSOLUTE, // Fee based on the latest return, no hurdles or high water mark (HWM)
+        SOFT_HURDLE, // Fee unlocked after hurdle rate is reached
+        HARD_HURDLE, // Fee only above a fixed hurdle rate
+        HIGH_WATER_MARK, // Fee only on gains above the previous peak
+        HURDLE_HWM // Combination of (hard) hurdle rate and HWM
+    }
+
+    /// @notice Fee model
+    /// @dev This struct is used to define the fee model for the vault
+    struct FeeModel {
+        /// @notice Calculation mode
+        CalcMode mode;
+        /// @notice Performance fee - charged on the performance of the vault
+        uint16 performanceFee;
+        /// @notice Management fee - charged on the total assets of the vault
+        uint16 managementFee;
+        /// @notice High watermark for performance fees
+        uint256 highWaterMark;
+    }
+
+    /// @notice Fee model
+    FeeModel public feeModel;
 
     /// @dev Restricts function to only vault owner
     modifier onlyVaultOwner() {
@@ -98,12 +143,6 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     /// @dev Restricts function to only vault curator
     modifier onlyCurator() {
         if (msg.sender != curator) revert ErrorsLib.UnauthorizedAccess();
-        _;
-    }
-
-    /// @dev Restricts function to only internal states orchestrator
-    modifier onlyInternalStatesOrchestrator() {
-        if (msg.sender != config.internalStatesOrchestrator()) revert ErrorsLib.UnauthorizedAccess();
         _;
     }
 
@@ -126,14 +165,34 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         vaultOwner = vaultOwner_;
         curator = curator_;
         config = config_;
+        internalStatesOrchestrator = IInternalStateOrchestrator(config_.internalStatesOrchestrator());
+
         _totalAssets = 0;
         _totalPendingDeposits = 0;
         _totalPendingWithdrawals = 0;
 
         uint8 underlyingDecimals = IERC20Metadata(address(config_.underlyingAsset())).decimals();
-        if (underlyingDecimals > 18) revert ErrorsLib.InvalidUnderlyingDecimals();
-        uint8 deltaDecimals = uint8(18 - underlyingDecimals);
-        _deltaFactor = 10 ** deltaDecimals;
+        if (underlyingDecimals > SHARE_DECIMALS) revert ErrorsLib.InvalidUnderlyingDecimals();
+
+        feeModel = FeeModel({
+            mode: CalcMode.ABSOLUTE,
+            performanceFee: 0,
+            managementFee: 0,
+            highWaterMark: 10 ** SHARE_DECIMALS
+        });
+
+        _initializeVaultWhitelist();
+    }
+
+    /// @notice Initialize the vault whitelist with all protocol whitelisted assets
+    /// @dev This sets the initial vault whitelist to match the protocol whitelist as a default.
+    ///      This can be overridden by the vault owner to set a subset of the protocol whitelist.
+    function _initializeVaultWhitelist() internal {
+        address[] memory protocolAssets = config.getAllWhitelistedAssets();
+        for (uint256 i = 0; i < protocolAssets.length; i++) {
+            bool inserted = _vaultWhitelistedAssets.add(protocolAssets[i]);
+            if (!inserted) revert ErrorsLib.AlreadyRegistered();
+        }
     }
 
     /// @notice Disable direct deposits and withdrawals on ERC4626 to enforce async only
@@ -157,21 +216,23 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         return _totalAssets;
     }
 
+    /// @notice Override ERC4626 decimals to always use SHARE_DECIMALS regardless of underlying asset decimals
+    /// @dev This ensures consistent 18-decimal precision for share tokens across all vaults
+    /// @return SHARE_DECIMALS for all vault share tokens
+    function decimals() public view virtual override(ERC4626, IERC20Metadata) returns (uint8) {
+        return SHARE_DECIMALS;
+    }
+
+    /// @notice Override ERC4626 decimals offset to match our custom decimals implementation
+    /// @dev Since we override decimals() to return SHARE_DECIMALS, we need to override _decimalsOffset()
+    ///      to return the difference between SHARE_DECIMALS and underlying asset decimals
+    /// @return The decimals offset for virtual shares/assets calculation
+    function _decimalsOffset() internal view virtual override returns (uint8) {
+        uint8 underlyingDecimals = IERC20Metadata(asset()).decimals();
+        return SHARE_DECIMALS - underlyingDecimals;
+    }
+
     /* ---------- CONVERSION FUNCTIONS ---------- */
-
-    function convertToShares(uint256 assets) public view override(ERC4626, IERC4626) returns (uint256) {
-        return _convertToShares(assets, Math.Rounding.Floor);
-    }
-
-    function convertToAssets(uint256 shares) public view override(ERC4626, IERC4626) returns (uint256) {
-        return _convertToAssets(shares, Math.Rounding.Floor);
-    }
-
-    /// @dev Defends with a "virtual offset"‑free formula recommended by OZ
-    /// @dev https://docs.openzeppelin.com/contracts/5.x/erc4626#defending_with_a_virtual_offset
-    function _convertToAssets(uint256 shares, Math.Rounding rounding) internal view override returns (uint256) {
-        return convertToAssetsWithPITTotalAssets(shares, _totalAssets, rounding);
-    }
 
     /// @inheritdoc IOrionVault
     function convertToAssetsWithPITTotalAssets(
@@ -179,13 +240,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         uint256 pointInTimeTotalAssets,
         Math.Rounding rounding
     ) public view returns (uint256) {
-        uint256 supply = totalSupply();
-        return shares.mulDiv(pointInTimeTotalAssets + 1, supply + _deltaFactor, rounding);
-    }
-
-    function _convertToShares(uint256 assets, Math.Rounding rounding) internal view override returns (uint256) {
-        uint256 supply = totalSupply();
-        return assets.mulDiv(supply + _deltaFactor, _totalAssets + 1, rounding);
+        return shares.mulDiv(pointInTimeTotalAssets + 1, totalSupply() + 10 ** _decimalsOffset(), rounding);
     }
 
     /// --------- LP FUNCTIONS ---------
@@ -286,9 +341,148 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         curator = newCurator;
     }
 
-    // TODO: Vault Owner to add vault-specific whitelist
-    // (as long as subset of protocol whitelist) for higher auditability.
-    // Defaulting to protocol whitelist.
+    /// @inheritdoc IOrionVault
+    function updateVaultWhitelist(address[] memory assets) external onlyVaultOwner {
+        _vaultWhitelistedAssets.clear();
+        for (uint256 i = 0; i < assets.length; i++) {
+            address token = assets[i];
+
+            // Protocol whitelist validation
+            if (!config.isWhitelisted(token)) revert ErrorsLib.TokenNotWhitelisted(token);
+
+            bool inserted = _vaultWhitelistedAssets.add(token);
+            if (!inserted) revert ErrorsLib.AlreadyRegistered();
+        }
+    }
+
+    /// @notice Update the fee model parameters
+    /// @param mode The calculation mode for fees (0=ABSOLUTE, 1=HURDLE, 2=HIGH_WATER_MARK, 3=HURDLE_HWM)
+    /// @param performanceFee The performance fee
+    /// @param managementFee The management fee
+    /// @dev Only vault owner can update fee model parameters
+    ///      Performance and management fees are capped by protocol limits
+    function updateFeeModel(uint8 mode, uint16 performanceFee, uint16 managementFee) external onlyVaultOwner {
+        // Validate mode is within enum range
+        if (mode > uint8(CalcMode.HURDLE_HWM)) revert ErrorsLib.InvalidArguments();
+
+        // Validate fee limits against protocol maximums
+        if (performanceFee > MAX_PERFORMANCE_FEE) revert ErrorsLib.InvalidArguments();
+        if (managementFee > MAX_MANAGEMENT_FEE) revert ErrorsLib.InvalidArguments();
+
+        feeModel.mode = CalcMode(mode);
+        feeModel.performanceFee = performanceFee;
+        feeModel.managementFee = managementFee;
+
+        emit EventsLib.FeeModelUpdated(mode, performanceFee, managementFee);
+    }
+
+    /// @notice Validate that all assets in an intent are whitelisted for this vault
+    /// @param assets Array of asset addresses to validate
+    /// @dev This function is used by derived contracts to validate curator intents
+    function _validateIntentAssets(address[] memory assets) internal view {
+        for (uint256 i = 0; i < assets.length; i++) {
+            if (!_vaultWhitelistedAssets.contains(assets[i])) {
+                revert ErrorsLib.TokenNotWhitelisted(assets[i]);
+            }
+        }
+    }
+
+    /// @inheritdoc IOrionVault
+    function curatorFee(uint256 activeTotalAssets) external view returns (uint256) {
+        uint256 managementFeeAmount = _managementFeeAmount(activeTotalAssets);
+        uint256 intermediateTotalAssets = activeTotalAssets - managementFeeAmount;
+        uint256 performanceFeeAmount = _performanceFeeAmount(intermediateTotalAssets);
+
+        return managementFeeAmount + performanceFeeAmount;
+    }
+
+    /// @notice Calculate management fee amount
+    /// @return The management fee amount in underlying asset units
+    function _managementFeeAmount(uint256 feeTotalAssets) internal view returns (uint256) {
+        if (feeModel.managementFee == 0) return 0;
+
+        uint256 annualFeeAmount = uint256(feeModel.managementFee).mulDiv(feeTotalAssets, CURATOR_FEE_FACTOR);
+        return annualFeeAmount.mulDiv(internalStatesOrchestrator.epochDuration(), YEAR_IN_SECONDS);
+    }
+
+    /// @notice Calculate performance fee amount
+    /// @dev Performance fee calculation depends on the CalcMode
+    /// @return The performance fee amount in underlying asset units
+    function _performanceFeeAmount(uint256 feeTotalAssets) internal view returns (uint256) {
+        if (feeModel.performanceFee == 0) return 0;
+
+        uint256 activeSharePrice = (10 ** decimals()).mulDiv(
+            feeTotalAssets + 1,
+            totalSupply() + 10 ** _decimalsOffset(),
+            Math.Rounding.Floor
+        );
+
+        (uint256 benchmark, uint256 divisor) = _getBenchmark(feeModel.mode);
+
+        if (activeSharePrice <= benchmark) return 0;
+        uint256 feeRate = uint256(feeModel.performanceFee).mulDiv(activeSharePrice, divisor);
+
+        return feeRate.mulDiv(feeTotalAssets, CURATOR_FEE_FACTOR);
+    }
+
+    /// @notice Get benchmark value based on fee model mode
+    function _getBenchmark(CalcMode mode) internal view returns (uint256 benchmark, uint256 divisor) {
+        uint256 currentSharePrice = convertToAssets(10 ** decimals());
+
+        if (mode == CalcMode.ABSOLUTE) {
+            benchmark = currentSharePrice;
+            divisor = benchmark;
+        } else if (mode == CalcMode.HIGH_WATER_MARK) {
+            benchmark = feeModel.highWaterMark;
+            divisor = benchmark;
+        } else if (mode == CalcMode.SOFT_HURDLE) {
+            benchmark = _getHurdlePrice(currentSharePrice);
+            divisor = currentSharePrice;
+        } else if (mode == CalcMode.HARD_HURDLE) {
+            benchmark = _getHurdlePrice(currentSharePrice);
+            divisor = benchmark;
+        } else if (mode == CalcMode.HURDLE_HWM) {
+            benchmark = Math.max(feeModel.highWaterMark, _getHurdlePrice(currentSharePrice));
+            divisor = benchmark;
+        }
+        return (benchmark, divisor);
+    }
+
+    /// @notice Get hurdle price amount based on configured risk-free rate
+    function _getHurdlePrice(uint256 currentSharePrice) internal view returns (uint256) {
+        uint256 riskFreeRate = config.riskFreeRate();
+
+        uint256 hurdleReturn = riskFreeRate.mulDiv(internalStatesOrchestrator.epochDuration(), YEAR_IN_SECONDS);
+        return currentSharePrice.mulDiv(CURATOR_FEE_FACTOR + hurdleReturn, CURATOR_FEE_FACTOR);
+    }
+
+    /// @notice Claim accrued curator fees when system is idle
+    /// @dev Only callable by vault owner, transfers full accrued fees from liquidity orchestrator to vault owner.
+    function claimCuratorFees() external onlyVaultOwner {
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+
+        uint256 pendingFees = this.getPendingCuratorFees();
+        if (pendingFees == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
+
+        // Reset pending fees before transfer
+        _pendingCuratorFees.clear();
+
+        // TODO: transfer fees from liquidity orchestrator to vault owner.
+    }
+
+    /// @inheritdoc IOrionVault
+    function getPendingCuratorFees() external view returns (uint256) {
+        uint256 totalFees = 0;
+        uint256 length = _pendingCuratorFees.length();
+
+        for (uint256 i = 0; i < length; i++) {
+            // slither-disable-next-line unused-return
+            (, uint256 feeAmount) = _pendingCuratorFees.at(i);
+            totalFees += feeAmount;
+        }
+
+        return totalFees;
+    }
 
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
 
@@ -369,5 +563,34 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
             emit EventsLib.WithdrawProcessed(user, shares);
         }
+    }
+
+    /// @inheritdoc IOrionVault
+    function updateHighWaterMark() external onlyLiquidityOrchestrator {
+        // TODO: only if actual vault states updated, ok to use real total assets/share price here.
+        // Keep a to do in orchestrator,
+        // this update needs to be done after all other states updates for convertToAssets to work.
+        uint256 currentSharePrice = convertToAssets(10 ** decimals());
+
+        // Update high watermark if current price is higher
+        if (currentSharePrice > feeModel.highWaterMark) {
+            feeModel.highWaterMark = currentSharePrice;
+        }
+    }
+
+    // TODO: may be more efficient to write this state from the internal state orchestrator.
+    // As long as curator needs system to be idle to withdraw, this should not be a problem
+    // and we can avoid explicitly passing curator fees to the liquidity orchestrator.
+
+    /// @inheritdoc IOrionVault
+    function accrueCuratorFees(uint256 epoch, uint256 feeAmount) external onlyLiquidityOrchestrator {
+        if (feeAmount == 0) return;
+
+        // slither-disable-next-line unused-return
+        (, uint256 currentAmount) = _pendingCuratorFees.tryGet(epoch);
+        // slither-disable-next-line unused-return
+        _pendingCuratorFees.set(epoch, currentAmount + feeAmount);
+
+        emit EventsLib.CuratorFeesAccrued(epoch, feeAmount);
     }
 }

@@ -14,6 +14,10 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
         Aggregating
     }
 
+    /// @notice Returns the epoch duration
+    /// @return The epoch duration in seconds
+    function epochDuration() external view returns (uint32);
+
     /// @notice Returns the current upkeep phase
     /// @return The current InternalUpkeepPhase
     function currentPhase() external view returns (InternalUpkeepPhase);
@@ -25,9 +29,9 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     /// @param newAutomationRegistry The new automation registry address
     function updateAutomationRegistry(address newAutomationRegistry) external;
 
-    /// @notice Updates the update interval
-    /// @param newUpdateInterval The new update interval in seconds
-    function updateUpdateInterval(uint32 newUpdateInterval) external;
+    /// @notice Updates the epoch duration
+    /// @param newEpochDuration The new epoch duration in seconds
+    function updateEpochDuration(uint32 newEpochDuration) external;
 
     /// @notice Updates the minibatch sizes
     /// @param _transparentMinibatchSize The new transparent minibatch size

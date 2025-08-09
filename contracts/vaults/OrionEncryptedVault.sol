@@ -62,9 +62,12 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
 
         ebool areWeightsValid = _eTrue;
 
+        // Extract asset addresses for validation
+        address[] memory assets = new address[](intentLength);
+
         for (uint16 i = 0; i < intentLength; i++) {
             address token = intent[i].token;
-            if (!config.isWhitelisted(token)) revert ErrorsLib.TokenNotWhitelisted(token);
+            assets[i] = token;
 
             euint32 weight = FHE.fromExternal(intent[i].weight, inputProof);
             // slither-disable-next-line unused-return
@@ -80,6 +83,10 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
             tempWeights[i] = weight;
             totalWeight = FHE.add(totalWeight, weight);
         }
+
+        // Validate that all assets in the intent are whitelisted for this vault
+        _validateIntentAssets(assets);
+
         euint32 encryptedTotalWeight = FHE.asEuint32(uint32(10 ** config.curatorIntentDecimals()));
         ebool isTotalWeightValid = FHE.eq(totalWeight, encryptedTotalWeight);
 
