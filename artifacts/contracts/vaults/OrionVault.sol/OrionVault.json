@@ -898,6 +898,19 @@
       "type": "function"
     },
     {
+      "inputs": [],
+      "name": "internalStatesOrchestrator",
+      "outputs": [
+        {
+          "internalType": "contract IInternalStateOrchestrator",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
       "inputs": [
         {
           "internalType": "address",

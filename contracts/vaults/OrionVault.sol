@@ -8,6 +8,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "../interfaces/IOrionConfig.sol";
 import "../interfaces/IOrionVault.sol";
+import "../interfaces/IInternalStateOrchestrator.sol";
 import "../interfaces/ILiquidityOrchestrator.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { EventsLib } from "../libraries/EventsLib.sol";
@@ -66,9 +67,10 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    IOrionConfig public config;
     address public vaultOwner;
     address public curator;
+    IOrionConfig public config;
+    IInternalStateOrchestrator public internalStatesOrchestrator;
 
     /// @notice Vault-specific whitelist of assets for intent validation
     /// @dev This is a subset of the protocol whitelist for higher auditability
@@ -109,10 +111,10 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
     /// @notice Calculation mode
     enum CalcMode {
-        FLAT,
-        HURDLE,
-        HWM,
-        HURDLE_HWM
+        ABSOLUTE, // Fee based on the latest return, no hurdles or high water mark (HWM)
+        HURDLE, // Fee only above a fixed hurdle rate
+        HIGH_WATER_MARK, // Fee only on gains above the previous peak
+        HURDLE_HWM // Combination of hurdle rate and HWM
     }
 
     /// @notice Fee model
@@ -143,12 +145,6 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         _;
     }
 
-    /// @dev Restricts function to only internal states orchestrator
-    modifier onlyInternalStatesOrchestrator() {
-        if (msg.sender != config.internalStatesOrchestrator()) revert ErrorsLib.UnauthorizedAccess();
-        _;
-    }
-
     /// @dev Restricts function to only liquidity orchestrator
     modifier onlyLiquidityOrchestrator() {
         if (msg.sender != config.liquidityOrchestrator()) revert ErrorsLib.UnauthorizedAccess();
@@ -168,6 +164,8 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         vaultOwner = vaultOwner_;
         curator = curator_;
         config = config_;
+        internalStatesOrchestrator = IInternalStateOrchestrator(config_.internalStatesOrchestrator());
+
         _totalAssets = 0;
         _totalPendingDeposits = 0;
         _totalPendingWithdrawals = 0;
@@ -176,7 +174,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         if (underlyingDecimals > SHARE_DECIMALS) revert ErrorsLib.InvalidUnderlyingDecimals();
 
         feeModel = FeeModel({
-            mode: CalcMode.FLAT,
+            mode: CalcMode.ABSOLUTE,
             performanceFee: 0,
             managementFee: 0,
             highWaterMark: 10 ** SHARE_DECIMALS
@@ -357,7 +355,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     }
 
     /// @notice Update the fee model parameters
-    /// @param mode The calculation mode for fees (0=FLAT, 1=HURDLE, 2=HWM, 3=HURDLE_HWM)
+    /// @param mode The calculation mode for fees (0=ABSOLUTE, 1=HURDLE, 2=HIGH_WATER_MARK, 3=HURDLE_HWM)
     /// @param performanceFee The performance fee
     /// @param managementFee The management fee
     /// @dev Only vault owner can update fee model parameters
@@ -398,13 +396,8 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     function _managementFeeAmount(uint256 activeTotalAssets) internal view returns (uint256) {
         if (feeModel.managementFee == 0) return 0;
 
-        uint256 timeElapsed = 0; // TODO: use updateInterval from orchestrator, ok default to this? Discuss.
-        if (timeElapsed == 0) return 0;
-
-        // TODO: verify correct number of decimals.
-        uint256 annualFeeRate = uint256(feeModel.managementFee).mulDiv(activeTotalAssets, CURATOR_FEE_FACTOR);
-        // TODO: verify correct number of decimals.
-        return annualFeeRate.mulDiv(timeElapsed, YEAR_IN_SECONDS);
+        uint256 annualFeeAmount = uint256(feeModel.managementFee).mulDiv(activeTotalAssets, CURATOR_FEE_FACTOR);
+        return annualFeeAmount.mulDiv(internalStatesOrchestrator.epochDuration(), YEAR_IN_SECONDS);
     }
 
     /// @notice Calculate performance fee amount
@@ -413,8 +406,8 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     function _performanceFeeAmount(uint256 activeTotalAssets) internal view returns (uint256) {
         if (feeModel.performanceFee == 0) return 0;
 
-        if (feeModel.mode == CalcMode.FLAT) {
-            return _calculateFlatFeeAmount(activeTotalAssets);
+        if (feeModel.mode == CalcMode.ABSOLUTE) {
+            return _calculateAbsoluteFeeAmount(activeTotalAssets);
         }
 
         // TODO: _getCurrentSharePrice to follow same logic as _convertToAssets
@@ -423,8 +416,8 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         // if performed after other states updates, can use the wrapper function with vault totalassets.
         uint256 currentSharePrice = _getCurrentSharePrice();
 
-        if (feeModel.mode == CalcMode.HWM) {
-            return _calculateHWMFeeAmount(currentSharePrice);
+        if (feeModel.mode == CalcMode.HIGH_WATER_MARK) {
+            return _calculateHighWaterMarkFeeAmount(currentSharePrice);
         } else if (feeModel.mode == CalcMode.HURDLE) {
             return _calculateHurdleFeeAmount(currentSharePrice);
         } else if (feeModel.mode == CalcMode.HURDLE_HWM) {
@@ -432,13 +425,13 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         }
     }
 
-    /// @notice Calculate flat performance fee amount
-    function _calculateFlatFeeAmount(uint256 activeTotalAssets) internal view returns (uint256) {
+    /// @notice Calculate absolute performance fee amount
+    function _calculateAbsoluteFeeAmount(uint256 activeTotalAssets) internal view returns (uint256) {
         return (uint256(feeModel.performanceFee) * activeTotalAssets) / CURATOR_FEE_FACTOR;
     }
 
     /// @notice Calculate high watermark performance fee amount
-    function _calculateHWMFeeAmount(uint256 currentSharePrice) internal view returns (uint256) {
+    function _calculateHighWaterMarkFeeAmount(uint256 currentSharePrice) internal view returns (uint256) {
         if (currentSharePrice <= feeModel.highWaterMark) return 0;
         return _calculateExcessFee(currentSharePrice - feeModel.highWaterMark);
     }
@@ -474,7 +467,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     /// @notice Get hurdle price amount based on risk-free rate
     function _getHurdlePrice() internal view returns (uint256) {
         uint256 riskFreeRate = config.riskFreeRate();
-        // TODO: use updateInterval from orchestrator? Calling it in other moments would make it wrong. ok?
+        // TODO: use epochDuration from orchestrator? Calling it in other moments would make it wrong. ok?
         uint256 timeElapsed = 0;
         // TODO: verify correct number of decimals.
         uint256 hurdleReturn = (riskFreeRate * feeModel.highWaterMark * timeElapsed) /

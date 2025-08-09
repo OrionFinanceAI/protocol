@@ -324,7 +324,7 @@
       "inputs": [
         {
           "internalType": "uint256",
-          "name": "t1Hat",
+          "name": "totalAssets",
           "type": "uint256"
         }
       ],

@@ -72,10 +72,12 @@ interface IOrionVault is IERC4626 {
     /// @param managementFee The management fee
     function updateFeeModel(uint8 mode, uint16 performanceFee, uint16 managementFee) external;
 
-    /// @notice Compute the curator fee
-    /// @param t1Hat The total assets
-    /// @return The curator fee in underlying asset units
-    function curatorFee(uint256 t1Hat) external view returns (uint256);
+    /// @notice Calculate the curator's fee based on total assets
+    /// @param totalAssets The total assets under management
+    /// @return The curator fee amount in underlying asset units
+    /// @dev Warning: Calling this function mid-epoch may return inaccurate results
+    ///      since fees are calculated based on the full epoch duration
+    function curatorFee(uint256 totalAssets) external view returns (uint256);
 
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
 
@@ -91,15 +93,15 @@ interface IOrionVault is IERC4626 {
 
     /// --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
 
-    /// @notice Update the high watermark after trades are executed
-    /// @dev Shall be called by the liquidity orchestrator after portfolio rebalancing.
-    ///      Updates high watermark if current share price exceeds the previous high watermark.
-    ///      This is used to calculate the performance fee.
-    function updateHighWaterMark() external;
-
     /// @notice Process deposit requests from LPs and reset the requestor's request amount
     function processDepositRequests() external;
 
     /// @notice Process withdrawal requests from LPs and reset the requestor's request amount
     function processWithdrawRequests() external;
+
+    /// @notice Update the high watermark after trades are executed
+    /// @dev Shall be called by the liquidity orchestrator after portfolio rebalancing.
+    ///      Updates high watermark if current share price exceeds the previous high watermark.
+    ///      This is used to calculate the performance fee.
+    function updateHighWaterMark() external;
 }

@@ -89,12 +89,12 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     /*                               UPKEEP STATE                                 */
     /* -------------------------------------------------------------------------- */
 
-    /// @notice Counter for tracking processing cycles
-    uint16 public epochCounter;
+    /// @notice Epoch duration
+    uint32 public epochDuration;
     /// @notice Timestamp when the next upkeep is allowed
     uint256 private _nextUpdateTime;
-    /// @notice Epoch duration
-    uint32 public updateInterval;
+    /// @notice Counter for tracking processing cycles
+    uint16 public epochCounter;
 
     /// @notice Minibatch sizes
     uint8 public transparentMinibatchSize;
@@ -136,7 +136,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
         automationRegistry = automationRegistry_;
 
-        updateInterval = 1 days;
+        epochDuration = 1 days;
         _nextUpdateTime = _computeNextUpdateTime(block.timestamp);
 
         currentPhase = InternalUpkeepPhase.Idle;
@@ -168,11 +168,11 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     }
 
     /// @inheritdoc IInternalStateOrchestrator
-    function updateUpdateInterval(uint32 newUpdateInterval) external onlyOwner {
-        if (newUpdateInterval == 0) revert ErrorsLib.InvalidArguments();
+    function updateEpochDuration(uint32 newEpochDuration) external onlyOwner {
+        if (newEpochDuration == 0) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
-        updateInterval = newUpdateInterval;
+        epochDuration = newEpochDuration;
     }
 
     /// @inheritdoc IInternalStateOrchestrator
@@ -402,7 +402,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     /// @param currentTime Current block timestamp
     /// @return Next update time
     function _computeNextUpdateTime(uint256 currentTime) internal view returns (uint256) {
-        return currentTime + updateInterval;
+        return currentTime + epochDuration;
     }
 
     /// @notice Checks if upkeep should be triggered based on time
