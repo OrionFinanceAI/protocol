@@ -388,46 +388,56 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
     /// @inheritdoc IOrionVault
     function curatorFee(uint256 activeTotalAssets) external view returns (uint256) {
-        return _managementFeeAmount(activeTotalAssets) + _performanceFeeAmount(activeTotalAssets);
+        uint256 managementFeeAmount = _managementFeeAmount(activeTotalAssets);
+
+        uint256 intermediateTotalAssets = activeTotalAssets - managementFeeAmount;
+
+        uint256 sharePrice = (10 ** decimals()).mulDiv(
+            intermediateTotalAssets + 1,
+            totalSupply() + 10 ** _decimalsOffset(),
+            Math.Rounding.Floor
+        );
+
+        uint256 performanceFeeAmount = _performanceFeeAmount(intermediateTotalAssets, sharePrice);
+
+        return managementFeeAmount + performanceFeeAmount;
     }
 
     /// @notice Calculate management fee amount
     /// @return The management fee amount in underlying asset units
-    function _managementFeeAmount(uint256 activeTotalAssets) internal view returns (uint256) {
+    function _managementFeeAmount(uint256 feeTotalAssets) internal view returns (uint256) {
         if (feeModel.managementFee == 0) return 0;
 
-        uint256 annualFeeAmount = uint256(feeModel.managementFee).mulDiv(activeTotalAssets, CURATOR_FEE_FACTOR);
+        uint256 annualFeeAmount = uint256(feeModel.managementFee).mulDiv(feeTotalAssets, CURATOR_FEE_FACTOR);
         return annualFeeAmount.mulDiv(internalStatesOrchestrator.epochDuration(), YEAR_IN_SECONDS);
     }
 
     /// @notice Calculate performance fee amount
     /// @dev Performance fee calculation depends on the CalcMode
     /// @return The performance fee amount in underlying asset units
-    function _performanceFeeAmount(uint256 activeTotalAssets) internal view returns (uint256) {
+    function _performanceFeeAmount(uint256 feeTotalAssets, uint256 sharePrice) internal view returns (uint256) {
         if (feeModel.performanceFee == 0) return 0;
 
+        // TODO: fix from here:
+
+        uint256 feeRate;
+
         if (feeModel.mode == CalcMode.ABSOLUTE) {
-            return _calculateAbsoluteFeeAmount(activeTotalAssets);
-        }
-
-        // TODO: _getCurrentSharePrice to follow same logic as _convertToAssets
-        // wrapping convertToAssetsWithPITTotalAssets, here using the inner function
-        // accepting input, hurdle rate update below,
-        // if performed after other states updates, can use the wrapper function with vault totalassets.
-        uint256 currentSharePrice = _getCurrentSharePrice();
-
-        if (feeModel.mode == CalcMode.HIGH_WATER_MARK) {
-            return _calculateHighWaterMarkFeeAmount(currentSharePrice);
+            feeRate = _calculateAbsoluteFeeAmount(feeTotalAssets, sharePrice);
+        } else if (feeModel.mode == CalcMode.HIGH_WATER_MARK) {
+            feeRate = _calculateHighWaterMarkFeeAmount(sharePrice);
         } else if (feeModel.mode == CalcMode.HURDLE) {
-            return _calculateHurdleFeeAmount(currentSharePrice);
+            feeRate = _calculateHurdleFeeAmount(sharePrice);
         } else if (feeModel.mode == CalcMode.HURDLE_HWM) {
-            return _calculateHurdleHWMFeeAmount(currentSharePrice);
+            feeRate = _calculateHurdleHWMFeeAmount(sharePrice);
         }
+
+        return feeRate.mulDiv(feeTotalAssets, CURATOR_FEE_FACTOR);
     }
 
     /// @notice Calculate absolute performance fee amount
-    function _calculateAbsoluteFeeAmount(uint256 activeTotalAssets) internal view returns (uint256) {
-        return (uint256(feeModel.performanceFee) * activeTotalAssets) / CURATOR_FEE_FACTOR;
+    function _calculateAbsoluteFeeAmount(uint256 feeTotalAssets, uint256 sharePrice) internal view returns (uint256) {
+        return (uint256(feeModel.performanceFee) * feeTotalAssets) / CURATOR_FEE_FACTOR;
     }
 
     /// @notice Calculate high watermark performance fee amount
@@ -473,19 +483,6 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         uint256 hurdleReturn = (riskFreeRate * feeModel.highWaterMark * timeElapsed) /
             (CURATOR_FEE_FACTOR * YEAR_IN_SECONDS);
         return feeModel.highWaterMark + hurdleReturn;
-    }
-
-    /// @notice Get current share price amount
-    /// @dev Calculates the current share price as totalAssets / totalSupply
-    /// @return Current share price amount
-    function _getCurrentSharePrice() internal view returns (uint256) {
-        // TODO: accept total assets as input.
-        // TODO: verify correct number of decimals.
-        uint256 supply = totalSupply();
-        if (supply == 0) return 10 ** this.decimals(); // Initial price of 1.0
-
-        // TODO: verify correct number of decimals.
-        return (_totalAssets * (10 ** this.decimals())) / supply;
     }
 
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
@@ -571,9 +568,9 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
     /// @inheritdoc IOrionVault
     function updateHighWaterMark() external onlyLiquidityOrchestrator {
-        // TODO: If vault states updated, ok to use real total assets/share price here.
-        // Wrapper needed, keep a to do in orchestrator, this update needs to be done after all other states updates.
-        uint256 currentSharePrice = _getCurrentSharePrice();
+        // TODO: only if actual vault states updated, ok to use real total assets/share price here.
+        // Keep a to do in orchestrator, this update needs to be done after all other states updates for convertToAssets to work.
+        uint256 currentSharePrice = convertToAssets(10 ** decimals());
 
         // Update high watermark if current price is higher
         if (currentSharePrice > feeModel.highWaterMark) {
