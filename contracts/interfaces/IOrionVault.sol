@@ -92,6 +92,9 @@ interface IOrionVault is IERC4626 {
     /// --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
 
     /// @notice Update the high watermark after trades are executed
+    /// @dev Shall be called by the liquidity orchestrator after portfolio rebalancing.
+    ///      Updates high watermark if current share price exceeds the previous high watermark.
+    ///      This is used to calculate the performance fee.
     function updateHighWaterMark() external;
 
     /// @notice Process deposit requests from LPs and reset the requestor's request amount
