@@ -378,9 +378,8 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             }
             // (address[] memory intentTokens, euint32[] memory intentWeights) = vault.getIntent();
             // TODO...
-
-            // TODO: curator fee(TVL, return,...) - protocol fee(vault).
-            // Protocol fee here can be different from the transparent vaults because of added costs.
+            // TODO: Protocol fee here can be different from the transparent
+            // vaults because of added infra costs, consider if fair.
         }
         // TODO: decrypt minibatch and incrementally add to initialBatchPortfolio, finalBatchPortfolio.
 

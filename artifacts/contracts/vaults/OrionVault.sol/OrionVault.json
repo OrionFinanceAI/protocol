@@ -564,6 +564,19 @@
     },
     {
       "inputs": [],
+      "name": "SHARE_DECIMALS",
+      "outputs": [
+        {
+          "internalType": "uint8",
+          "name": "",
+          "type": "uint8"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
       "name": "YEAR_IN_SECONDS",
       "outputs": [
         {

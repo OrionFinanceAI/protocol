@@ -92,8 +92,8 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     /// Units: Vault share tokens, not underlying assets
     uint256 private _totalPendingWithdrawals;
 
-    /// @notice Factor to convert between underlying and share decimals
-    uint256 private _deltaFactor;
+    /// @notice Share token decimals
+    uint8 public constant SHARE_DECIMALS = 18;
 
     /* -------------------------------------------------------------------------- */
     /*                               CURATOR FEES                                 */
@@ -124,7 +124,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         /// @notice Management fee - charged on the total assets of the vault
         uint16 managementFee;
         /// @notice High watermark for performance fees
-        uint256 highWaterMark; // TODO: Initialize high watermark to 1.0 in vault decimals
+        uint256 highWaterMark;
     }
 
     /// @notice Fee model
@@ -172,13 +172,14 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         _totalPendingWithdrawals = 0;
 
         uint8 underlyingDecimals = IERC20Metadata(address(config_.underlyingAsset())).decimals();
-        if (underlyingDecimals > 18) revert ErrorsLib.InvalidUnderlyingDecimals();
-        uint8 deltaDecimals = uint8(18 - underlyingDecimals);
-        _deltaFactor = 10 ** deltaDecimals;
+        if (underlyingDecimals > SHARE_DECIMALS) revert ErrorsLib.InvalidUnderlyingDecimals();
 
-        feeModel = FeeModel({ mode: CalcMode.FLAT, performanceFee: 0, managementFee: 0, highWaterMark: 10 ** 18 });
-        // TODO: test ensuring initial price is 1 with 18 decimals at initialization.
-        // Regardless, how can we make this more explicit?
+        feeModel = FeeModel({
+            mode: CalcMode.FLAT,
+            performanceFee: 0,
+            managementFee: 0,
+            highWaterMark: 10 ** SHARE_DECIMALS
+        });
 
         _initializeVaultWhitelist();
     }
@@ -215,6 +216,22 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         return _totalAssets;
     }
 
+    /// @notice Override ERC4626 decimals to always use SHARE_DECIMALS regardless of underlying asset decimals
+    /// @dev This ensures consistent 18-decimal precision for share tokens across all vaults
+    /// @return SHARE_DECIMALS for all vault share tokens
+    function decimals() public view virtual override(ERC4626, IERC20Metadata) returns (uint8) {
+        return SHARE_DECIMALS;
+    }
+
+    /// @notice Override ERC4626 decimals offset to match our custom decimals implementation
+    /// @dev Since we override decimals() to return SHARE_DECIMALS, we need to override _decimalsOffset()
+    ///      to return the difference between SHARE_DECIMALS and underlying asset decimals
+    /// @return The decimals offset for virtual shares/assets calculation
+    function _decimalsOffset() internal view virtual override returns (uint8) {
+        uint8 underlyingDecimals = IERC20Metadata(asset()).decimals();
+        return SHARE_DECIMALS - underlyingDecimals;
+    }
+
     /* ---------- CONVERSION FUNCTIONS ---------- */
 
     function convertToShares(uint256 assets) public view override(ERC4626, IERC4626) returns (uint256) {
@@ -225,12 +242,6 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         return _convertToAssets(shares, Math.Rounding.Floor);
     }
 
-    /// @dev Defends with a "virtual offset"‑free formula recommended by OZ
-    /// @dev https://docs.openzeppelin.com/contracts/5.x/erc4626#defending_with_a_virtual_offset
-    function _convertToAssets(uint256 shares, Math.Rounding rounding) internal view override returns (uint256) {
-        return convertToAssetsWithPITTotalAssets(shares, _totalAssets, rounding);
-    }
-
     /// @inheritdoc IOrionVault
     function convertToAssetsWithPITTotalAssets(
         uint256 shares,
@@ -238,12 +249,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         Math.Rounding rounding
     ) public view returns (uint256) {
         uint256 supply = totalSupply();
-        return shares.mulDiv(pointInTimeTotalAssets + 1, supply + _deltaFactor, rounding);
-    }
-
-    function _convertToShares(uint256 assets, Math.Rounding rounding) internal view override returns (uint256) {
-        uint256 supply = totalSupply();
-        return assets.mulDiv(supply + _deltaFactor, _totalAssets + 1, rounding);
+        return shares.mulDiv(pointInTimeTotalAssets + 1, supply + 10 ** _decimalsOffset(), rounding);
     }
 
     /// --------- LP FUNCTIONS ---------
@@ -457,8 +463,8 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         uint256 supply = totalSupply();
         if (supply == 0) return 0;
 
-        // TODO: verify correct number of decimals + avoid magic numbers
-        uint256 excessValue = excessPerformance.mulDiv(supply, 10 ** 18);
+        // TODO: verify correct number of decimals
+        uint256 excessValue = excessPerformance.mulDiv(supply, 10 ** this.decimals());
         // TODO: verify correct number of decimals
         return uint256(feeModel.performanceFee).mulDiv(excessValue, CURATOR_FEE_FACTOR);
     }
@@ -476,15 +482,15 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
     /// @notice Get current share price
     /// @dev Calculates the current share price as totalAssets / totalSupply
-    /// @return Current share price scaled to 18 decimals
+    /// @return Current share price
     function _getCurrentSharePrice() internal view returns (uint256) {
         // TODO: accept total assets as input.
         // TODO: verify correct number of decimals.
         uint256 supply = totalSupply();
-        if (supply == 0) return 10 ** 18; // Initial price of 1.0
+        if (supply == 0) return 10 ** this.decimals(); // Initial price of 1.0
 
-        // Convert to 18 decimals for consistent pricing
-        return (_totalAssets * (10 ** 18)) / supply;
+        // TODO: verify correct number of decimals.
+        return (_totalAssets * (10 ** this.decimals())) / supply;
     }
 
     /// @notice Calculate management fee
