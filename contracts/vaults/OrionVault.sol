@@ -417,68 +417,35 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
             Math.Rounding.Floor
         );
 
-        uint256 feeRate;
+        (uint256 benchmark, uint256 divisor) = _getBenchmark(feeModel.mode);
 
-        if (feeModel.mode == CalcMode.ABSOLUTE) {
-            feeRate = _calculateAbsoluteFeeAmount(activeSharePrice);
-        } else if (feeModel.mode == CalcMode.HIGH_WATER_MARK) {
-            feeRate = _calculateHighWaterMarkFeeAmount(activeSharePrice);
-        } else if (feeModel.mode == CalcMode.SOFT_HURDLE) {
-            feeRate = _calculateSoftHurdleFeeAmount(activeSharePrice);
-        } else if (feeModel.mode == CalcMode.HARD_HURDLE) {
-            feeRate = _calculateHardHurdleFeeAmount(activeSharePrice);
-        } else if (feeModel.mode == CalcMode.HURDLE_HWM) {
-            feeRate = _calculateHurdleHWMFeeAmount(activeSharePrice);
-        }
-
-        // TODO: heavy code duplication, input needs to change (benchmark value, based on method), the logic
-        // internally is similar if not the same, refacto.
-
-        // TODO: consider adding more states to FeeModel to avoid code duplication.
-        // e.g. currentSharePrice, hurdleprice,...
+        if (activeSharePrice <= benchmark) return 0;
+        uint256 feeRate = uint256(feeModel.performanceFee).mulDiv(activeSharePrice, divisor);
 
         return feeRate.mulDiv(feeTotalAssets, CURATOR_FEE_FACTOR);
     }
 
-    /// @notice Calculate absolute performance fee amount
-    function _calculateAbsoluteFeeAmount(uint256 activeSharePrice) internal view returns (uint256) {
-        uint256 currentSharePrice = convertToAssets(10 ** decimals());
-        if (currentSharePrice <= activeSharePrice) return 0;
-        return uint256(feeModel.performanceFee).mulDiv(activeSharePrice, currentSharePrice);
-    }
-
-    /// @notice Calculate high watermark performance fee amount
-    function _calculateHighWaterMarkFeeAmount(uint256 activeSharePrice) internal view returns (uint256) {
-        if (activeSharePrice <= feeModel.highWaterMark) return 0;
-        return uint256(feeModel.performanceFee).mulDiv(activeSharePrice, feeModel.highWaterMark);
-    }
-
-    /// @notice Calculate soft hurdle rate performance fee amount
-    function _calculateSoftHurdleFeeAmount(uint256 activeSharePrice) internal view returns (uint256) {
+    /// @notice Get benchmark value based on fee model mode
+    function _getBenchmark(CalcMode mode) internal view returns (uint256 benchmark, uint256 divisor) {
         uint256 currentSharePrice = convertToAssets(10 ** decimals());
 
-        uint256 hurdlePrice = _getHurdlePrice(currentSharePrice);
-        if (activeSharePrice <= hurdlePrice) return 0;
-        return uint256(feeModel.performanceFee).mulDiv(activeSharePrice, hurdlePrice);
-    }
-
-    /// @notice Calculate hard hurdle rate performance fee amount
-    function _calculateHardHurdleFeeAmount(uint256 activeSharePrice) internal view returns (uint256) {
-        uint256 currentSharePrice = convertToAssets(10 ** decimals());
-
-        uint256 hurdlePrice = _getHurdlePrice(currentSharePrice);
-        if (activeSharePrice <= hurdlePrice) return 0;
-        return uint256(feeModel.performanceFee).mulDiv(activeSharePrice, currentSharePrice);
-    }
-
-    /// @notice Calculate combined hurdle and high watermark performance fee amount
-    function _calculateHurdleHWMFeeAmount(uint256 activeSharePrice) internal view returns (uint256) {
-        uint256 currentSharePrice = convertToAssets(10 ** decimals());
-
-        uint256 hurdlePrice = _getHurdlePrice(currentSharePrice);
-        uint256 threshold = Math.max(hurdlePrice, feeModel.highWaterMark);
-        if (activeSharePrice <= threshold) return 0;
-        return uint256(feeModel.performanceFee).mulDiv(activeSharePrice, threshold);
+        if (mode == CalcMode.ABSOLUTE) {
+            benchmark = currentSharePrice;
+            divisor = benchmark;
+        } else if (mode == CalcMode.HIGH_WATER_MARK) {
+            benchmark = feeModel.highWaterMark;
+            divisor = benchmark;
+        } else if (mode == CalcMode.SOFT_HURDLE) {
+            benchmark = _getHurdlePrice(currentSharePrice);
+            divisor = currentSharePrice;
+        } else if (mode == CalcMode.HARD_HURDLE) {
+            benchmark = _getHurdlePrice(currentSharePrice);
+            divisor = benchmark;
+        } else if (mode == CalcMode.HURDLE_HWM) {
+            benchmark = Math.max(feeModel.highWaterMark, _getHurdlePrice(currentSharePrice));
+            divisor = benchmark;
+        }
+        return (benchmark, divisor);
     }
 
     /// @notice Get hurdle price amount based on configured risk-free rate
@@ -573,7 +540,8 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     /// @inheritdoc IOrionVault
     function updateHighWaterMark() external onlyLiquidityOrchestrator {
         // TODO: only if actual vault states updated, ok to use real total assets/share price here.
-        // Keep a to do in orchestrator, this update needs to be done after all other states updates for convertToAssets to work.
+        // Keep a to do in orchestrator,
+        // this update needs to be done after all other states updates for convertToAssets to work.
         uint256 currentSharePrice = convertToAssets(10 ** decimals());
 
         // Update high watermark if current price is higher
