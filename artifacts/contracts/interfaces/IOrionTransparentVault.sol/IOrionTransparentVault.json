@@ -321,6 +321,25 @@
       "type": "function"
     },
     {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "t1Hat",
+          "type": "uint256"
+        }
+      ],
+      "name": "curatorFee",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
       "inputs": [],
       "name": "decimals",
       "outputs": [
@@ -803,6 +822,36 @@
         }
       ],
       "name": "updateCurator",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint8",
+          "name": "mode",
+          "type": "uint8"
+        },
+        {
+          "internalType": "uint16",
+          "name": "performanceFee",
+          "type": "uint16"
+        },
+        {
+          "internalType": "uint16",
+          "name": "managementFee",
+          "type": "uint16"
+        }
+      ],
+      "name": "updateFeeModel",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "updateHighWaterMark",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

@@ -243,6 +243,19 @@
       "type": "function"
     },
     {
+      "inputs": [],
+      "name": "riskFreeRate",
+      "outputs": [
+        {
+          "internalType": "uint16",
+          "name": "",
+          "type": "uint16"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
       "inputs": [
         {
           "internalType": "address",
@@ -292,21 +305,6 @@
           "internalType": "uint8",
           "name": "priceAdapterDecimals",
           "type": "uint8"
-        },
-        {
-          "internalType": "uint8",
-          "name": "curatorFeeDecimals",
-          "type": "uint8"
-        },
-        {
-          "internalType": "uint16",
-          "name": "maxManagementFee",
-          "type": "uint16"
-        },
-        {
-          "internalType": "uint16",
-          "name": "maxPerformanceFee",
-          "type": "uint16"
         },
         {
           "internalType": "uint16",

@@ -39,10 +39,8 @@ contract OrionConfig is Ownable, IOrionConfig {
     // Protocol parameters
     uint8 public curatorIntentDecimals; // 9 for uint32
     uint8 public priceAdapterDecimals; // 18 for uint256
-    uint8 public curatorFeeDecimals; // 4 for uint16
 
-    uint16 public maxManagementFee;
-    uint16 public maxPerformanceFee;
+    // Risk-free rate in basis points. Same decimals as CURATOR_FEE_FACTOR
     uint16 public riskFreeRate;
 
     // Vault-specific configuration
@@ -106,18 +104,12 @@ contract OrionConfig is Ownable, IOrionConfig {
     function setProtocolParams(
         uint8 _curatorIntentDecimals,
         uint8 _priceAdapterDecimals,
-        uint8 _curatorFeeDecimals,
-        uint16 _maxManagementFee,
-        uint16 _maxPerformanceFee,
         uint16 _riskFreeRate
     ) external onlyOwner {
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         curatorIntentDecimals = _curatorIntentDecimals;
         priceAdapterDecimals = _priceAdapterDecimals;
-        curatorFeeDecimals = _curatorFeeDecimals;
-        maxManagementFee = _maxManagementFee;
-        maxPerformanceFee = _maxPerformanceFee;
         riskFreeRate = _riskFreeRate;
 
         emit EventsLib.ProtocolParamsUpdated();

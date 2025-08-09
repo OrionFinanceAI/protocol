@@ -217,6 +217,11 @@
     },
     {
       "inputs": [],
+      "name": "InvalidArguments",
+      "type": "error"
+    },
+    {
+      "inputs": [],
       "name": "InvalidUnderlyingDecimals",
       "type": "error"
     },
@@ -378,6 +383,31 @@
       "anonymous": false,
       "inputs": [
         {
+          "indexed": false,
+          "internalType": "uint8",
+          "name": "mode",
+          "type": "uint8"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint16",
+          "name": "performanceFee",
+          "type": "uint16"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint16",
+          "name": "managementFee",
+          "type": "uint16"
+        }
+      ],
+      "name": "FeeModelUpdated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
           "indexed": true,
           "internalType": "address",
           "name": "from",
@@ -492,6 +522,45 @@
       ],
       "name": "WithdrawRequested",
       "type": "event"
+    },
+    {
+      "inputs": [],
+      "name": "CURATOR_FEE_FACTOR",
+      "outputs": [
+        {
+          "internalType": "uint16",
+          "name": "",
+          "type": "uint16"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "MAX_MANAGEMENT_FEE",
+      "outputs": [
+        {
+          "internalType": "uint16",
+          "name": "",
+          "type": "uint16"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "MAX_PERFORMANCE_FEE",
+      "outputs": [
+        {
+          "internalType": "uint16",
+          "name": "",
+          "type": "uint16"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
     },
     {
       "inputs": [],
@@ -706,6 +775,25 @@
       "type": "function"
     },
     {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "activeTotalAssets",
+          "type": "uint256"
+        }
+      ],
+      "name": "curatorFee",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
       "inputs": [],
       "name": "decimals",
       "outputs": [
@@ -744,6 +832,34 @@
     },
     {
       "inputs": [],
+      "name": "feeModel",
+      "outputs": [
+        {
+          "internalType": "enum OrionVault.CalcMode",
+          "name": "mode",
+          "type": "uint8"
+        },
+        {
+          "internalType": "uint16",
+          "name": "performanceFee",
+          "type": "uint16"
+        },
+        {
+          "internalType": "uint16",
+          "name": "managementFee",
+          "type": "uint16"
+        },
+        {
+          "internalType": "uint256",
+          "name": "highWaterMark",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
       "name": "getPendingDeposits",
       "outputs": [
         {
@@ -758,19 +874,6 @@
     {
       "inputs": [],
       "name": "getPendingWithdrawals",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "highWatermark",
       "outputs": [
         {
           "internalType": "uint256",
@@ -889,19 +992,6 @@
           "internalType": "string",
           "name": "",
           "type": "string"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "performanceFee",
-      "outputs": [
-        {
-          "internalType": "uint16",
-          "name": "",
-          "type": "uint16"
         }
       ],
       "stateMutability": "view",
@@ -1153,6 +1243,36 @@
         }
       ],
       "name": "updateCurator",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint8",
+          "name": "mode",
+          "type": "uint8"
+        },
+        {
+          "internalType": "uint16",
+          "name": "performanceFee",
+          "type": "uint16"
+        },
+        {
+          "internalType": "uint16",
+          "name": "managementFee",
+          "type": "uint16"
+        }
+      ],
+      "name": "updateFeeModel",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "updateHighWaterMark",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

@@ -36,6 +36,10 @@ interface IOrionConfig {
     /// @return The number of decimal places for price adapters
     function priceAdapterDecimals() external view returns (uint8);
 
+    /// @notice Returns the risk-free rate
+    /// @return The risk-free rate
+    function riskFreeRate() external view returns (uint16);
+
     /// @notice Sets the underlying asset for the protocol
     /// @dev Can only be called by the contract owner
     /// @dev The underlying asset is automatically added to the investment universe whitelist because:
@@ -70,18 +74,8 @@ interface IOrionConfig {
     /// @dev Can only be called by the contract owner
     /// @param curatorIntentDecimals The number of decimal places for curator intents
     /// @param priceAdapterDecimals The number of decimal places for price adapters
-    /// @param curatorFeeDecimals The number of decimal places for curator fees
-    /// @param maxManagementFee The max management fee
-    /// @param maxPerformanceFee The max performance fee
     /// @param riskFreeRate The risk-free rate
-    function setProtocolParams(
-        uint8 curatorIntentDecimals,
-        uint8 priceAdapterDecimals,
-        uint8 curatorFeeDecimals,
-        uint16 maxManagementFee,
-        uint16 maxPerformanceFee,
-        uint16 riskFreeRate
-    ) external;
+    function setProtocolParams(uint8 curatorIntentDecimals, uint8 priceAdapterDecimals, uint16 riskFreeRate) external;
 
     /// @notice Adds an asset to the whitelist
     /// @dev Can only be called by the contract owner

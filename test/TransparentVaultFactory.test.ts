@@ -59,10 +59,7 @@ beforeEach(async function () {
   await orionConfig.setProtocolParams(
     9, // curatorIntentDecimals
     18, // priceAdapterDecimals
-    4, // curatorFeeDecimals
-    300, // maxManagementFee
-    3000, // maxPerformanceFee
-    423, // riskFreeRate
+    0.0423 * 10_000, // riskFreeRate
   );
 });
 

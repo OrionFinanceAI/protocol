@@ -102,11 +102,33 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     /// @notice Year in seconds
     uint32 public constant YEAR_IN_SECONDS = 365 days;
 
-    /// @notice High watermark - tracks the highest share price reached
-    uint256 public highWatermark;
+    uint16 public constant CURATOR_FEE_FACTOR = 10_000;
+    uint16 public constant MAX_MANAGEMENT_FEE = 300; // 3%
+    uint16 public constant MAX_PERFORMANCE_FEE = 3_000; // 30%
 
-    /// @notice Performance fee - charged on the performance of the vault
-    uint16 public performanceFee;
+    /// @notice Calculation mode
+    enum CalcMode {
+        FLAT,
+        HURDLE,
+        HWM,
+        HURDLE_HWM
+    }
+
+    /// @notice Fee model
+    /// @dev This struct is used to define the fee model for the vault
+    struct FeeModel {
+        /// @notice Calculation mode
+        CalcMode mode;
+        /// @notice Performance fee - charged on the performance of the vault
+        uint16 performanceFee;
+        /// @notice Management fee - charged on the total assets of the vault
+        uint16 managementFee;
+        /// @notice High watermark for performance fees
+        uint256 highWaterMark; // TODO: Initialize high watermark to 1.0 in vault decimals
+    }
+
+    /// @notice Fee model
+    FeeModel public feeModel;
 
     /// @dev Restricts function to only vault owner
     modifier onlyVaultOwner() {
@@ -154,10 +176,11 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         uint8 deltaDecimals = uint8(18 - underlyingDecimals);
         _deltaFactor = 10 ** deltaDecimals;
 
-        _initializeVaultWhitelist();
+        feeModel = FeeModel({ mode: CalcMode.FLAT, performanceFee: 0, managementFee: 0, highWaterMark: 10 ** 18 });
+        // TODO: test ensuring initial price is 1 with 18 decimals at initialization.
+        // Regardless, how can we make this more explicit?
 
-        performanceFee = 0; // TODO.
-        highWatermark = 0; // TODO: Initialize high watermark to 1.0 in vault decimals
+        _initializeVaultWhitelist();
     }
 
     /// @notice Initialize the vault whitelist with all protocol whitelisted assets
@@ -335,6 +358,27 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         }
     }
 
+    /// @notice Update the fee model parameters
+    /// @param mode The calculation mode for fees (0=FLAT, 1=HURDLE, 2=HWM, 3=HURDLE_HWM)
+    /// @param performanceFee The performance fee
+    /// @param managementFee The management fee
+    /// @dev Only vault owner can update fee model parameters
+    ///      Performance and management fees are capped by protocol limits
+    function updateFeeModel(uint8 mode, uint16 performanceFee, uint16 managementFee) external onlyVaultOwner {
+        // Validate mode is within enum range
+        if (mode > uint8(CalcMode.HURDLE_HWM)) revert ErrorsLib.InvalidArguments();
+
+        // Validate fee limits against protocol maximums
+        if (performanceFee > MAX_PERFORMANCE_FEE) revert ErrorsLib.InvalidArguments();
+        if (managementFee > MAX_MANAGEMENT_FEE) revert ErrorsLib.InvalidArguments();
+
+        feeModel.mode = CalcMode(mode);
+        feeModel.performanceFee = performanceFee;
+        feeModel.managementFee = managementFee;
+
+        emit EventsLib.FeeModelUpdated(mode, performanceFee, managementFee);
+    }
+
     /// @notice Validate that all assets in an intent are whitelisted for this vault
     /// @param assets Array of asset addresses to validate
     /// @dev This function is used by derived contracts to validate curator intents
@@ -344,6 +388,117 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
                 revert ErrorsLib.TokenNotWhitelisted(assets[i]);
             }
         }
+    }
+
+    /// @inheritdoc IOrionVault
+    function curatorFee(uint256 activeTotalAssets) external view returns (uint256) {
+        // TODO: name duplicate performanceFee in curatorFee and here, change one.
+        uint256 performanceFee = _performanceFee(activeTotalAssets);
+        uint256 managementFee = _managementFee(activeTotalAssets);
+        uint256 totalFee = performanceFee + managementFee;
+        return totalFee;
+    }
+
+    /// @notice Calculate performance fee based on the fee model calculation mode
+    /// @dev Performance fee calculation depends on the CalcMode
+    /// @return The performance fee in underlying asset units
+    function _performanceFee(uint256 activeTotalAssets) internal view returns (uint256) {
+        if (feeModel.performanceFee == 0) return 0;
+
+        if (feeModel.mode == CalcMode.FLAT) {
+            return _calculateFlatFee(activeTotalAssets);
+        }
+
+        // TODO: _getCurrentSharePrice to follow same logic as _convertToAssets
+        // wrapping convertToAssetsWithPITTotalAssets, here using the inner function
+        // accepting input, hurdle rate update below,
+        // if performed after other states updates, can use the wrapper function with vault totalassets.
+        uint256 currentSharePrice = _getCurrentSharePrice();
+
+        if (feeModel.mode == CalcMode.HWM) {
+            return _calculateHWMFee(currentSharePrice);
+        } else if (feeModel.mode == CalcMode.HURDLE) {
+            return _calculateHurdleFee(currentSharePrice);
+        } else if (feeModel.mode == CalcMode.HURDLE_HWM) {
+            return _calculateHurdleHWMFee(currentSharePrice);
+        }
+    }
+
+    /// @notice Calculate flat performance fee
+    function _calculateFlatFee(uint256 activeTotalAssets) internal view returns (uint256) {
+        return (uint256(feeModel.performanceFee) * activeTotalAssets) / CURATOR_FEE_FACTOR;
+    }
+
+    /// @notice Calculate high watermark performance fee
+    function _calculateHWMFee(uint256 currentSharePrice) internal view returns (uint256) {
+        if (currentSharePrice <= feeModel.highWaterMark) return 0;
+        return _calculateExcessFee(currentSharePrice - feeModel.highWaterMark);
+    }
+
+    /// @notice Calculate hurdle rate performance fee
+    function _calculateHurdleFee(uint256 currentSharePrice) internal view returns (uint256) {
+        // TODO: verify correct number of decimals.
+        uint256 hurdlePrice = _getHurdlePrice();
+        if (currentSharePrice <= hurdlePrice) return 0;
+        return _calculateExcessFee(currentSharePrice - hurdlePrice);
+    }
+
+    /// @notice Calculate combined hurdle and high watermark performance fee
+    function _calculateHurdleHWMFee(uint256 currentSharePrice) internal view returns (uint256) {
+        uint256 hurdlePrice = _getHurdlePrice();
+        uint256 threshold = hurdlePrice > feeModel.highWaterMark ? hurdlePrice : feeModel.highWaterMark;
+        if (currentSharePrice <= threshold) return 0;
+        return _calculateExcessFee(currentSharePrice - threshold);
+    }
+
+    /// @notice Calculate fee on excess performance
+    function _calculateExcessFee(uint256 excessPerformance) internal view returns (uint256) {
+        // TODO: verify correct number of decimals.
+        uint256 supply = totalSupply();
+        if (supply == 0) return 0;
+
+        // TODO: verify correct number of decimals + avoid magic numbers
+        uint256 excessValue = excessPerformance.mulDiv(supply, 10 ** 18);
+        // TODO: verify correct number of decimals
+        return uint256(feeModel.performanceFee).mulDiv(excessValue, CURATOR_FEE_FACTOR);
+    }
+
+    /// @notice Get hurdle price based on risk-free rate
+    function _getHurdlePrice() internal view returns (uint256) {
+        uint256 riskFreeRate = config.riskFreeRate();
+        // TODO: use updateInterval from orchestrator? Calling it in other moments would make it wrong. ok?
+        uint256 timeElapsed = 0;
+        // TODO: verify correct number of decimals.
+        uint256 hurdleReturn = (riskFreeRate * feeModel.highWaterMark * timeElapsed) /
+            (CURATOR_FEE_FACTOR * YEAR_IN_SECONDS);
+        return feeModel.highWaterMark + hurdleReturn;
+    }
+
+    /// @notice Get current share price
+    /// @dev Calculates the current share price as totalAssets / totalSupply
+    /// @return Current share price scaled to 18 decimals
+    function _getCurrentSharePrice() internal view returns (uint256) {
+        // TODO: accept total assets as input.
+        // TODO: verify correct number of decimals.
+        uint256 supply = totalSupply();
+        if (supply == 0) return 10 ** 18; // Initial price of 1.0
+
+        // Convert to 18 decimals for consistent pricing
+        return (_totalAssets * (10 ** 18)) / supply;
+    }
+
+    /// @notice Calculate management fee
+    /// @return The management fee in underlying asset units
+    function _managementFee(uint256 activeTotalAssets) internal view returns (uint256) {
+        if (feeModel.managementFee == 0) return 0;
+
+        uint256 timeElapsed = 0; // TODO: use updateInterval from orchestrator, ok default to this? Discuss.
+        if (timeElapsed == 0) return 0;
+
+        // TODO: verify correct number of decimals.
+        uint256 annualFeeRate = uint256(feeModel.managementFee).mulDiv(activeTotalAssets, CURATOR_FEE_FACTOR);
+        // TODO: verify correct number of decimals.
+        return annualFeeRate.mulDiv(timeElapsed, YEAR_IN_SECONDS);
     }
 
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
@@ -424,6 +579,20 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
             // I am not taking USDC from the liquidity orchestrator. Please fix.
 
             emit EventsLib.WithdrawProcessed(user, shares);
+        }
+    }
+
+    /// @notice Update the high watermark after trades are executed
+    /// @dev Should be called by the liquidity orchestrator after portfolio rebalancing
+    ///      Updates high watermark if current share price exceeds the previous high watermark
+    function updateHighWaterMark() external onlyLiquidityOrchestrator {
+        // TODO: If vault states updated, ok to use real total assets/share price here.
+        // Wrapper needed, keep a to do in orchestrator, this update needs to be done after all other states updates.
+        uint256 currentSharePrice = _getCurrentSharePrice();
+
+        // Update high watermark if current price is higher
+        if (currentSharePrice > feeModel.highWaterMark) {
+            feeModel.highWaterMark = currentSharePrice;
         }
     }
 }

@@ -66,6 +66,17 @@ interface IOrionVault is IERC4626 {
     /// @param assets The new whitelist of assets.
     function updateVaultWhitelist(address[] memory assets) external;
 
+    /// @notice Update the fee model parameters
+    /// @param mode The calculation mode for fees
+    /// @param performanceFee The performance fee
+    /// @param managementFee The management fee
+    function updateFeeModel(uint8 mode, uint16 performanceFee, uint16 managementFee) external;
+
+    /// @notice Compute the curator fee
+    /// @param t1Hat The total assets
+    /// @return The curator fee in underlying asset units
+    function curatorFee(uint256 t1Hat) external view returns (uint256);
+
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
 
     /// @notice Get total pending deposit amount across all users
@@ -79,6 +90,9 @@ interface IOrionVault is IERC4626 {
     function getPendingWithdrawals() external view returns (uint256);
 
     /// --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
+
+    /// @notice Update the high watermark after trades are executed
+    function updateHighWaterMark() external;
 
     /// @notice Process deposit requests from LPs and reset the requestor's request amount
     function processDepositRequests() external;

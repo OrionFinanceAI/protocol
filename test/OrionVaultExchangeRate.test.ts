@@ -59,10 +59,7 @@ describe("OrionVault Exchange Rate Tests", function () {
     await config.setProtocolParams(
       9, // curatorIntentDecimals
       18, // priceAdapterDecimals
-      4, // curatorFeeDecimals
-      300, // maxManagementFee
-      3000, // maxPerformanceFee
-      423, // riskFreeRate
+      0.0423 * 10_000, // riskFreeRate
     );
 
     // Deploy OrionTransparentVault with correct constructor parameters

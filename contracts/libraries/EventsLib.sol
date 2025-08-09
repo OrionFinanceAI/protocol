@@ -69,6 +69,12 @@ library EventsLib {
     /// @param newTotalAssets The new total assets value for the vault.
     event VaultStateUpdated(uint256 newTotalAssets);
 
+    /// @notice The fee model has been updated.
+    /// @param mode The new calculation mode.
+    /// @param performanceFee The new performance fee in basis points.
+    /// @param managementFee The new management fee in basis points.
+    event FeeModelUpdated(uint8 mode, uint16 performanceFee, uint16 managementFee);
+
     // ====================================
     // === Internal States Orchestrator ===
     // ====================================

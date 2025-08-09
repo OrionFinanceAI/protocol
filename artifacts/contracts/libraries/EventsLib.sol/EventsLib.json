@@ -97,6 +97,31 @@
       "inputs": [
         {
           "indexed": false,
+          "internalType": "uint8",
+          "name": "mode",
+          "type": "uint8"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint16",
+          "name": "performanceFee",
+          "type": "uint16"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint16",
+          "name": "managementFee",
+          "type": "uint16"
+        }
+      ],
+      "name": "FeeModelUpdated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
           "internalType": "uint16",
           "name": "epochCounter",
           "type": "uint16"
@@ -303,8 +328,8 @@
       "type": "event"
     }
   ],
-  "bytecode": "0x60556032600b8282823980515f1a607314602657634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f5ffdfea26469706673582212209065b0d0200cbbd2702b3ed219c2889140192f93129ea775dd70535d950dae1e64736f6c634300081c0033",
-  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f5ffdfea26469706673582212209065b0d0200cbbd2702b3ed219c2889140192f93129ea775dd70535d950dae1e64736f6c634300081c0033",
+  "bytecode": "0x60556032600b8282823980515f1a607314602657634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f5ffdfea26469706673582212208150821e615701c77db872901943d785f8b301dc92585e415a8a1dc4a110a9e164736f6c634300081c0033",
+  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f5ffdfea26469706673582212208150821e615701c77db872901943d785f8b301dc92585e415a8a1dc4a110a9e164736f6c634300081c0033",
   "linkReferences": {},
   "deployedLinkReferences": {}
 }
