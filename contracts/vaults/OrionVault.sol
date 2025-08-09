@@ -398,21 +398,19 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
     /// @inheritdoc IOrionVault
     function curatorFee(uint256 activeTotalAssets) external view returns (uint256) {
-        // TODO: name duplicate performanceFee in curatorFee and here, change one.
-        uint256 performanceFee = _performanceFee(activeTotalAssets);
-        uint256 managementFee = _managementFee(activeTotalAssets);
-        uint256 totalFee = performanceFee + managementFee;
-        return totalFee;
+        uint256 performanceFeeAmount = _performanceFeeAmount(activeTotalAssets);
+        uint256 managementFeeAmount = _managementFeeAmount(activeTotalAssets);
+        return performanceFeeAmount + managementFeeAmount;
     }
 
     /// @notice Calculate performance fee based on the fee model calculation mode
     /// @dev Performance fee calculation depends on the CalcMode
     /// @return The performance fee in underlying asset units
-    function _performanceFee(uint256 activeTotalAssets) internal view returns (uint256) {
+    function _performanceFeeAmount(uint256 activeTotalAssets) internal view returns (uint256) {
         if (feeModel.performanceFee == 0) return 0;
 
         if (feeModel.mode == CalcMode.FLAT) {
-            return _calculateFlatFee(activeTotalAssets);
+            return _calculateFlatFeeAmount(activeTotalAssets);
         }
 
         // TODO: _getCurrentSharePrice to follow same logic as _convertToAssets
@@ -422,27 +420,27 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         uint256 currentSharePrice = _getCurrentSharePrice();
 
         if (feeModel.mode == CalcMode.HWM) {
-            return _calculateHWMFee(currentSharePrice);
+            return _calculateHWMFeeAmount(currentSharePrice);
         } else if (feeModel.mode == CalcMode.HURDLE) {
-            return _calculateHurdleFee(currentSharePrice);
+            return _calculateHurdleFeeAmount(currentSharePrice);
         } else if (feeModel.mode == CalcMode.HURDLE_HWM) {
-            return _calculateHurdleHWMFee(currentSharePrice);
+            return _calculateHurdleHWMFeeAmount(currentSharePrice);
         }
     }
 
     /// @notice Calculate flat performance fee
-    function _calculateFlatFee(uint256 activeTotalAssets) internal view returns (uint256) {
+    function _calculateFlatFeeAmount(uint256 activeTotalAssets) internal view returns (uint256) {
         return (uint256(feeModel.performanceFee) * activeTotalAssets) / CURATOR_FEE_FACTOR;
     }
 
     /// @notice Calculate high watermark performance fee
-    function _calculateHWMFee(uint256 currentSharePrice) internal view returns (uint256) {
+    function _calculateHWMFeeAmount(uint256 currentSharePrice) internal view returns (uint256) {
         if (currentSharePrice <= feeModel.highWaterMark) return 0;
         return _calculateExcessFee(currentSharePrice - feeModel.highWaterMark);
     }
 
     /// @notice Calculate hurdle rate performance fee
-    function _calculateHurdleFee(uint256 currentSharePrice) internal view returns (uint256) {
+    function _calculateHurdleFeeAmount(uint256 currentSharePrice) internal view returns (uint256) {
         // TODO: verify correct number of decimals.
         uint256 hurdlePrice = _getHurdlePrice();
         if (currentSharePrice <= hurdlePrice) return 0;
@@ -450,7 +448,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     }
 
     /// @notice Calculate combined hurdle and high watermark performance fee
-    function _calculateHurdleHWMFee(uint256 currentSharePrice) internal view returns (uint256) {
+    function _calculateHurdleHWMFeeAmount(uint256 currentSharePrice) internal view returns (uint256) {
         uint256 hurdlePrice = _getHurdlePrice();
         uint256 threshold = hurdlePrice > feeModel.highWaterMark ? hurdlePrice : feeModel.highWaterMark;
         if (currentSharePrice <= threshold) return 0;
@@ -495,7 +493,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
     /// @notice Calculate management fee
     /// @return The management fee in underlying asset units
-    function _managementFee(uint256 activeTotalAssets) internal view returns (uint256) {
+    function _managementFeeAmount(uint256 activeTotalAssets) internal view returns (uint256) {
         if (feeModel.managementFee == 0) return 0;
 
         uint256 timeElapsed = 0; // TODO: use updateInterval from orchestrator, ok default to this? Discuss.
