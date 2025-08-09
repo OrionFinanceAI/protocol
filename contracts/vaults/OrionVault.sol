@@ -112,9 +112,10 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     /// @notice Calculation mode
     enum CalcMode {
         ABSOLUTE, // Fee based on the latest return, no hurdles or high water mark (HWM)
-        HURDLE, // Fee only above a fixed hurdle rate
+        SOFT_HURDLE, // Fee unlocked after hurdle rate is reached
+        HARD_HURDLE, // Fee only above a fixed hurdle rate
         HIGH_WATER_MARK, // Fee only on gains above the previous peak
-        HURDLE_HWM // Combination of hurdle rate and HWM
+        HURDLE_HWM // Combination of (hard) hurdle rate and HWM
     }
 
     /// @notice Fee model
@@ -389,16 +390,8 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     /// @inheritdoc IOrionVault
     function curatorFee(uint256 activeTotalAssets) external view returns (uint256) {
         uint256 managementFeeAmount = _managementFeeAmount(activeTotalAssets);
-
         uint256 intermediateTotalAssets = activeTotalAssets - managementFeeAmount;
-
-        uint256 sharePrice = (10 ** decimals()).mulDiv(
-            intermediateTotalAssets + 1,
-            totalSupply() + 10 ** _decimalsOffset(),
-            Math.Rounding.Floor
-        );
-
-        uint256 performanceFeeAmount = _performanceFeeAmount(intermediateTotalAssets, sharePrice);
+        uint256 performanceFeeAmount = _performanceFeeAmount(intermediateTotalAssets);
 
         return managementFeeAmount + performanceFeeAmount;
     }
@@ -415,74 +408,85 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     /// @notice Calculate performance fee amount
     /// @dev Performance fee calculation depends on the CalcMode
     /// @return The performance fee amount in underlying asset units
-    function _performanceFeeAmount(uint256 feeTotalAssets, uint256 sharePrice) internal view returns (uint256) {
+    function _performanceFeeAmount(uint256 feeTotalAssets) internal view returns (uint256) {
         if (feeModel.performanceFee == 0) return 0;
 
-        // TODO: fix from here:
+        uint256 activeSharePrice = (10 ** decimals()).mulDiv(
+            feeTotalAssets + 1,
+            totalSupply() + 10 ** _decimalsOffset(),
+            Math.Rounding.Floor
+        );
 
         uint256 feeRate;
 
         if (feeModel.mode == CalcMode.ABSOLUTE) {
-            feeRate = _calculateAbsoluteFeeAmount(feeTotalAssets, sharePrice);
+            feeRate = _calculateAbsoluteFeeAmount(activeSharePrice);
         } else if (feeModel.mode == CalcMode.HIGH_WATER_MARK) {
-            feeRate = _calculateHighWaterMarkFeeAmount(sharePrice);
-        } else if (feeModel.mode == CalcMode.HURDLE) {
-            feeRate = _calculateHurdleFeeAmount(sharePrice);
+            feeRate = _calculateHighWaterMarkFeeAmount(activeSharePrice);
+        } else if (feeModel.mode == CalcMode.SOFT_HURDLE) {
+            feeRate = _calculateSoftHurdleFeeAmount(activeSharePrice);
+        } else if (feeModel.mode == CalcMode.HARD_HURDLE) {
+            feeRate = _calculateHardHurdleFeeAmount(activeSharePrice);
         } else if (feeModel.mode == CalcMode.HURDLE_HWM) {
-            feeRate = _calculateHurdleHWMFeeAmount(sharePrice);
+            feeRate = _calculateHurdleHWMFeeAmount(activeSharePrice);
         }
+
+        // TODO: heavy code duplication, input needs to change (benchmark value, based on method), the logic
+        // internally is similar if not the same, refacto.
+
+        // TODO: consider adding more states to FeeModel to avoid code duplication.
+        // e.g. currentSharePrice, hurdleprice,...
 
         return feeRate.mulDiv(feeTotalAssets, CURATOR_FEE_FACTOR);
     }
 
     /// @notice Calculate absolute performance fee amount
-    function _calculateAbsoluteFeeAmount(uint256 feeTotalAssets, uint256 sharePrice) internal view returns (uint256) {
-        return (uint256(feeModel.performanceFee) * feeTotalAssets) / CURATOR_FEE_FACTOR;
+    function _calculateAbsoluteFeeAmount(uint256 activeSharePrice) internal view returns (uint256) {
+        uint256 currentSharePrice = convertToAssets(10 ** decimals());
+        if (currentSharePrice <= activeSharePrice) return 0;
+        return uint256(feeModel.performanceFee).mulDiv(activeSharePrice, currentSharePrice);
     }
 
     /// @notice Calculate high watermark performance fee amount
-    function _calculateHighWaterMarkFeeAmount(uint256 currentSharePrice) internal view returns (uint256) {
-        if (currentSharePrice <= feeModel.highWaterMark) return 0;
-        return _calculateExcessFee(currentSharePrice - feeModel.highWaterMark);
+    function _calculateHighWaterMarkFeeAmount(uint256 activeSharePrice) internal view returns (uint256) {
+        if (activeSharePrice <= feeModel.highWaterMark) return 0;
+        return uint256(feeModel.performanceFee).mulDiv(activeSharePrice, feeModel.highWaterMark);
     }
 
-    /// @notice Calculate hurdle rate performance fee amount
-    function _calculateHurdleFeeAmount(uint256 currentSharePrice) internal view returns (uint256) {
-        // TODO: verify correct number of decimals.
-        uint256 hurdlePrice = _getHurdlePrice();
-        if (currentSharePrice <= hurdlePrice) return 0;
-        return _calculateExcessFee(currentSharePrice - hurdlePrice);
+    /// @notice Calculate soft hurdle rate performance fee amount
+    function _calculateSoftHurdleFeeAmount(uint256 activeSharePrice) internal view returns (uint256) {
+        uint256 currentSharePrice = convertToAssets(10 ** decimals());
+
+        uint256 hurdlePrice = _getHurdlePrice(currentSharePrice);
+        if (activeSharePrice <= hurdlePrice) return 0;
+        return uint256(feeModel.performanceFee).mulDiv(activeSharePrice, hurdlePrice);
+    }
+
+    /// @notice Calculate hard hurdle rate performance fee amount
+    function _calculateHardHurdleFeeAmount(uint256 activeSharePrice) internal view returns (uint256) {
+        uint256 currentSharePrice = convertToAssets(10 ** decimals());
+
+        uint256 hurdlePrice = _getHurdlePrice(currentSharePrice);
+        if (activeSharePrice <= hurdlePrice) return 0;
+        return uint256(feeModel.performanceFee).mulDiv(activeSharePrice, currentSharePrice);
     }
 
     /// @notice Calculate combined hurdle and high watermark performance fee amount
-    function _calculateHurdleHWMFeeAmount(uint256 currentSharePrice) internal view returns (uint256) {
-        uint256 hurdlePrice = _getHurdlePrice();
-        uint256 threshold = hurdlePrice > feeModel.highWaterMark ? hurdlePrice : feeModel.highWaterMark;
-        if (currentSharePrice <= threshold) return 0;
-        return _calculateExcessFee(currentSharePrice - threshold);
+    function _calculateHurdleHWMFeeAmount(uint256 activeSharePrice) internal view returns (uint256) {
+        uint256 currentSharePrice = convertToAssets(10 ** decimals());
+
+        uint256 hurdlePrice = _getHurdlePrice(currentSharePrice);
+        uint256 threshold = Math.max(hurdlePrice, feeModel.highWaterMark);
+        if (activeSharePrice <= threshold) return 0;
+        return uint256(feeModel.performanceFee).mulDiv(activeSharePrice, threshold);
     }
 
-    /// @notice Calculate fee on excess performance amount
-    function _calculateExcessFee(uint256 excessPerformance) internal view returns (uint256) {
-        // TODO: verify correct number of decimals.
-        uint256 supply = totalSupply();
-        if (supply == 0) return 0;
-
-        // TODO: verify correct number of decimals
-        uint256 excessValue = excessPerformance.mulDiv(supply, 10 ** this.decimals());
-        // TODO: verify correct number of decimals
-        return uint256(feeModel.performanceFee).mulDiv(excessValue, CURATOR_FEE_FACTOR);
-    }
-
-    /// @notice Get hurdle price amount based on risk-free rate
-    function _getHurdlePrice() internal view returns (uint256) {
+    /// @notice Get hurdle price amount based on configured risk-free rate
+    function _getHurdlePrice(uint256 currentSharePrice) internal view returns (uint256) {
         uint256 riskFreeRate = config.riskFreeRate();
-        // TODO: use epochDuration from orchestrator? Calling it in other moments would make it wrong. ok?
-        uint256 timeElapsed = 0;
-        // TODO: verify correct number of decimals.
-        uint256 hurdleReturn = (riskFreeRate * feeModel.highWaterMark * timeElapsed) /
-            (CURATOR_FEE_FACTOR * YEAR_IN_SECONDS);
-        return feeModel.highWaterMark + hurdleReturn;
+
+        uint256 hurdleReturn = riskFreeRate.mulDiv(internalStatesOrchestrator.epochDuration(), YEAR_IN_SECONDS);
+        return currentSharePrice.mulDiv(CURATOR_FEE_FACTOR + hurdleReturn, CURATOR_FEE_FACTOR);
     }
 
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
