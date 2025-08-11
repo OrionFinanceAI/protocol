@@ -105,9 +105,8 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     /*                               CURATOR FEES                                 */
     /* -------------------------------------------------------------------------- */
 
-    /// @notice Year in seconds
+    /// @notice Constants for curator fee calculations
     uint32 public constant YEAR_IN_SECONDS = 365 days;
-
     uint16 public constant CURATOR_FEE_FACTOR = 10_000;
     uint16 public constant MAX_MANAGEMENT_FEE = 300; // 3%
     uint16 public constant MAX_PERFORMANCE_FEE = 3_000; // 30%

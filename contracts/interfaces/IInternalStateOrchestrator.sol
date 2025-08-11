@@ -38,6 +38,11 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     /// @param _encryptedMinibatchSize The new encrypted minibatch size
     function updateMinibatchSizes(uint8 _transparentMinibatchSize, uint8 _encryptedMinibatchSize) external;
 
+    /// @notice Updates the protocol fees
+    /// @param _vFeeCoefficient The new volume fee coefficient
+    /// @param _rsFeeCoefficient The new revenue share fee coefficient
+    function updateProtocolFees(uint16 _vFeeCoefficient, uint16 _rsFeeCoefficient) external;
+
     /// @notice Get the selling orders
     /// @return tokens The tokens to sell
     /// @return amounts The amounts to sell in shares (converted from underlying assets)

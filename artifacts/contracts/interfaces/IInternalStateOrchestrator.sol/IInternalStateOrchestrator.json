@@ -158,6 +158,24 @@
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint16",
+          "name": "_vFeeCoefficient",
+          "type": "uint16"
+        },
+        {
+          "internalType": "uint16",
+          "name": "_rsFeeCoefficient",
+          "type": "uint16"
+        }
+      ],
+      "name": "updateProtocolFees",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
     }
   ],
   "bytecode": "0x",

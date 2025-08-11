@@ -53,6 +53,18 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     /// @notice Decimals of the underlying asset
     uint8 public underlyingDecimals;
 
+    /// @notice Protocol volume fee coefficient
+    uint16 public vFeeCoefficient;
+
+    /// @notice Protocol revenue share fee coefficient
+    uint16 public rsFeeCoefficient;
+
+    /// @notice Constants for protocol fee calculations
+    uint32 public constant YEAR_IN_SECONDS = 365 days;
+    uint16 public constant PROTOCOL_FEE_FACTOR = 10_000;
+    uint16 public constant MAX_VOLUME_FEE = 100; // 1%
+    uint16 public constant MAX_REVENUE_SHARE_FEE = 1_000; // 15%
+
     /// @notice Action constants for checkUpkeep and performUpkeep
     bytes4 private constant ACTION_START = bytes4(keccak256("start()"));
     bytes4 private constant ACTION_PROCESS_TRANSPARENT_VAULT = bytes4(keccak256("processTransparentVault(uint8)"));
@@ -148,6 +160,9 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         currentMinibatchIndex = 0;
 
         _ezero = FHE.asEuint32(0);
+
+        vFeeCoefficient = 0;
+        rsFeeCoefficient = 0;
     }
 
     /// @inheritdoc IInternalStateOrchestrator
@@ -174,6 +189,16 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
         transparentMinibatchSize = _transparentMinibatchSize;
         encryptedMinibatchSize = _encryptedMinibatchSize;
+    }
+
+    /// @inheritdoc IInternalStateOrchestrator
+    function updateProtocolFees(uint16 _vFeeCoefficient, uint16 _rsFeeCoefficient) external onlyOwner {
+        if (_vFeeCoefficient > MAX_VOLUME_FEE || _rsFeeCoefficient > MAX_REVENUE_SHARE_FEE)
+            revert ErrorsLib.InvalidArguments();
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+
+        vFeeCoefficient = _vFeeCoefficient;
+        rsFeeCoefficient = _rsFeeCoefficient;
     }
 
     /// @notice Checks if upkeep is needed based on time interval
@@ -256,9 +281,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
             (address[] memory portfolioTokens, uint256[] memory sharesPerAsset) = vault.getPortfolio();
 
-            // Calculate estimated active total assets (t_1) and populate batch portfolio
-            uint256 activeTotalAssets = 0;
-
+            uint256 totalAssets = 0;
             for (uint16 j = 0; j < portfolioTokens.length; j++) {
                 address token = portfolioTokens[j];
 
@@ -286,25 +309,30 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                     underlyingDecimals
                 );
 
-                activeTotalAssets += value;
+                totalAssets += value;
                 _currentEpoch.initialBatchPortfolio[token] += value;
                 _addTokenIfNotExists(token);
             }
 
             uint256 pendingWithdrawals = vault.convertToAssetsWithPITTotalAssets(
                 vault.getPendingWithdrawals(),
-                activeTotalAssets,
+                totalAssets,
                 Math.Rounding.Floor
             );
 
+            uint256 protocolVolumeFee = uint256(vFeeCoefficient).mulDiv(totalAssets, PROTOCOL_FEE_FACTOR);
+            protocolVolumeFee = protocolVolumeFee.mulDiv(epochDuration, YEAR_IN_SECONDS);
+            totalAssets -= protocolVolumeFee;
+            uint256 curatorFee = vault.curatorFee(totalAssets);
+            uint256 protocolRevenueShareFee = uint256(rsFeeCoefficient).mulDiv(curatorFee, PROTOCOL_FEE_FACTOR);
+            curatorFee -= protocolRevenueShareFee;
+
             // Calculate estimated total assets (active and passive, including curator and protocol fees),
-            // same decimals as underlying.
-            uint256 predictedTotalAssets = activeTotalAssets +
-                vault.getPendingDeposits() -
-                pendingWithdrawals -
-                vault.curatorFee(activeTotalAssets);
-            // TODO - protocol_fee(vault)
-            // TODO; open issue to solve, how to distribute protocol fee to multiple vaults and a common buffer amount.
+            totalAssets += vault.getPendingDeposits() - pendingWithdrawals - curatorFee - protocolVolumeFee;
+
+            // TODO; buffer is computed as a function of the total_TVL taking into account
+            // curator fee amounts and protocol fee amounts (else we
+            // spend the money earned by us and curators to pay market impact).
 
             (address[] memory intentTokens, uint32[] memory intentWeights) = vault.getIntent();
             uint16 intentLength = uint16(intentTokens.length);
@@ -313,7 +341,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                 uint32 weight = intentWeights[j];
 
                 // same decimals as underlying
-                uint256 value = predictedTotalAssets.mulDiv(weight, intentFactor);
+                uint256 value = totalAssets.mulDiv(weight, intentFactor);
 
                 _currentEpoch.finalBatchPortfolio[token] += value;
                 _addTokenIfNotExists(token);
