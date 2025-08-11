@@ -276,6 +276,9 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             currentMinibatchIndex = 0;
         }
 
+        uint256 minibatchTotalAssets = 0;
+        uint256[] memory totalAssetsArray = new uint256[](i1 - i0);
+
         for (uint16 i = i0; i < i1; i++) {
             IOrionTransparentVault vault = IOrionTransparentVault(transparentVaultsEpoch[i]);
 
@@ -327,12 +330,39 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             uint256 protocolRevenueShareFee = uint256(rsFeeCoefficient).mulDiv(curatorFee, PROTOCOL_FEE_FACTOR);
             curatorFee -= protocolRevenueShareFee;
 
+            // TODO: sum up all protocol fee components.
+            // TODO: add a function in liquidityorchstrator for owner
+            // to withdraw protocol fees based on the internal ledger.
+            // The withdrawal updates the internal ledger state.
+
             // Calculate estimated total assets (active and passive, including curator and protocol fees),
             totalAssets += vault.getPendingDeposits() - pendingWithdrawals - curatorFee - protocolVolumeFee;
 
-            // TODO; buffer is computed as a function of the total_TVL taking into account
-            // curator fee amounts and protocol fee amounts (else we
-            // spend the money earned by us and curators to pay market impact).
+            totalAssetsArray[i - i0] = totalAssets;
+            minibatchTotalAssets += totalAssets;
+
+            // TODO: compute here total protocol buffer fee using a number of variables/parameters:
+            // minibatchTotalAssets just computed,
+
+            // buffer liquidity amount:
+            // TODO: add function in liquidityorchstrator for everyone to deposit buffer liquidity amount, this updates
+            // an internal ledger.
+            // Based on the internal ledger, LO LPs can withdraw buffer liquidity amount.
+
+            // TODO: add function in liquidityorchstrator for everyone to withdraw buffer liquidity amount, this updates
+            // slippage_bound TODO set as config constant and read at construction in liqudityorchestrator and here.
+            // target_ratio = slippage_bound * 1.1
+            // smoothing_factor TODO protocol param (accept any owner update between 0 and 1 here).
+            // strart 0.05
+            // smoothed_error, starting 0.
+
+            for (uint16 k = i0; k < i1; k++) {
+                // .mulDiv(totalAssetsArray[k - i0], minibatchTotalAssets);
+                // TODO; buffer is computed as a function of the total_TVL taking into account
+                // curator fee amounts and protocol fee amounts (else we
+                // spend the money earned by us and curators to pay market impact).
+                // TODO: once buffer computed, add it to the buffer internal state.
+            }
 
             (address[] memory intentTokens, uint32[] memory intentWeights) = vault.getIntent();
             uint16 intentLength = uint16(intentTokens.length);
@@ -340,7 +370,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                 address token = intentTokens[j];
                 uint32 weight = intentWeights[j];
 
-                // same decimals as underlying
+                // TODO: remove buffer "fee" from totalAssets before computing value here:
                 uint256 value = totalAssets.mulDiv(weight, intentFactor);
 
                 _currentEpoch.finalBatchPortfolio[token] += value;
