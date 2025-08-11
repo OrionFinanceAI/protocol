@@ -75,7 +75,6 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
         if (automationRegistry_ == address(0)) revert ErrorsLib.ZeroAddress();
 
         config = IOrionConfig(config_);
-        internalStatesOrchestrator = IInternalStateOrchestrator(config.internalStatesOrchestrator());
         underlyingAsset = address(config.underlyingAsset());
 
         automationRegistry = automationRegistry_;
@@ -98,6 +97,15 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
 
         automationRegistry = newAutomationRegistry;
         emit EventsLib.AutomationRegistryUpdated(newAutomationRegistry);
+    }
+
+    /// @notice Sets the internal states orchestrator address
+    /// @dev Can only be called by the contract owner
+    /// @param _internalStatesOrchestrator The address of the internal states orchestrator
+    function setInternalStatesOrchestrator(address _internalStatesOrchestrator) external onlyOwner {
+        if (_internalStatesOrchestrator == address(0)) revert ErrorsLib.ZeroAddress();
+        if (address(internalStatesOrchestrator) != address(0)) revert ErrorsLib.AlreadyRegistered();
+        internalStatesOrchestrator = IInternalStateOrchestrator(_internalStatesOrchestrator);
     }
 
     /// @inheritdoc ILiquidityOrchestrator
@@ -138,9 +146,8 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
         if (!success) revert ErrorsLib.TransferFailed();
     }
 
-    // TODO: the function below is called by the vault function, that is in turned called by the liquidity orchestrator.
+    // TODO: function called by the vault function, that is in turned called by the liquidity orchestrator.
     // Implement a cleaner pattern in which there is no re-entrancy.
-
     /// @inheritdoc ILiquidityOrchestrator
     function transferWithdrawalFunds(address user, uint256 amount) external {
         // Verify the caller is a registered vault
@@ -149,6 +156,17 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
 
         // Transfer underlying assets to the user
         bool success = IERC20(underlyingAsset).transfer(user, amount);
+        if (!success) revert ErrorsLib.TransferFailed();
+    }
+
+    /// @inheritdoc ILiquidityOrchestrator
+    function claimProtocolFees() external onlyOwner {
+        uint256 pendingProtocolFees = internalStatesOrchestrator.pendingProtocolFees();
+        if (pendingProtocolFees == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
+
+        internalStatesOrchestrator.resetPendingProtocolFees();
+
+        bool success = IERC20(underlyingAsset).transfer(msg.sender, pendingProtocolFees);
         if (!success) revert ErrorsLib.TransferFailed();
     }
 

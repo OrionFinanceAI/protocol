@@ -73,7 +73,7 @@ interface IOrionVault is IERC4626 {
     /// @param managementFee The management fee
     function updateFeeModel(uint8 mode, uint16 performanceFee, uint16 managementFee) external;
 
-    /// @notice Claim accrued curator fees when system is idle
+    /// @notice Claim accrued curator fees
     /// @dev Only callable by vault owner, transfers full accrued fees from liquidity orchestrator to vault owner
     function claimCuratorFees() external;
 

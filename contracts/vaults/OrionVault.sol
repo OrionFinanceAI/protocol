@@ -469,18 +469,12 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         return currentSharePrice.mulDiv(CURATOR_FEE_FACTOR + hurdleReturn, CURATOR_FEE_FACTOR);
     }
 
-    /// @notice Claim accrued curator fees when system is idle
-    /// @dev Only callable by vault owner, transfers full accrued fees from liquidity orchestrator to vault owner.
+    /// @inheritdoc IOrionVault
     function claimCuratorFees() external onlyVaultOwner {
-        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         if (pendingCuratorFees == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
 
         uint256 amountToClaim = pendingCuratorFees;
-
-        // Reset pending fees before transfer to prevent reentrancy
         pendingCuratorFees = 0;
-
-        // Transfer fees from liquidity orchestrator to vault owner
         liquidityOrchestrator.transferCuratorFees(amountToClaim);
     }
 

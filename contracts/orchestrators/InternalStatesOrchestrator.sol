@@ -11,6 +11,7 @@ import "../interfaces/IOrionTransparentVault.sol";
 import "../interfaces/IOrionEncryptedVault.sol";
 import "../interfaces/IPriceAdapterRegistry.sol";
 import "../interfaces/IInternalStateOrchestrator.sol";
+import "../interfaces/ILiquidityOrchestrator.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { EventsLib } from "../libraries/EventsLib.sol";
 import { UtilitiesLib } from "../libraries/UtilitiesLib.sol";
@@ -38,6 +39,9 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     /// @notice Orion Config contract address
     IOrionConfig public config;
 
+    /// @notice Liquidity Orchestrator contract
+    ILiquidityOrchestrator public liquidityOrchestrator;
+
     /// @notice Price Adapter Registry contract
     IPriceAdapterRegistry public registry;
 
@@ -53,11 +57,12 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     /// @notice Decimals of the underlying asset
     uint8 public underlyingDecimals;
 
-    /// @notice Protocol volume fee coefficient
+    /// @notice Protocol fee coefficients
     uint16 public vFeeCoefficient;
-
-    /// @notice Protocol revenue share fee coefficient
     uint16 public rsFeeCoefficient;
+
+    /// @notice Pending protocol fees [assets]
+    uint256 public pendingProtocolFees;
 
     /// @notice Constants for protocol fee calculations
     uint32 public constant YEAR_IN_SECONDS = 365 days;
@@ -134,6 +139,12 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         _;
     }
 
+    /// @dev Restricts function to only Liquidity Orchestrator
+    modifier onlyLiquidityOrchestrator() {
+        if (msg.sender != address(liquidityOrchestrator)) revert ErrorsLib.NotAuthorized();
+        _;
+    }
+
     constructor(
         address initialOwner,
         address config_,
@@ -151,6 +162,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         encryptedMinibatchSize = 1;
 
         automationRegistry = automationRegistry_;
+        liquidityOrchestrator = ILiquidityOrchestrator(config.liquidityOrchestrator());
 
         epochDuration = 1 days;
         _nextUpdateTime = _computeNextUpdateTime(block.timestamp);
@@ -325,15 +337,15 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
             uint256 protocolVolumeFee = uint256(vFeeCoefficient).mulDiv(totalAssets, PROTOCOL_FEE_FACTOR);
             protocolVolumeFee = protocolVolumeFee.mulDiv(epochDuration, YEAR_IN_SECONDS);
+            pendingProtocolFees += protocolVolumeFee;
+
             totalAssets -= protocolVolumeFee;
             uint256 curatorFee = vault.curatorFee(totalAssets);
-            uint256 protocolRevenueShareFee = uint256(rsFeeCoefficient).mulDiv(curatorFee, PROTOCOL_FEE_FACTOR);
-            curatorFee -= protocolRevenueShareFee;
 
-            // TODO: sum up all protocol fee components.
-            // TODO: add a function in liquidityorchstrator for owner
-            // to withdraw protocol fees based on the internal ledger.
-            // The withdrawal updates the internal ledger state.
+            uint256 protocolRevenueShareFee = uint256(rsFeeCoefficient).mulDiv(curatorFee, PROTOCOL_FEE_FACTOR);
+            pendingProtocolFees += protocolRevenueShareFee;
+
+            curatorFee -= protocolRevenueShareFee;
 
             // Calculate estimated total assets (active and passive, including curator and protocol fees),
             totalAssets += vault.getPendingDeposits() - pendingWithdrawals - curatorFee - protocolVolumeFee;
@@ -623,5 +635,10 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                 index++;
             }
         }
+    }
+
+    /// @inheritdoc IInternalStateOrchestrator
+    function resetPendingProtocolFees() external onlyLiquidityOrchestrator {
+        pendingProtocolFees = 0;
     }
 }

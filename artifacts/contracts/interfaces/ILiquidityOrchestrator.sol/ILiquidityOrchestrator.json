@@ -29,6 +29,13 @@
     },
     {
       "inputs": [],
+      "name": "claimProtocolFees",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
       "name": "currentPhase",
       "outputs": [
         {
