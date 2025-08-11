@@ -193,6 +193,7 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
         // TODO: use executionMinibatchSize, akin to internal states orchestrator.
 
         // TODO: analogous to internal state orchestrator,
+        // TODO: store underlying asset as contract variable at construction to avoid gas.
         // if (token == address(config.underlyingAsset())) pass for both sell and buy
 
         // Sell before buy, avoid undercollateralization risk.

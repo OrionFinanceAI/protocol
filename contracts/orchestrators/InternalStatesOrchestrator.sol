@@ -47,6 +47,9 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     /// @notice Intent factor for calculations
     uint256 public intentFactor;
 
+    /// @notice Underlying asset address
+    address public underlyingAsset;
+
     /// @notice Decimals of the underlying asset
     uint8 public underlyingDecimals;
 
@@ -129,7 +132,8 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         config = IOrionConfig(config_);
         registry = IPriceAdapterRegistry(config.priceAdapterRegistry());
         intentFactor = 10 ** config.curatorIntentDecimals();
-        underlyingDecimals = IERC20Metadata(address(config.underlyingAsset())).decimals();
+        underlyingAsset = address(config.underlyingAsset());
+        underlyingDecimals = IERC20Metadata(underlyingAsset).decimals();
         priceAdapterPrecision = 10 ** config.priceAdapterDecimals();
         transparentMinibatchSize = 1;
         encryptedMinibatchSize = 1;
@@ -267,7 +271,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                 // Get and cache price if not already cached
                 uint256 price = _currentEpoch.priceArray[token];
                 if (price == 0) {
-                    if (token == address(config.underlyingAsset())) {
+                    if (token == underlyingAsset) {
                         price = 10 ** underlyingDecimals;
                     } else {
                         price = registry.getPrice(token);
@@ -352,7 +356,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                 // Get and cache price if not already cached
                 uint256 price = _currentEpoch.priceArray[token];
                 if (price == 0) {
-                    if (token == address(config.underlyingAsset())) {
+                    if (token == underlyingAsset) {
                         price = 10 ** underlyingDecimals;
                     } else {
                         price = registry.getPrice(token);

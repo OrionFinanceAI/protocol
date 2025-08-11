@@ -71,6 +71,10 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     address public curator;
     IOrionConfig public config;
     IInternalStateOrchestrator public internalStatesOrchestrator;
+    ILiquidityOrchestrator public liquidityOrchestrator;
+
+    /// @notice Decimals for curator intent
+    uint8 public curatorIntentDecimals;
 
     /// @notice Vault-specific whitelist of assets for intent validation
     /// @dev This is a subset of the protocol whitelist for higher auditability
@@ -147,7 +151,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
     /// @dev Restricts function to only liquidity orchestrator
     modifier onlyLiquidityOrchestrator() {
-        if (msg.sender != config.liquidityOrchestrator()) revert ErrorsLib.UnauthorizedAccess();
+        if (msg.sender != address(liquidityOrchestrator)) revert ErrorsLib.UnauthorizedAccess();
         _;
     }
 
@@ -165,6 +169,8 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         curator = curator_;
         config = config_;
         internalStatesOrchestrator = IInternalStateOrchestrator(config_.internalStatesOrchestrator());
+        liquidityOrchestrator = ILiquidityOrchestrator(config_.liquidityOrchestrator());
+        curatorIntentDecimals = config_.curatorIntentDecimals();
 
         _totalAssets = 0;
         _totalPendingDeposits = 0;
@@ -252,7 +258,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         uint256 senderBalance = IERC20(asset()).balanceOf(msg.sender);
         if (amount > senderBalance) revert ErrorsLib.InsufficientFunds(msg.sender, senderBalance, amount);
 
-        bool success = IERC20(asset()).transferFrom(msg.sender, config.liquidityOrchestrator(), amount);
+        bool success = IERC20(asset()).transferFrom(msg.sender, address(liquidityOrchestrator), amount);
         if (!success) revert ErrorsLib.TransferFailed();
 
         // slither-disable-next-line unused-return
@@ -274,7 +280,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         if (currentAmount < amount) revert ErrorsLib.NotEnoughDepositRequest();
 
         // Interactions - request funds from liquidity orchestrator
-        ILiquidityOrchestrator(config.liquidityOrchestrator()).returnDepositFunds(msg.sender, amount);
+        liquidityOrchestrator.returnDepositFunds(msg.sender, amount);
 
         // Effects - update internal state
         uint256 newAmount = currentAmount - amount;
@@ -476,7 +482,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         pendingCuratorFees = 0;
 
         // Transfer fees from liquidity orchestrator to vault owner
-        ILiquidityOrchestrator(config.liquidityOrchestrator()).transferCuratorFees(amountToClaim);
+        liquidityOrchestrator.transferCuratorFees(amountToClaim);
     }
 
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
@@ -550,7 +556,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
             _burn(address(this), shares);
 
             // Transfer underlying assets from liquidity orchestrator to the user
-            ILiquidityOrchestrator(config.liquidityOrchestrator()).transferWithdrawalFunds(user, underlyingAmount);
+            liquidityOrchestrator.transferWithdrawalFunds(user, underlyingAmount);
 
             emit EventsLib.WithdrawProcessed(user, shares);
         }

@@ -87,7 +87,7 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
         // Validate that all assets in the intent are whitelisted for this vault
         _validateIntentAssets(assets);
 
-        euint32 encryptedTotalWeight = FHE.asEuint32(uint32(10 ** config.curatorIntentDecimals()));
+        euint32 encryptedTotalWeight = FHE.asEuint32(uint32(10 ** curatorIntentDecimals));
         ebool isTotalWeightValid = FHE.eq(totalWeight, encryptedTotalWeight);
 
         ebool isIntentEValid = FHE.and(areWeightsValid, isTotalWeightValid);
