@@ -369,6 +369,9 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             // smoothed_error, starting 0.
 
             for (uint16 k = i0; k < i1; k++) {
+                // Here use the percentage of TVL of each vault to scale the total buffer cost,
+                // So I need a buffer state as an input to the buffer_fee function, together with total protocol tvl,
+                // and use these two to scale for each vault the % of fee.
                 // .mulDiv(totalAssetsArray[k - i0], minibatchTotalAssets);
                 // TODO; buffer is computed as a function of the total_TVL taking into account
                 // curator fee amounts and protocol fee amounts (else we
@@ -448,8 +451,6 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             }
             // (address[] memory intentTokens, euint32[] memory intentWeights) = vault.getIntent();
             // TODO...
-            // TODO: Protocol fee here can be different from the transparent
-            // vaults because of added infra costs, consider if fair.
         }
         // TODO: for decryptions, populate list of cyphertexts and then decrypt all together in one call.
         // https://docs.zama.ai/protocol/examples/basic/decryption-in-solidity/fhe-decrypt-multiple-values-in-solidity

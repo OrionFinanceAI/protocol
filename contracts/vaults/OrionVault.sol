@@ -352,8 +352,6 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
     /// @inheritdoc IOrionVault
     function updateVaultWhitelist(address[] memory assets) external onlyVaultOwner {
-        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
-
         _vaultWhitelistedAssets.clear();
         for (uint256 i = 0; i < assets.length; i++) {
             address token = assets[i];
@@ -470,12 +468,12 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     }
 
     /// @inheritdoc IOrionVault
-    function claimCuratorFees() external onlyVaultOwner {
-        if (pendingCuratorFees == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
+    function claimCuratorFees(uint256 amount) external onlyVaultOwner {
+        if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
+        if (amount > pendingCuratorFees) revert ErrorsLib.InsufficientFunds(address(this), pendingCuratorFees, amount);
 
-        uint256 amountToClaim = pendingCuratorFees;
-        pendingCuratorFees = 0;
-        liquidityOrchestrator.transferCuratorFees(amountToClaim);
+        pendingCuratorFees -= amount;
+        liquidityOrchestrator.transferCuratorFees(amount);
     }
 
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
