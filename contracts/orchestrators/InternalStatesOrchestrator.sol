@@ -353,6 +353,14 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             totalAssetsArray[i - i0] = totalAssets;
             minibatchTotalAssets += totalAssets;
 
+            // slippage_bound TODO set as config constant and read at construction in liqudityorchestrator and here.
+            // target_ratio = slippage_bound * 1.1
+
+            // TODO: fix, cannot use minibatchTotalAssets here,
+            // necessarily batched computation of protocol TVL and TVL per vault.
+            // Additional performupkeep phase? Or fully batched computation of total_supplies, approximating it with
+            // actual total assets?
+
             // TODO: compute here total protocol buffer fee using a number of variables/parameters:
             // minibatchTotalAssets just computed,
 
@@ -362,8 +370,6 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             // Based on the internal ledger, LO LPs can withdraw buffer liquidity amount.
 
             // TODO: add function in liquidityorchstrator for everyone to withdraw buffer liquidity amount, this updates
-            // slippage_bound TODO set as config constant and read at construction in liqudityorchestrator and here.
-            // target_ratio = slippage_bound * 1.1
             // smoothing_factor TODO protocol param (accept any owner update between 0 and 1 here).
             // strart 0.05
             // smoothed_error, starting 0.
