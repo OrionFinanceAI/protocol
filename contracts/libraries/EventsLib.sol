@@ -24,8 +24,9 @@ library EventsLib {
     /// @param vault The address of the removed vault.
     event OrionVaultRemoved(address indexed vault);
 
-    /// @notice Protocol-level parameters have been updated.
-    event ProtocolParamsUpdated();
+    /// @notice The risk-free rate has been updated.
+    /// @param riskFreeRate The new risk-free rate in basis points.
+    event RiskFreeRateUpdated(uint16 riskFreeRate);
 
     // =======================
     // === Vault Lifecycle ===
@@ -68,6 +69,18 @@ library EventsLib {
     /// @notice The vault's state has been updated with new total assets.
     /// @param newTotalAssets The new total assets value for the vault.
     event VaultStateUpdated(uint256 newTotalAssets);
+
+    /// @notice The fee model has been updated.
+    /// @param mode The new calculation mode.
+    /// @param performanceFee The new performance fee in basis points.
+    /// @param managementFee The new management fee in basis points.
+    event FeeModelUpdated(uint8 mode, uint16 performanceFee, uint16 managementFee);
+
+    /// @notice Curator fees have been accrued for a specific epoch.
+    /// @param epoch The epoch for which fees were accrued.
+    /// @param feeAmount The amount of fees accrued in underlying asset units.
+    /// @param pendingCuratorFees The total pending curator fees in underlying asset units.
+    event CuratorFeesAccrued(uint256 indexed epoch, uint256 feeAmount, uint256 pendingCuratorFees);
 
     // ====================================
     // === Internal States Orchestrator ===

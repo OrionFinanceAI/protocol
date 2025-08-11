@@ -77,12 +77,27 @@ jobs:
         with:
           submodules: recursive
 
-      - name: "Run Slither"
-        uses: "crytic/slither-action@v0.4.1"
+      - name: "Install Pnpm"
+        uses: pnpm/action-setup@v2
         with:
-          slither-args: "--filter-paths 'lib|node_modules|dependencies|contracts/mocks'"
-          fail-on: medium
-          slither-version: "0.11.3"
+          version: "8"
+
+      - name: "Setup Node.js"
+        uses: actions/setup-node@v3
+        with:
+          cache: pnpm
+          node-version: lts/*
+
+      - name: "Install dependencies"
+        run: pnpm install
+
+      - name: "Install Slither"
+        run: |
+          pip3 install slither-analyzer==0.11.3
+
+      - name: "Run Slither with custom config"
+        run: |
+          pnpm slither
         env:
           RPC_URL: ${{ secrets.RPC_URL }}
           DEPLOYER_PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}

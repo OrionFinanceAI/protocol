@@ -34,6 +34,10 @@ interface IOrionEncryptedVault is IOrionVault {
     /// @return weights The weights in the intent.
     function getIntent() external view returns (address[] memory tokens, euint32[] memory weights);
 
+    /// @notice Get the intent validity.
+    /// @return isIntentValid Whether the intent is valid.
+    function isIntentValid() external view returns (bool);
+
     /// @notice Updates the vault's portfolio state and total assets
     /// @dev Can only be called by the liquidity orchestrator.
     ///      Clears the previous portfolio and replaces it with the new one.

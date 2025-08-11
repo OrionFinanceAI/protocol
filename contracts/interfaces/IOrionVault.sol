@@ -11,6 +11,7 @@ interface IOrionVault is IERC4626 {
     function config() external view returns (IOrionConfig);
     function vaultOwner() external view returns (address);
     function curator() external view returns (address);
+    function pendingCuratorFees() external view returns (uint256);
 
     /// @notice Convert shares to assets with point in time total assets.
     /// @param shares The amount of shares to convert.
@@ -41,7 +42,7 @@ interface IOrionVault is IERC4626 {
 
     /// @notice Submit an asynchronous withdrawal request.
     /// @dev No share tokens are burned immediately. The specified amount of share tokens
-    ///      is transferred to the liquidity orchestrator for centralized liquidity management.
+    ///      is transferred to the vault.
     ///      LPs can later cancel this request to withdraw their funds before any burning occurs.
     /// @param shares The amount of the share tokens to withdraw.
     function requestWithdraw(uint256 shares) external;
@@ -49,7 +50,7 @@ interface IOrionVault is IERC4626 {
     /// @notice Cancel a previously submitted withdrawal request.
     /// @dev Allows LPs to recover their share tokens before any burning occurs.
     ///      The request must still have enough shares remaining to cover the cancellation.
-    ///      Share tokens are returned from the liquidity orchestrator.
+    ///      Share tokens are returned from the vault.
     /// @param shares The amount of share tokens to recover.
     function cancelWithdrawRequest(uint256 shares) external;
 
@@ -61,6 +62,20 @@ interface IOrionVault is IERC4626 {
     ///      This function enables vault owners to change allocation strategies by updating the curator.
     ///      This is particularly important when curators are smart contracts, not just addresses.
     function updateCurator(address newCurator) external;
+
+    /// @notice Update the vault whitelist
+    /// @param assets The new whitelist of assets.
+    function updateVaultWhitelist(address[] memory assets) external;
+
+    /// @notice Update the fee model parameters
+    /// @param mode The calculation mode for fees
+    /// @param performanceFee The performance fee
+    /// @param managementFee The management fee
+    function updateFeeModel(uint8 mode, uint16 performanceFee, uint16 managementFee) external;
+
+    /// @notice Claim accrued curator fees when system is idle
+    /// @dev Only callable by vault owner, transfers full accrued fees from liquidity orchestrator to vault owner
+    function claimCuratorFees() external;
 
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
 
@@ -74,6 +89,13 @@ interface IOrionVault is IERC4626 {
     /// @dev This returns share amounts, not underlying asset amounts
     function getPendingWithdrawals() external view returns (uint256);
 
+    /// @notice Calculate the curator's fee based on total assets
+    /// @param totalAssets The total assets under management
+    /// @return The curator fee amount in underlying asset units
+    /// @dev Warning: Calling this function mid-epoch may return inaccurate results
+    ///      since fees are calculated based on the full epoch duration
+    function curatorFee(uint256 totalAssets) external view returns (uint256);
+
     /// --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
 
     /// @notice Process deposit requests from LPs and reset the requestor's request amount
@@ -81,4 +103,15 @@ interface IOrionVault is IERC4626 {
 
     /// @notice Process withdrawal requests from LPs and reset the requestor's request amount
     function processWithdrawRequests() external;
+
+    /// @notice Update the high watermark after trades are executed
+    /// @dev Shall be called by the liquidity orchestrator after portfolio rebalancing.
+    ///      Updates high watermark if current share price exceeds the previous high watermark.
+    ///      This is used to calculate the performance fee.
+    function updateHighWaterMark() external;
+
+    /// @notice Accrue curator fees for a specific epoch
+    /// @param epoch The epoch for which to accrue fees
+    /// @param feeAmount The amount of curator fees to accrue in underlying asset units
+    function accrueCuratorFees(uint256 epoch, uint256 feeAmount) external;
 }

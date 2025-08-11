@@ -41,19 +41,24 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
         _portfolioIntent.clear();
 
+        // Extract asset addresses for validation
+        address[] memory assets = new address[](intent.length);
+
         uint256 totalWeight = 0;
         uint16 intentLength = uint16(intent.length);
         for (uint16 i = 0; i < intentLength; i++) {
             address token = intent[i].token;
             uint32 weight = intent[i].value;
-            if (!config.isWhitelisted(token)) revert ErrorsLib.TokenNotWhitelisted(token);
+            assets[i] = token;
             if (weight == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(token);
             bool inserted = _portfolioIntent.set(token, weight);
             if (!inserted) revert ErrorsLib.TokenAlreadyInOrder(token);
             totalWeight += weight;
         }
 
-        uint8 curatorIntentDecimals = config.curatorIntentDecimals();
+        // Validate that all assets in the intent are whitelisted for this vault
+        _validateIntentAssets(assets);
+        // Validate that the total weight is 100%
         if (totalWeight != 10 ** curatorIntentDecimals) revert ErrorsLib.InvalidTotalWeight();
 
         emit EventsLib.OrderSubmitted(msg.sender);

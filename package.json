@@ -1,7 +1,7 @@
 {
   "name": "@orion-finance/protocol",
   "description": "Orion Finance Protocol",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "engines": {
     "node": ">=20.0.0"
   },
@@ -13,19 +13,19 @@
     "build": "pnpm clean && pnpm compile",
     "clean": "rimraf ./artifacts ./cache ./coverage ./types ./coverage.json && pnpm typechain",
     "compile": "cross-env TS_NODE_TRANSPILE_ONLY=true hardhat compile",
-    "coverage": "hardhat coverage",
+    "coverage": "SOLIDITY_COVERAGE=true hardhat coverage",
     "lint": "pnpm lint:sol && pnpm lint:ts && pnpm prettier:check",
     "lint:sol": "solhint --max-warnings 5 \"contracts/**/*.sol\"",
     "lint:ts": "eslint --ignore-path ./.eslintignore --ext .js,.ts .",
     "typechain": "cross-env TS_NODE_TRANSPILE_ONLY=true hardhat typechain",
-    "test": "hardhat test --network hardhat",
-    "test:tv": "hardhat test test/OrionTransparentVault.test.ts --network hardhat",
-    "test:ee": "hardhat test test/EndToEndSimulation.test.ts --network hardhat",
+    "test": "hardhat test",
+    "test:sepolia": "hardhat test --network sepolia",
     "prettier:check": "prettier --check \"**/*.{js,json,md,sol,ts,yml}\"",
     "prettier:write": "prettier --write \"**/*.{js,json,md,sol,ts,yml}\"",
-    "slither": "slither . --filter-paths 'lib|node_modules|dependencies|contracts/mocks'"
+    "slither": "HARDHAT_CONFIG=hardhat.slither.config.ts slither . --filter-paths 'lib|node_modules|dependencies|contracts/mocks' --fail-medium"
   },
   "devDependencies": {
+    "@fhevm/hardhat-plugin": "^0.0.1-6",
     "@nomicfoundation/hardhat-chai-matchers": "^2.1.0",
     "@nomicfoundation/hardhat-ethers": "^3.1.0",
     "@nomicfoundation/hardhat-toolbox": "^3.0.0",

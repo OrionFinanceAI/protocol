@@ -243,6 +243,19 @@
       "type": "function"
     },
     {
+      "inputs": [],
+      "name": "riskFreeRate",
+      "outputs": [
+        {
+          "internalType": "uint16",
+          "name": "",
+          "type": "uint16"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
       "inputs": [
         {
           "internalType": "address",
@@ -284,30 +297,12 @@
     {
       "inputs": [
         {
-          "internalType": "uint8",
-          "name": "_curatorIntentDecimals",
-          "type": "uint8"
-        },
-        {
-          "internalType": "uint8",
-          "name": "_priceAdapterDecimals",
-          "type": "uint8"
+          "internalType": "uint16",
+          "name": "riskFreeRate",
+          "type": "uint16"
         }
       ],
-      "name": "setProtocolParams",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "asset",
-          "type": "address"
-        }
-      ],
-      "name": "setUnderlyingAsset",
+      "name": "setProtocolRiskFreeRate",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
