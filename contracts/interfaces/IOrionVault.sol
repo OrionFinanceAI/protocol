@@ -42,7 +42,7 @@ interface IOrionVault is IERC4626 {
 
     /// @notice Submit an asynchronous withdrawal request.
     /// @dev No share tokens are burned immediately. The specified amount of share tokens
-    ///      is transferred to the liquidity orchestrator for centralized liquidity management.
+    ///      is transferred to the vault.
     ///      LPs can later cancel this request to withdraw their funds before any burning occurs.
     /// @param shares The amount of the share tokens to withdraw.
     function requestWithdraw(uint256 shares) external;
@@ -50,7 +50,7 @@ interface IOrionVault is IERC4626 {
     /// @notice Cancel a previously submitted withdrawal request.
     /// @dev Allows LPs to recover their share tokens before any burning occurs.
     ///      The request must still have enough shares remaining to cover the cancellation.
-    ///      Share tokens are returned from the liquidity orchestrator.
+    ///      Share tokens are returned from the vault.
     /// @param shares The amount of share tokens to recover.
     function cancelWithdrawRequest(uint256 shares) external;
 

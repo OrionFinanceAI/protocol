@@ -126,19 +126,6 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function returnWithdrawShares(address user, uint256 shares) external {
-        // Verify the caller is a registered vault
-        if (!config.isOrionVault(msg.sender)) revert ErrorsLib.NotAuthorized();
-
-        // Get the vault's share token address
-        address shareToken = address(msg.sender);
-
-        // Transfer shares back to the user
-        bool success = IERC20(shareToken).transfer(user, shares);
-        if (!success) revert ErrorsLib.TransferFailed();
-    }
-
-    /// @inheritdoc ILiquidityOrchestrator
     function transferCuratorFees(uint256 amount) external {
         address vault = msg.sender;
 
@@ -148,6 +135,20 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
         // Transfer underlying assets to the vault owner
         address vaultOwner = IOrionVault(vault).vaultOwner();
         bool success = IERC20(underlyingAsset).transfer(vaultOwner, amount);
+        if (!success) revert ErrorsLib.TransferFailed();
+    }
+
+    // TODO: the function below is called by the vault function, that is in turned called by the liquidity orchestrator.
+    // Implement a cleaner pattern in which there is no re-entrancy.
+
+    /// @inheritdoc ILiquidityOrchestrator
+    function transferWithdrawalFunds(address user, uint256 amount) external {
+        // Verify the caller is a registered vault
+        if (!config.isOrionVault(msg.sender)) revert ErrorsLib.NotAuthorized();
+        if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
+
+        // Transfer underlying assets to the user
+        bool success = IERC20(underlyingAsset).transfer(user, amount);
         if (!success) revert ErrorsLib.TransferFailed();
     }
 
@@ -232,7 +233,9 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
             // vault.updateVaultState(?, ?);
         }
 
-        // TODO: DepositRequest and WithdrawRequest in Vaults to be processed post update, and removed from
+        // TODO: DepositRequest and WithdrawRequest in Vaults to be processed post update
+        // (internal logic depends on vaults actual total assets and total supply
+        // (inside the previewDeposit, _mint, _burn and previewRedeem), and removed from
         // vault state as pending requests. Opportunity to net actual transactions (not just intents),
         // performing minting and burning operation at the same time.
 

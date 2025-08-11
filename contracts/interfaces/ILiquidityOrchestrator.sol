@@ -43,14 +43,14 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @param amount The amount to return
     function returnDepositFunds(address user, uint256 amount) external;
 
-    /// @notice Return withdrawal shares to a user who cancelled their withdrawal request
-    /// @dev Called by vault contracts when users cancel withdrawal requests
-    /// @param user The user to return shares to
-    /// @param shares The amount of shares to return
-    function returnWithdrawShares(address user, uint256 shares) external;
-
     /// @notice Transfer pending curator fees to a vault owner
     /// @dev Called by vault contracts when vault owners claim their fees
     /// @param amount The amount of fees to transfer
     function transferCuratorFees(uint256 amount) external;
+
+    /// @notice Transfer withdrawal funds to a user after shares are burned
+    /// @dev Called by vault contracts when processing withdrawal requests
+    /// @param user The user to transfer funds to
+    /// @param amount The amount of underlying assets to transfer
+    function transferWithdrawalFunds(address user, uint256 amount) external;
 }

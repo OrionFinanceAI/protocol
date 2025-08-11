@@ -246,6 +246,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
     /// @inheritdoc IOrionVault
     function requestDeposit(uint256 amount) external nonReentrant {
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
 
         uint256 senderBalance = IERC20(asset()).balanceOf(msg.sender);
@@ -265,6 +266,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
     /// @inheritdoc IOrionVault
     function cancelDepositRequest(uint256 amount) external nonReentrant {
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
 
         // slither-disable-next-line unused-return
@@ -290,12 +292,13 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
     /// @inheritdoc IOrionVault
     function requestWithdraw(uint256 shares) external {
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         if (shares == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(address(this));
 
         uint256 senderBalance = balanceOf(msg.sender);
         if (shares > senderBalance) revert ErrorsLib.InsufficientFunds(msg.sender, senderBalance, shares);
 
-        bool success = IERC20(address(this)).transferFrom(msg.sender, config.liquidityOrchestrator(), shares);
+        bool success = IERC20(address(this)).transferFrom(msg.sender, address(this), shares);
         if (!success) revert ErrorsLib.TransferFailed();
 
         // slither-disable-next-line unused-return
@@ -309,14 +312,12 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
     /// @inheritdoc IOrionVault
     function cancelWithdrawRequest(uint256 shares) external nonReentrant {
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         if (shares == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(address(this));
 
         // slither-disable-next-line unused-return
         (, uint256 currentShares) = _withdrawRequests.tryGet(msg.sender);
         if (currentShares < shares) revert ErrorsLib.NotEnoughWithdrawRequest();
-
-        // Interactions - request share tokens from liquidity orchestrator
-        ILiquidityOrchestrator(config.liquidityOrchestrator()).returnWithdrawShares(msg.sender, shares);
 
         // Effects - update internal state
         uint256 newShares = currentShares - shares;
@@ -328,6 +329,10 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
             _withdrawRequests.set(msg.sender, newShares);
         }
         _totalPendingWithdrawals -= shares;
+
+        // Interactions - return shares to LP.
+        bool success = IERC20(address(this)).transfer(msg.sender, shares);
+        if (!success) revert ErrorsLib.TransferFailed();
 
         emit EventsLib.WithdrawRequestCancelled(msg.sender, shares);
     }
@@ -342,6 +347,8 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
     /// @inheritdoc IOrionVault
     function updateVaultWhitelist(address[] memory assets) external onlyVaultOwner {
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+
         _vaultWhitelistedAssets.clear();
         for (uint256 i = 0; i < assets.length; i++) {
             address token = assets[i];
@@ -361,6 +368,8 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     /// @dev Only vault owner can update fee model parameters
     ///      Performance and management fees are capped by protocol limits
     function updateFeeModel(uint8 mode, uint16 performanceFee, uint16 managementFee) external onlyVaultOwner {
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+
         // Validate mode is within enum range
         if (mode > uint8(CalcMode.HURDLE_HWM)) revert ErrorsLib.InvalidArguments();
 
@@ -459,7 +468,6 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     /// @dev Only callable by vault owner, transfers full accrued fees from liquidity orchestrator to vault owner.
     function claimCuratorFees() external onlyVaultOwner {
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
-
         if (pendingCuratorFees == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
 
         uint256 amountToClaim = pendingCuratorFees;
@@ -485,7 +493,6 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
     /// --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
 
-    // TODO: Fix
     /// @inheritdoc IOrionVault
     function processDepositRequests() external onlyLiquidityOrchestrator nonReentrant {
         uint32 length = uint32(_depositRequests.length());
@@ -499,27 +506,23 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
             amounts[i] = amount;
         }
 
+        _totalPendingDeposits = 0;
+
         // Process all requests
         for (uint32 i = 0; i < length; i++) {
             address user = users[i];
             uint256 amount = amounts[i];
-            uint256 shares = previewDeposit(amount);
 
             // slither-disable-next-line unused-return
             _depositRequests.remove(user);
 
+            uint256 shares = previewDeposit(amount);
             _mint(user, shares);
 
             emit EventsLib.DepositProcessed(user, amount);
         }
-
-        // Reset the cached total since all requests were processed
-        _totalPendingDeposits = 0;
     }
 
-    // TODO: Fix
-    // I am not transferring LP share tokens back to the vault and
-    // I am not taking USDC from the liquidity orchestrator.
     /// @inheritdoc IOrionVault
     function processWithdrawRequests() external onlyLiquidityOrchestrator nonReentrant {
         uint32 length = uint32(_withdrawRequests.length());
@@ -533,7 +536,6 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
             sharesArray[i] = shares;
         }
 
-        // Reset the cached total since all requests will be processed
         _totalPendingWithdrawals = 0;
 
         // Process all requests
@@ -544,9 +546,11 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
             // slither-disable-next-line unused-return
             _withdrawRequests.remove(user);
 
-            _burn(address(this), shares);
             uint256 underlyingAmount = previewRedeem(shares);
-            if (!IERC20(asset()).transfer(user, underlyingAmount)) revert ErrorsLib.TransferFailed();
+            _burn(address(this), shares);
+
+            // Transfer underlying assets from liquidity orchestrator to the user
+            ILiquidityOrchestrator(config.liquidityOrchestrator()).transferWithdrawalFunds(user, underlyingAmount);
 
             emit EventsLib.WithdrawProcessed(user, shares);
         }
