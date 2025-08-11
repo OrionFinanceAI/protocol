@@ -73,12 +73,9 @@ interface IOrionVault is IERC4626 {
     /// @param managementFee The management fee
     function updateFeeModel(uint8 mode, uint16 performanceFee, uint16 managementFee) external;
 
-    /// @notice Calculate the curator's fee based on total assets
-    /// @param totalAssets The total assets under management
-    /// @return The curator fee amount in underlying asset units
-    /// @dev Warning: Calling this function mid-epoch may return inaccurate results
-    ///      since fees are calculated based on the full epoch duration
-    function curatorFee(uint256 totalAssets) external view returns (uint256);
+    /// @notice Claim accrued curator fees when system is idle
+    /// @dev Only callable by vault owner, transfers full accrued fees from liquidity orchestrator to vault owner
+    function claimCuratorFees() external;
 
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
 
@@ -91,6 +88,13 @@ interface IOrionVault is IERC4626 {
     /// @return Total pending withdrawals denominated in vault share units
     /// @dev This returns share amounts, not underlying asset amounts
     function getPendingWithdrawals() external view returns (uint256);
+
+    /// @notice Calculate the curator's fee based on total assets
+    /// @param totalAssets The total assets under management
+    /// @return The curator fee amount in underlying asset units
+    /// @dev Warning: Calling this function mid-epoch may return inaccurate results
+    ///      since fees are calculated based on the full epoch duration
+    function curatorFee(uint256 totalAssets) external view returns (uint256);
 
     /// --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
 

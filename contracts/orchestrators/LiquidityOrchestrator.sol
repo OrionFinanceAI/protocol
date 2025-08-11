@@ -138,6 +138,19 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
         if (!success) revert ErrorsLib.TransferFailed();
     }
 
+    /// @inheritdoc ILiquidityOrchestrator
+    function transferCuratorFees(uint256 amount) external {
+        address vault = msg.sender;
+
+        if (!config.isOrionVault(vault)) revert ErrorsLib.NotAuthorized();
+        if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
+
+        // Transfer underlying assets to the vault owner
+        address vaultOwner = IOrionVault(vault).vaultOwner();
+        bool success = IERC20(underlyingAsset).transfer(vaultOwner, amount);
+        if (!success) revert ErrorsLib.TransferFailed();
+    }
+
     // TODO: docs when implemented.
     function checkUpkeep(bytes calldata) external view override returns (bool upkeepNeeded, bytes memory performData) {
         uint16 currentEpoch = internalStatesOrchestrator.epochCounter();
@@ -199,6 +212,8 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
             _executeBuy(token, amount);
         }
 
+        // TODO: StateUpdate phase start, refacto.
+
         address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
         uint16 length = uint16(transparentVaults.length);
         for (uint16 i = 0; i < length; i++) {
@@ -217,12 +232,16 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
             // vault.updateVaultState(?, ?);
         }
 
-        // TODO: DepositRequest and WithdrawRequest in Vaults to be processed post t0 update, and removed from
-        // vault state as pending requests.
-        // Opportunity to net actual transactions (not just intents),
+        // TODO: DepositRequest and WithdrawRequest in Vaults to be processed post update, and removed from
+        // vault state as pending requests. Opportunity to net actual transactions (not just intents),
         // performing minting and burning operation at the same time.
-        // TODO: process curators (sending underlying to vault as escrow for curator to redeem)
-        // and protocol fees to separate escrow/wallet.
+
+        // TODO: call updateHighWaterMark. Works only if actual vault states updated,
+        // ok to use real total assets/share price there, but then this update shall
+        // be done after all other states updates for convertToAssets to work.
+
+        // TODO: update pendingCuratorFees calling accrueCuratorFees of each vault.
+        // Use the value computed in internal states orchestrator.
 
         emit EventsLib.PortfolioRebalanced();
     }

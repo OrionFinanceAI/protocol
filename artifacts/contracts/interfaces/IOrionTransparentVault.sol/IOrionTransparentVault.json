@@ -247,6 +247,13 @@
     },
     {
       "inputs": [],
+      "name": "claimCuratorFees",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
       "name": "config",
       "outputs": [
         {

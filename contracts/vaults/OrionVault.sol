@@ -462,10 +462,13 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
         if (pendingCuratorFees == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
 
-        // Reset pending fees before transfer
+        uint256 amountToClaim = pendingCuratorFees;
+
+        // Reset pending fees before transfer to prevent reentrancy
         pendingCuratorFees = 0;
 
-        // TODO: transfer fees from liquidity orchestrator to vault owner.
+        // Transfer fees from liquidity orchestrator to vault owner
+        ILiquidityOrchestrator(config.liquidityOrchestrator()).transferCuratorFees(amountToClaim);
     }
 
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
@@ -482,6 +485,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
     /// --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
 
+    // TODO: Fix
     /// @inheritdoc IOrionVault
     function processDepositRequests() external onlyLiquidityOrchestrator nonReentrant {
         uint32 length = uint32(_depositRequests.length());
@@ -513,6 +517,9 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         _totalPendingDeposits = 0;
     }
 
+    // TODO: Fix
+    // I am not transferring LP share tokens back to the vault and
+    // I am not taking USDC from the liquidity orchestrator.
     /// @inheritdoc IOrionVault
     function processWithdrawRequests() external onlyLiquidityOrchestrator nonReentrant {
         uint32 length = uint32(_withdrawRequests.length());
@@ -541,19 +548,12 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
             uint256 underlyingAmount = previewRedeem(shares);
             if (!IERC20(asset()).transfer(user, underlyingAmount)) revert ErrorsLib.TransferFailed();
 
-            // TODO: Not sure about processWithdrawRequests logic,
-            // I am not transferring LP share tokens back to the vault and
-            // I am not taking USDC from the liquidity orchestrator. Please fix.
-
             emit EventsLib.WithdrawProcessed(user, shares);
         }
     }
 
     /// @inheritdoc IOrionVault
     function updateHighWaterMark() external onlyLiquidityOrchestrator {
-        // TODO: only if actual vault states updated, ok to use real total assets/share price here.
-        // Keep a to do in orchestrator,
-        // this update needs to be done after all other states updates for convertToAssets to work.
         uint256 currentSharePrice = convertToAssets(10 ** decimals());
 
         // Update high watermark if current price is higher
@@ -561,10 +561,6 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
             feeModel.highWaterMark = currentSharePrice;
         }
     }
-
-    // TODO: may be more efficient to write this state from the internal state orchestrator.
-    // As long as curator needs system to be idle to withdraw, this should not be a problem
-    // and we can avoid explicitly passing curator fees to the liquidity orchestrator.
 
     /// @inheritdoc IOrionVault
     function accrueCuratorFees(uint256 epoch, uint256 feeAmount) external onlyLiquidityOrchestrator {
