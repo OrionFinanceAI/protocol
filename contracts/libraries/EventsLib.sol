@@ -79,7 +79,8 @@ library EventsLib {
     /// @notice Curator fees have been accrued for a specific epoch.
     /// @param epoch The epoch for which fees were accrued.
     /// @param feeAmount The amount of fees accrued in underlying asset units.
-    event CuratorFeesAccrued(uint256 indexed epoch, uint256 feeAmount);
+    /// @param pendingCuratorFees The total pending curator fees in underlying asset units.
+    event CuratorFeesAccrued(uint256 indexed epoch, uint256 feeAmount, uint256 pendingCuratorFees);
 
     // ====================================
     // === Internal States Orchestrator ===

@@ -293,7 +293,8 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                 Math.Rounding.Floor
             );
 
-            // Calculate estimated (active and passive) total assets (t_2), same decimals as underlying.
+            // Calculate estimated total assets (active and passive, including curator and protocol fees),
+            // same decimals as underlying.
             uint256 predictedTotalAssets = activeTotalAssets +
                 vault.getPendingDeposits() -
                 pendingWithdrawals -
@@ -362,13 +363,15 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                 // TODO implement encrypted generalization for value calculation
                 // euint32 value = ...
                 // encryptedActiveTotalAssets = FHE.add(encryptedActiveTotalAssets, value);
-                // TODO...
             }
             // (address[] memory intentTokens, euint32[] memory intentWeights) = vault.getIntent();
             // TODO...
             // TODO: Protocol fee here can be different from the transparent
             // vaults because of added infra costs, consider if fair.
         }
+        // TODO: for decryptions, populate list of cyphertexts and then decrypt all together in one call.
+        // https://docs.zama.ai/protocol/examples/basic/decryption-in-solidity/fhe-decrypt-multiple-values-in-solidity
+
         // TODO: decrypt minibatch and incrementally add to initialBatchPortfolio, finalBatchPortfolio.
 
         // TODO: same for estimated total assets.

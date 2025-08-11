@@ -11,6 +11,7 @@ interface IOrionVault is IERC4626 {
     function config() external view returns (IOrionConfig);
     function vaultOwner() external view returns (address);
     function curator() external view returns (address);
+    function pendingCuratorFees() external view returns (uint256);
 
     /// @notice Convert shares to assets with point in time total assets.
     /// @param shares The amount of shares to convert.
@@ -109,8 +110,4 @@ interface IOrionVault is IERC4626 {
     /// @param epoch The epoch for which to accrue fees
     /// @param feeAmount The amount of curator fees to accrue in underlying asset units
     function accrueCuratorFees(uint256 epoch, uint256 feeAmount) external;
-
-    /// @notice Get the total pending curator fees across all epochs
-    /// @return The total pending curator fees in underlying asset units
-    function getPendingCuratorFees() external view returns (uint256);
 }

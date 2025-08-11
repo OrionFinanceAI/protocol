@@ -65,7 +65,6 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     using Math for uint256;
     using EnumerableMap for EnumerableMap.AddressToUintMap;
-    using EnumerableMap for EnumerableMap.UintToUintMap;
     using EnumerableSet for EnumerableSet.AddressSet;
 
     address public vaultOwner;
@@ -92,8 +91,8 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     /// @notice Cached total pending withdrawals [shares] - updated incrementally for gas efficiency
     uint256 private _totalPendingWithdrawals;
 
-    /// @notice Pending curator fees queue - mapping of epoch to fee amount [assets]
-    EnumerableMap.UintToUintMap private _pendingCuratorFees;
+    /// @notice Pending curator fees [assets]
+    uint256 public pendingCuratorFees;
 
     /// @notice Share token decimals
     uint8 public constant SHARE_DECIMALS = 18;
@@ -461,27 +460,12 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     function claimCuratorFees() external onlyVaultOwner {
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
-        uint256 pendingFees = this.getPendingCuratorFees();
-        if (pendingFees == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
+        if (pendingCuratorFees == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
 
         // Reset pending fees before transfer
-        _pendingCuratorFees.clear();
+        pendingCuratorFees = 0;
 
         // TODO: transfer fees from liquidity orchestrator to vault owner.
-    }
-
-    /// @inheritdoc IOrionVault
-    function getPendingCuratorFees() external view returns (uint256) {
-        uint256 totalFees = 0;
-        uint256 length = _pendingCuratorFees.length();
-
-        for (uint256 i = 0; i < length; i++) {
-            // slither-disable-next-line unused-return
-            (, uint256 feeAmount) = _pendingCuratorFees.at(i);
-            totalFees += feeAmount;
-        }
-
-        return totalFees;
     }
 
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
@@ -586,11 +570,8 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     function accrueCuratorFees(uint256 epoch, uint256 feeAmount) external onlyLiquidityOrchestrator {
         if (feeAmount == 0) return;
 
-        // slither-disable-next-line unused-return
-        (, uint256 currentAmount) = _pendingCuratorFees.tryGet(epoch);
-        // slither-disable-next-line unused-return
-        _pendingCuratorFees.set(epoch, currentAmount + feeAmount);
+        pendingCuratorFees += feeAmount;
 
-        emit EventsLib.CuratorFeesAccrued(epoch, feeAmount);
+        emit EventsLib.CuratorFeesAccrued(epoch, feeAmount, pendingCuratorFees);
     }
 }

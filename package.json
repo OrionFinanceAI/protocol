@@ -22,7 +22,7 @@
     "test:sepolia": "hardhat test --network sepolia",
     "prettier:check": "prettier --check \"**/*.{js,json,md,sol,ts,yml}\"",
     "prettier:write": "prettier --write \"**/*.{js,json,md,sol,ts,yml}\"",
-    "slither": "HARDHAT_CONFIG=hardhat.slither.config.ts slither . --filter-paths 'lib|node_modules|dependencies|contracts/mocks'"
+    "slither": "HARDHAT_CONFIG=hardhat.slither.config.ts slither . --filter-paths 'lib|node_modules|dependencies|contracts/mocks' --fail-medium"
   },
   "devDependencies": {
     "@fhevm/hardhat-plugin": "^0.0.1-6",

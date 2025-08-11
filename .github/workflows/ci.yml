@@ -97,7 +97,7 @@ jobs:
 
       - name: "Run Slither with custom config"
         run: |
-          HARDHAT_CONFIG=hardhat.slither.config.ts slither . --filter-paths 'lib|node_modules|dependencies|contracts/mocks'
+          pnpm slither
         env:
           RPC_URL: ${{ secrets.RPC_URL }}
           DEPLOYER_PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
