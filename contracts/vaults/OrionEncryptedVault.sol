@@ -32,7 +32,8 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
     euint32 internal _ezero;
     ebool internal _eTrue;
 
-    bool internal _isIntentValid;
+    /// @notice Whether the intent is valid
+    bool public isIntentValid;
 
     constructor(
         address vaultOwner,
@@ -53,6 +54,9 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
         bytes calldata inputProof
     ) external onlyCurator nonReentrant {
         if (intent.length == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
+
+        // Reset intent validity flag, up to the asyncronous FHEVM callback to set it to true.
+        isIntentValid = false;
 
         uint16 intentLength = uint16(intent.length);
         euint32 totalWeight = _ezero;
@@ -97,9 +101,6 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
         bytes32[] memory cypherTexts = new bytes32[](1);
         cypherTexts[0] = FHE.toBytes32(isIntentEValid);
 
-        // TODO: avoid multiple decryption requests, see:
-        // https://docs.zama.ai/protocol/solidity-guides/smart-contract/oracle#overview
-
         // slither-disable-next-line unused-return
         FHE.requestDecryption(
             // the list of encrypte values we want to decrypt
@@ -107,16 +108,6 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
             // the function selector the FHEVM backend will callback with the clear values as arguments
             this.callbackDecryptSingleEbool.selector
         );
-
-        // TODO: because of the asyncronicity of the FHEVM backend, we need to let the intent submission pass, the
-        // decrypted boolean will be stored in the _isIntentValid variable.
-        // This means the orcherstrator will then need to pull
-        // that value and check if it's true, dealing with the invalid vault.
-        // Also, think about hedge cases: should orchestrator force the bool
-        // to false after a batch? What if the curator's target portfolio
-        // is the previous epoch one?
-        // On the other hand, what if the curator submitted an invalid intent,
-        // but FHEVM backend didn't catch it and stored it yet? Need a third state.
 
         // Clear previous intent by setting weights to zero (state write after all external calls)
         for (uint16 i = 0; i < uint16(_intentKeys.length); i++) {
@@ -187,6 +178,6 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
 
     function callbackDecryptSingleEbool(uint256 requestID, bool decryptedInput, bytes[] memory signatures) external {
         FHE.checkSignatures(requestID, signatures);
-        _isIntentValid = decryptedInput;
+        isIntentValid = decryptedInput;
     }
 }

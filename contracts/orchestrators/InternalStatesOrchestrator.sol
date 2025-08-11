@@ -339,6 +339,14 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         for (uint16 i = i0; i < i1; i++) {
             IOrionEncryptedVault vault = IOrionEncryptedVault(encryptedVaultsEpoch[i]);
 
+            // Due to the asynchronous nature of the FHEVM backend, intent submission validation happens in a callback.
+            // The decrypted validation result is stored in isIntentValid.
+            // The orchestrator checks this flag and skips processing if the intent is invalid.
+            if (!vault.isIntentValid()) {
+                // Skip processing this vault if intent is invalid
+                continue;
+            }
+
             (address[] memory portfolioTokens, euint32[] memory sharesPerAsset) = vault.getPortfolio();
 
             // Calculate estimated active total assets (t_1) and populate batch portfolio
