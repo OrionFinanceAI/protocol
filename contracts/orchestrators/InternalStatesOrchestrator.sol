@@ -20,7 +20,6 @@ import { SepoliaConfig } from "@fhevm/solidity/config/ZamaConfig.sol";
 
 /**
  * @title Internal States Orchestrator
- * @notice Orchestrates state reading and estimation operations triggered by Chainlink Automation
  * @dev This contract is responsible for:
  *      - Reading current vault states and market data;
  *      - Computing state estimations for Liquidity Orchestrator;
@@ -68,24 +67,31 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     uint32 public constant YEAR_IN_SECONDS = 365 days;
     uint16 public constant PROTOCOL_FEE_FACTOR = 10_000;
     uint16 public constant MAX_VOLUME_FEE = 100; // 1%
-    uint16 public constant MAX_REVENUE_SHARE_FEE = 1_000; // 15%
+    uint16 public constant MAX_REVENUE_SHARE_FEE = 1_500; // 15%
 
     /// @notice Action constants for checkUpkeep and performUpkeep
     bytes4 private constant ACTION_START = bytes4(keccak256("start()"));
-    bytes4 private constant ACTION_PROCESS_TRANSPARENT_VAULT = bytes4(keccak256("processTransparentVault(uint8)"));
-    bytes4 private constant ACTION_PROCESS_ENCRYPTED_VAULTS = bytes4(keccak256("processEncryptedVaults(uint8)"));
-    bytes4 private constant ACTION_AGGREGATE = bytes4(keccak256("aggregate()"));
+    bytes4 private constant ACTION_PREPROCESS_T_VAULTS = bytes4(keccak256("preprocessTransparentVaults(uint8)"));
+    bytes4 private constant ACTION_PREPROCESS_E_VAULTS = bytes4(keccak256("preprocessEncryptedVaults(uint8)"));
+    bytes4 private constant ACTION_BUFFER = bytes4(keccak256("buffer()"));
+    bytes4 private constant ACTION_POSTPROCESS_T_VAULTS = bytes4(keccak256("postprocessTransparentVaults(uint8)"));
+    bytes4 private constant ACTION_POSTPROCESS_E_VAULTS = bytes4(keccak256("postprocessEncryptedVaults(uint8)"));
+    bytes4 private constant ACTION_BUILD_ORDERS = bytes4(keccak256("buildOrders()"));
 
     /* -------------------------------------------------------------------------- */
     /*                                 EPOCH STATE                                */
     /* -------------------------------------------------------------------------- */
     /// @notice Struct to hold epoch state data
     struct EpochState {
-        /// @notice Price array (p_t) - mapping of token address to estimated price [asset/underlying]
+        /// @notice Mapping of token address to its decimals
+        mapping(address => uint8) tokenDecimals;
+        /// @notice Price array - mapping of token address to estimated price [asset/underlying]
         mapping(address => uint256) priceArray;
-        /// @notice Initial batch portfolio (w_0) - mapping of token address to estimated value [assets]
+        /// @notice Initial batch portfolio - mapping of token address to estimated value [assets]
         mapping(address => uint256) initialBatchPortfolio;
-        /// @notice Final batch portfolio (w_1) - mapping of token address to estimated value [assets]
+        /// @notice Total assets - mapping of Orion vault address to estimated value [assets]
+        mapping(address => uint256) vaultsTotalAssets;
+        /// @notice Final batch portfolio - mapping of token address to estimated value [assets]
         mapping(address => uint256) finalBatchPortfolio;
         /// @notice Selling orders - mapping of token address to amount that needs to be sold [assets]
         mapping(address => uint256) sellingOrders;
@@ -95,8 +101,6 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         address[] tokens;
         /// @notice Mapping to track if a token has been added to avoid duplicates
         mapping(address => bool) tokenExists;
-        /// @notice Mapping of token address to its decimals
-        mapping(address => uint8) tokenDecimals;
     }
 
     /// @notice Current epoch state
@@ -219,15 +223,24 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         if (config.isSystemIdle() && _shouldTriggerUpkeep()) {
             upkeepNeeded = true;
             performData = abi.encodePacked(ACTION_START);
-        } else if (currentPhase == InternalUpkeepPhase.ProcessingTransparentVaults) {
+        } else if (currentPhase == InternalUpkeepPhase.PreprocessingTransparentVaults) {
             upkeepNeeded = true;
-            performData = abi.encodePacked(ACTION_PROCESS_TRANSPARENT_VAULT, currentMinibatchIndex);
-        } else if (currentPhase == InternalUpkeepPhase.ProcessingEncryptedVaults) {
+            performData = abi.encodePacked(ACTION_PREPROCESS_T_VAULTS, currentMinibatchIndex);
+        } else if (currentPhase == InternalUpkeepPhase.PreprocessingEncryptedVaults) {
             upkeepNeeded = true;
-            performData = abi.encodePacked(ACTION_PROCESS_ENCRYPTED_VAULTS, currentMinibatchIndex);
-        } else if (currentPhase == InternalUpkeepPhase.Aggregating) {
+            performData = abi.encodePacked(ACTION_PREPROCESS_E_VAULTS, currentMinibatchIndex);
+        } else if (currentPhase == InternalUpkeepPhase.Buffering) {
             upkeepNeeded = true;
-            performData = abi.encodePacked(ACTION_AGGREGATE);
+            performData = abi.encodePacked(ACTION_BUFFER);
+        } else if (currentPhase == InternalUpkeepPhase.PostprocessingTransparentVaults) {
+            upkeepNeeded = true;
+            performData = abi.encodePacked(ACTION_POSTPROCESS_T_VAULTS, currentMinibatchIndex);
+        } else if (currentPhase == InternalUpkeepPhase.PostprocessingEncryptedVaults) {
+            upkeepNeeded = true;
+            performData = abi.encodePacked(ACTION_POSTPROCESS_E_VAULTS, currentMinibatchIndex);
+        } else if (currentPhase == InternalUpkeepPhase.BuildingOrders) {
+            upkeepNeeded = true;
+            performData = abi.encodePacked(ACTION_BUILD_ORDERS);
         } else {
             upkeepNeeded = false;
             performData = "";
@@ -239,34 +252,34 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     ///      - Reads current vault states and adapter prices;
     ///      - Computes estimated system states;
     ///      - Updates epoch state to trigger the Liquidity Orchestrator
+    // solhint-disable-next-line code-complexity
     function performUpkeep(bytes calldata performData) external override onlyAutomationRegistry nonReentrant {
         if (performData.length < 4) revert ErrorsLib.InvalidArguments();
 
         bytes4 action = bytes4(performData[:4]);
 
         if (action == ACTION_START) {
-            _checkAndCountEpoch();
-            _resetEpochState();
-
-            transparentVaultsEpoch = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
-            encryptedVaultsEpoch = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
-
-            currentPhase = InternalUpkeepPhase.ProcessingTransparentVaults;
-        } else if (action == ACTION_PROCESS_TRANSPARENT_VAULT) {
+            _handleStart();
+        } else if (action == ACTION_PREPROCESS_T_VAULTS) {
             uint8 minibatchIndex = abi.decode(performData[4:], (uint8));
-            _processTransparentMinibatch(minibatchIndex);
-        } else if (action == ACTION_PROCESS_ENCRYPTED_VAULTS) {
+            _preprocessTransparentMinibatch(minibatchIndex);
+        } else if (action == ACTION_PREPROCESS_E_VAULTS) {
             uint8 minibatchIndex = abi.decode(performData[4:], (uint8));
-            _processEncryptedMinibatch(minibatchIndex);
-        } else if (action == ACTION_AGGREGATE) {
-            // Compute selling and buying orders based on portfolio differences
-            _computeRebalancingOrders();
+            _preprocessEncryptedMinibatch(minibatchIndex);
+        } else if (action == ACTION_BUFFER) {
+            _buffer();
+        } else if (action == ACTION_POSTPROCESS_T_VAULTS) {
+            uint8 minibatchIndex = abi.decode(performData[4:], (uint8));
+            _postprocessTransparentMinibatch(minibatchIndex);
+        } else if (action == ACTION_POSTPROCESS_E_VAULTS) {
+            uint8 minibatchIndex = abi.decode(performData[4:], (uint8));
+            _postprocessEncryptedMinibatch(minibatchIndex);
+        } else if (action == ACTION_BUILD_ORDERS) {
+            _buildOrders();
 
             currentPhase = InternalUpkeepPhase.Idle;
             epochCounter++;
             emit EventsLib.InternalStateProcessed(epochCounter);
-        } else {
-            revert ErrorsLib.InvalidArguments();
         }
     }
 
@@ -274,28 +287,50 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     /*                               INTERNAL LOGIC                               */
     /* -------------------------------------------------------------------------- */
 
-    /// @notice Processes minibatch of transparent vaults
+    /// @notice Updates the next update time and resets the previous epoch state variables
+    function _handleStart() internal {
+        if (!_shouldTriggerUpkeep()) revert ErrorsLib.TooEarly();
+        _nextUpdateTime = _computeNextUpdateTime(block.timestamp);
+
+        for (uint16 i = 0; i < _currentEpoch.tokens.length; i++) {
+            address token = _currentEpoch.tokens[i];
+            delete _currentEpoch.priceArray[token];
+            delete _currentEpoch.initialBatchPortfolio[token];
+            delete _currentEpoch.vaultsTotalAssets[token];
+            delete _currentEpoch.finalBatchPortfolio[token];
+            delete _currentEpoch.sellingOrders[token];
+            delete _currentEpoch.buyingOrders[token];
+            delete _currentEpoch.tokenExists[token];
+            delete _currentEpoch.tokenDecimals[token];
+        }
+        delete _currentEpoch.tokens;
+
+        transparentVaultsEpoch = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
+        encryptedVaultsEpoch = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
+
+        currentPhase = InternalUpkeepPhase.PreprocessingTransparentVaults;
+    }
+
+    /// @notice Preprocesses minibatch of transparent vaults
     /// @param minibatchIndex The index of the minibatch to process
-    function _processTransparentMinibatch(uint8 minibatchIndex) internal {
+    function _preprocessTransparentMinibatch(uint8 minibatchIndex) internal {
         currentMinibatchIndex++;
 
         uint16 i0 = minibatchIndex * transparentMinibatchSize;
         uint16 i1 = i0 + transparentMinibatchSize;
         if (i1 > transparentVaultsEpoch.length) {
             i1 = uint16(transparentVaultsEpoch.length);
-            // Last minibatch, go to encrypted vaults phase next.
-            currentPhase = InternalUpkeepPhase.ProcessingEncryptedVaults;
+            // Last minibatch, go to next phase.
+            currentPhase = InternalUpkeepPhase.PreprocessingEncryptedVaults;
             currentMinibatchIndex = 0;
         }
-
-        uint256 minibatchTotalAssets = 0;
-        uint256[] memory totalAssetsArray = new uint256[](i1 - i0);
 
         for (uint16 i = i0; i < i1; i++) {
             IOrionTransparentVault vault = IOrionTransparentVault(transparentVaultsEpoch[i]);
 
             (address[] memory portfolioTokens, uint256[] memory sharesPerAsset) = vault.getPortfolio();
 
+            // STEP 1: LIVE PORTFOLIO
             uint256 totalAssets = 0;
             for (uint16 j = 0; j < portfolioTokens.length; j++) {
                 address token = portfolioTokens[j];
@@ -329,90 +364,89 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                 _addTokenIfNotExists(token);
             }
 
+            // STEP 2: PROTOCOL VOLUME FEE
+            uint256 protocolVolumeFee = uint256(vFeeCoefficient).mulDiv(totalAssets, PROTOCOL_FEE_FACTOR);
+            protocolVolumeFee = protocolVolumeFee.mulDiv(epochDuration, YEAR_IN_SECONDS);
+            pendingProtocolFees += protocolVolumeFee;
+            totalAssets -= protocolVolumeFee;
+
+            // STEP 3 & 4: CURATOR FEES (Management + Performance)
+            uint256 curatorFee = vault.curatorFee(totalAssets);
+            totalAssets -= curatorFee;
+
+            // Protocol revenue share fee on curator fee
+            uint256 protocolRevenueShareFee = uint256(rsFeeCoefficient).mulDiv(curatorFee, PROTOCOL_FEE_FACTOR);
+            pendingProtocolFees += protocolRevenueShareFee;
+            curatorFee -= protocolRevenueShareFee;
+
+            // STEP 5: WITHDRAWAL EXCHANGE RATE (based on post-fee totalAssets)
             uint256 pendingWithdrawals = vault.convertToAssetsWithPITTotalAssets(
                 vault.getPendingWithdrawals(),
                 totalAssets,
                 Math.Rounding.Floor
             );
 
-            uint256 protocolVolumeFee = uint256(vFeeCoefficient).mulDiv(totalAssets, PROTOCOL_FEE_FACTOR);
-            protocolVolumeFee = protocolVolumeFee.mulDiv(epochDuration, YEAR_IN_SECONDS);
-            pendingProtocolFees += protocolVolumeFee;
+            // STEP 6: DEPOSIT PROCESSING (add deposits, subtract withdrawals)
+            totalAssets += vault.getPendingDeposits() - pendingWithdrawals;
 
-            totalAssets -= protocolVolumeFee;
-            uint256 curatorFee = vault.curatorFee(totalAssets);
-
-            uint256 protocolRevenueShareFee = uint256(rsFeeCoefficient).mulDiv(curatorFee, PROTOCOL_FEE_FACTOR);
-            pendingProtocolFees += protocolRevenueShareFee;
-
-            curatorFee -= protocolRevenueShareFee;
-
-            // Calculate estimated total assets (active and passive, including curator and protocol fees),
-            totalAssets += vault.getPendingDeposits() - pendingWithdrawals - curatorFee - protocolVolumeFee;
-
-            totalAssetsArray[i - i0] = totalAssets;
-            minibatchTotalAssets += totalAssets;
-
-            // TODO: necessarily full-batched computation of protocol TVL and TVL per vault to compute buffer fee.
-            // Additional performupkeep phase or in ACTION_START? Fully batched computation of total_supplies, approximating it with
-            // actual total assets? Implications of approximation on solvency guarantees?
-
-            // TODO: read slippage_bound from liquidityorchestrator to compute // target_ratio = slippage_bound * 1.1
-
-            // TODO: use slippage_bound in execution adapter API,
-            // fix existing adapters and document the need for this parameter) and here.
-
-            // TODO: compute here total protocol buffer fee using a number of variables/parameters:
-            // minibatchTotalAssets just computed,
-
-            // buffer liquidity amount:
-            // TODO: add function in liquidityorchstrator for everyone to deposit buffer liquidity amount, this updates
-            // an internal ledger.
-            // Based on the internal ledger, LO LPs can withdraw buffer liquidity amount.
-
-            // TODO: add function in liquidityorchstrator for everyone to withdraw buffer liquidity amount, this updates
-            // smoothing_factor TODO protocol param (accept any owner update between 0 and 1 here).
-            // strart 0.05
-            // smoothed_error, starting 0.
-
-            for (uint16 k = i0; k < i1; k++) {
-                // Here use the percentage of TVL of each vault to scale the total buffer cost,
-                // So I need a buffer state as an input to the buffer_fee function, together with total protocol tvl,
-                // and use these two to scale for each vault the % of fee.
-                // .mulDiv(totalAssetsArray[k - i0], minibatchTotalAssets);
-                // TODO; buffer is computed as a function of the total_TVL taking into account
-                // curator fee amounts and protocol fee amounts (else we
-                // spend the money earned by us and curators to pay market impact).
-                // TODO: once buffer computed, add it to the buffer internal state.
-            }
-
-            (address[] memory intentTokens, uint32[] memory intentWeights) = vault.getIntent();
-            uint16 intentLength = uint16(intentTokens.length);
-            for (uint16 j = 0; j < intentLength; j++) {
-                address token = intentTokens[j];
-                uint32 weight = intentWeights[j];
-
-                // TODO: remove buffer "fee" from totalAssets before computing value here:
-                uint256 value = totalAssets.mulDiv(weight, intentFactor);
-
-                _currentEpoch.finalBatchPortfolio[token] += value;
-                _addTokenIfNotExists(token);
-            }
+            _currentEpoch.vaultsTotalAssets[address(vault)] = totalAssets;
         }
     }
 
-    /// @notice Processes minibatch of encrypted vaults
+    // TODO: read slippage_bound from liquidityorchestrator to compute // target_ratio = slippage_bound * 1.1
+
+    // TODO: use slippage_bound in execution adapter API,
+    // fix existing adapters and document the need for this parameter) and here.
+
+    // TODO: compute here total protocol buffer fee using a number of variables/parameters:
+    // minibatchTotalAssets just computed,
+
+    // buffer liquidity amount:
+    // TODO: add function in liquidityorchstrator for everyone to deposit buffer liquidity amount, this updates
+    // an internal ledger.
+    // Based on the internal ledger, LO LPs can withdraw buffer liquidity amount.
+
+    // TODO: add function in liquidityorchstrator for everyone to withdraw buffer liquidity amount, this updates
+    // smoothing_factor TODO protocol param (accept any owner update between 0 and 1 here).
+    // strart 0.05
+    // smoothed_error, starting 0.
+
+    // for (uint16 k = i0; k < i1; k++) {
+    //     // Here use the percentage of TVL of each vault to scale the total buffer cost,
+    //     // So I need a buffer state as an input to the buffer_fee function, together with total protocol tvl,
+    //     // and use these two to scale for each vault the % of fee.
+    //     // .mulDiv(totalAssetsArray[k - i0], minibatchTotalAssets);
+    //     // TODO; buffer is computed as a function of the total_TVL taking into account
+    //     // curator fee amounts and protocol fee amounts (else we
+    //     // spend the money earned by us and curators to pay market impact).
+    //     // TODO: once buffer computed, add it to the buffer internal state.
+    // }
+
+    // (address[] memory intentTokens, uint32[] memory intentWeights) = vault.getIntent();
+    // uint16 intentLength = uint16(intentTokens.length);
+    // for (uint16 j = 0; j < intentLength; j++) {
+    //     address token = intentTokens[j];
+    //     uint32 weight = intentWeights[j];
+
+    //     // TODO: remove buffer "fee" from totalAssets before computing value here:
+    //     uint256 value = totalAssets.mulDiv(weight, intentFactor);
+
+    //     _currentEpoch.finalBatchPortfolio[token] += value;
+    //     _addTokenIfNotExists(token);
+    // }
+
+    /// @notice Preprocesses minibatch of encrypted vaults
     // slither-disable-start reentrancy-no-eth
     // Safe: external calls are view; nonReentrant applied to caller.
-    function _processEncryptedMinibatch(uint8 minibatchIndex) internal nonReentrant {
+    function _preprocessEncryptedMinibatch(uint8 minibatchIndex) internal nonReentrant {
         currentMinibatchIndex++;
 
         uint16 i0 = minibatchIndex * encryptedMinibatchSize;
         uint16 i1 = i0 + encryptedMinibatchSize;
         if (i1 > encryptedVaultsEpoch.length) {
             i1 = uint16(encryptedVaultsEpoch.length);
-            // Last minibatch, go to aggregating phase next.
-            currentPhase = InternalUpkeepPhase.Aggregating;
+            // Last minibatch, go to next phase.
+            currentPhase = InternalUpkeepPhase.Buffering;
             currentMinibatchIndex = 0;
         }
 
@@ -468,16 +502,25 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     }
     // slither-disable-end reentrancy-no-eth
 
-    // TODO: once _processEncryptedMinibatch populated:
-    // a lot of code duplication in _processEncryptedMinibatch and _processTransparentMinibatch,
-    // refactor.
-
-    /// @notice Checks if upkeep should be triggered based on time
-    /// @dev If upkeep should be triggered, updates the next update time
-    function _checkAndCountEpoch() internal {
-        if (!_shouldTriggerUpkeep()) revert ErrorsLib.TooEarly();
-        _nextUpdateTime = _computeNextUpdateTime(block.timestamp);
+    /// @notice Buffers the minibatch
+    function _buffer() internal {
+        // TODO: implement buffer logic
     }
+
+    /// @notice Postprocesses minibatch of transparent vaults
+    /// @param minibatchIndex The index of the minibatch to postprocess
+    function _postprocessTransparentMinibatch(uint8 minibatchIndex) internal {
+        // TODO: implement postprocess logic
+    }
+
+    /// @notice Postprocesses minibatch of encrypted vaults
+    /// @param minibatchIndex The index of the minibatch to postprocess
+    function _postprocessEncryptedMinibatch(uint8 minibatchIndex) internal {
+        // TODO: implement postprocess logic
+    }
+
+    // TODO: once both encrypted and transparent logic is populated:
+    // a lot of code duplication expected, refactor.
 
     /// @notice Computes the next update time based on current timestamp
     /// @param currentTime Current block timestamp
@@ -493,31 +536,6 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         return block.timestamp >= _nextUpdateTime;
     }
 
-    /// @notice Resets the previous epoch state variables
-    function _resetEpochState() internal {
-        // Reset mappings for all tokens used in the previous epoch
-        address[] memory tokens = _currentEpoch.tokens;
-        uint16 length = uint16(tokens.length);
-
-        for (uint16 i = 0; i < length; i++) {
-            address token = tokens[i];
-            delete _currentEpoch.priceArray[token];
-            delete _currentEpoch.initialBatchPortfolio[token];
-            delete _currentEpoch.finalBatchPortfolio[token];
-            delete _currentEpoch.sellingOrders[token];
-            delete _currentEpoch.buyingOrders[token];
-            delete _currentEpoch.tokenExists[token];
-            delete _currentEpoch.tokenDecimals[token];
-        }
-
-        // Clear the tokens array
-        delete _currentEpoch.tokens;
-
-        // Clear the vaults arrays
-        delete transparentVaultsEpoch;
-        delete encryptedVaultsEpoch;
-    }
-
     /// @notice Adds a token to the current epoch if it doesn't exist
     /// @param token The token address to add
     function _addTokenIfNotExists(address token) internal {
@@ -527,11 +545,12 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         }
     }
 
-    /// @notice Compute selling and buying orders based on portfolio differences
+    /// @notice Builds selling and buying orders based on portfolio differences
     /// @dev Compares _finalBatchPortfolio with _initialBatchPortfolio to determine rebalancing needs
     ///      Selling orders are converted from underlying assets to shares for the LiquidityOrchestrator
-    ///      Buying orders remain in underlying assets as expected by the LiquidityOrchestrator
-    function _computeRebalancingOrders() internal {
+    ///      Buying orders remain in underlying assets as expected by the LiquidityOrchestrator.
+    ///      Orders are stored in _currentEpoch.sellingOrders and _currentEpoch.buyingOrders.
+    function _buildOrders() internal {
         address[] memory tokens = _currentEpoch.tokens;
         uint16 length = uint16(tokens.length);
 
