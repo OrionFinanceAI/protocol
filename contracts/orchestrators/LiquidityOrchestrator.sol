@@ -258,12 +258,7 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
         }
 
         // TODO: StateUpdate phase start, refacto.
-
-        // TODO: withdrawals exchange rate has been computed in the internal states orchestrator using total active assets,
-        // and fees are applied to the remaining total assets (withdrawals exchange rate is not impacted by fees).
-        // Better to define the exchange rate of depositors pre-fees, and the withdrawals exchange rate post-fees, does not make
-        // sense to charge depositors. Most importantly, consistency between operation orders in internal states orchestrator
-        // and here is crucial.
+        // Consistency between operation orders in internal states orchestrator and here is crucial.
 
         address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
         uint16 length = uint16(transparentVaults.length);

@@ -9,9 +9,12 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     /// @notice Upkeep phase
     enum InternalUpkeepPhase {
         Idle,
-        ProcessingTransparentVaults,
-        ProcessingEncryptedVaults,
-        Aggregating
+        PreprocessingTransparentVaults,
+        PreprocessingEncryptedVaults,
+        Buffering,
+        PostprocessingTransparentVaults,
+        PostprocessingEncryptedVaults,
+        BuildingOrders
     }
 
     /// @notice Returns the epoch duration

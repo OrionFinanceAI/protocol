@@ -45,6 +45,9 @@ const config: HardhatUserConfig = {
     currency: "USD",
     enabled: process.env.REPORT_GAS ? true : false,
     excludeContracts: [],
+    outputFile: "gas-report.txt",
+    noColors: true,
+    showMethodSig: true,
   },
 };
 
