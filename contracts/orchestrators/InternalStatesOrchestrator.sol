@@ -353,15 +353,14 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             totalAssetsArray[i - i0] = totalAssets;
             minibatchTotalAssets += totalAssets;
 
-            // TODO: read slippage_bound from liqudityorchestrator to compute // target_ratio = slippage_bound * 1.1
+            // TODO: necessarily full-batched computation of protocol TVL and TVL per vault to compute buffer fee.
+            // Additional performupkeep phase or in ACTION_START? Fully batched computation of total_supplies, approximating it with
+            // actual total assets? Implications of approximation on solvency guarantees?
+
+            // TODO: read slippage_bound from liquidityorchestrator to compute // target_ratio = slippage_bound * 1.1
 
             // TODO: use slippage_bound in execution adapter API,
             // fix existing adapters and document the need for this parameter) and here.
-
-            // TODO: fix, cannot use minibatchTotalAssets here,
-            // necessarily batched computation of protocol TVL and TVL per vault.
-            // Additional performupkeep phase? Or fully batched computation of total_supplies, approximating it with
-            // actual total assets?
 
             // TODO: compute here total protocol buffer fee using a number of variables/parameters:
             // minibatchTotalAssets just computed,
