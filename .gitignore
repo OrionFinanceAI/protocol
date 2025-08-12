@@ -48,5 +48,3 @@ artifacts/hardhat/
 
 !artifacts/contracts/**/*.json
 artifacts/contracts/**/*.dbg.json
-
-gas-report.txt

@@ -429,7 +429,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                 if (_currentEpoch.tokenDecimals[token] == 0) {
                     _currentEpoch.tokenDecimals[token] = IERC20Metadata(token).decimals();
                 }
-                uint8 tokenDecimals = _currentEpoch.tokenDecimals[token];
+                // uint8 tokenDecimals = _currentEpoch.tokenDecimals[token];
                 uint256 price = _currentEpoch.priceArray[token];
                 if (price == 0) {
                     if (token == underlyingAsset) {
@@ -448,10 +448,10 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             }
             // STEP 2: PROTOCOL VOLUME FEE
             // TODO...
-            // For decryptions, populate list of cyphertexts and then decrypt all together in one call.
-            // https://docs.zama.ai/protocol/examples/basic/decryption-in-solidity/fhe-decrypt-multiple-values-in-solidity
-            // TODO: integrate Zama callback in performUpkeep logic breakdown.
         }
+        // For decryptions, populate list of cyphertexts and then decrypt all together in one call.
+        // https://docs.zama.ai/protocol/examples/basic/decryption-in-solidity/fhe-decrypt-multiple-values-in-solidity
+        // TODO: integrate Zama callback in performUpkeep logic breakdown.
     }
     // slither-disable-end reentrancy-no-eth
 

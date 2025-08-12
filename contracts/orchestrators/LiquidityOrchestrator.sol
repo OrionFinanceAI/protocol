@@ -262,21 +262,21 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
 
         address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
         uint16 length = uint16(transparentVaults.length);
-        for (uint16 i = 0; i < length; i++) {
-            IOrionTransparentVault vault = IOrionTransparentVault(transparentVaults[i]);
-            // TODO: implement.
-            // vault.updateVaultState(?, ?);
-        }
+        // TODO: implement.
+        // for (uint16 i = 0; i < length; i++) {
+        //     IOrionTransparentVault vault = IOrionTransparentVault(transparentVaults[i]);
+        //     vault.updateVaultState(?, ?);
+        // }
 
         // TODO: to updateVaultState of encrypted vaults, get the encrypted sharesPerAsset executed by the liquidity
 
         address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
         length = uint16(encryptedVaults.length);
-        for (uint16 i = 0; i < length; i++) {
-            IOrionEncryptedVault vault = IOrionEncryptedVault(encryptedVaults[i]);
-            // TODO: implement.
-            // vault.updateVaultState(?, ?);
-        }
+        // TODO: implement.
+        // for (uint16 i = 0; i < length; i++) {
+        //     IOrionEncryptedVault vault = IOrionEncryptedVault(encryptedVaults[i]);
+        //     vault.updateVaultState(?, ?);
+        // }
 
         // TODO: DepositRequest and WithdrawRequest in Vaults to be processed post update
         // (internal logic depends on vaults actual total assets and total supply

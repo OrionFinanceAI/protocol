@@ -43,9 +43,12 @@ const config: HardhatUserConfig = {
   },
   gasReporter: {
     currency: "USD",
+    gasPrice: 2, // gwei, https://ycharts.com/indicators/ethereum_average_gas_price
+    token: "ETH",
+    tokenPrice: "4500", // https://coinmarketcap.com/currencies/ethereum/
     enabled: process.env.REPORT_GAS ? true : false,
     excludeContracts: [],
-    outputFile: "gas-report.txt",
+    outputFile: "reports/gas-report.txt",
     noColors: true,
     showMethodSig: true,
   },
