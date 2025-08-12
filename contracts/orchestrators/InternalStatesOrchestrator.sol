@@ -313,7 +313,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
     /// @notice Preprocesses minibatch of transparent vaults
     /// @param minibatchIndex The index of the minibatch to process
-    function _preprocessTransparentMinibatch(uint8 minibatchIndex) internal {
+    function _preprocessTransparentMinibatch(uint8 minibatchIndex) internal nonReentrant {
         currentMinibatchIndex++;
 
         uint16 i0 = minibatchIndex * transparentMinibatchSize;
@@ -335,13 +335,11 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             for (uint16 j = 0; j < portfolioTokens.length; j++) {
                 address token = portfolioTokens[j];
 
-                // Get and cache token decimals if not already cached
+                // Get and cache token decimals and prices if not already cached
                 if (_currentEpoch.tokenDecimals[token] == 0) {
                     _currentEpoch.tokenDecimals[token] = IERC20Metadata(token).decimals();
                 }
                 uint8 tokenDecimals = _currentEpoch.tokenDecimals[token];
-
-                // Get and cache price if not already cached
                 uint256 price = _currentEpoch.priceArray[token];
                 if (price == 0) {
                     if (token == underlyingAsset) {
@@ -393,48 +391,6 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         }
     }
 
-    // TODO: read slippage_bound from liquidityorchestrator to compute // target_ratio = slippage_bound * 1.1
-
-    // TODO: use slippage_bound in execution adapter API,
-    // fix existing adapters and document the need for this parameter) and here.
-
-    // TODO: compute here total protocol buffer fee using a number of variables/parameters:
-    // minibatchTotalAssets just computed,
-
-    // buffer liquidity amount:
-    // TODO: add function in liquidityorchstrator for everyone to deposit buffer liquidity amount, this updates
-    // an internal ledger.
-    // Based on the internal ledger, LO LPs can withdraw buffer liquidity amount.
-
-    // TODO: add function in liquidityorchstrator for everyone to withdraw buffer liquidity amount, this updates
-    // smoothing_factor TODO protocol param (accept any owner update between 0 and 1 here).
-    // strart 0.05
-    // smoothed_error, starting 0.
-
-    // for (uint16 k = i0; k < i1; k++) {
-    //     // Here use the percentage of TVL of each vault to scale the total buffer cost,
-    //     // So I need a buffer state as an input to the buffer_fee function, together with total protocol tvl,
-    //     // and use these two to scale for each vault the % of fee.
-    //     // .mulDiv(totalAssetsArray[k - i0], minibatchTotalAssets);
-    //     // TODO; buffer is computed as a function of the total_TVL taking into account
-    //     // curator fee amounts and protocol fee amounts (else we
-    //     // spend the money earned by us and curators to pay market impact).
-    //     // TODO: once buffer computed, add it to the buffer internal state.
-    // }
-
-    // (address[] memory intentTokens, uint32[] memory intentWeights) = vault.getIntent();
-    // uint16 intentLength = uint16(intentTokens.length);
-    // for (uint16 j = 0; j < intentLength; j++) {
-    //     address token = intentTokens[j];
-    //     uint32 weight = intentWeights[j];
-
-    //     // TODO: remove buffer "fee" from totalAssets before computing value here:
-    //     uint256 value = totalAssets.mulDiv(weight, intentFactor);
-
-    //     _currentEpoch.finalBatchPortfolio[token] += value;
-    //     _addTokenIfNotExists(token);
-    // }
-
     /// @notice Preprocesses minibatch of encrypted vaults
     // slither-disable-start reentrancy-no-eth
     // Safe: external calls are view; nonReentrant applied to caller.
@@ -463,19 +419,17 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
             (address[] memory portfolioTokens, euint32[] memory sharesPerAsset) = vault.getPortfolio();
 
-            // Calculate estimated active total assets (t_1) and populate batch portfolio
-            // euint32 encryptedActiveTotalAssets = _ezero;
+            // STEP 1: LIVE PORTFOLIO
+            euint32 totalAssets = _ezero;
 
             for (uint16 j = 0; j < portfolioTokens.length; j++) {
                 address token = portfolioTokens[j];
 
-                // Get and cache token decimals if not already cached
+                // Get and cache token decimals and prices if not already cached
                 if (_currentEpoch.tokenDecimals[token] == 0) {
                     _currentEpoch.tokenDecimals[token] = IERC20Metadata(token).decimals();
                 }
-                // uint8 tokenDecimals = _currentEpoch.tokenDecimals[token];
-
-                // Get and cache price if not already cached
+                uint8 tokenDecimals = _currentEpoch.tokenDecimals[token];
                 uint256 price = _currentEpoch.priceArray[token];
                 if (price == 0) {
                     if (token == underlyingAsset) {
@@ -486,31 +440,64 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                     _currentEpoch.priceArray[token] = price;
                 }
 
-                // TODO implement encrypted generalization for value calculation
-                // euint32 value = ...
-                // encryptedActiveTotalAssets = FHE.add(encryptedActiveTotalAssets, value);
+                // Calculate estimated value of the asset in underlying asset decimals
+                euint32 value = _ezero; // TODO implement encrypted generalization for value calculation
+                totalAssets = FHE.add(totalAssets, value);
+                _encryptedBatchPortfolio[token] = FHE.add(_encryptedBatchPortfolio[token], value);
+                _addTokenIfNotExists(token);
             }
-            // (address[] memory intentTokens, euint32[] memory intentWeights) = vault.getIntent();
+            // STEP 2: PROTOCOL VOLUME FEE
             // TODO...
+            // For decryptions, populate list of cyphertexts and then decrypt all together in one call.
+            // https://docs.zama.ai/protocol/examples/basic/decryption-in-solidity/fhe-decrypt-multiple-values-in-solidity
+            // TODO: integrate Zama callback in performUpkeep logic breakdown.
         }
-        // TODO: for decryptions, populate list of cyphertexts and then decrypt all together in one call.
-        // https://docs.zama.ai/protocol/examples/basic/decryption-in-solidity/fhe-decrypt-multiple-values-in-solidity
-
-        // TODO: decrypt minibatch and incrementally add to initialBatchPortfolio, finalBatchPortfolio.
-
-        // TODO: same for estimated total assets.
     }
     // slither-disable-end reentrancy-no-eth
 
     /// @notice Buffers the minibatch
     function _buffer() internal {
-        // TODO: implement buffer logic
+        // for (uint16 k = i0; k < i1; k++) {
+        //     // Here use the percentage of TVL of each vault to scale the total buffer cost,
+        //     // So I need a buffer state as an input to the buffer_fee function, together with total protocol tvl,
+        //     // and use these two to scale for each vault the % of fee.
+        //     // .mulDiv(totalAssetsArray[k - i0], minibatchTotalAssets);
+        //     // TODO; buffer is computed as a function of the total_TVL taking into account
+        //     // curator fee amounts and protocol fee amounts (else we
+        //     // spend the money earned by us and curators to pay market impact).
+        //     // TODO: once buffer computed, add it to the buffer internal state.
+        // }
+
+        // TODO: read slippage_bound from liquidityorchestrator to compute target_ratio = slippage_bound * 1.1
+        // TODO: use slippage_bound in execution adapter API, and here
+        // TODO: fix API of existing adapters (and document the need for this parameter).
+        // TODO: compute here total protocol buffer fee using a number of variables/parameters:
+        // minibatchTotalAssets just computed,
+        // buffer liquidity amount:
+        // TODO: add function in liquidityorchstrator for everyone to deposit buffer liquidity amount, this updates
+        // an internal ledger.
+        // Based on the internal ledger, LO LPs can withdraw buffer liquidity amount.
+        // TODO: add function in liquidityorchstrator for everyone to withdraw buffer liquidity amount, this updates
+        // smoothing_factor TODO protocol param (accept any owner update between 0 and 1 here).
+        // strart 0.05
+        // smoothed_error, starting 0.
+
+        currentPhase = InternalUpkeepPhase.PostprocessingTransparentVaults;
     }
 
     /// @notice Postprocesses minibatch of transparent vaults
     /// @param minibatchIndex The index of the minibatch to postprocess
     function _postprocessTransparentMinibatch(uint8 minibatchIndex) internal {
-        // TODO: implement postprocess logic
+        // (address[] memory intentTokens, uint32[] memory intentWeights) = vault.getIntent();
+        // uint16 intentLength = uint16(intentTokens.length);
+        // for (uint16 j = 0; j < intentLength; j++) {
+        //     address token = intentTokens[j];
+        //     uint32 weight = intentWeights[j];
+        //     // TODO: remove buffer "fee" from totalAssets before computing value here:
+        //     uint256 value = totalAssets.mulDiv(weight, intentFactor);
+        //     _currentEpoch.finalBatchPortfolio[token] += value;
+        //     _addTokenIfNotExists(token);
+        // }
     }
 
     /// @notice Postprocesses minibatch of encrypted vaults
