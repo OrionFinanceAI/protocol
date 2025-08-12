@@ -20,7 +20,7 @@ import "@openzeppelin/contracts/interfaces/IERC4626.sol";
  *      - Executing actual buy and sell orders on investment universe;
  *      - Processing actual curator fees with vaults and protocol fees;
  *      - Processing deposit and withdrawal requests from LPs;
- *      - Updating vault states (post-execution, checks-effects-interactions pattern at the protocol level);
+ *      - Updating vault states post-execution (checks-effects-interactions pattern at the protocol level);
  *      - Handling slippage and market execution differences from adapter estimates via liquidity buffer.
  */
 contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
@@ -55,16 +55,20 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
     /// @notice Execution minibatch size
     uint8 public executionMinibatchSize;
 
+    /// @notice Slippage bound in basis points
+    uint16 public slippageBound;
+
     /* -------------------------------------------------------------------------- */
-    /*                               MODIFIERS                                  */
+    /*                                MODIFIERS                                   */
     /* -------------------------------------------------------------------------- */
 
-    /// @dev Restricts function to only Chainlink Automation registry
+    /// @dev Restricts function to only Chainlink Automation Registry
     modifier onlyAutomationRegistry() {
         if (msg.sender != automationRegistry) revert ErrorsLib.NotAuthorized();
         _;
     }
 
+    /// @dev Restricts function to only Orion Config contract
     modifier onlyConfig() {
         if (msg.sender != address(config)) revert ErrorsLib.NotAuthorized();
         _;
@@ -83,6 +87,10 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
         executionMinibatchSize = 1;
     }
 
+    /* -------------------------------------------------------------------------- */
+    /*                                OWNER FUNCTIONS                             */
+    /* -------------------------------------------------------------------------- */
+
     /// @inheritdoc ILiquidityOrchestrator
     function updateExecutionMinibatchSize(uint8 _executionMinibatchSize) external onlyOwner {
         if (_executionMinibatchSize == 0) revert ErrorsLib.InvalidArguments();
@@ -99,14 +107,34 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
         emit EventsLib.AutomationRegistryUpdated(newAutomationRegistry);
     }
 
-    /// @notice Sets the internal states orchestrator address
-    /// @dev Can only be called by the contract owner
-    /// @param _internalStatesOrchestrator The address of the internal states orchestrator
+    /// @inheritdoc ILiquidityOrchestrator
     function setInternalStatesOrchestrator(address _internalStatesOrchestrator) external onlyOwner {
         if (_internalStatesOrchestrator == address(0)) revert ErrorsLib.ZeroAddress();
         if (address(internalStatesOrchestrator) != address(0)) revert ErrorsLib.AlreadyRegistered();
         internalStatesOrchestrator = IInternalStateOrchestrator(_internalStatesOrchestrator);
     }
+
+    /// @inheritdoc ILiquidityOrchestrator
+    function setSlippageBound(uint16 _slippageBound) external onlyOwner {
+        if (_slippageBound == 0) revert ErrorsLib.InvalidArguments();
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+        slippageBound = _slippageBound;
+    }
+
+    /// @inheritdoc ILiquidityOrchestrator
+    function claimProtocolFees() external onlyOwner {
+        uint256 pendingProtocolFees = internalStatesOrchestrator.pendingProtocolFees();
+        if (pendingProtocolFees == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
+
+        internalStatesOrchestrator.resetPendingProtocolFees();
+
+        bool success = IERC20(underlyingAsset).transfer(msg.sender, pendingProtocolFees);
+        if (!success) revert ErrorsLib.TransferFailed();
+    }
+
+    /* -------------------------------------------------------------------------- */
+    /*                                CONFIG FUNCTIONS                            */
+    /* -------------------------------------------------------------------------- */
 
     /// @inheritdoc ILiquidityOrchestrator
     function setExecutionAdapter(address asset, IExecutionAdapter adapter) external onlyConfig {
@@ -123,6 +151,10 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
         delete executionAdapterOf[asset];
         emit EventsLib.ExecutionAdapterSet(asset, address(0));
     }
+
+    /* -------------------------------------------------------------------------- */
+    /*                                VAULT FUNCTIONS                             */
+    /* -------------------------------------------------------------------------- */
 
     /// @inheritdoc ILiquidityOrchestrator
     function returnDepositFunds(address user, uint256 amount) external {
@@ -159,16 +191,9 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
         if (!success) revert ErrorsLib.TransferFailed();
     }
 
-    /// @inheritdoc ILiquidityOrchestrator
-    function claimProtocolFees() external onlyOwner {
-        uint256 pendingProtocolFees = internalStatesOrchestrator.pendingProtocolFees();
-        if (pendingProtocolFees == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
-
-        internalStatesOrchestrator.resetPendingProtocolFees();
-
-        bool success = IERC20(underlyingAsset).transfer(msg.sender, pendingProtocolFees);
-        if (!success) revert ErrorsLib.TransferFailed();
-    }
+    /* -------------------------------------------------------------------------- */
+    /*                                UPKEEP FUNCTIONS                            */
+    /* -------------------------------------------------------------------------- */
 
     // TODO: docs when implemented.
     function checkUpkeep(bytes calldata) external view override returns (bool upkeepNeeded, bytes memory performData) {
@@ -267,6 +292,10 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
 
         emit EventsLib.PortfolioRebalanced();
     }
+
+    /* -------------------------------------------------------------------------- */
+    /*                                INTERNAL FUNCTIONS                          */
+    /* -------------------------------------------------------------------------- */
 
     // TODO: docs when implemented.
     function _executeSell(address asset, uint256 amount) internal {

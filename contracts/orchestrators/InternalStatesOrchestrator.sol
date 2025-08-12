@@ -353,8 +353,10 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             totalAssetsArray[i - i0] = totalAssets;
             minibatchTotalAssets += totalAssets;
 
-            // slippage_bound TODO set as config constant and read at construction in liqudityorchestrator and here.
-            // target_ratio = slippage_bound * 1.1
+            // TODO: read slippage_bound from liqudityorchestrator to compute // target_ratio = slippage_bound * 1.1
+
+            // TODO: use slippage_bound in execution adapter API,
+            // fix existing adapters and document the need for this parameter) and here.
 
             // TODO: fix, cannot use minibatchTotalAssets here,
             // necessarily batched computation of protocol TVL and TVL per vault.

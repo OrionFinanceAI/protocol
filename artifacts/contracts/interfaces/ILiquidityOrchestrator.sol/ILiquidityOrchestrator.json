@@ -99,6 +99,32 @@
     {
       "inputs": [
         {
+          "internalType": "address",
+          "name": "_internalStatesOrchestrator",
+          "type": "address"
+        }
+      ],
+      "name": "setInternalStatesOrchestrator",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint16",
+          "name": "_slippageBound",
+          "type": "uint16"
+        }
+      ],
+      "name": "setSlippageBound",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
           "internalType": "uint256",
           "name": "amount",
           "type": "uint256"

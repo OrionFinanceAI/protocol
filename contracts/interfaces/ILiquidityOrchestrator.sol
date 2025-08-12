@@ -26,6 +26,19 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @param newAutomationRegistry The new automation registry address
     function updateAutomationRegistry(address newAutomationRegistry) external;
 
+    /// @notice Sets the internal states orchestrator address
+    /// @dev Can only be called by the contract owner
+    /// @param _internalStatesOrchestrator The address of the internal states orchestrator
+    function setInternalStatesOrchestrator(address _internalStatesOrchestrator) external;
+
+    /// @notice Sets the slippage bound
+    /// @param _slippageBound The new slippage bound
+    function setSlippageBound(uint16 _slippageBound) external;
+
+    /// @notice Claim protocol fees
+    /// @dev Called by the Owner to claim protocol fees
+    function claimProtocolFees() external;
+
     /// @notice Register or replace the execution adapter for an asset.
     /// @param asset The address of the asset.
     /// @param adapter The execution adapter for the asset.
@@ -53,8 +66,4 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @param user The user to transfer funds to
     /// @param amount The amount of underlying assets to transfer
     function transferWithdrawalFunds(address user, uint256 amount) external;
-
-    /// @notice Claim protocol fees
-    /// @dev Called by the Owner to claim protocol fees
-    function claimProtocolFees() external;
 }
