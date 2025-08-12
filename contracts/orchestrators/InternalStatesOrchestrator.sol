@@ -11,6 +11,7 @@ import "../interfaces/IOrionTransparentVault.sol";
 import "../interfaces/IOrionEncryptedVault.sol";
 import "../interfaces/IPriceAdapterRegistry.sol";
 import "../interfaces/IInternalStateOrchestrator.sol";
+import "../interfaces/ILiquidityOrchestrator.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { EventsLib } from "../libraries/EventsLib.sol";
 import { UtilitiesLib } from "../libraries/UtilitiesLib.sol";
@@ -38,6 +39,9 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     /// @notice Orion Config contract address
     IOrionConfig public config;
 
+    /// @notice Liquidity Orchestrator contract
+    ILiquidityOrchestrator public liquidityOrchestrator;
+
     /// @notice Price Adapter Registry contract
     IPriceAdapterRegistry public registry;
 
@@ -52,6 +56,19 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
     /// @notice Decimals of the underlying asset
     uint8 public underlyingDecimals;
+
+    /// @notice Protocol fee coefficients
+    uint16 public vFeeCoefficient;
+    uint16 public rsFeeCoefficient;
+
+    /// @notice Pending protocol fees [assets]
+    uint256 public pendingProtocolFees;
+
+    /// @notice Constants for protocol fee calculations
+    uint32 public constant YEAR_IN_SECONDS = 365 days;
+    uint16 public constant PROTOCOL_FEE_FACTOR = 10_000;
+    uint16 public constant MAX_VOLUME_FEE = 100; // 1%
+    uint16 public constant MAX_REVENUE_SHARE_FEE = 1_000; // 15%
 
     /// @notice Action constants for checkUpkeep and performUpkeep
     bytes4 private constant ACTION_START = bytes4(keccak256("start()"));
@@ -122,6 +139,12 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         _;
     }
 
+    /// @dev Restricts function to only Liquidity Orchestrator
+    modifier onlyLiquidityOrchestrator() {
+        if (msg.sender != address(liquidityOrchestrator)) revert ErrorsLib.NotAuthorized();
+        _;
+    }
+
     constructor(
         address initialOwner,
         address config_,
@@ -139,6 +162,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         encryptedMinibatchSize = 1;
 
         automationRegistry = automationRegistry_;
+        liquidityOrchestrator = ILiquidityOrchestrator(config.liquidityOrchestrator());
 
         epochDuration = 1 days;
         _nextUpdateTime = _computeNextUpdateTime(block.timestamp);
@@ -148,6 +172,9 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         currentMinibatchIndex = 0;
 
         _ezero = FHE.asEuint32(0);
+
+        vFeeCoefficient = 0;
+        rsFeeCoefficient = 0;
     }
 
     /// @inheritdoc IInternalStateOrchestrator
@@ -174,6 +201,16 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
         transparentMinibatchSize = _transparentMinibatchSize;
         encryptedMinibatchSize = _encryptedMinibatchSize;
+    }
+
+    /// @inheritdoc IInternalStateOrchestrator
+    function updateProtocolFees(uint16 _vFeeCoefficient, uint16 _rsFeeCoefficient) external onlyOwner {
+        if (_vFeeCoefficient > MAX_VOLUME_FEE || _rsFeeCoefficient > MAX_REVENUE_SHARE_FEE)
+            revert ErrorsLib.InvalidArguments();
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+
+        vFeeCoefficient = _vFeeCoefficient;
+        rsFeeCoefficient = _rsFeeCoefficient;
     }
 
     /// @notice Checks if upkeep is needed based on time interval
@@ -251,14 +288,15 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             currentMinibatchIndex = 0;
         }
 
+        uint256 minibatchTotalAssets = 0;
+        uint256[] memory totalAssetsArray = new uint256[](i1 - i0);
+
         for (uint16 i = i0; i < i1; i++) {
             IOrionTransparentVault vault = IOrionTransparentVault(transparentVaultsEpoch[i]);
 
             (address[] memory portfolioTokens, uint256[] memory sharesPerAsset) = vault.getPortfolio();
 
-            // Calculate estimated active total assets (t_1) and populate batch portfolio
-            uint256 activeTotalAssets = 0;
-
+            uint256 totalAssets = 0;
             for (uint16 j = 0; j < portfolioTokens.length; j++) {
                 address token = portfolioTokens[j];
 
@@ -286,25 +324,66 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                     underlyingDecimals
                 );
 
-                activeTotalAssets += value;
+                totalAssets += value;
                 _currentEpoch.initialBatchPortfolio[token] += value;
                 _addTokenIfNotExists(token);
             }
 
             uint256 pendingWithdrawals = vault.convertToAssetsWithPITTotalAssets(
                 vault.getPendingWithdrawals(),
-                activeTotalAssets,
+                totalAssets,
                 Math.Rounding.Floor
             );
 
+            uint256 protocolVolumeFee = uint256(vFeeCoefficient).mulDiv(totalAssets, PROTOCOL_FEE_FACTOR);
+            protocolVolumeFee = protocolVolumeFee.mulDiv(epochDuration, YEAR_IN_SECONDS);
+            pendingProtocolFees += protocolVolumeFee;
+
+            totalAssets -= protocolVolumeFee;
+            uint256 curatorFee = vault.curatorFee(totalAssets);
+
+            uint256 protocolRevenueShareFee = uint256(rsFeeCoefficient).mulDiv(curatorFee, PROTOCOL_FEE_FACTOR);
+            pendingProtocolFees += protocolRevenueShareFee;
+
+            curatorFee -= protocolRevenueShareFee;
+
             // Calculate estimated total assets (active and passive, including curator and protocol fees),
-            // same decimals as underlying.
-            uint256 predictedTotalAssets = activeTotalAssets +
-                vault.getPendingDeposits() -
-                pendingWithdrawals -
-                vault.curatorFee(activeTotalAssets);
-            // TODO - protocol_fee(vault)
-            // TODO; open issue to solve, how to distribute protocol fee to multiple vaults and a common buffer amount.
+            totalAssets += vault.getPendingDeposits() - pendingWithdrawals - curatorFee - protocolVolumeFee;
+
+            totalAssetsArray[i - i0] = totalAssets;
+            minibatchTotalAssets += totalAssets;
+
+            // slippage_bound TODO set as config constant and read at construction in liqudityorchestrator and here.
+            // target_ratio = slippage_bound * 1.1
+
+            // TODO: fix, cannot use minibatchTotalAssets here,
+            // necessarily batched computation of protocol TVL and TVL per vault.
+            // Additional performupkeep phase? Or fully batched computation of total_supplies, approximating it with
+            // actual total assets?
+
+            // TODO: compute here total protocol buffer fee using a number of variables/parameters:
+            // minibatchTotalAssets just computed,
+
+            // buffer liquidity amount:
+            // TODO: add function in liquidityorchstrator for everyone to deposit buffer liquidity amount, this updates
+            // an internal ledger.
+            // Based on the internal ledger, LO LPs can withdraw buffer liquidity amount.
+
+            // TODO: add function in liquidityorchstrator for everyone to withdraw buffer liquidity amount, this updates
+            // smoothing_factor TODO protocol param (accept any owner update between 0 and 1 here).
+            // strart 0.05
+            // smoothed_error, starting 0.
+
+            for (uint16 k = i0; k < i1; k++) {
+                // Here use the percentage of TVL of each vault to scale the total buffer cost,
+                // So I need a buffer state as an input to the buffer_fee function, together with total protocol tvl,
+                // and use these two to scale for each vault the % of fee.
+                // .mulDiv(totalAssetsArray[k - i0], minibatchTotalAssets);
+                // TODO; buffer is computed as a function of the total_TVL taking into account
+                // curator fee amounts and protocol fee amounts (else we
+                // spend the money earned by us and curators to pay market impact).
+                // TODO: once buffer computed, add it to the buffer internal state.
+            }
 
             (address[] memory intentTokens, uint32[] memory intentWeights) = vault.getIntent();
             uint16 intentLength = uint16(intentTokens.length);
@@ -312,8 +391,8 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                 address token = intentTokens[j];
                 uint32 weight = intentWeights[j];
 
-                // same decimals as underlying
-                uint256 value = predictedTotalAssets.mulDiv(weight, intentFactor);
+                // TODO: remove buffer "fee" from totalAssets before computing value here:
+                uint256 value = totalAssets.mulDiv(weight, intentFactor);
 
                 _currentEpoch.finalBatchPortfolio[token] += value;
                 _addTokenIfNotExists(token);
@@ -378,8 +457,6 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             }
             // (address[] memory intentTokens, euint32[] memory intentWeights) = vault.getIntent();
             // TODO...
-            // TODO: Protocol fee here can be different from the transparent
-            // vaults because of added infra costs, consider if fair.
         }
         // TODO: for decryptions, populate list of cyphertexts and then decrypt all together in one call.
         // https://docs.zama.ai/protocol/examples/basic/decryption-in-solidity/fhe-decrypt-multiple-values-in-solidity
@@ -565,5 +642,10 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                 index++;
             }
         }
+    }
+
+    /// @inheritdoc IInternalStateOrchestrator
+    function resetPendingProtocolFees() external onlyLiquidityOrchestrator {
+        pendingProtocolFees = 0;
     }
 }

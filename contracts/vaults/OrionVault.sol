@@ -105,9 +105,8 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     /*                               CURATOR FEES                                 */
     /* -------------------------------------------------------------------------- */
 
-    /// @notice Year in seconds
+    /// @notice Constants for curator fee calculations
     uint32 public constant YEAR_IN_SECONDS = 365 days;
-
     uint16 public constant CURATOR_FEE_FACTOR = 10_000;
     uint16 public constant MAX_MANAGEMENT_FEE = 300; // 3%
     uint16 public constant MAX_PERFORMANCE_FEE = 3_000; // 30%
@@ -353,8 +352,6 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
     /// @inheritdoc IOrionVault
     function updateVaultWhitelist(address[] memory assets) external onlyVaultOwner {
-        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
-
         _vaultWhitelistedAssets.clear();
         for (uint256 i = 0; i < assets.length; i++) {
             address token = assets[i];
@@ -470,19 +467,13 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         return currentSharePrice.mulDiv(CURATOR_FEE_FACTOR + hurdleReturn, CURATOR_FEE_FACTOR);
     }
 
-    /// @notice Claim accrued curator fees when system is idle
-    /// @dev Only callable by vault owner, transfers full accrued fees from liquidity orchestrator to vault owner.
-    function claimCuratorFees() external onlyVaultOwner {
-        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
-        if (pendingCuratorFees == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
+    /// @inheritdoc IOrionVault
+    function claimCuratorFees(uint256 amount) external onlyVaultOwner {
+        if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
+        if (amount > pendingCuratorFees) revert ErrorsLib.InsufficientFunds(address(this), pendingCuratorFees, amount);
 
-        uint256 amountToClaim = pendingCuratorFees;
-
-        // Reset pending fees before transfer to prevent reentrancy
-        pendingCuratorFees = 0;
-
-        // Transfer fees from liquidity orchestrator to vault owner
-        liquidityOrchestrator.transferCuratorFees(amountToClaim);
+        pendingCuratorFees -= amount;
+        liquidityOrchestrator.transferCuratorFees(amount);
     }
 
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------

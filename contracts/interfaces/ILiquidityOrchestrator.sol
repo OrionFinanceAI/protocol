@@ -53,4 +53,8 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @param user The user to transfer funds to
     /// @param amount The amount of underlying assets to transfer
     function transferWithdrawalFunds(address user, uint256 amount) external;
+
+    /// @notice Claim protocol fees
+    /// @dev Called by the Owner to claim protocol fees
+    function claimProtocolFees() external;
 }

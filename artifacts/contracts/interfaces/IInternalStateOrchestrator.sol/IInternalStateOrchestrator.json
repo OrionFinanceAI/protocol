@@ -103,6 +103,19 @@
       "type": "function"
     },
     {
+      "inputs": [],
+      "name": "pendingProtocolFees",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
       "inputs": [
         {
           "internalType": "bytes",
@@ -111,6 +124,13 @@
         }
       ],
       "name": "performUpkeep",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "resetPendingProtocolFees",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
@@ -155,6 +175,24 @@
         }
       ],
       "name": "updateMinibatchSizes",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint16",
+          "name": "_vFeeCoefficient",
+          "type": "uint16"
+        },
+        {
+          "internalType": "uint16",
+          "name": "_rsFeeCoefficient",
+          "type": "uint16"
+        }
+      ],
+      "name": "updateProtocolFees",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
