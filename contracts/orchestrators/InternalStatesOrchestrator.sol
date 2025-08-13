@@ -137,8 +137,8 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     address[] public transparentVaultsEpoch;
     address[] public encryptedVaultsEpoch;
 
-    /// @notice Buffer liquidity
-    uint256 public bufferLiquidity;
+    /// @notice Buffer amount
+    uint256 public bufferAmount;
 
     /// @dev Restricts function to only Chainlink Automation registry
     modifier onlyAutomationRegistry() {
@@ -183,7 +183,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         vFeeCoefficient = 0;
         rsFeeCoefficient = 0;
 
-        bufferLiquidity = 0;
+        bufferAmount = 0;
     }
 
     /// @inheritdoc IInternalStateOrchestrator
@@ -465,6 +465,8 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
     /// @notice Updates the buffer
     function _buffer() internal {
+        currentPhase = InternalUpkeepPhase.PostprocessingTransparentVaults;
+
         uint256 protocolTotalAssets = 0;
 
         for (uint16 i = 0; i < transparentVaultsEpoch.length; i++) {
@@ -476,29 +478,25 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             address vault = encryptedVaultsEpoch[i];
             protocolTotalAssets += _currentEpoch.vaultsTotalAssets[address(vault)];
         }
-        // TODO:
-        // bufferAmount = f(bufferLiquidity, protocolTotalAssets, hyperpamars)
-        uint256 bufferAmount = 0;
+
+        uint256 targetBufferAmount = protocolTotalAssets.mulDiv(
+            liquidityOrchestrator.targetBufferRatio(),
+            PROTOCOL_FEE_FACTOR
+        );
+
+        if (bufferAmount > targetBufferAmount) {
+            return;
+        }
+
+        uint256 deltaBufferAmount = targetBufferAmount - bufferAmount;
 
         for (uint16 i = 0; i < transparentVaultsEpoch.length; i++) {
             address vault = transparentVaultsEpoch[i];
-            _currentEpoch.vaultsTotalAssets[address(vault)] -= bufferAmount.mulDiv(
+            _currentEpoch.vaultsTotalAssets[address(vault)] -= deltaBufferAmount.mulDiv(
                 _currentEpoch.vaultsTotalAssets[address(vault)],
                 protocolTotalAssets
             );
         }
-
-        liquidityOrchestrator.targetBufferRatio();
-
-        // TODO: add function in liquidityorchstrator for everyone to deposit buffer liquidity amount, this updates
-        // an internal ledger.
-        // Based on the internal ledger, LO LPs can withdraw buffer liquidity amount.
-        // TODO: add function in liquidityorchstrator for everyone to withdraw buffer liquidity amount, this updates
-        // smoothing_factor TODO protocol param (accept any owner update between 0 and 1 here).
-        // strart 0.05
-        // smoothed_error, starting 0.
-
-        currentPhase = InternalUpkeepPhase.PostprocessingTransparentVaults;
     }
 
     /// @notice Postprocesses minibatch of transparent vaults

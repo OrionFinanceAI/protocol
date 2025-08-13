@@ -149,7 +149,7 @@ for i in range(epochs):
     current_tvl = tvl[i]
     fee_rate = fee_controller.calculate_fee_rate(current_buffer, current_tvl)
     original_fee_rate = simple_fee_rate(current_buffer, current_tvl)
-    fees = fee_rate * current_tvl
+    fees = original_fee_rate * current_tvl
 
     slippage = slippage_series[i]
     total_slippage_cost = slippage * current_tvl
