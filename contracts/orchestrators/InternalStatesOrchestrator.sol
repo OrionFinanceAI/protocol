@@ -292,6 +292,20 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     /*                               INTERNAL LOGIC                               */
     /* -------------------------------------------------------------------------- */
 
+    /// @notice Computes the next update time based on current timestamp
+    /// @param currentTime Current block timestamp
+    /// @return Next update time
+    function _computeNextUpdateTime(uint256 currentTime) internal view returns (uint256) {
+        return currentTime + epochDuration;
+    }
+
+    /// @notice Checks if upkeep should be triggered based on time
+    /// @return True if upkeep should be triggered
+    function _shouldTriggerUpkeep() internal view returns (bool) {
+        // slither-disable-next-line timestamp
+        return block.timestamp >= _nextUpdateTime;
+    }
+
     /// @notice Updates the next update time and resets the previous epoch state variables
     function _handleStart() internal {
         if (!_shouldTriggerUpkeep()) revert ErrorsLib.TooEarly();
@@ -456,7 +470,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                 _addTokenIfNotExists(token);
             }
             // STEP 2: PROTOCOL VOLUME FEE
-            // TODO...
+            // TODO: implement preprocess logic. Avoid code duplication with transparent equivalent.
         }
         // For decryptions, populate list of cyphertexts and then decrypt all together in one call.
         // https://docs.zama.ai/protocol/examples/basic/decryption-in-solidity/fhe-decrypt-multiple-values-in-solidity
@@ -517,24 +531,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     /// @notice Postprocesses minibatch of encrypted vaults
     /// @param minibatchIndex The index of the minibatch to postprocess
     function _postprocessEncryptedMinibatch(uint8 minibatchIndex) internal {
-        // TODO: implement postprocess logic
-    }
-
-    // TODO: once both encrypted and transparent logic is populated:
-    // a lot of code duplication expected, refactor.
-
-    /// @notice Computes the next update time based on current timestamp
-    /// @param currentTime Current block timestamp
-    /// @return Next update time
-    function _computeNextUpdateTime(uint256 currentTime) internal view returns (uint256) {
-        return currentTime + epochDuration;
-    }
-
-    /// @notice Checks if upkeep should be triggered based on time
-    /// @return True if upkeep should be triggered
-    function _shouldTriggerUpkeep() internal view returns (bool) {
-        // slither-disable-next-line timestamp
-        return block.timestamp >= _nextUpdateTime;
+        // TODO: implement postprocess logic. Avoid code duplication with transparent equivalent.
     }
 
     /// @notice Adds a token to the current epoch if it doesn't exist
