@@ -304,7 +304,9 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
     /// @notice Updates the next update time and resets the previous epoch state variables
     function _handleStart() internal {
-        if (!_shouldTriggerUpkeep()) revert ErrorsLib.TooEarly();
+        // Validate current phase
+        if (!_shouldTriggerUpkeep() || !config.isSystemIdle()) revert ErrorsLib.TooEarly();
+
         _nextUpdateTime = _computeNextUpdateTime(block.timestamp);
 
         for (uint16 i = 0; i < _currentEpoch.tokens.length; i++) {
@@ -329,6 +331,10 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     /// @notice Preprocesses minibatch of transparent vaults
     /// @param minibatchIndex The index of the minibatch to process
     function _preprocessTransparentMinibatch(uint8 minibatchIndex) internal nonReentrant {
+        // Validate current phase
+        if (currentPhase != InternalUpkeepPhase.PreprocessingTransparentVaults) {
+            revert ErrorsLib.InvalidState();
+        }
         currentMinibatchIndex++;
 
         uint16 i0 = minibatchIndex * transparentMinibatchSize;
@@ -411,7 +417,12 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     /// @notice Preprocesses minibatch of encrypted vaults
     // slither-disable-start reentrancy-no-eth
     // Safe: external calls are view; nonReentrant applied to caller.
+    // solhint-disable-next-line code-complexity
     function _preprocessEncryptedMinibatch(uint8 minibatchIndex) internal nonReentrant {
+        // Validate current phase
+        if (currentPhase != InternalUpkeepPhase.PreprocessingEncryptedVaults) {
+            revert ErrorsLib.InvalidState();
+        }
         currentMinibatchIndex++;
 
         uint16 i0 = minibatchIndex * encryptedMinibatchSize;
@@ -498,6 +509,10 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
      *      - Distributes the buffer cost proportionally across all vaults
      */
     function _buffer() internal {
+        // Validate current phase
+        if (currentPhase != InternalUpkeepPhase.Buffering) {
+            revert ErrorsLib.InvalidState();
+        }
         currentPhase = InternalUpkeepPhase.PostprocessingTransparentVaults;
 
         uint256 protocolTotalAssets = 0;
@@ -537,6 +552,10 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     /// @notice Postprocesses minibatch of transparent vaults
     /// @param minibatchIndex The index of the minibatch to postprocess
     function _postprocessTransparentMinibatch(uint8 minibatchIndex) internal {
+        // Validate current phase
+        if (currentPhase != InternalUpkeepPhase.PostprocessingTransparentVaults) {
+            revert ErrorsLib.InvalidState();
+        }
         // TODO: a lot of logic in common with preprocess logic, refactor.
 
         currentMinibatchIndex++;
@@ -590,6 +609,10 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     /// @notice Postprocesses minibatch of encrypted vaults
     /// @param minibatchIndex The index of the minibatch to postprocess
     function _postprocessEncryptedMinibatch(uint8 minibatchIndex) internal {
+        // Validate current phase
+        if (currentPhase != InternalUpkeepPhase.PostprocessingEncryptedVaults) {
+            revert ErrorsLib.InvalidState();
+        }
         // TODO: implement postprocess logic. Avoid code duplication with transparent equivalent.
         currentMinibatchIndex++;
 
@@ -620,6 +643,10 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     /// @dev Compares _finalBatchPortfolio with _initialBatchPortfolio to determine rebalancing needs
     ///      Orders are stored in _currentEpoch.sellingOrders and _currentEpoch.buyingOrders.
     function _buildOrders() internal {
+        // Validate current phase
+        if (currentPhase != InternalUpkeepPhase.BuildingOrders) {
+            revert ErrorsLib.InvalidState();
+        }
         address[] memory tokens = _currentEpoch.tokens;
         uint16 length = uint16(tokens.length);
 
