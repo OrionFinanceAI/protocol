@@ -238,6 +238,8 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
         // for more scalable market interactions.
         (address[] memory sellingTokens, uint256[] memory sellingAmounts) = internalStatesOrchestrator
             .getSellingOrders();
+        // TODO: here the returned value can be zero, need to skip that case.
+        // TODO: same for buying orders.
 
         // TODO: use executionMinibatchSize, akin to internal states orchestrator.
 

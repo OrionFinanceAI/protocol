@@ -85,17 +85,17 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     struct EpochState {
         /// @notice Mapping of token address to its decimals
         mapping(address => uint8) tokenDecimals;
-        /// @notice Price array - mapping of token address to estimated price [asset/underlying]
+        /// @notice Price array - mapping of token address to estimated price [shares/assets]
         mapping(address => uint256) priceArray;
-        /// @notice Initial batch portfolio - mapping of token address to estimated value [assets]
+        /// @notice Initial batch portfolio - mapping of token address to estimated value [shares]
         mapping(address => uint256) initialBatchPortfolio;
         /// @notice Total assets - mapping of Orion vault address to estimated value [assets]
         mapping(address => uint256) vaultsTotalAssets;
-        /// @notice Final batch portfolio - mapping of token address to estimated value [assets]
+        /// @notice Final batch portfolio - mapping of token address to estimated value [shares]
         mapping(address => uint256) finalBatchPortfolio;
-        /// @notice Selling orders - mapping of token address to amount that needs to be sold [assets]
+        /// @notice Selling orders - mapping of token address to number of shares that needs to be sold [shares]
         mapping(address => uint256) sellingOrders;
-        /// @notice Buying orders - mapping of token address to amount that needs to be bought [assets]
+        /// @notice Buying orders - mapping of token address to number of shares that needs to be bought [shares]
         mapping(address => uint256) buyingOrders;
         /// @notice Array of all tokens used in this epoch for iteration
         address[] tokens;
@@ -106,7 +106,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     /// @notice Current epoch state
     EpochState internal _currentEpoch;
 
-    /// @notice Encrypted batch portfolio - mapping of token address to encrypted value [assets]
+    /// @notice Encrypted batch portfolio - mapping of token address to encrypted number of shares [shares]
     mapping(address => euint32) internal _encryptedBatchPortfolio;
 
     /* -------------------------------------------------------------------------- */
@@ -137,7 +137,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     address[] public transparentVaultsEpoch;
     address[] public encryptedVaultsEpoch;
 
-    /// @notice Buffer amount
+    /// @notice Buffer amount [assets]
     uint256 public bufferAmount;
 
     /// @dev Restricts function to only Chainlink Automation registry
@@ -281,10 +281,6 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             _postprocessEncryptedMinibatch(minibatchIndex);
         } else if (action == ACTION_BUILD_ORDERS) {
             _buildOrders();
-
-            currentPhase = InternalUpkeepPhase.Idle;
-            epochCounter++;
-            emit EventsLib.InternalStateProcessed(epochCounter);
         }
     }
 
@@ -353,6 +349,9 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             uint256 totalAssets = 0;
             for (uint16 j = 0; j < portfolioTokens.length; j++) {
                 address token = portfolioTokens[j];
+                uint256 shares = sharesPerAsset[j];
+
+                _currentEpoch.initialBatchPortfolio[token] += shares;
 
                 // Get and cache token decimals and prices if not already cached
                 if (_currentEpoch.tokenDecimals[token] == 0) {
@@ -371,13 +370,12 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
                 // Calculate estimated value of the asset in underlying asset decimals
                 uint256 value = UtilitiesLib.convertDecimals(
-                    price.mulDiv(sharesPerAsset[j], priceAdapterPrecision),
+                    price.mulDiv(shares, priceAdapterPrecision),
                     tokenDecimals,
                     underlyingDecimals
                 );
 
                 totalAssets += value;
-                _currentEpoch.initialBatchPortfolio[token] += value;
                 _addTokenIfNotExists(token);
             }
 
@@ -444,9 +442,11 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
             // STEP 1: LIVE PORTFOLIO
             euint32 totalAssets = _ezero;
-
             for (uint16 j = 0; j < portfolioTokens.length; j++) {
                 address token = portfolioTokens[j];
+
+                // TODO: manage encrypted initialization at epoch start.
+                _encryptedBatchPortfolio[token] = FHE.add(_encryptedBatchPortfolio[token], sharesPerAsset[j]);
 
                 // Get and cache token decimals and prices if not already cached
                 if (_currentEpoch.tokenDecimals[token] == 0) {
@@ -466,28 +466,45 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                 // Calculate estimated value of the asset in underlying asset decimals
                 euint32 value = _ezero; // TODO implement encrypted generalization for value calculation
                 totalAssets = FHE.add(totalAssets, value);
-                _encryptedBatchPortfolio[token] = FHE.add(_encryptedBatchPortfolio[token], value);
                 _addTokenIfNotExists(token);
             }
-            // STEP 2: PROTOCOL VOLUME FEE
-            // TODO: implement preprocess logic. Avoid code duplication with transparent equivalent.
         }
-        // For decryptions, populate list of cyphertexts and then decrypt all together in one call.
+        // For decryptions ofd batched portfolio and total assets array,
+        // populate list of cyphertexts and then decrypt all together in one call.
         // https://docs.zama.ai/protocol/examples/basic/decryption-in-solidity/fhe-decrypt-multiple-values-in-solidity
     }
     // slither-disable-end reentrancy-no-eth
 
-    /// @notice Updates the buffer
+    // TODO: implement second part (from Step 2) of preprocess logic.
+    // Avoid code duplication with transparent equivalent.
+    // Because of FHEVM asynchronous nature, we need another transaction to perform computations on the
+    // decrypted array of total assets to compute fees and store plaintext initial batch portfolio state.
+
+    /**
+     * @notice Updates the protocol buffer to maintain solvency and capital efficiency
+     * @dev In general, this function implements a stochastic optimal control framework for buffer management
+     *      that balances critical objectives.
+     *
+     *      1. **Solvency Constraint:** The buffer must remain non-negative at all times to ensure
+     *         protocol solvency.
+     *
+     *      2. **Capital Efficiency:** The buffer size should be minimized relative to Total Value
+     *         Locked (TVL) to reduce capital inefficiency.
+     *
+     *      **Buffer Management Strategy:**
+     *      - Calculates the total protocol assets across all vaults (transparent and encrypted)
+     *      - Determines the target buffer amount based on the configured target ratio
+     *      - Only increases the buffer if current buffer is below target (no buffer reduction)
+     *      - Distributes the buffer cost proportionally across all vaults
+     */
     function _buffer() internal {
         currentPhase = InternalUpkeepPhase.PostprocessingTransparentVaults;
 
         uint256 protocolTotalAssets = 0;
-
         for (uint16 i = 0; i < transparentVaultsEpoch.length; i++) {
             address vault = transparentVaultsEpoch[i];
             protocolTotalAssets += _currentEpoch.vaultsTotalAssets[address(vault)];
         }
-
         for (uint16 i = 0; i < encryptedVaultsEpoch.length; i++) {
             address vault = encryptedVaultsEpoch[i];
             protocolTotalAssets += _currentEpoch.vaultsTotalAssets[address(vault)];
@@ -498,40 +515,96 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             PROTOCOL_FEE_FACTOR
         );
 
+        // Only increase buffer if current buffer is below target (conservative approach)
         if (bufferAmount > targetBufferAmount) {
             return;
         }
-
         uint256 deltaBufferAmount = targetBufferAmount - bufferAmount;
-
         for (uint16 i = 0; i < transparentVaultsEpoch.length; i++) {
             address vault = transparentVaultsEpoch[i];
-            _currentEpoch.vaultsTotalAssets[address(vault)] -= deltaBufferAmount.mulDiv(
-                _currentEpoch.vaultsTotalAssets[address(vault)],
-                protocolTotalAssets
-            );
+            uint256 vaultAssets = _currentEpoch.vaultsTotalAssets[address(vault)];
+            uint256 vaultBufferCost = deltaBufferAmount.mulDiv(vaultAssets, protocolTotalAssets);
+            _currentEpoch.vaultsTotalAssets[address(vault)] -= vaultBufferCost;
+        }
+        for (uint16 i = 0; i < encryptedVaultsEpoch.length; i++) {
+            address vault = encryptedVaultsEpoch[i];
+            uint256 vaultAssets = _currentEpoch.vaultsTotalAssets[address(vault)];
+            uint256 vaultBufferCost = deltaBufferAmount.mulDiv(vaultAssets, protocolTotalAssets);
+            _currentEpoch.vaultsTotalAssets[address(vault)] -= vaultBufferCost;
         }
     }
 
     /// @notice Postprocesses minibatch of transparent vaults
     /// @param minibatchIndex The index of the minibatch to postprocess
     function _postprocessTransparentMinibatch(uint8 minibatchIndex) internal {
-        // (address[] memory intentTokens, uint32[] memory intentWeights) = vault.getIntent();
-        // uint16 intentLength = uint16(intentTokens.length);
-        // for (uint16 j = 0; j < intentLength; j++) {
-        //     address token = intentTokens[j];
-        //     uint32 weight = intentWeights[j];
-        //     // TODO: remove buffer "fee" from totalAssets before computing value here:
-        //     uint256 value = totalAssets.mulDiv(weight, intentFactor);
-        //     _currentEpoch.finalBatchPortfolio[token] += value;
-        //     _addTokenIfNotExists(token);
-        // }
+        // TODO: a lot of logic in common with preprocess logic, refactor.
+
+        currentMinibatchIndex++;
+
+        uint16 i0 = minibatchIndex * transparentMinibatchSize;
+        uint16 i1 = i0 + transparentMinibatchSize;
+        if (i1 > transparentVaultsEpoch.length) {
+            i1 = uint16(transparentVaultsEpoch.length);
+            // Last minibatch, go to next phase.
+            currentPhase = InternalUpkeepPhase.PostprocessingEncryptedVaults;
+            currentMinibatchIndex = 0;
+        }
+
+        for (uint16 i = i0; i < i1; i++) {
+            IOrionTransparentVault vault = IOrionTransparentVault(transparentVaultsEpoch[i]);
+
+            (address[] memory intentTokens, uint32[] memory intentWeights) = vault.getIntent();
+            uint256 finalTotalAssets = _currentEpoch.vaultsTotalAssets[address(vault)];
+
+            for (uint16 j = 0; j < intentTokens.length; j++) {
+                address token = intentTokens[j];
+                uint32 weight = intentWeights[j];
+
+                // Get and cache token decimals and prices if not already cached
+                if (_currentEpoch.tokenDecimals[token] == 0) {
+                    _currentEpoch.tokenDecimals[token] = IERC20Metadata(token).decimals();
+                }
+                uint8 tokenDecimals = _currentEpoch.tokenDecimals[token];
+                uint256 price = _currentEpoch.priceArray[token];
+                if (price == 0) {
+                    if (token == underlyingAsset) {
+                        price = 10 ** underlyingDecimals;
+                    } else {
+                        price = registry.getPrice(token);
+                    }
+                    _currentEpoch.priceArray[token] = price;
+                }
+
+                uint256 value = UtilitiesLib.convertDecimals(
+                    finalTotalAssets.mulDiv(weight, intentFactor).mulDiv(priceAdapterPrecision, price),
+                    underlyingDecimals,
+                    tokenDecimals
+                );
+
+                _currentEpoch.finalBatchPortfolio[token] += value;
+                _addTokenIfNotExists(token);
+            }
+        }
     }
 
     /// @notice Postprocesses minibatch of encrypted vaults
     /// @param minibatchIndex The index of the minibatch to postprocess
     function _postprocessEncryptedMinibatch(uint8 minibatchIndex) internal {
         // TODO: implement postprocess logic. Avoid code duplication with transparent equivalent.
+        currentMinibatchIndex++;
+
+        uint16 i0 = minibatchIndex * encryptedMinibatchSize;
+        uint16 i1 = i0 + encryptedMinibatchSize;
+        if (i1 > encryptedVaultsEpoch.length) {
+            i1 = uint16(encryptedVaultsEpoch.length);
+            // Last minibatch, go to next phase.
+            // TODO: integrate Zama callback in performUpkeep logic breakdown
+            // (the decryption callback, not the encrypted computation here, updates the phase).
+            // TODO: the state is updated in _preprocessEncryptedMinibatch only if there are no encrypted vaults
+            // in the minibatch and currentMinibatchIndex == 0.
+            currentPhase = InternalUpkeepPhase.BuildingOrders;
+            currentMinibatchIndex = 0;
+        }
     }
 
     /// @notice Adds a token to the current epoch if it doesn't exist
@@ -545,8 +618,6 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
     /// @notice Builds selling and buying orders based on portfolio differences
     /// @dev Compares _finalBatchPortfolio with _initialBatchPortfolio to determine rebalancing needs
-    ///      Selling orders are converted from underlying assets to shares for the LiquidityOrchestrator
-    ///      Buying orders remain in underlying assets as expected by the LiquidityOrchestrator.
     ///      Orders are stored in _currentEpoch.sellingOrders and _currentEpoch.buyingOrders.
     function _buildOrders() internal {
         address[] memory tokens = _currentEpoch.tokens;
@@ -556,79 +627,37 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             address token = tokens[i];
             uint256 initialValue = _currentEpoch.initialBatchPortfolio[token];
             uint256 finalValue = _currentEpoch.finalBatchPortfolio[token];
-            uint8 tokenDecimals = _currentEpoch.tokenDecimals[token];
 
             if (initialValue > finalValue) {
-                uint256 sellAmountInUnderlying = initialValue - finalValue;
-
-                // Convert from underlying assets to shares for LiquidityOrchestrator._executeSell
-                // Necessary to compute the number of shares to sell based on adapter price to have consistency with
-                // portfolio intent. Alternative, selling underlying-equivalent would lead to a previewWithdraw call
-                // or similar, giving a different number of shares.
-                uint256 sellAmountInShares = _calculateTokenShares(
-                    _currentEpoch.priceArray[token],
-                    sellAmountInUnderlying,
-                    tokenDecimals
-                );
-                _currentEpoch.sellingOrders[token] = sellAmountInShares;
+                _currentEpoch.sellingOrders[token] = initialValue - finalValue;
             } else if (finalValue > initialValue) {
-                uint256 buyAmount = finalValue - initialValue;
-                // Keep buying orders in underlying assets as expected by LiquidityOrchestrator._executeBuy
-                _currentEpoch.buyingOrders[token] = buyAmount;
+                _currentEpoch.buyingOrders[token] = finalValue - initialValue;
             }
-            // Else no change, do nothing.
         }
-    }
 
-    // TODO: docs inconsistency with implementation, check and fix.
-    /// @notice Calculates token shares from underlying asset value (inverse of _calculateTokenValue)
-    /// @dev Handles decimal conversion from underlying asset decimals to token decimals
-    ///      Formula: shares = (value * priceAdapterDecimals) / (price * 10^(underlyingDecimals - tokenDecimals))
-    ///      This safely handles cases where underlying has more or fewer decimals than the token
-    /// @param price The price of the token in underlying asset (priceAdapterDecimals decimals)
-    /// @param value The value in underlying asset decimals
-    /// @param tokenDecimals The decimals of the token
-    /// @return shares The amount of token shares (in token decimals)
-    function _calculateTokenShares(
-        uint256 price,
-        uint256 value,
-        uint8 tokenDecimals
-    ) internal view returns (uint256 shares) {
-        uint256 scaledValue = UtilitiesLib.convertDecimals(value, underlyingDecimals, tokenDecimals);
-        shares = scaledValue.mulDiv(priceAdapterPrecision, price);
+        currentPhase = InternalUpkeepPhase.Idle;
+        epochCounter++;
+        emit EventsLib.InternalStateProcessed(epochCounter);
     }
 
     /* -------------------------------------------------------------------------- */
     /*                      LIQUIDITY ORCHESTRATOR FUNCTIONS                      */
     /* -------------------------------------------------------------------------- */
 
+    // TODO: coalesce both getOrders functions into one, accepting an order type as an argument.
+
     /// @inheritdoc IInternalStateOrchestrator
     function getSellingOrders() external view returns (address[] memory tokens, uint256[] memory amounts) {
         address[] memory allTokens = _currentEpoch.tokens;
         uint16 allTokensLength = uint16(allTokens.length);
 
-        // Count non-zero selling orders
-        uint16 count = 0;
-        for (uint16 i = 0; i < allTokensLength; i++) {
-            if (_currentEpoch.sellingOrders[allTokens[i]] > 0) {
-                count++;
-            }
-        }
+        tokens = new address[](allTokensLength);
+        amounts = new uint256[](allTokensLength);
 
-        // Create arrays with exact size
-        tokens = new address[](count);
-        amounts = new uint256[](count);
-
-        // Fill arrays with non-zero values
-        uint16 index = 0;
         for (uint16 i = 0; i < allTokensLength; i++) {
             address token = allTokens[i];
-            uint256 amount = _currentEpoch.sellingOrders[token];
-            if (amount > 0) {
-                tokens[index] = token;
-                amounts[index] = amount;
-                index++;
-            }
+            tokens[i] = token;
+            amounts[i] = _currentEpoch.sellingOrders[token];
         }
     }
 
@@ -637,28 +666,13 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         address[] memory allTokens = _currentEpoch.tokens;
         uint16 allTokensLength = uint16(allTokens.length);
 
-        // Count non-zero buying orders
-        uint16 count = 0;
-        for (uint16 i = 0; i < allTokensLength; i++) {
-            if (_currentEpoch.buyingOrders[allTokens[i]] > 0) {
-                count++;
-            }
-        }
+        tokens = new address[](allTokensLength);
+        amounts = new uint256[](allTokensLength);
 
-        // Create arrays with exact size
-        tokens = new address[](count);
-        amounts = new uint256[](count);
-
-        // Fill arrays with non-zero values
-        uint16 index = 0;
         for (uint16 i = 0; i < allTokensLength; i++) {
             address token = allTokens[i];
-            uint256 amount = _currentEpoch.buyingOrders[token];
-            if (amount > 0) {
-                tokens[index] = token;
-                amounts[index] = amount;
-                index++;
-            }
+            tokens[i] = token;
+            amounts[i] = _currentEpoch.buyingOrders[token];
         }
     }
 
