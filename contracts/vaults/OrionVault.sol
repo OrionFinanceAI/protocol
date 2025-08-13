@@ -111,8 +111,8 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     uint16 public constant MAX_MANAGEMENT_FEE = 300; // 3%
     uint16 public constant MAX_PERFORMANCE_FEE = 3_000; // 30%
 
-    /// @notice Calculation mode
-    enum CalcMode {
+    /// @notice Fee type
+    enum FeeType {
         ABSOLUTE, // Fee based on the latest return, no hurdles or high water mark (HWM)
         SOFT_HURDLE, // Fee unlocked after hurdle rate is reached
         HARD_HURDLE, // Fee only above a fixed hurdle rate
@@ -123,8 +123,8 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     /// @notice Fee model
     /// @dev This struct is used to define the fee model for the vault
     struct FeeModel {
-        /// @notice Calculation mode
-        CalcMode mode;
+        /// @notice Fee type
+        FeeType feeType;
         /// @notice Performance fee - charged on the performance of the vault
         uint16 performanceFee;
         /// @notice Management fee - charged on the total assets of the vault
@@ -159,7 +159,10 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         address curator_,
         IOrionConfig config_,
         string memory name_,
-        string memory symbol_
+        string memory symbol_,
+        uint8 feeType_,
+        uint16 performanceFee_,
+        uint16 managementFee_
     ) ERC20(name_, symbol_) ERC4626(IERC20Metadata(address(config_.underlyingAsset()))) {
         if (curator_ == address(0)) revert ErrorsLib.InvalidAddress();
         if (address(config_) == address(0)) revert ErrorsLib.InvalidAddress();
@@ -178,12 +181,15 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         uint8 underlyingDecimals = IERC20Metadata(address(config_.underlyingAsset())).decimals();
         if (underlyingDecimals > SHARE_DECIMALS) revert ErrorsLib.InvalidUnderlyingDecimals();
 
-        feeModel = FeeModel({
-            mode: CalcMode.ABSOLUTE,
-            performanceFee: 0,
-            managementFee: 0,
-            highWaterMark: 10 ** SHARE_DECIMALS
-        });
+        // Validate input
+        if (feeType_ > uint8(FeeType.HURDLE_HWM)) revert ErrorsLib.InvalidArguments();
+        if (performanceFee_ > MAX_PERFORMANCE_FEE) revert ErrorsLib.InvalidArguments();
+        if (managementFee_ > MAX_MANAGEMENT_FEE) revert ErrorsLib.InvalidArguments();
+
+        feeModel.feeType = FeeType(feeType_);
+        feeModel.performanceFee = performanceFee_;
+        feeModel.managementFee = managementFee_;
+        feeModel.highWaterMark = 10 ** SHARE_DECIMALS;
 
         _initializeVaultWhitelist();
     }
@@ -365,26 +371,24 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     }
 
     /// @notice Update the fee model parameters
-    /// @param mode The calculation mode for fees (0=ABSOLUTE, 1=HURDLE, 2=HIGH_WATER_MARK, 3=HURDLE_HWM)
+    /// @param feeType The fee type (0=ABSOLUTE, 1=HURDLE, 2=HIGH_WATER_MARK, 3=HURDLE_HWM)
     /// @param performanceFee The performance fee
     /// @param managementFee The management fee
     /// @dev Only vault owner can update fee model parameters
     ///      Performance and management fees are capped by protocol limits
-    function updateFeeModel(uint8 mode, uint16 performanceFee, uint16 managementFee) external onlyVaultOwner {
+    function updateFeeModel(uint8 feeType, uint16 performanceFee, uint16 managementFee) external onlyVaultOwner {
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
-        // Validate mode is within enum range
-        if (mode > uint8(CalcMode.HURDLE_HWM)) revert ErrorsLib.InvalidArguments();
-
-        // Validate fee limits against protocol maximums
+        // Validate input
+        if (feeType > uint8(FeeType.HURDLE_HWM)) revert ErrorsLib.InvalidArguments();
         if (performanceFee > MAX_PERFORMANCE_FEE) revert ErrorsLib.InvalidArguments();
         if (managementFee > MAX_MANAGEMENT_FEE) revert ErrorsLib.InvalidArguments();
 
-        feeModel.mode = CalcMode(mode);
+        feeModel.feeType = FeeType(feeType);
         feeModel.performanceFee = performanceFee;
         feeModel.managementFee = managementFee;
 
-        emit EventsLib.FeeModelUpdated(mode, performanceFee, managementFee);
+        emit EventsLib.FeeModelUpdated(feeType, performanceFee, managementFee);
     }
 
     /// @notice Validate that all assets in an intent are whitelisted for this vault
@@ -417,7 +421,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     }
 
     /// @notice Calculate performance fee amount
-    /// @dev Performance fee calculation depends on the CalcMode
+    /// @dev Performance fee calculation depends on the FeeType
     /// @return The performance fee amount in underlying asset units
     function _performanceFeeAmount(uint256 feeTotalAssets) internal view returns (uint256) {
         if (feeModel.performanceFee == 0) return 0;
@@ -428,7 +432,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
             Math.Rounding.Floor
         );
 
-        (uint256 benchmark, uint256 divisor) = _getBenchmark(feeModel.mode);
+        (uint256 benchmark, uint256 divisor) = _getBenchmark(feeModel.feeType);
 
         if (activeSharePrice <= benchmark) return 0;
         uint256 feeRate = uint256(feeModel.performanceFee).mulDiv(activeSharePrice, divisor);
@@ -436,23 +440,23 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         return feeRate.mulDiv(feeTotalAssets, CURATOR_FEE_FACTOR);
     }
 
-    /// @notice Get benchmark value based on fee model mode
-    function _getBenchmark(CalcMode mode) internal view returns (uint256 benchmark, uint256 divisor) {
+    /// @notice Get benchmark value based on fee model type
+    function _getBenchmark(FeeType feeType) internal view returns (uint256 benchmark, uint256 divisor) {
         uint256 currentSharePrice = convertToAssets(10 ** decimals());
 
-        if (mode == CalcMode.ABSOLUTE) {
+        if (feeType == FeeType.ABSOLUTE) {
             benchmark = currentSharePrice;
             divisor = benchmark;
-        } else if (mode == CalcMode.HIGH_WATER_MARK) {
+        } else if (feeType == FeeType.HIGH_WATER_MARK) {
             benchmark = feeModel.highWaterMark;
             divisor = benchmark;
-        } else if (mode == CalcMode.SOFT_HURDLE) {
+        } else if (feeType == FeeType.SOFT_HURDLE) {
             benchmark = _getHurdlePrice(currentSharePrice);
             divisor = currentSharePrice;
-        } else if (mode == CalcMode.HARD_HURDLE) {
+        } else if (feeType == FeeType.HARD_HURDLE) {
             benchmark = _getHurdlePrice(currentSharePrice);
             divisor = benchmark;
-        } else if (mode == CalcMode.HURDLE_HWM) {
+        } else if (feeType == FeeType.HURDLE_HWM) {
             benchmark = Math.max(feeModel.highWaterMark, _getHurdlePrice(currentSharePrice));
             divisor = benchmark;
         }

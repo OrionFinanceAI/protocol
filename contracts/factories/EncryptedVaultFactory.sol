@@ -29,7 +29,10 @@ contract EncryptedVaultFactory {
     function createVault(
         address curator,
         string calldata name,
-        string calldata symbol
+        string calldata symbol,
+        uint8 feeType,
+        uint16 performanceFee,
+        uint16 managementFee
     ) external returns (address vault) {
         address vaultOwner = msg.sender;
 
@@ -37,7 +40,16 @@ contract EncryptedVaultFactory {
         if (curator == address(0)) revert ErrorsLib.ZeroAddress();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
-        OrionEncryptedVault encryptedVault = new OrionEncryptedVault(vaultOwner, curator, config, name, symbol);
+        OrionEncryptedVault encryptedVault = new OrionEncryptedVault(
+            vaultOwner,
+            curator,
+            config,
+            name,
+            symbol,
+            feeType,
+            performanceFee,
+            managementFee
+        );
         vault = address(encryptedVault);
 
         config.addOrionVault(vault, EventsLib.VaultType.Encrypted);

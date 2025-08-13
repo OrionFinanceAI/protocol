@@ -65,6 +65,9 @@ describe("OrionVault Exchange Rate Tests", function () {
       configAddress,
       "Test Vault",
       "TV",
+      0,
+      0,
+      0,
     );
     await vault.waitForDeployment();
 

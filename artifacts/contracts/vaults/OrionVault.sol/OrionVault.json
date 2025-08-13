@@ -922,8 +922,8 @@
       "name": "feeModel",
       "outputs": [
         {
-          "internalType": "enum OrionVault.CalcMode",
-          "name": "mode",
+          "internalType": "enum OrionVault.FeeType",
+          "name": "feeType",
           "type": "uint8"
         },
         {
@@ -1377,7 +1377,7 @@
       "inputs": [
         {
           "internalType": "uint8",
-          "name": "mode",
+          "name": "feeType",
           "type": "uint8"
         },
         {

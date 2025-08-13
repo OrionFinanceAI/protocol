@@ -29,7 +29,10 @@ contract TransparentVaultFactory {
     function createVault(
         address curator,
         string calldata name,
-        string calldata symbol
+        string calldata symbol,
+        uint8 feeType,
+        uint16 performanceFee,
+        uint16 managementFee
     ) external returns (address vault) {
         address vaultOwner = msg.sender;
 
@@ -37,7 +40,16 @@ contract TransparentVaultFactory {
         if (curator == address(0)) revert ErrorsLib.ZeroAddress();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
-        OrionTransparentVault transparentVault = new OrionTransparentVault(vaultOwner, curator, config, name, symbol);
+        OrionTransparentVault transparentVault = new OrionTransparentVault(
+            vaultOwner,
+            curator,
+            config,
+            name,
+            symbol,
+            feeType,
+            performanceFee,
+            managementFee
+        );
         vault = address(transparentVault);
 
         config.addOrionVault(vault, EventsLib.VaultType.Transparent);

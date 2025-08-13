@@ -143,7 +143,7 @@ beforeEach(async function () {
 describe("TransparentVault - Curator Pipeline", function () {
   describe("Vault Creation", function () {
     it("Should create a transparent vault with correct parameters", async function () {
-      const tx = await transparentVaultFactory.connect(owner).createVault(curator.address, "Test Vault", "TV");
+      const tx = await transparentVaultFactory.connect(owner).createVault(curator.address, "Test Vault", "TV", 0, 0, 0);
       const receipt = await tx.wait();
 
       // Find the vault creation event
@@ -178,7 +178,7 @@ describe("TransparentVault - Curator Pipeline", function () {
   describe("Curator Operations", function () {
     beforeEach(async function () {
       // Create a vault first
-      const tx = await transparentVaultFactory.connect(owner).createVault(curator.address, "Test Vault", "TV");
+      const tx = await transparentVaultFactory.connect(owner).createVault(curator.address, "Test Vault", "TV", 0, 0, 0);
       const receipt = await tx.wait();
       const event = receipt?.logs.find((log) => {
         try {
@@ -203,11 +203,11 @@ describe("TransparentVault - Curator Pipeline", function () {
     });
 
     it("Should allow vault owner to update fee model", async function () {
-      const mode = 0; // Performance fee mode
+      const feeType = 0; // Performance fee mode
       const performanceFee = 2000; // 20% in basis points
       const managementFee = 100; // 1% in basis points
 
-      await expect(transparentVault.connect(owner).updateFeeModel(mode, performanceFee, managementFee)).to.not.be
+      await expect(transparentVault.connect(owner).updateFeeModel(feeType, performanceFee, managementFee)).to.not.be
         .reverted;
     });
 
@@ -318,7 +318,7 @@ describe("TransparentVault - Curator Pipeline", function () {
       // 1. Create vault
       const tx = await transparentVaultFactory
         .connect(owner)
-        .createVault(curator.address, "Integration Test Vault", "ITV");
+        .createVault(curator.address, "Integration Test Vault", "ITV", 0, 0, 0);
       const receipt = await tx.wait();
       const event = receipt?.logs.find((log) => {
         try {
