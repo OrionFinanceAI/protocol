@@ -107,7 +107,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
     /// @notice Constants for curator fee calculations
     uint32 public constant YEAR_IN_SECONDS = 365 days;
-    uint16 public constant CURATOR_FEE_FACTOR = 10_000;
+    uint16 public constant BASIS_POINTS_FACTOR = 10_000;
     uint16 public constant MAX_MANAGEMENT_FEE = 300; // 3%
     uint16 public constant MAX_PERFORMANCE_FEE = 3_000; // 30%
 
@@ -416,7 +416,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     function _managementFeeAmount(uint256 feeTotalAssets) internal view returns (uint256) {
         if (feeModel.managementFee == 0) return 0;
 
-        uint256 annualFeeAmount = uint256(feeModel.managementFee).mulDiv(feeTotalAssets, CURATOR_FEE_FACTOR);
+        uint256 annualFeeAmount = uint256(feeModel.managementFee).mulDiv(feeTotalAssets, BASIS_POINTS_FACTOR);
         return annualFeeAmount.mulDiv(internalStatesOrchestrator.epochDuration(), YEAR_IN_SECONDS);
     }
 
@@ -437,7 +437,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         if (activeSharePrice <= benchmark) return 0;
         uint256 feeRate = uint256(feeModel.performanceFee).mulDiv(activeSharePrice, divisor);
 
-        return feeRate.mulDiv(feeTotalAssets, CURATOR_FEE_FACTOR);
+        return feeRate.mulDiv(feeTotalAssets, BASIS_POINTS_FACTOR);
     }
 
     /// @notice Get benchmark value based on fee model type
@@ -468,7 +468,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         uint256 riskFreeRate = config.riskFreeRate();
 
         uint256 hurdleReturn = riskFreeRate.mulDiv(internalStatesOrchestrator.epochDuration(), YEAR_IN_SECONDS);
-        return currentSharePrice.mulDiv(CURATOR_FEE_FACTOR + hurdleReturn, CURATOR_FEE_FACTOR);
+        return currentSharePrice.mulDiv(BASIS_POINTS_FACTOR + hurdleReturn, BASIS_POINTS_FACTOR);
     }
 
     /// @inheritdoc IOrionVault

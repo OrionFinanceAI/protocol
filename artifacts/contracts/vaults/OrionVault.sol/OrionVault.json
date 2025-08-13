@@ -555,7 +555,7 @@
     },
     {
       "inputs": [],
-      "name": "CURATOR_FEE_FACTOR",
+      "name": "BASIS_POINTS_FACTOR",
       "outputs": [
         {
           "internalType": "uint16",
