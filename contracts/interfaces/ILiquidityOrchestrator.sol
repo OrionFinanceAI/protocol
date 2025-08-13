@@ -35,9 +35,10 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @param _slippageBound The new slippage bound
     function setSlippageBound(uint16 _slippageBound) external;
 
-    /// @notice Claim protocol fees
-    /// @dev Called by the Owner to claim protocol fees
-    function claimProtocolFees() external;
+    /// @notice Claim protocol fees with specified amount
+    /// @dev Called by the Owner to claim a specific amount of protocol fees
+    /// @param amount The amount of protocol fees to claim
+    function claimProtocolFees(uint256 amount) external;
 
     /// @notice Register or replace the execution adapter for an asset.
     /// @param asset The address of the asset.

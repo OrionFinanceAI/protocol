@@ -652,7 +652,9 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     }
 
     /// @inheritdoc IInternalStateOrchestrator
-    function resetPendingProtocolFees() external onlyLiquidityOrchestrator {
-        pendingProtocolFees = 0;
+    function subtractPendingProtocolFees(uint256 amount) external onlyLiquidityOrchestrator {
+        if (amount > pendingProtocolFees)
+            revert ErrorsLib.InsufficientFunds(underlyingAsset, amount, pendingProtocolFees);
+        pendingProtocolFees -= amount;
     }
 }

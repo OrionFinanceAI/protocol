@@ -50,8 +50,9 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     /// @return The pending protocol fees
     function pendingProtocolFees() external view returns (uint256);
 
-    /// @notice Resets the pending protocol fees
-    function resetPendingProtocolFees() external;
+    /// @notice Subtracts a specified amount from the pending protocol fees
+    /// @param amount The amount to subtract from pending protocol fees
+    function subtractPendingProtocolFees(uint256 amount) external;
 
     /// @notice Get the selling orders
     /// @return tokens The tokens to sell

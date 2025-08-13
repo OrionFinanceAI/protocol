@@ -122,13 +122,12 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function claimProtocolFees() external onlyOwner {
-        uint256 pendingProtocolFees = internalStatesOrchestrator.pendingProtocolFees();
-        if (pendingProtocolFees == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
+    function claimProtocolFees(uint256 amount) external onlyOwner {
+        if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
 
-        internalStatesOrchestrator.resetPendingProtocolFees();
+        internalStatesOrchestrator.subtractPendingProtocolFees(amount);
 
-        bool success = IERC20(underlyingAsset).transfer(msg.sender, pendingProtocolFees);
+        bool success = IERC20(underlyingAsset).transfer(msg.sender, amount);
         if (!success) revert ErrorsLib.TransferFailed();
     }
 
