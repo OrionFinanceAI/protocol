@@ -18,6 +18,10 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @return The current LiquidityUpkeepPhase
     function currentPhase() external view returns (LiquidityUpkeepPhase);
 
+    /// @notice Returns the target buffer ratio
+    /// @return The target buffer ratio
+    function targetBufferRatio() external view returns (uint256);
+
     /// @notice Updates the execution minibatch size
     /// @param _executionMinibatchSize The new execution minibatch size
     function updateExecutionMinibatchSize(uint8 _executionMinibatchSize) external;
@@ -33,7 +37,7 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
 
     /// @notice Sets the slippage bound
     /// @param _slippageBound The new slippage bound
-    function setSlippageBound(uint16 _slippageBound) external;
+    function setSlippageBound(uint256 _slippageBound) external;
 
     /// @notice Claim protocol fees with specified amount
     /// @dev Called by the Owner to claim a specific amount of protocol fees

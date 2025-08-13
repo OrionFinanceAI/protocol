@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/math/Math.sol";
 import "../interfaces/ILiquidityOrchestrator.sol";
 import "../interfaces/IOrionConfig.sol";
 import "../interfaces/IInternalStateOrchestrator.sol";
@@ -21,9 +22,11 @@ import "@openzeppelin/contracts/interfaces/IERC4626.sol";
  *      - Processing actual curator fees with vaults and protocol fees;
  *      - Processing deposit and withdrawal requests from LPs;
  *      - Updating vault states post-execution (checks-effects-interactions pattern at the protocol level);
- *      - Handling slippage and market execution differences from adapter estimates via liquidity buffer.
+ *      - Handling slippage and market execution differences from adapter price estimates via liquidity buffer.
  */
 contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
+    using Math for uint256;
+
     /* -------------------------------------------------------------------------- */
     /*                                 CONTRACTS                                  */
     /* -------------------------------------------------------------------------- */
@@ -56,7 +59,10 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
     uint8 public executionMinibatchSize;
 
     /// @notice Slippage bound in basis points
-    uint16 public slippageBound;
+    uint256 public slippageBound;
+
+    /// @notice Target buffer ratio
+    uint256 public targetBufferRatio;
 
     /* -------------------------------------------------------------------------- */
     /*                                MODIFIERS                                   */
@@ -115,10 +121,11 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function setSlippageBound(uint16 _slippageBound) external onlyOwner {
+    function setSlippageBound(uint256 _slippageBound) external onlyOwner {
         if (_slippageBound == 0) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         slippageBound = _slippageBound;
+        targetBufferRatio = slippageBound.mulDiv(1100, 1000);
     }
 
     /// @inheritdoc ILiquidityOrchestrator
@@ -306,14 +313,10 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
         bool success = IERC20(asset).approve(address(adapter), amount);
         if (!success) revert ErrorsLib.TransferFailed();
 
-        // TODO: setting slippage tolerance at the protocol level,
-        // passing adapter price for specific asset to execution adapter,
-        // and not performing trade if slippage is too high.
-        // TODO: same for buy orders.
+        // TODO: pass slippageBound, oracle price and number of shares to adapters.
 
-        // TODO: underlying asset/numeraire needs to be part of the whitelisted investment universe,
-        // as if an order does not pass the underlying equivalent
-        // is set into the portfolio state for all vaults.
+        // TODO: not performing trade if slippage is too high, record we still have
+        // the open position.
 
         // Execute sell through adapter, pull shares from this contract and push underlying assets to it.
         adapter.sell(asset, amount);
@@ -323,6 +326,11 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
     function _executeBuy(address asset, uint256 amount) internal {
         IExecutionAdapter adapter = executionAdapterOf[asset];
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
+
+        // TODO: analogous API updates as sell.
+        // TODO: underlying asset/numeraire needs to be part of the whitelisted investment universe,
+        // as if an order does not pass the underlying equivalent
+        // is set into the portfolio state for all vaults.
 
         // Approve adapter to spend underlying assets
         bool success = IERC20(underlyingAsset).approve(address(adapter), amount);

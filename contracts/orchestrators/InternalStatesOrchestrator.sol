@@ -137,6 +137,9 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     address[] public transparentVaultsEpoch;
     address[] public encryptedVaultsEpoch;
 
+    /// @notice Buffer liquidity
+    uint256 public bufferLiquidity;
+
     /// @dev Restricts function to only Chainlink Automation registry
     modifier onlyAutomationRegistry() {
         if (msg.sender != automationRegistry) revert ErrorsLib.NotAuthorized();
@@ -179,6 +182,8 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
         vFeeCoefficient = 0;
         rsFeeCoefficient = 0;
+
+        bufferLiquidity = 0;
     }
 
     /// @inheritdoc IInternalStateOrchestrator
@@ -402,6 +407,10 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         if (i1 > encryptedVaultsEpoch.length) {
             i1 = uint16(encryptedVaultsEpoch.length);
             // Last minibatch, go to next phase.
+            // TODO: integrate Zama callback in performUpkeep logic breakdown
+            // (the decryption callback, not the encrypted computation here, updates the phase).
+            // TODO: the state is updated in _preprocessEncryptedMinibatch only if there are no encrypted vaults
+            // in the minibatch and currentMinibatchIndex == 0.
             currentPhase = InternalUpkeepPhase.Buffering;
             currentMinibatchIndex = 0;
         }
@@ -451,29 +460,36 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         }
         // For decryptions, populate list of cyphertexts and then decrypt all together in one call.
         // https://docs.zama.ai/protocol/examples/basic/decryption-in-solidity/fhe-decrypt-multiple-values-in-solidity
-        // TODO: integrate Zama callback in performUpkeep logic breakdown.
     }
     // slither-disable-end reentrancy-no-eth
 
-    /// @notice Buffers the minibatch
+    /// @notice Updates the buffer
     function _buffer() internal {
-        // for (uint16 k = i0; k < i1; k++) {
-        //     // Here use the percentage of TVL of each vault to scale the total buffer cost,
-        //     // So I need a buffer state as an input to the buffer_fee function, together with total protocol tvl,
-        //     // and use these two to scale for each vault the % of fee.
-        //     // .mulDiv(totalAssetsArray[k - i0], minibatchTotalAssets);
-        //     // TODO; buffer is computed as a function of the total_TVL taking into account
-        //     // curator fee amounts and protocol fee amounts (else we
-        //     // spend the money earned by us and curators to pay market impact).
-        //     // TODO: once buffer computed, add it to the buffer internal state.
-        // }
+        uint256 protocolTotalAssets = 0;
 
-        // TODO: read slippage_bound from liquidityorchestrator to compute target_ratio = slippage_bound * 1.1
-        // TODO: use slippage_bound in execution adapter API, and here
-        // TODO: fix API of existing adapters (and document the need for this parameter).
-        // TODO: compute here total protocol buffer fee using a number of variables/parameters:
-        // minibatchTotalAssets just computed,
-        // buffer liquidity amount:
+        for (uint16 i = 0; i < transparentVaultsEpoch.length; i++) {
+            address vault = transparentVaultsEpoch[i];
+            protocolTotalAssets += _currentEpoch.vaultsTotalAssets[address(vault)];
+        }
+
+        for (uint16 i = 0; i < encryptedVaultsEpoch.length; i++) {
+            address vault = encryptedVaultsEpoch[i];
+            protocolTotalAssets += _currentEpoch.vaultsTotalAssets[address(vault)];
+        }
+        // TODO:
+        // bufferAmount = f(bufferLiquidity, protocolTotalAssets, hyperpamars)
+        uint256 bufferAmount = 0;
+
+        for (uint16 i = 0; i < transparentVaultsEpoch.length; i++) {
+            address vault = transparentVaultsEpoch[i];
+            _currentEpoch.vaultsTotalAssets[address(vault)] -= bufferAmount.mulDiv(
+                _currentEpoch.vaultsTotalAssets[address(vault)],
+                protocolTotalAssets
+            );
+        }
+
+        liquidityOrchestrator.targetBufferRatio();
+
         // TODO: add function in liquidityorchstrator for everyone to deposit buffer liquidity amount, this updates
         // an internal ledger.
         // Based on the internal ledger, LO LPs can withdraw buffer liquidity amount.

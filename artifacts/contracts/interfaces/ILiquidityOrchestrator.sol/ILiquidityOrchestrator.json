@@ -118,14 +118,27 @@
     {
       "inputs": [
         {
-          "internalType": "uint16",
+          "internalType": "uint256",
           "name": "_slippageBound",
-          "type": "uint16"
+          "type": "uint256"
         }
       ],
       "name": "setSlippageBound",
       "outputs": [],
       "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "targetBufferRatio",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
       "type": "function"
     },
     {
