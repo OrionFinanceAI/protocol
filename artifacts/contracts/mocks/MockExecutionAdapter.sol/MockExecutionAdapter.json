@@ -1,0 +1,52 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "MockExecutionAdapter",
+  "sourceName": "contracts/mocks/MockExecutionAdapter.sol",
+  "abi": [
+    {
+      "inputs": [],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "asset",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "buy",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "asset",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "sell",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x6080604052348015600e575f5ffd5b5060ae80601a5f395ff3fe6080604052348015600e575f5ffd5b50600436106030575f3560e01c80636c197ff5146034578063cce7ec13146034575b5f5ffd5b6043603f3660046045565b5050565b005b5f5f604083850312156055575f5ffd5b82356001600160a01b0381168114606a575f5ffd5b94602093909301359350505056fea264697066735822122037c2702edb4b3726db2128f67a6482ea63c171644b4c3996ac1a9d49b28ef9ed64736f6c634300081c0033",
+  "deployedBytecode": "0x6080604052348015600e575f5ffd5b50600436106030575f3560e01c80636c197ff5146034578063cce7ec13146034575b5f5ffd5b6043603f3660046045565b5050565b005b5f5f604083850312156055575f5ffd5b82356001600160a01b0381168114606a575f5ffd5b94602093909301359350505056fea264697066735822122037c2702edb4b3726db2128f67a6482ea63c171644b4c3996ac1a9d49b28ef9ed64736f6c634300081c0033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

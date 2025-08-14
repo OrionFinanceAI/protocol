@@ -40,7 +40,7 @@ contract OrionConfig is Ownable, IOrionConfig {
     uint8 public curatorIntentDecimals;
     uint8 public priceAdapterDecimals;
 
-    // Risk-free rate in basis points. Same decimals as CURATOR_FEE_FACTOR
+    // Risk-free rate in basis points. Same decimals as BASIS_POINTS_FACTOR
     uint16 public riskFreeRate;
 
     // Vault-specific configuration

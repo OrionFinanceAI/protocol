@@ -18,6 +18,7 @@ abi/
 *.tenseal
 __pycache__/
 typechain-types/
+scripts/
 
 # files
 *.env
@@ -48,3 +49,4 @@ artifacts/hardhat/
 
 !artifacts/contracts/**/*.json
 artifacts/contracts/**/*.dbg.json
+

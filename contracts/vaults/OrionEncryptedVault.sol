@@ -40,8 +40,11 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
         address curator,
         IOrionConfig configAddress,
         string memory name,
-        string memory symbol
-    ) OrionVault(vaultOwner, curator, configAddress, name, symbol) {
+        string memory symbol,
+        uint8 feeType,
+        uint16 performanceFee,
+        uint16 managementFee
+    ) OrionVault(vaultOwner, curator, configAddress, name, symbol, feeType, performanceFee, managementFee) {
         _ezero = FHE.asEuint32(0);
         _eTrue = FHE.asEbool(true);
     }

@@ -7,10 +7,10 @@ import {
   OrionConfig,
   InternalStatesOrchestrator,
   LiquidityOrchestrator,
-  TransparentVaultFactory,
+  EncryptedVaultFactory,
 } from "../typechain-types";
 
-let transparentVaultFactory: TransparentVaultFactory;
+let encryptedVaultFactory: EncryptedVaultFactory;
 let orionConfig: OrionConfig;
 let underlyingAsset: MockUnderlyingAsset;
 let internalStatesOrchestrator: InternalStatesOrchestrator;
@@ -29,9 +29,9 @@ beforeEach(async function () {
   orionConfig = await OrionConfigFactory.deploy(owner.address, await underlyingAsset.getAddress());
   await orionConfig.waitForDeployment();
 
-  const TransparentVaultFactoryFactory = await ethers.getContractFactory("TransparentVaultFactory");
-  transparentVaultFactory = await TransparentVaultFactoryFactory.deploy(await orionConfig.getAddress());
-  await transparentVaultFactory.waitForDeployment();
+  const EncryptedVaultFactoryFactory = await ethers.getContractFactory("EncryptedVaultFactory");
+  encryptedVaultFactory = await EncryptedVaultFactoryFactory.deploy(await orionConfig.getAddress());
+  await encryptedVaultFactory.waitForDeployment();
 
   const InternalStatesOrchestratorFactory = await ethers.getContractFactory("InternalStatesOrchestrator");
   internalStatesOrchestrator = await InternalStatesOrchestratorFactory.deploy(
@@ -51,16 +51,16 @@ beforeEach(async function () {
 
   await orionConfig.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
   await orionConfig.setLiquidityOrchestrator(await liquidityOrchestrator.getAddress());
-  await orionConfig.setVaultFactories(await transparentVaultFactory.getAddress(), other.address);
+  await orionConfig.setVaultFactories(other.address, await encryptedVaultFactory.getAddress());
   await orionConfig.setPriceAdapterRegistry(await other.address);
 
   await orionConfig.setProtocolRiskFreeRate(0.0423 * 10_000);
 });
 
-describe("TransparentVaultFactory", function () {
+describe("EncryptedVaultFactory", function () {
   describe("Initialization", function () {
     it("Should initialize with correct parameters", async function () {
-      expect(await transparentVaultFactory.config()).to.equal(await orionConfig.getAddress());
+      expect(await encryptedVaultFactory.config()).to.equal(await orionConfig.getAddress());
     });
   });
 });

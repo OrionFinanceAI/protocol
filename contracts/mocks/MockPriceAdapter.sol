@@ -6,6 +6,7 @@ import { IPriceAdapter } from "../interfaces/IPriceAdapter.sol";
 /// @title Price Adapter mock
 /// @notice One instance per asset. Produces pseudo‑random prices for testing.
 contract MockPriceAdapter is IPriceAdapter {
+    // solhint-disable-next-line no-empty-blocks
     constructor() {}
 
     /// @inheritdoc IPriceAdapter

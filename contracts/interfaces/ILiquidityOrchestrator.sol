@@ -18,6 +18,10 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @return The current LiquidityUpkeepPhase
     function currentPhase() external view returns (LiquidityUpkeepPhase);
 
+    /// @notice Returns the target buffer ratio
+    /// @return The target buffer ratio
+    function targetBufferRatio() external view returns (uint256);
+
     /// @notice Updates the execution minibatch size
     /// @param _executionMinibatchSize The new execution minibatch size
     function updateExecutionMinibatchSize(uint8 _executionMinibatchSize) external;
@@ -25,6 +29,20 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @notice Updates the Chainlink Automation Registry address
     /// @param newAutomationRegistry The new automation registry address
     function updateAutomationRegistry(address newAutomationRegistry) external;
+
+    /// @notice Sets the internal states orchestrator address
+    /// @dev Can only be called by the contract owner
+    /// @param _internalStatesOrchestrator The address of the internal states orchestrator
+    function setInternalStatesOrchestrator(address _internalStatesOrchestrator) external;
+
+    /// @notice Sets the slippage bound
+    /// @param _slippageBound The new slippage bound
+    function setSlippageBound(uint256 _slippageBound) external;
+
+    /// @notice Claim protocol fees with specified amount
+    /// @dev Called by the Owner to claim a specific amount of protocol fees
+    /// @param amount The amount of protocol fees to claim
+    function claimProtocolFees(uint256 amount) external;
 
     /// @notice Register or replace the execution adapter for an asset.
     /// @param asset The address of the asset.
@@ -53,8 +71,4 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @param user The user to transfer funds to
     /// @param amount The amount of underlying assets to transfer
     function transferWithdrawalFunds(address user, uint256 amount) external;
-
-    /// @notice Claim protocol fees
-    /// @dev Called by the Owner to claim protocol fees
-    function claimProtocolFees() external;
 }

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/math/Math.sol";
 import "../interfaces/ILiquidityOrchestrator.sol";
 import "../interfaces/IOrionConfig.sol";
 import "../interfaces/IInternalStateOrchestrator.sol";
@@ -20,10 +21,12 @@ import "@openzeppelin/contracts/interfaces/IERC4626.sol";
  *      - Executing actual buy and sell orders on investment universe;
  *      - Processing actual curator fees with vaults and protocol fees;
  *      - Processing deposit and withdrawal requests from LPs;
- *      - Updating vault states (post-execution, checks-effects-interactions pattern at the protocol level);
- *      - Handling slippage and market execution differences from adapter estimates via liquidity buffer.
+ *      - Updating vault states post-execution (checks-effects-interactions pattern at the protocol level);
+ *      - Handling slippage and market execution differences from adapter price estimates via liquidity buffer.
  */
 contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
+    using Math for uint256;
+
     /* -------------------------------------------------------------------------- */
     /*                                 CONTRACTS                                  */
     /* -------------------------------------------------------------------------- */
@@ -55,16 +58,23 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
     /// @notice Execution minibatch size
     uint8 public executionMinibatchSize;
 
+    /// @notice Slippage bound in basis points
+    uint256 public slippageBound;
+
+    /// @notice Target buffer ratio
+    uint256 public targetBufferRatio;
+
     /* -------------------------------------------------------------------------- */
-    /*                               MODIFIERS                                  */
+    /*                                MODIFIERS                                   */
     /* -------------------------------------------------------------------------- */
 
-    /// @dev Restricts function to only Chainlink Automation registry
+    /// @dev Restricts function to only Chainlink Automation Registry
     modifier onlyAutomationRegistry() {
         if (msg.sender != automationRegistry) revert ErrorsLib.NotAuthorized();
         _;
     }
 
+    /// @dev Restricts function to only Orion Config contract
     modifier onlyConfig() {
         if (msg.sender != address(config)) revert ErrorsLib.NotAuthorized();
         _;
@@ -83,6 +93,10 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
         executionMinibatchSize = 1;
     }
 
+    /* -------------------------------------------------------------------------- */
+    /*                                OWNER FUNCTIONS                             */
+    /* -------------------------------------------------------------------------- */
+
     /// @inheritdoc ILiquidityOrchestrator
     function updateExecutionMinibatchSize(uint8 _executionMinibatchSize) external onlyOwner {
         if (_executionMinibatchSize == 0) revert ErrorsLib.InvalidArguments();
@@ -99,14 +113,34 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
         emit EventsLib.AutomationRegistryUpdated(newAutomationRegistry);
     }
 
-    /// @notice Sets the internal states orchestrator address
-    /// @dev Can only be called by the contract owner
-    /// @param _internalStatesOrchestrator The address of the internal states orchestrator
+    /// @inheritdoc ILiquidityOrchestrator
     function setInternalStatesOrchestrator(address _internalStatesOrchestrator) external onlyOwner {
         if (_internalStatesOrchestrator == address(0)) revert ErrorsLib.ZeroAddress();
         if (address(internalStatesOrchestrator) != address(0)) revert ErrorsLib.AlreadyRegistered();
         internalStatesOrchestrator = IInternalStateOrchestrator(_internalStatesOrchestrator);
     }
+
+    /// @inheritdoc ILiquidityOrchestrator
+    function setSlippageBound(uint256 _slippageBound) external onlyOwner {
+        if (_slippageBound == 0) revert ErrorsLib.InvalidArguments();
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+        slippageBound = _slippageBound;
+        targetBufferRatio = slippageBound.mulDiv(1100, 1000);
+    }
+
+    /// @inheritdoc ILiquidityOrchestrator
+    function claimProtocolFees(uint256 amount) external onlyOwner {
+        if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
+
+        internalStatesOrchestrator.subtractPendingProtocolFees(amount);
+
+        bool success = IERC20(underlyingAsset).transfer(msg.sender, amount);
+        if (!success) revert ErrorsLib.TransferFailed();
+    }
+
+    /* -------------------------------------------------------------------------- */
+    /*                                CONFIG FUNCTIONS                            */
+    /* -------------------------------------------------------------------------- */
 
     /// @inheritdoc ILiquidityOrchestrator
     function setExecutionAdapter(address asset, IExecutionAdapter adapter) external onlyConfig {
@@ -123,6 +157,10 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
         delete executionAdapterOf[asset];
         emit EventsLib.ExecutionAdapterSet(asset, address(0));
     }
+
+    /* -------------------------------------------------------------------------- */
+    /*                                VAULT FUNCTIONS                             */
+    /* -------------------------------------------------------------------------- */
 
     /// @inheritdoc ILiquidityOrchestrator
     function returnDepositFunds(address user, uint256 amount) external {
@@ -159,16 +197,9 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
         if (!success) revert ErrorsLib.TransferFailed();
     }
 
-    /// @inheritdoc ILiquidityOrchestrator
-    function claimProtocolFees() external onlyOwner {
-        uint256 pendingProtocolFees = internalStatesOrchestrator.pendingProtocolFees();
-        if (pendingProtocolFees == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
-
-        internalStatesOrchestrator.resetPendingProtocolFees();
-
-        bool success = IERC20(underlyingAsset).transfer(msg.sender, pendingProtocolFees);
-        if (!success) revert ErrorsLib.TransferFailed();
-    }
+    /* -------------------------------------------------------------------------- */
+    /*                                UPKEEP FUNCTIONS                            */
+    /* -------------------------------------------------------------------------- */
 
     // TODO: docs when implemented.
     function checkUpkeep(bytes calldata) external view override returns (bool upkeepNeeded, bytes memory performData) {
@@ -207,6 +238,8 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
         // for more scalable market interactions.
         (address[] memory sellingTokens, uint256[] memory sellingAmounts) = internalStatesOrchestrator
             .getSellingOrders();
+        // TODO: here the returned value can be zero, need to skip that case.
+        // TODO: same for buying orders.
 
         // TODO: use executionMinibatchSize, akin to internal states orchestrator.
 
@@ -233,24 +266,25 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
         }
 
         // TODO: StateUpdate phase start, refacto.
+        // Consistency between operation orders in internal states orchestrator and here is crucial.
 
         address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
         uint16 length = uint16(transparentVaults.length);
-        for (uint16 i = 0; i < length; i++) {
-            IOrionTransparentVault vault = IOrionTransparentVault(transparentVaults[i]);
-            // TODO: implement.
-            // vault.updateVaultState(?, ?);
-        }
+        // TODO: implement.
+        // for (uint16 i = 0; i < length; i++) {
+        //     IOrionTransparentVault vault = IOrionTransparentVault(transparentVaults[i]);
+        //     vault.updateVaultState(?, ?);
+        // }
 
         // TODO: to updateVaultState of encrypted vaults, get the encrypted sharesPerAsset executed by the liquidity
 
         address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
         length = uint16(encryptedVaults.length);
-        for (uint16 i = 0; i < length; i++) {
-            IOrionEncryptedVault vault = IOrionEncryptedVault(encryptedVaults[i]);
-            // TODO: implement.
-            // vault.updateVaultState(?, ?);
-        }
+        // TODO: implement.
+        // for (uint16 i = 0; i < length; i++) {
+        //     IOrionEncryptedVault vault = IOrionEncryptedVault(encryptedVaults[i]);
+        //     vault.updateVaultState(?, ?);
+        // }
 
         // TODO: DepositRequest and WithdrawRequest in Vaults to be processed post update
         // (internal logic depends on vaults actual total assets and total supply
@@ -268,6 +302,10 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
         emit EventsLib.PortfolioRebalanced();
     }
 
+    /* -------------------------------------------------------------------------- */
+    /*                                INTERNAL FUNCTIONS                          */
+    /* -------------------------------------------------------------------------- */
+
     // TODO: docs when implemented.
     function _executeSell(address asset, uint256 amount) internal {
         IExecutionAdapter adapter = executionAdapterOf[asset];
@@ -277,14 +315,10 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
         bool success = IERC20(asset).approve(address(adapter), amount);
         if (!success) revert ErrorsLib.TransferFailed();
 
-        // TODO: setting slippage tolerance at the protocol level,
-        // passing adapter price for specific asset to execution adapter,
-        // and not performing trade if slippage is too high.
-        // TODO: same for buy orders.
+        // TODO: pass slippageBound, oracle price and number of shares to adapters.
 
-        // TODO: underlying asset/numeraire needs to be part of the whitelisted investment universe,
-        // as if an order does not pass the underlying equivalent
-        // is set into the portfolio state for all vaults.
+        // TODO: not performing trade if slippage is too high, record we still have
+        // the open position.
 
         // Execute sell through adapter, pull shares from this contract and push underlying assets to it.
         adapter.sell(asset, amount);
@@ -294,6 +328,11 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
     function _executeBuy(address asset, uint256 amount) internal {
         IExecutionAdapter adapter = executionAdapterOf[asset];
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
+
+        // TODO: analogous API updates as sell.
+        // TODO: underlying asset/numeraire needs to be part of the whitelisted investment universe,
+        // as if an order does not pass the underlying equivalent
+        // is set into the portfolio state for all vaults.
 
         // Approve adapter to spend underlying assets
         bool success = IERC20(underlyingAsset).approve(address(adapter), amount);

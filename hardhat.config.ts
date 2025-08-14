@@ -27,6 +27,7 @@ const config: HardhatUserConfig = {
     sepolia: {
       url: process.env.RPC_URL,
       accounts: [process.env.DEPLOYER_PRIVATE_KEY!, process.env.LP_PRIVATE_KEY!],
+      chainId: 11155111,
     },
     localhost: {
       url: "http://127.0.0.1:8545",
@@ -43,8 +44,14 @@ const config: HardhatUserConfig = {
   },
   gasReporter: {
     currency: "USD",
+    gasPrice: 2, // gwei, https://ycharts.com/indicators/ethereum_average_gas_price
+    token: "ETH",
+    tokenPrice: "4500", // https://coinmarketcap.com/currencies/ethereum/
     enabled: process.env.REPORT_GAS ? true : false,
     excludeContracts: [],
+    outputFile: "reports/gas-report.txt",
+    noColors: true,
+    showMethodSig: true,
   },
 };
 
