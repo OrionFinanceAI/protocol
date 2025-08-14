@@ -1,7 +1,7 @@
 {
   "name": "@orion-finance/protocol",
   "description": "Orion Finance Protocol",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "engines": {
     "node": ">=20.0.0"
   },
@@ -11,9 +11,12 @@
   },
   "scripts": {
     "build": "pnpm clean && pnpm compile",
+    "build:sepolia": "pnpm clean && pnpm compile:sepolia",
     "clean": "rimraf ./artifacts ./cache ./coverage ./types ./coverage.json && pnpm typechain",
     "compile": "cross-env TS_NODE_TRANSPILE_ONLY=true hardhat compile",
+    "compile:sepolia": "cross-env TS_NODE_TRANSPILE_ONLY=true hardhat compile --network sepolia",
     "coverage": "SOLIDITY_COVERAGE=true hardhat coverage",
+    "deploy:sepolia": "hardhat run scripts/deploy.ts --network sepolia",
     "lint": "pnpm lint:sol && pnpm lint:ts && pnpm prettier:check",
     "lint:sol": "solhint --max-warnings 5 \"contracts/**/*.sol\"",
     "lint:ts": "eslint --ignore-path ./.eslintignore --ext .js,.ts .",
@@ -22,7 +25,8 @@
     "test:sepolia": "hardhat test --network sepolia",
     "prettier:check": "prettier --check \"**/*.{js,json,md,sol,ts,yml}\"",
     "prettier:write": "prettier --write \"**/*.{js,json,md,sol,ts,yml}\"",
-    "slither": "HARDHAT_CONFIG=hardhat.slither.config.ts slither . --filter-paths 'lib|node_modules|dependencies|contracts/mocks' --fail-medium"
+    "slither": "HARDHAT_CONFIG=hardhat.slither.config.ts slither . --filter-paths 'lib|node_modules|dependencies|contracts/mocks' --fail-medium",
+    "verify": "hardhat run scripts/verify.ts --network sepolia"
   },
   "devDependencies": {
     "@fhevm/hardhat-plugin": "^0.0.1-6",
@@ -42,7 +46,7 @@
     "chai-as-promised": "^8.0.1",
     "cross-env": "^7.0.3",
     "dotenv": "^16.6.1",
-    "eslint": "^8.57.1",
+    "eslint": "^9.0.0",
     "eslint-config-prettier": "^9.1.2",
     "ethers": "^6.15.0",
     "hardhat": "^2.26.2",
@@ -52,7 +56,7 @@
     "prettier": "^3.6.2",
     "prettier-plugin-solidity": "^1.4.3",
     "rimraf": "^5.0.10",
-    "solhint": "^5.2.0",
+    "solhint": "^6.0.0",
     "solhint-plugin-prettier": "^0.1.0",
     "solidity-coverage": "^0.8.16",
     "ts-generator": "^0.1.1",

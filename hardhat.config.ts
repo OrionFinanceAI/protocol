@@ -27,6 +27,7 @@ const config: HardhatUserConfig = {
     sepolia: {
       url: process.env.RPC_URL,
       accounts: [process.env.DEPLOYER_PRIVATE_KEY!, process.env.LP_PRIVATE_KEY!],
+      chainId: 11155111,
     },
     localhost: {
       url: "http://127.0.0.1:8545",
