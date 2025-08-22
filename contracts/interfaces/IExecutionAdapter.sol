@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 /**
  * @title IExecutionAdapter
  * @notice Interface for execution adapters that handle asset trading operations
+ * @author Orion Finance
  * @dev Execution adapters are responsible for converting between the Orion protocol's underlying token
  *      and various asset types (ERC-4626 vaults, ERC-20 tokens, etc.). All buy/sell operations use
  *      the Orion underlying token as the base currency, regardless of the token standard of the target asset.

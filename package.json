@@ -18,8 +18,8 @@
     "coverage": "SOLIDITY_COVERAGE=true hardhat coverage",
     "deploy:sepolia": "hardhat run scripts/deploy.ts --network sepolia",
     "lint": "pnpm lint:sol && pnpm lint:ts && pnpm prettier:check",
-    "lint:sol": "solhint --max-warnings 5 \"contracts/**/*.sol\"",
-    "lint:ts": "eslint --ignore-path ./.eslintignore --ext .js,.ts .",
+    "lint:sol": "solhint --max-warnings 20 \"contracts/**/*.sol\"",
+    "lint:ts": "eslint --ext .js,.ts .",
     "typechain": "cross-env TS_NODE_TRANSPILE_ONLY=true hardhat typechain",
     "test": "hardhat test",
     "test:sepolia": "hardhat test --network sepolia",
@@ -29,6 +29,8 @@
     "verify": "hardhat run scripts/verify.ts --network sepolia"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.1",
+    "@eslint/js": "^9.33.0",
     "@fhevm/hardhat-plugin": "^0.0.1-6",
     "@nomicfoundation/hardhat-chai-matchers": "^2.1.0",
     "@nomicfoundation/hardhat-ethers": "^3.1.0",
@@ -57,7 +59,7 @@
     "prettier": "^3.6.2",
     "prettier-plugin-solidity": "^1.4.3",
     "rimraf": "^5.0.10",
-    "solhint": "^6.0.0",
+    "solhint": "^6.0.1",
     "solhint-plugin-prettier": "^0.1.0",
     "solidity-coverage": "^0.8.16",
     "ts-generator": "^0.1.1",

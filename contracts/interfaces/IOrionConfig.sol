@@ -5,6 +5,8 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../libraries/EventsLib.sol";
 
 /// @title IOrionConfig
+/// @notice Interface for the Orion config contract
+/// @author Orion Finance
 interface IOrionConfig {
     /// @notice Returns the address of the internal states orchestrator contract
     /// @dev This orchestrator manages the internal state transitions of the protocol

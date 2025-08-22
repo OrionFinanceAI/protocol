@@ -10,6 +10,7 @@ import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
 /**
  * @title OrionAssetERC4626PriceAdapter
  * @notice Price adapter for ERC-4626 vaults sharing the same underlying asset as the Orion protocol.
+ * @author Orion Finance
  * @dev This adapter assumes that the target vault and the Orion protocol use the same underlying asset.
  *      It is not safe to use this adapter with vaults that are based on a different asset.
  */
@@ -23,6 +24,8 @@ contract OrionAssetERC4626PriceAdapter is IPriceAdapter {
     /// @notice Decimals of the underlying asset
     uint8 public underlyingAssetDecimals;
 
+    /// @notice Constructor
+    /// @param configAddress The address of the OrionConfig contract
     constructor(address configAddress) {
         if (configAddress == address(0)) revert ErrorsLib.ZeroAddress();
 

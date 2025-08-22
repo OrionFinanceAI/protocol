@@ -12,6 +12,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 /**
  * @title PriceAdapterRegistry
  * @notice A registry contract that manages price adapters for different assets in the Orion protocol.
+ * @author Orion Finance
  * @dev This contract allows the configuration of price adapters for various assets in the investment universe.
  */
 contract PriceAdapterRegistry is IPriceAdapterRegistry, Ownable {
@@ -29,6 +30,9 @@ contract PriceAdapterRegistry is IPriceAdapterRegistry, Ownable {
         _;
     }
 
+    /// @notice Constructor
+    /// @param initialOwner_ The address of the initial owner
+    /// @param configAddress_ The address of the OrionConfig contract
     constructor(address initialOwner_, address configAddress_) Ownable(initialOwner_) {
         if (initialOwner_ == address(0)) revert ErrorsLib.ZeroAddress();
         if (configAddress_ == address(0)) revert ErrorsLib.ZeroAddress();

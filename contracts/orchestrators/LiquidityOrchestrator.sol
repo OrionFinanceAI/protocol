@@ -17,6 +17,8 @@ import "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
 /**
  * @title Liquidity Orchestrator
+ * @notice Contract that orchestrates liquidity operations and vault state updates
+ * @author Orion Finance
  * @dev This contract is responsible for:
  *      - Executing actual buy and sell orders on investment universe;
  *      - Processing actual curator fees with vaults and protocol fees;
@@ -80,6 +82,10 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
         _;
     }
 
+    /// @notice Constructor
+    /// @param initialOwner The address of the initial owner
+    /// @param config_ The address of the OrionConfig contract
+    /// @param automationRegistry_ The address of the Chainlink Automation Registry
     constructor(address initialOwner, address config_, address automationRegistry_) Ownable(initialOwner) {
         if (config_ == address(0)) revert ErrorsLib.ZeroAddress();
         if (automationRegistry_ == address(0)) revert ErrorsLib.ZeroAddress();
@@ -201,7 +207,9 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
     /*                                UPKEEP FUNCTIONS                            */
     /* -------------------------------------------------------------------------- */
 
-    // TODO: docs when implemented.
+    /// @notice Checks if the upkeep is needed
+    /// @return upkeepNeeded Whether the upkeep is needed
+    /// @return performData The data to perform the upkeep
     function checkUpkeep(bytes calldata) external view override returns (bool upkeepNeeded, bytes memory performData) {
         uint16 currentEpoch = internalStatesOrchestrator.epochCounter();
         if (currentEpoch > lastProcessedEpoch && config.isSystemIdle()) {
@@ -217,10 +225,10 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
     }
 
     // TODO: refacto for scalability, same as internal states orchestrator.
-    // TODO: docs when implemented.
+    /// @notice Performs the upkeep
     function performUpkeep(bytes calldata) external override onlyAutomationRegistry {
         uint16 currentEpoch = internalStatesOrchestrator.epochCounter();
-        if (currentEpoch <= lastProcessedEpoch) {
+        if (currentEpoch < lastProcessedEpoch + 1) {
             return;
         }
         lastProcessedEpoch = currentEpoch;
@@ -248,7 +256,7 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
         // if (token == address(config.underlyingAsset())) pass for both sell and buy
 
         // Sell before buy, avoid undercollateralization risk.
-        for (uint16 i = 0; i < sellingTokens.length; i++) {
+        for (uint16 i = 0; i < sellingTokens.length; ++i) {
             address token = sellingTokens[i];
             uint256 amount = sellingAmounts[i];
             _executeSell(token, amount);
@@ -259,7 +267,7 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
 
         (address[] memory buyingTokens, uint256[] memory buyingAmounts) = internalStatesOrchestrator.getBuyingOrders();
 
-        for (uint16 i = 0; i < buyingTokens.length; i++) {
+        for (uint16 i = 0; i < buyingTokens.length; ++i) {
             address token = buyingTokens[i];
             uint256 amount = buyingAmounts[i];
             _executeBuy(token, amount);
@@ -306,7 +314,9 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
     /*                                INTERNAL FUNCTIONS                          */
     /* -------------------------------------------------------------------------- */
 
-    // TODO: docs when implemented.
+    /// @notice Executes a sell order
+    /// @param asset The asset to sell
+    /// @param amount The amount of shares to sell
     function _executeSell(address asset, uint256 amount) internal {
         IExecutionAdapter adapter = executionAdapterOf[asset];
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
@@ -324,7 +334,9 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
         adapter.sell(asset, amount);
     }
 
-    // TODO: docs when implemented.
+    /// @notice Executes a buy order
+    /// @param asset The asset to buy
+    /// @param amount The amount of shares to buy
     function _executeBuy(address asset, uint256 amount) internal {
         IExecutionAdapter adapter = executionAdapterOf[asset];
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();

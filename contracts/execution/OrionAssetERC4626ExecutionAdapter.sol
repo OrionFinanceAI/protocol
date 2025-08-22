@@ -11,6 +11,7 @@ import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
 /**
  * @title OrionAssetERC4626ExecutionAdapter
  * @notice Execution adapter for ERC-4626 vaults sharing the same underlying asset as the Orion protocol.
+ * @author Orion Finance
  * @dev This adapter handles the conversion between underlying assets and vault shares.
  *      It is not safe to use this adapter with vaults that are based on a different asset.
  */
@@ -34,6 +35,7 @@ contract OrionAssetERC4626ExecutionAdapter is IExecutionAdapter {
         _;
     }
 
+    /// @notice Constructor
     /// @param configAddress The address of the Orion config contract
     constructor(address configAddress) {
         if (configAddress == address(0)) revert ErrorsLib.ZeroAddress();

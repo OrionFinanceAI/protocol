@@ -20,6 +20,8 @@ import { SepoliaConfig } from "@fhevm/solidity/config/ZamaConfig.sol";
 
 /**
  * @title Internal States Orchestrator
+ * @notice Contract that orchestrates internal state management
+ * @author Orion Finance
  * @dev This contract is responsible for:
  *      - Reading current vault states and market data;
  *      - Computing state estimations for Liquidity Orchestrator;
@@ -56,8 +58,9 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     /// @notice Decimals of the underlying asset
     uint8 public underlyingDecimals;
 
-    /// @notice Protocol fee coefficients
+    /// @notice Volume fee coefficient
     uint16 public vFeeCoefficient;
+    /// @notice Revenue share fee coefficient
     uint16 public rsFeeCoefficient;
 
     /// @notice Pending protocol fees [assets]
@@ -65,17 +68,20 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
     /// @notice Constants for protocol fee calculations
     uint32 public constant YEAR_IN_SECONDS = 365 days;
+    /// @notice Basis points factor
     uint16 public constant BASIS_POINTS_FACTOR = 10_000;
-    uint16 public constant MAX_VOLUME_FEE = 100; // 1%
-    uint16 public constant MAX_REVENUE_SHARE_FEE = 1_500; // 15%
+    /// @notice Maximum volume fee (1%)
+    uint16 public constant MAX_VOLUME_FEE = 100;
+    /// @notice Maximum revenue share fee (15%)
+    uint16 public constant MAX_REVENUE_SHARE_FEE = 1_500;
 
     /// @notice Action constants for checkUpkeep and performUpkeep
     bytes4 private constant ACTION_START = bytes4(keccak256("start()"));
-    bytes4 private constant ACTION_PREPROCESS_T_VAULTS = bytes4(keccak256("preprocessTransparentVaults(uint8)"));
-    bytes4 private constant ACTION_PREPROCESS_E_VAULTS = bytes4(keccak256("preprocessEncryptedVaults(uint8)"));
+    bytes4 private constant ACTION_PREPROCESS_T_VAULTS = bytes4(keccak256("preprocessTV(uint8)"));
+    bytes4 private constant ACTION_PREPROCESS_E_VAULTS = bytes4(keccak256("preprocessEV(uint8)"));
     bytes4 private constant ACTION_BUFFER = bytes4(keccak256("buffer()"));
-    bytes4 private constant ACTION_POSTPROCESS_T_VAULTS = bytes4(keccak256("postprocessTransparentVaults(uint8)"));
-    bytes4 private constant ACTION_POSTPROCESS_E_VAULTS = bytes4(keccak256("postprocessEncryptedVaults(uint8)"));
+    bytes4 private constant ACTION_POSTPROCESS_T_VAULTS = bytes4(keccak256("postprocessTV(uint8)"));
+    bytes4 private constant ACTION_POSTPROCESS_E_VAULTS = bytes4(keccak256("postprocessEV(uint8)"));
     bytes4 private constant ACTION_BUILD_ORDERS = bytes4(keccak256("buildOrders()"));
 
     /* -------------------------------------------------------------------------- */
@@ -120,8 +126,9 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     /// @notice Counter for tracking processing cycles
     uint16 public epochCounter;
 
-    /// @notice Minibatch sizes
+    /// @notice Transparent minibatch size
     uint8 public transparentMinibatchSize;
+    /// @notice Encrypted minibatch size
     uint8 public encryptedMinibatchSize;
 
     /// @notice Upkeep phase
@@ -133,8 +140,9 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     /// @notice FHE zero
     euint32 internal _ezero;
 
-    /// @notice Vaults associated to the current epoch
+    /// @notice Transparent vaults associated to the current epoch
     address[] public transparentVaultsEpoch;
+    /// @notice Encrypted vaults associated to the current epoch
     address[] public encryptedVaultsEpoch;
 
     /// @notice Buffer amount [assets]
@@ -152,6 +160,10 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         _;
     }
 
+    /// @notice Constructor
+    /// @param initialOwner The address of the initial owner
+    /// @param config_ The address of the OrionConfig contract
+    /// @param automationRegistry_ The address of the Chainlink Automation Registry
     constructor(
         address initialOwner,
         address config_,
@@ -179,6 +191,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         currentMinibatchIndex = 0;
 
         _ezero = FHE.asEuint32(0);
+        // slither-disable-next-line unused-return
         FHE.allowThis(_ezero);
 
         vFeeCoefficient = 0;
@@ -300,7 +313,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     /// @return True if upkeep should be triggered
     function _shouldTriggerUpkeep() internal view returns (bool) {
         // slither-disable-next-line timestamp
-        return block.timestamp >= _nextUpdateTime;
+        return block.timestamp > _nextUpdateTime;
     }
 
     /// @notice Updates the next update time and resets the previous epoch state variables
@@ -310,7 +323,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
         _nextUpdateTime = _computeNextUpdateTime(block.timestamp);
 
-        for (uint16 i = 0; i < _currentEpoch.tokens.length; i++) {
+        for (uint16 i = 0; i < _currentEpoch.tokens.length; ++i) {
             address token = _currentEpoch.tokens[i];
             delete _currentEpoch.priceArray[token];
             delete _currentEpoch.initialBatchPortfolio[token];
@@ -336,7 +349,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         if (currentPhase != InternalUpkeepPhase.PreprocessingTransparentVaults) {
             revert ErrorsLib.InvalidState();
         }
-        currentMinibatchIndex++;
+        ++currentMinibatchIndex;
 
         uint16 i0 = minibatchIndex * transparentMinibatchSize;
         uint16 i1 = i0 + transparentMinibatchSize;
@@ -347,14 +360,14 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             currentMinibatchIndex = 0;
         }
 
-        for (uint16 i = i0; i < i1; i++) {
+        for (uint16 i = i0; i < i1; ++i) {
             IOrionTransparentVault vault = IOrionTransparentVault(transparentVaultsEpoch[i]);
 
             (address[] memory portfolioTokens, uint256[] memory sharesPerAsset) = vault.getPortfolio();
 
             // STEP 1: LIVE PORTFOLIO
             uint256 totalAssets = 0;
-            for (uint16 j = 0; j < portfolioTokens.length; j++) {
+            for (uint16 j = 0; j < portfolioTokens.length; ++j) {
                 address token = portfolioTokens[j];
                 uint256 shares = sharesPerAsset[j];
 
@@ -412,16 +425,17 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         }
     }
 
-    /// @notice Preprocesses minibatch of encrypted vaults
     // slither-disable-start reentrancy-no-eth
     // Safe: external calls are view; nonReentrant applied to caller.
     // solhint-disable-next-line code-complexity
+    /// @notice Preprocesses minibatch of encrypted vaults
+    /// @param minibatchIndex The index of the minibatch to process
     function _preprocessEncryptedMinibatch(uint8 minibatchIndex) internal nonReentrant {
         // Validate current phase
         if (currentPhase != InternalUpkeepPhase.PreprocessingEncryptedVaults) {
             revert ErrorsLib.InvalidState();
         }
-        currentMinibatchIndex++;
+        ++currentMinibatchIndex;
 
         uint16 i0 = minibatchIndex * encryptedMinibatchSize;
         uint16 i1 = i0 + encryptedMinibatchSize;
@@ -436,7 +450,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             currentMinibatchIndex = 0;
         }
 
-        for (uint16 i = i0; i < i1; i++) {
+        for (uint16 i = i0; i < i1; ++i) {
             IOrionEncryptedVault vault = IOrionEncryptedVault(encryptedVaultsEpoch[i]);
 
             // Due to the asynchronous nature of the FHEVM backend, intent submission validation happens in a callback.
@@ -451,7 +465,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
             // STEP 1: LIVE PORTFOLIO
             euint32 totalAssets = _ezero;
-            for (uint16 j = 0; j < portfolioTokens.length; j++) {
+            for (uint16 j = 0; j < portfolioTokens.length; ++j) {
                 address token = portfolioTokens[j];
 
                 // TODO: manage encrypted initialization at epoch start.
@@ -511,11 +525,11 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         currentPhase = InternalUpkeepPhase.PostprocessingTransparentVaults;
 
         uint256 protocolTotalAssets = 0;
-        for (uint16 i = 0; i < transparentVaultsEpoch.length; i++) {
+        for (uint16 i = 0; i < transparentVaultsEpoch.length; ++i) {
             address vault = transparentVaultsEpoch[i];
             protocolTotalAssets += _currentEpoch.vaultsTotalAssets[address(vault)];
         }
-        for (uint16 i = 0; i < encryptedVaultsEpoch.length; i++) {
+        for (uint16 i = 0; i < encryptedVaultsEpoch.length; ++i) {
             address vault = encryptedVaultsEpoch[i];
             protocolTotalAssets += _currentEpoch.vaultsTotalAssets[address(vault)];
         }
@@ -529,13 +543,13 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         if (bufferAmount > targetBufferAmount) return;
 
         uint256 deltaBufferAmount = targetBufferAmount - bufferAmount;
-        for (uint16 i = 0; i < transparentVaultsEpoch.length; i++) {
+        for (uint16 i = 0; i < transparentVaultsEpoch.length; ++i) {
             address vault = transparentVaultsEpoch[i];
             uint256 vaultAssets = _currentEpoch.vaultsTotalAssets[address(vault)];
             uint256 vaultBufferCost = deltaBufferAmount.mulDiv(vaultAssets, protocolTotalAssets);
             _currentEpoch.vaultsTotalAssets[address(vault)] -= vaultBufferCost;
         }
-        for (uint16 i = 0; i < encryptedVaultsEpoch.length; i++) {
+        for (uint16 i = 0; i < encryptedVaultsEpoch.length; ++i) {
             address vault = encryptedVaultsEpoch[i];
             uint256 vaultAssets = _currentEpoch.vaultsTotalAssets[address(vault)];
             uint256 vaultBufferCost = deltaBufferAmount.mulDiv(vaultAssets, protocolTotalAssets);
@@ -553,7 +567,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         }
         // TODO: a lot of logic in common with preprocess logic, refactor.
 
-        currentMinibatchIndex++;
+        ++currentMinibatchIndex;
 
         uint16 i0 = minibatchIndex * transparentMinibatchSize;
         uint16 i1 = i0 + transparentMinibatchSize;
@@ -564,13 +578,13 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             currentMinibatchIndex = 0;
         }
 
-        for (uint16 i = i0; i < i1; i++) {
+        for (uint16 i = i0; i < i1; ++i) {
             IOrionTransparentVault vault = IOrionTransparentVault(transparentVaultsEpoch[i]);
 
             (address[] memory intentTokens, uint32[] memory intentWeights) = vault.getIntent();
             uint256 finalTotalAssets = _currentEpoch.vaultsTotalAssets[address(vault)];
 
-            for (uint16 j = 0; j < intentTokens.length; j++) {
+            for (uint16 j = 0; j < intentTokens.length; ++j) {
                 address token = intentTokens[j];
                 uint32 weight = intentWeights[j];
 
@@ -606,7 +620,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             revert ErrorsLib.InvalidState();
         }
         // TODO: implement postprocess logic. Avoid code duplication with transparent equivalent.
-        currentMinibatchIndex++;
+        ++currentMinibatchIndex;
 
         uint16 i0 = minibatchIndex * encryptedMinibatchSize;
         uint16 i1 = i0 + encryptedMinibatchSize;
@@ -642,7 +656,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         address[] memory tokens = _currentEpoch.tokens;
         uint16 length = uint16(tokens.length);
 
-        for (uint16 i = 0; i < length; i++) {
+        for (uint16 i = 0; i < length; ++i) {
             address token = tokens[i];
             uint256 initialValue = _currentEpoch.initialBatchPortfolio[token];
             uint256 finalValue = _currentEpoch.finalBatchPortfolio[token];
@@ -655,7 +669,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         }
 
         currentPhase = InternalUpkeepPhase.Idle;
-        epochCounter++;
+        ++epochCounter;
         emit EventsLib.InternalStateProcessed(epochCounter);
     }
 
@@ -673,7 +687,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         tokens = new address[](allTokensLength);
         amounts = new uint256[](allTokensLength);
 
-        for (uint16 i = 0; i < allTokensLength; i++) {
+        for (uint16 i = 0; i < allTokensLength; ++i) {
             address token = allTokens[i];
             tokens[i] = token;
             amounts[i] = _currentEpoch.sellingOrders[token];
@@ -688,7 +702,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         tokens = new address[](allTokensLength);
         amounts = new uint256[](allTokensLength);
 
-        for (uint16 i = 0; i < allTokensLength; i++) {
+        for (uint16 i = 0; i < allTokensLength; ++i) {
             address token = allTokens[i];
             tokens[i] = token;
             amounts[i] = _currentEpoch.buyingOrders[token];

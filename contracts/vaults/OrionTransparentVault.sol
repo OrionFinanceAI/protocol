@@ -11,6 +11,7 @@ import { EventsLib } from "../libraries/EventsLib.sol";
 /**
  * @title OrionTransparentVault
  * @notice A transparent implementation of OrionVault where curator intents are submitted in plaintext
+ * @author Orion Finance
  * @dev
  * This implementation stores curator intents as a mapping of token addresses to allocation percentages.
  * The intents are submitted and readable in plaintext, making this suitable for use cases not requiring
@@ -25,6 +26,15 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     /// @notice Curator intent (w_1) - mapping of token address to target allocation
     EnumerableMap.AddressToUintMap internal _portfolioIntent;
 
+    /// @notice Constructor
+    /// @param vaultOwner The address of the vault owner
+    /// @param curator The address of the vault curator
+    /// @param configAddress The address of the OrionConfig contract
+    /// @param name The name of the vault
+    /// @param symbol The symbol of the vault
+    /// @param feeType The fee type
+    /// @param performanceFee The performance fee
+    /// @param managementFee The management fee
     constructor(
         address vaultOwner,
         address curator,
@@ -49,7 +59,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
         uint256 totalWeight = 0;
         uint16 intentLength = uint16(intent.length);
-        for (uint16 i = 0; i < intentLength; i++) {
+        for (uint16 i = 0; i < intentLength; ++i) {
             address token = intent[i].token;
             uint32 weight = intent[i].value;
             assets[i] = token;
@@ -74,7 +84,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
         uint16 length = uint16(_portfolio.length());
         tokens = new address[](length);
         sharesPerAsset = new uint256[](length);
-        for (uint16 i = 0; i < length; i++) {
+        for (uint16 i = 0; i < length; ++i) {
             (address token, uint256 sharesPerAsset_) = _portfolio.at(i);
             tokens[i] = token;
             sharesPerAsset[i] = sharesPerAsset_;
@@ -86,7 +96,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
         uint16 length = uint16(_portfolioIntent.length());
         tokens = new address[](length);
         weights = new uint32[](length);
-        for (uint16 i = 0; i < length; i++) {
+        for (uint16 i = 0; i < length; ++i) {
             (address token, uint256 weight) = _portfolioIntent.at(i);
             tokens[i] = token;
             weights[i] = uint32(weight);
@@ -103,7 +113,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
         _portfolio.clear();
 
         uint16 portfolioLength = uint16(portfolio.length);
-        for (uint16 i = 0; i < portfolioLength; i++) {
+        for (uint16 i = 0; i < portfolioLength; ++i) {
             // slither-disable-next-line unused-return
             _portfolio.set(portfolio[i].token, portfolio[i].value);
         }

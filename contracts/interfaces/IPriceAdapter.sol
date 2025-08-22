@@ -2,7 +2,10 @@
 pragma solidity ^0.8.28;
 
 /// @title IPriceAdapter
+/// @notice Interface for price adapters
+/// @author Orion Finance
 interface IPriceAdapter {
+    /// @notice Get the price data for an asset
     /// @param asset The address of the asset to get the price for
     /// @return price The raw price of the asset
     /// @return decimals The number of decimals for the returned price

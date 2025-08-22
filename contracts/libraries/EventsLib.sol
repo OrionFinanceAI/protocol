@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 /// @title EventsLib
 /// @notice Centralized library of events emitted throughout the Orion protocol.
+/// @author Orion Finance
 library EventsLib {
     // ============================
     // === Orion Config Events ===
@@ -26,7 +27,7 @@ library EventsLib {
 
     /// @notice The risk-free rate has been updated.
     /// @param riskFreeRate The new risk-free rate in basis points.
-    event RiskFreeRateUpdated(uint16 riskFreeRate);
+    event RiskFreeRateUpdated(uint16 indexed riskFreeRate);
 
     // =======================
     // === Vault Lifecycle ===
@@ -39,48 +40,48 @@ library EventsLib {
     /// @notice A deposit request has been made by a user.
     /// @param user The address of the user making the deposit request.
     /// @param amount The amount of assets being deposited.
-    event DepositRequested(address indexed user, uint256 amount);
+    event DepositRequested(address indexed user, uint256 indexed amount);
 
     /// @notice A withdrawal request has been made by a user.
     /// @param user The address of the user making the withdrawal request.
     /// @param shares The number of shares being withdrawn.
-    event WithdrawRequested(address indexed user, uint256 shares);
+    event WithdrawRequested(address indexed user, uint256 indexed shares);
 
     /// @notice A deposit request has been processed and completed.
     /// @param user The address of the user whose deposit was processed.
     /// @param amount The amount of assets that were deposited.
-    event DepositProcessed(address indexed user, uint256 amount);
+    event DepositProcessed(address indexed user, uint256 indexed amount);
 
     /// @notice A withdrawal request has been processed and completed.
     /// @param user The address of the user whose withdrawal was processed.
     /// @param shares The number of shares that were withdrawn.
-    event WithdrawProcessed(address indexed user, uint256 shares);
+    event WithdrawProcessed(address indexed user, uint256 indexed shares);
 
     /// @notice A deposit request has been cancelled.
     /// @param user The address of the user whose deposit request was cancelled.
     /// @param amount The amount of assets that were requested for deposit.
-    event DepositRequestCancelled(address indexed user, uint256 amount);
+    event DepositRequestCancelled(address indexed user, uint256 indexed amount);
 
     /// @notice A withdrawal request has been cancelled.
     /// @param user The address of the user whose withdrawal request was cancelled.
     /// @param shares The number of shares that were requested for withdrawal.
-    event WithdrawRequestCancelled(address indexed user, uint256 shares);
+    event WithdrawRequestCancelled(address indexed user, uint256 indexed shares);
 
     /// @notice The vault's state has been updated with new total assets.
     /// @param newTotalAssets The new total assets value for the vault.
-    event VaultStateUpdated(uint256 newTotalAssets);
+    event VaultStateUpdated(uint256 indexed newTotalAssets);
 
     /// @notice The fee model has been updated.
     /// @param mode The new calculation mode.
     /// @param performanceFee The new performance fee in basis points.
     /// @param managementFee The new management fee in basis points.
-    event FeeModelUpdated(uint8 mode, uint16 performanceFee, uint16 managementFee);
+    event FeeModelUpdated(uint8 indexed mode, uint16 indexed performanceFee, uint16 indexed managementFee);
 
     /// @notice Curator fees have been accrued for a specific epoch.
     /// @param epoch The epoch for which fees were accrued.
     /// @param feeAmount The amount of fees accrued in underlying asset units.
     /// @param pendingCuratorFees The total pending curator fees in underlying asset units.
-    event CuratorFeesAccrued(uint256 indexed epoch, uint256 feeAmount, uint256 pendingCuratorFees);
+    event CuratorFeesAccrued(uint256 indexed epoch, uint256 indexed feeAmount, uint256 indexed pendingCuratorFees);
 
     // ====================================
     // === Internal States Orchestrator ===
@@ -92,7 +93,7 @@ library EventsLib {
 
     /// @notice An internal state has been processed.
     /// @param epochCounter The current epoch counter after processing.
-    event InternalStateProcessed(uint16 epochCounter);
+    event InternalStateProcessed(uint16 indexed epochCounter);
 
     // ================================
     // === Liquidity Orchestrator ===

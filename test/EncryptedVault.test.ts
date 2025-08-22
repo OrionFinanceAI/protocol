@@ -383,7 +383,7 @@ describe("EncryptedVault - Curator Pipeline", function () {
 
       const encryptedIntentCiphertexts = await encryptedIntentBuffer.encrypt();
 
-      const encryptedIntent: any[] = []; // Empty intent
+      const encryptedIntent: Array<{ token: string; weight: string }> = []; // Empty intent
 
       await expect(
         encryptedVault.connect(curator).submitIntent(encryptedIntent, encryptedIntentCiphertexts.inputProof),

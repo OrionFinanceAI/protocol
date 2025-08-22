@@ -4,6 +4,8 @@ pragma solidity ^0.8.28;
 import "./IPriceAdapter.sol";
 
 /// @title IPriceAdapterRegistry
+/// @notice Interface for the price adapter registry
+/// @author Orion Finance
 interface IPriceAdapterRegistry {
     /// @notice Register or replace the price adapter for an asset.
     /// @param asset The address of the asset.

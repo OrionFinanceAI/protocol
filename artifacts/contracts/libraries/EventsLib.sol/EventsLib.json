@@ -26,13 +26,13 @@
           "type": "uint256"
         },
         {
-          "indexed": false,
+          "indexed": true,
           "internalType": "uint256",
           "name": "feeAmount",
           "type": "uint256"
         },
         {
-          "indexed": false,
+          "indexed": true,
           "internalType": "uint256",
           "name": "pendingCuratorFees",
           "type": "uint256"
@@ -51,7 +51,7 @@
           "type": "address"
         },
         {
-          "indexed": false,
+          "indexed": true,
           "internalType": "uint256",
           "name": "amount",
           "type": "uint256"
@@ -70,7 +70,7 @@
           "type": "address"
         },
         {
-          "indexed": false,
+          "indexed": true,
           "internalType": "uint256",
           "name": "amount",
           "type": "uint256"
@@ -89,7 +89,7 @@
           "type": "address"
         },
         {
-          "indexed": false,
+          "indexed": true,
           "internalType": "uint256",
           "name": "amount",
           "type": "uint256"
@@ -121,19 +121,19 @@
       "anonymous": false,
       "inputs": [
         {
-          "indexed": false,
+          "indexed": true,
           "internalType": "uint8",
           "name": "mode",
           "type": "uint8"
         },
         {
-          "indexed": false,
+          "indexed": true,
           "internalType": "uint16",
           "name": "performanceFee",
           "type": "uint16"
         },
         {
-          "indexed": false,
+          "indexed": true,
           "internalType": "uint16",
           "name": "managementFee",
           "type": "uint16"
@@ -146,7 +146,7 @@
       "anonymous": false,
       "inputs": [
         {
-          "indexed": false,
+          "indexed": true,
           "internalType": "uint16",
           "name": "epochCounter",
           "type": "uint16"
@@ -254,7 +254,7 @@
       "anonymous": false,
       "inputs": [
         {
-          "indexed": false,
+          "indexed": true,
           "internalType": "uint16",
           "name": "riskFreeRate",
           "type": "uint16"
@@ -267,7 +267,7 @@
       "anonymous": false,
       "inputs": [
         {
-          "indexed": false,
+          "indexed": true,
           "internalType": "uint256",
           "name": "newTotalAssets",
           "type": "uint256"
@@ -312,7 +312,7 @@
           "type": "address"
         },
         {
-          "indexed": false,
+          "indexed": true,
           "internalType": "uint256",
           "name": "shares",
           "type": "uint256"
@@ -331,7 +331,7 @@
           "type": "address"
         },
         {
-          "indexed": false,
+          "indexed": true,
           "internalType": "uint256",
           "name": "shares",
           "type": "uint256"
@@ -350,7 +350,7 @@
           "type": "address"
         },
         {
-          "indexed": false,
+          "indexed": true,
           "internalType": "uint256",
           "name": "shares",
           "type": "uint256"
@@ -360,8 +360,8 @@
       "type": "event"
     }
   ],
-  "bytecode": "0x60556032600b8282823980515f1a607314602657634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f5ffdfea2646970667358221220cfff8a29e6e0492f605e8881994fd75086fbe0575547ca07f2b749546840a34064736f6c634300081c0033",
-  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f5ffdfea2646970667358221220cfff8a29e6e0492f605e8881994fd75086fbe0575547ca07f2b749546840a34064736f6c634300081c0033",
+  "bytecode": "0x60556032600b8282823980515f1a607314602657634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f5ffdfea2646970667358221220abb49c2b59981e4b4f3be012aa5806fae1e64743f1ad2091d0a6b951672cce6864736f6c634300081c0033",
+  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f5ffdfea2646970667358221220abb49c2b59981e4b4f3be012aa5806fae1e64743f1ad2091d0a6b951672cce6864736f6c634300081c0033",
   "linkReferences": {},
   "deployedLinkReferences": {}
 }

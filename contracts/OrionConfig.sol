@@ -25,22 +25,27 @@ import "./interfaces/IInternalStateOrchestrator.sol";
  *
  * @title OrionConfig
  * @notice This contract is responsible for configuring the Orion protocol.
+ * @author Orion Finance
  */
 contract OrionConfig is Ownable, IOrionConfig {
-    // Protocol-wide configuration
+    /// @notice Underlying asset address
     IERC20 public underlyingAsset;
-
+    /// @notice Address of the internal states orchestrator
     address public internalStatesOrchestrator;
+    /// @notice Address of the liquidity orchestrator
     address public liquidityOrchestrator;
+    /// @notice Address of the transparent vault factory
     address public transparentVaultFactory;
+    /// @notice Address of the encrypted vault factory
     address public encryptedVaultFactory;
+    /// @notice Address of the price adapter registry
     address public priceAdapterRegistry;
 
-    // Protocol parameters
+    /// @notice Decimals for curator intent
     uint8 public curatorIntentDecimals;
+    /// @notice Decimals for price adapter
     uint8 public priceAdapterDecimals;
-
-    // Risk-free rate in basis points. Same decimals as BASIS_POINTS_FACTOR
+    /// @notice Risk-free rate in basis points. Same decimals as BASIS_POINTS_FACTOR
     uint16 public riskFreeRate;
 
     // Vault-specific configuration
