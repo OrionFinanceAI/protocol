@@ -67,6 +67,10 @@ interface IOrionVault is IERC4626 {
     /// @param assets The new whitelist of assets.
     function updateVaultWhitelist(address[] memory assets) external;
 
+    /// @notice Get the vault whitelist
+    /// @return The array of whitelisted asset addresses for this vault.
+    function getVaultWhitelist() external view returns (address[] memory);
+
     /// @notice Update the fee model parameters
     /// @param mode The calculation mode for fees
     /// @param performanceFee The performance fee

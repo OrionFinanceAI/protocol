@@ -47,6 +47,8 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
     ) OrionVault(vaultOwner, curator, configAddress, name, symbol, feeType, performanceFee, managementFee) {
         _ezero = FHE.asEuint32(0);
         _eTrue = FHE.asEbool(true);
+        FHE.allowThis(_ezero);
+        FHE.allowThis(_eTrue);
     }
 
     /// --------- CURATOR FUNCTIONS ---------

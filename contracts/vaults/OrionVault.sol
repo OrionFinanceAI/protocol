@@ -370,6 +370,11 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         }
     }
 
+    /// @inheritdoc IOrionVault
+    function getVaultWhitelist() external view returns (address[] memory) {
+        return _vaultWhitelistedAssets.values();
+    }
+
     /// @notice Update the fee model parameters
     /// @param feeType The fee type (0=ABSOLUTE, 1=HURDLE, 2=HIGH_WATER_MARK, 3=HURDLE_HWM)
     /// @param performanceFee The performance fee

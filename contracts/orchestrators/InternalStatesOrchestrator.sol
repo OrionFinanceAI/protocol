@@ -179,6 +179,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         currentMinibatchIndex = 0;
 
         _ezero = FHE.asEuint32(0);
+        FHE.allowThis(_ezero);
 
         vFeeCoefficient = 0;
         rsFeeCoefficient = 0;
