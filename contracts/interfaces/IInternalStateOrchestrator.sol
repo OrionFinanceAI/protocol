@@ -5,6 +5,8 @@ import "@chainlink/contracts/src/v0.8/automation/AutomationCompatible.sol";
 import "./IOrionConfig.sol";
 
 /// @title IInternalStateOrchestrator
+/// @notice Interface for the internal state orchestrator
+/// @author Orion Finance
 interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     /// @notice Upkeep phase
     enum InternalUpkeepPhase {
@@ -26,6 +28,7 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     function currentPhase() external view returns (InternalUpkeepPhase);
 
     /// @notice Returns the current epoch counter
+    /// @return The current epoch
     function epochCounter() external view returns (uint16);
 
     /// @notice Updates the Chainlink Automation Registry address

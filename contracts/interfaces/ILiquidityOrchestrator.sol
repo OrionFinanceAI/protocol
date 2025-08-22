@@ -5,6 +5,8 @@ import "@chainlink/contracts/src/v0.8/automation/AutomationCompatible.sol";
 import "./IExecutionAdapter.sol";
 
 /// @title ILiquidityOrchestrator
+/// @notice Interface for the liquidity orchestrator
+/// @author Orion Finance
 interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @notice Upkeep phase enum for liquidity orchestration
     enum LiquidityUpkeepPhase {

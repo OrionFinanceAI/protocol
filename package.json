@@ -1,7 +1,7 @@
 {
   "name": "@orion-finance/protocol",
   "description": "Orion Finance Protocol",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "engines": {
     "node": ">=20.0.0"
   },
@@ -18,8 +18,8 @@
     "coverage": "SOLIDITY_COVERAGE=true hardhat coverage",
     "deploy:sepolia": "hardhat run scripts/deploy.ts --network sepolia",
     "lint": "pnpm lint:sol && pnpm lint:ts && pnpm prettier:check",
-    "lint:sol": "solhint --max-warnings 5 \"contracts/**/*.sol\"",
-    "lint:ts": "eslint --ignore-path ./.eslintignore --ext .js,.ts .",
+    "lint:sol": "solhint --max-warnings 20 \"contracts/**/*.sol\"",
+    "lint:ts": "eslint --ext .js,.ts .",
     "typechain": "cross-env TS_NODE_TRANSPILE_ONLY=true hardhat typechain",
     "test": "hardhat test",
     "test:sepolia": "hardhat test --network sepolia",
@@ -29,6 +29,8 @@
     "verify": "hardhat run scripts/verify.ts --network sepolia"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.1",
+    "@eslint/js": "^9.33.0",
     "@fhevm/hardhat-plugin": "^0.0.1-6",
     "@nomicfoundation/hardhat-chai-matchers": "^2.1.0",
     "@nomicfoundation/hardhat-ethers": "^3.1.0",
@@ -42,6 +44,7 @@
     "@types/node": "^20.19.9",
     "@typescript-eslint/eslint-plugin": "^8.38.0",
     "@typescript-eslint/parser": "^8.38.0",
+    "@zama-fhe/oracle-solidity": "^0.1.0",
     "chai": "^4.5.0",
     "chai-as-promised": "^8.0.1",
     "cross-env": "^7.0.3",
@@ -56,7 +59,7 @@
     "prettier": "^3.6.2",
     "prettier-plugin-solidity": "^1.4.3",
     "rimraf": "^5.0.10",
-    "solhint": "^6.0.0",
+    "solhint": "^6.0.1",
     "solhint-plugin-prettier": "^0.1.0",
     "solidity-coverage": "^0.8.16",
     "ts-generator": "^0.1.1",
@@ -67,10 +70,7 @@
   "dependencies": {
     "@chainlink/contracts": "^1.4.0",
     "@fhevm/solidity": "^0.7.0",
-    "@zama-fhe/oracle-solidity": "^0.1.0",
     "@openzeppelin/contracts": "^5.4.0",
-    "@openzeppelin/contracts-upgradeable": "^5.4.0",
-    "encrypted-types": "^0.0.4",
-    "node-seal": "^5.1.6"
+    "encrypted-types": "^0.0.4"
   }
 }

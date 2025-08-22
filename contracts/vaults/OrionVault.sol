@@ -17,6 +17,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 /**
  * @title OrionVault
  * @notice A modular asset management vault powered by curator intents, with asynchronous deposits and withdrawals
+ * @author Orion Finance
  * @dev
  * OrionVault is an abstract base contract that provides common functionality for transparent and encrypted vaults.
  * It implements the asynchronous pattern for deposits and withdrawals based on the EIP-7540 standard:
@@ -67,10 +68,15 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
     using EnumerableSet for EnumerableSet.AddressSet;
 
+    /// @notice Vault owner
     address public vaultOwner;
+    /// @notice Vault curator
     address public curator;
+    /// @notice OrionConfig contract
     IOrionConfig public config;
+    /// @notice Internal states orchestrator
     IInternalStateOrchestrator public internalStatesOrchestrator;
+    /// @notice Liquidity orchestrator
     ILiquidityOrchestrator public liquidityOrchestrator;
 
     /// @notice Decimals for curator intent
@@ -105,11 +111,14 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     /*                               CURATOR FEES                                 */
     /* -------------------------------------------------------------------------- */
 
-    /// @notice Constants for curator fee calculations
+    /// @notice Number of seconds in a year
     uint32 public constant YEAR_IN_SECONDS = 365 days;
+    /// @notice Basis points factor (100% = 10_000)
     uint16 public constant BASIS_POINTS_FACTOR = 10_000;
-    uint16 public constant MAX_MANAGEMENT_FEE = 300; // 3%
-    uint16 public constant MAX_PERFORMANCE_FEE = 3_000; // 30%
+    /// @notice Maximum management fee (3% = 300)
+    uint16 public constant MAX_MANAGEMENT_FEE = 300;
+    /// @notice Maximum performance fee (30% = 3_000)
+    uint16 public constant MAX_PERFORMANCE_FEE = 3_000;
 
     /// @notice Fee type
     enum FeeType {
@@ -154,6 +163,15 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         _;
     }
 
+    /// @notice Constructor
+    /// @param vaultOwner_ The address of the vault owner
+    /// @param curator_ The address of the vault curator
+    /// @param config_ The address of the OrionConfig contract
+    /// @param name_ The name of the vault
+    /// @param symbol_ The symbol of the vault
+    /// @param feeType_ The fee type
+    /// @param performanceFee_ The performance fee
+    /// @param managementFee_ The management fee
     constructor(
         address vaultOwner_,
         address curator_,
@@ -199,29 +217,33 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     ///      This can be overridden by the vault owner to set a subset of the protocol whitelist.
     function _initializeVaultWhitelist() internal {
         address[] memory protocolAssets = config.getAllWhitelistedAssets();
-        for (uint256 i = 0; i < protocolAssets.length; i++) {
+        for (uint256 i = 0; i < protocolAssets.length; ++i) {
             bool inserted = _vaultWhitelistedAssets.add(protocolAssets[i]);
             if (!inserted) revert ErrorsLib.AlreadyRegistered();
         }
     }
 
-    /// @notice Disable direct deposits and withdrawals on ERC4626 to enforce async only
+    /// @inheritdoc IERC4626
     function deposit(uint256, address) public pure override(ERC4626, IERC4626) returns (uint256) {
         revert ErrorsLib.SynchronousCallDisabled();
     }
 
+    /// @inheritdoc IERC4626
     function mint(uint256, address) public pure override(ERC4626, IERC4626) returns (uint256) {
         revert ErrorsLib.SynchronousCallDisabled();
     }
 
+    /// @inheritdoc IERC4626
     function withdraw(uint256, address, address) public pure override(ERC4626, IERC4626) returns (uint256) {
         revert ErrorsLib.SynchronousCallDisabled();
     }
 
+    /// @inheritdoc IERC4626
     function redeem(uint256, address, address) public pure override(ERC4626, IERC4626) returns (uint256) {
         revert ErrorsLib.SynchronousCallDisabled();
     }
 
+    /// @inheritdoc IERC4626
     function totalAssets() public view override(ERC4626, IERC4626) returns (uint256) {
         return _totalAssets;
     }
@@ -357,9 +379,9 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     }
 
     /// @inheritdoc IOrionVault
-    function updateVaultWhitelist(address[] memory assets) external onlyVaultOwner {
+    function updateVaultWhitelist(address[] calldata assets) external onlyVaultOwner {
         _vaultWhitelistedAssets.clear();
-        for (uint256 i = 0; i < assets.length; i++) {
+        for (uint256 i = 0; i < assets.length; ++i) {
             address token = assets[i];
 
             // Protocol whitelist validation
@@ -368,6 +390,11 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
             bool inserted = _vaultWhitelistedAssets.add(token);
             if (!inserted) revert ErrorsLib.AlreadyRegistered();
         }
+    }
+
+    /// @inheritdoc IOrionVault
+    function getVaultWhitelist() external view returns (address[] memory) {
+        return _vaultWhitelistedAssets.values();
     }
 
     /// @notice Update the fee model parameters
@@ -395,7 +422,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     /// @param assets Array of asset addresses to validate
     /// @dev This function is used by derived contracts to validate curator intents
     function _validateIntentAssets(address[] memory assets) internal view {
-        for (uint256 i = 0; i < assets.length; i++) {
+        for (uint256 i = 0; i < assets.length; ++i) {
             if (!_vaultWhitelistedAssets.contains(assets[i])) {
                 revert ErrorsLib.TokenNotWhitelisted(assets[i]);
             }
@@ -412,6 +439,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     }
 
     /// @notice Calculate management fee amount
+    /// @param feeTotalAssets The total assets to calculate management fee for
     /// @return The management fee amount in underlying asset units
     function _managementFeeAmount(uint256 feeTotalAssets) internal view returns (uint256) {
         if (feeModel.managementFee == 0) return 0;
@@ -422,6 +450,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
     /// @notice Calculate performance fee amount
     /// @dev Performance fee calculation depends on the FeeType
+    /// @param feeTotalAssets The total assets to calculate performance fee for
     /// @return The performance fee amount in underlying asset units
     function _performanceFeeAmount(uint256 feeTotalAssets) internal view returns (uint256) {
         if (feeModel.performanceFee == 0) return 0;
@@ -434,13 +463,16 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
         (uint256 benchmark, uint256 divisor) = _getBenchmark(feeModel.feeType);
 
-        if (activeSharePrice <= benchmark) return 0;
+        if (activeSharePrice < benchmark) return 0;
         uint256 feeRate = uint256(feeModel.performanceFee).mulDiv(activeSharePrice, divisor);
 
         return feeRate.mulDiv(feeTotalAssets, BASIS_POINTS_FACTOR);
     }
 
     /// @notice Get benchmark value based on fee model type
+    /// @param feeType The fee type to get benchmark for
+    /// @return benchmark The benchmark value
+    /// @return divisor The divisor value
     function _getBenchmark(FeeType feeType) internal view returns (uint256 benchmark, uint256 divisor) {
         uint256 currentSharePrice = convertToAssets(10 ** decimals());
 
@@ -464,6 +496,8 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     }
 
     /// @notice Get hurdle price amount based on configured risk-free rate
+    /// @param currentSharePrice The current share price to calculate hurdle from
+    /// @return The hurdle price
     function _getHurdlePrice(uint256 currentSharePrice) internal view returns (uint256) {
         uint256 riskFreeRate = config.riskFreeRate();
 
@@ -501,7 +535,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         address[] memory users = new address[](length);
         uint256[] memory amounts = new uint256[](length);
 
-        for (uint32 i = 0; i < length; i++) {
+        for (uint32 i = 0; i < length; ++i) {
             (address user, uint256 amount) = _depositRequests.at(i);
             users[i] = user;
             amounts[i] = amount;
@@ -510,7 +544,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         _totalPendingDeposits = 0;
 
         // Process all requests
-        for (uint32 i = 0; i < length; i++) {
+        for (uint32 i = 0; i < length; ++i) {
             address user = users[i];
             uint256 amount = amounts[i];
 
@@ -531,7 +565,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         address[] memory users = new address[](length);
         uint256[] memory sharesArray = new uint256[](length);
 
-        for (uint32 i = 0; i < length; i++) {
+        for (uint32 i = 0; i < length; ++i) {
             (address user, uint256 shares) = _withdrawRequests.at(i);
             users[i] = user;
             sharesArray[i] = shares;
@@ -540,7 +574,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         _totalPendingWithdrawals = 0;
 
         // Process all requests
-        for (uint32 i = 0; i < length; i++) {
+        for (uint32 i = 0; i < length; ++i) {
             address user = users[i];
             uint256 shares = sharesArray[i];
 

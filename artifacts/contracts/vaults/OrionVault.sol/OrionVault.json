@@ -306,13 +306,13 @@
           "type": "uint256"
         },
         {
-          "indexed": false,
+          "indexed": true,
           "internalType": "uint256",
           "name": "feeAmount",
           "type": "uint256"
         },
         {
-          "indexed": false,
+          "indexed": true,
           "internalType": "uint256",
           "name": "pendingCuratorFees",
           "type": "uint256"
@@ -362,7 +362,7 @@
           "type": "address"
         },
         {
-          "indexed": false,
+          "indexed": true,
           "internalType": "uint256",
           "name": "amount",
           "type": "uint256"
@@ -381,7 +381,7 @@
           "type": "address"
         },
         {
-          "indexed": false,
+          "indexed": true,
           "internalType": "uint256",
           "name": "amount",
           "type": "uint256"
@@ -400,7 +400,7 @@
           "type": "address"
         },
         {
-          "indexed": false,
+          "indexed": true,
           "internalType": "uint256",
           "name": "amount",
           "type": "uint256"
@@ -413,19 +413,19 @@
       "anonymous": false,
       "inputs": [
         {
-          "indexed": false,
+          "indexed": true,
           "internalType": "uint8",
           "name": "mode",
           "type": "uint8"
         },
         {
-          "indexed": false,
+          "indexed": true,
           "internalType": "uint16",
           "name": "performanceFee",
           "type": "uint16"
         },
         {
-          "indexed": false,
+          "indexed": true,
           "internalType": "uint16",
           "name": "managementFee",
           "type": "uint16"
@@ -506,7 +506,7 @@
           "type": "address"
         },
         {
-          "indexed": false,
+          "indexed": true,
           "internalType": "uint256",
           "name": "shares",
           "type": "uint256"
@@ -525,7 +525,7 @@
           "type": "address"
         },
         {
-          "indexed": false,
+          "indexed": true,
           "internalType": "uint256",
           "name": "shares",
           "type": "uint256"
@@ -544,7 +544,7 @@
           "type": "address"
         },
         {
-          "indexed": false,
+          "indexed": true,
           "internalType": "uint256",
           "name": "shares",
           "type": "uint256"
@@ -966,6 +966,19 @@
           "internalType": "uint256",
           "name": "",
           "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getVaultWhitelist",
+      "outputs": [
+        {
+          "internalType": "address[]",
+          "name": "",
+          "type": "address[]"
         }
       ],
       "stateMutability": "view",

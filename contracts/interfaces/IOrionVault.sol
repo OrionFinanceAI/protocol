@@ -6,11 +6,23 @@ import "./IOrionConfig.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /// @title IOrionVault
+/// @notice Interface for Orion vaults
+/// @author Orion Finance
 interface IOrionVault is IERC4626 {
-    // State variables (public getters)
+    /// @notice Orion config getter
+    /// @return The Orion config contract address
     function config() external view returns (IOrionConfig);
+
+    /// @notice Vault owner getter
+    /// @return The vault owner address
     function vaultOwner() external view returns (address);
+
+    /// @notice Curator getter
+    /// @return The curator address
     function curator() external view returns (address);
+
+    /// @notice Pending curator fees getter
+    /// @return Pending curator fees amount
     function pendingCuratorFees() external view returns (uint256);
 
     /// @notice Convert shares to assets with point in time total assets.
@@ -66,6 +78,10 @@ interface IOrionVault is IERC4626 {
     /// @notice Update the vault whitelist
     /// @param assets The new whitelist of assets.
     function updateVaultWhitelist(address[] memory assets) external;
+
+    /// @notice Get the vault whitelist
+    /// @return The array of whitelisted asset addresses for this vault.
+    function getVaultWhitelist() external view returns (address[] memory);
 
     /// @notice Update the fee model parameters
     /// @param mode The calculation mode for fees

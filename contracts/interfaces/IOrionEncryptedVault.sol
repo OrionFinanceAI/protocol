@@ -6,6 +6,8 @@ import { euint32, externalEuint32 } from "@fhevm/solidity/lib/FHE.sol";
 import "./IOrionVault.sol";
 
 /// @title IOrionEncryptedVault
+/// @notice Interface for the Orion encrypted vault
+/// @author Orion Finance
 interface IOrionEncryptedVault is IOrionVault {
     struct EncryptedIntent {
         address token;
@@ -45,4 +47,10 @@ interface IOrionEncryptedVault is IOrionVault {
     ///        It contains the new portfolio token addresses and encrypted number of shares per asset.
     /// @param newTotalAssets The new total assets value for the vault
     function updateVaultState(EncryptedPortfolio[] calldata portfolio, uint256 newTotalAssets) external;
+
+    /// @notice Callback function to decrypt a single ebool
+    /// @param requestID The request ID
+    /// @param decryptedInput The decrypted input
+    /// @param signatures The signatures to validate the authenticity of the decrypted input
+    function callbackDecryptSingleEbool(uint256 requestID, bool decryptedInput, bytes[] calldata signatures) external;
 }

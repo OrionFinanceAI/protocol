@@ -9,12 +9,15 @@ import { EventsLib } from "../libraries/EventsLib.sol";
 /**
  * @title TransparentVaultFactory
  * @notice A factory contract for creating Orion transparent vaults
+ * @author Orion Finance
  * @dev This contract is responsible for creating new transparent vaults only.
  */
 contract TransparentVaultFactory {
     /// @notice Orion Config contract address
     IOrionConfig public config;
 
+    /// @notice Constructor
+    /// @param configAddress The address of the OrionConfig contract
     constructor(address configAddress) {
         if (configAddress == address(0)) revert ErrorsLib.ZeroAddress();
 
@@ -25,6 +28,9 @@ contract TransparentVaultFactory {
     /// @param curator The address of the vault curator
     /// @param name The name of the vault
     /// @param symbol The symbol of the vault
+    /// @param feeType The fee type
+    /// @param performanceFee The performance fee
+    /// @param managementFee The management fee
     /// @return vault The address of the new transparent vault
     function createVault(
         address curator,
