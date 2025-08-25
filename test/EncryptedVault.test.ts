@@ -286,10 +286,6 @@ describe("EncryptedVault - Curator Pipeline", function () {
         console.error("Transaction failed with error:", error);
         throw error;
       }
-
-      // Note: The intent validity will be set asynchronously by the FHEVM callback
-      // In a real scenario, we would wait for the callback to complete
-      // For testing purposes, we verify the transaction was successful
     });
 
     it("Should reject encrypted intent with invalid total weight", async function () {
@@ -305,20 +301,23 @@ describe("EncryptedVault - Curator Pipeline", function () {
 
       const encryptedIntentCiphertexts = await encryptedIntentBuffer.encrypt();
 
+      // Convert proof and handles to hex
+      const handlesHex = encryptedIntentCiphertexts.handles.map((h) => "0x" + Buffer.from(h).toString("hex"));
+      const inputProofHex = "0x" + Buffer.from(encryptedIntentCiphertexts.inputProof).toString("hex");
+
       const encryptedIntent = [
         {
           token: await mockAsset1.getAddress(),
-          weight: encryptedIntentCiphertexts.handles[0],
+          weight: handlesHex[0],
         },
         {
           token: await mockAsset2.getAddress(),
-          weight: encryptedIntentCiphertexts.handles[1],
+          weight: handlesHex[1],
         },
       ];
 
       // This should fail validation in the FHE callback
-      await expect(encryptedVault.connect(curator).submitIntent(encryptedIntent, encryptedIntentCiphertexts.inputProof))
-        .to.not.be.reverted; // The transaction succeeds, but intent validity will be false
+      await expect(encryptedVault.connect(curator).submitIntent(encryptedIntent, inputProofHex)).to.not.be.reverted; // The transaction succeeds, but intent validity will be false
     });
 
     it("Should reject encrypted intent with non-whitelisted assets", async function () {
