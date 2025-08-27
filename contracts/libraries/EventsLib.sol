@@ -37,35 +37,25 @@ library EventsLib {
     /// @param curator The address of the curator who submitted the order.
     event OrderSubmitted(address indexed curator);
 
-    /// @notice A deposit request has been made by a user.
-    /// @param user The address of the user making the deposit request.
-    /// @param amount The amount of assets being deposited.
-    event DepositRequested(address indexed user, uint256 indexed amount);
-
-    /// @notice A withdrawal request has been made by a user.
-    /// @param user The address of the user making the withdrawal request.
-    /// @param shares The number of shares being withdrawn.
-    event WithdrawRequested(address indexed user, uint256 indexed shares);
-
     /// @notice A deposit request has been processed and completed.
     /// @param user The address of the user whose deposit was processed.
     /// @param amount The amount of assets that were deposited.
     event DepositProcessed(address indexed user, uint256 indexed amount);
 
-    /// @notice A withdrawal request has been processed and completed.
-    /// @param user The address of the user whose withdrawal was processed.
-    /// @param shares The number of shares that were withdrawn.
-    event WithdrawProcessed(address indexed user, uint256 indexed shares);
+    /// @notice A redemption request has been processed and completed.
+    /// @param user The address of the user whose redemption was processed.
+    /// @param shares The number of shares that were redeemed.
+    event RedeemProcessed(address indexed user, uint256 indexed shares);
 
     /// @notice A deposit request has been cancelled.
     /// @param user The address of the user whose deposit request was cancelled.
     /// @param amount The amount of assets that were requested for deposit.
     event DepositRequestCancelled(address indexed user, uint256 indexed amount);
 
-    /// @notice A withdrawal request has been cancelled.
-    /// @param user The address of the user whose withdrawal request was cancelled.
-    /// @param shares The number of shares that were requested for withdrawal.
-    event WithdrawRequestCancelled(address indexed user, uint256 indexed shares);
+    /// @notice A redemption request has been cancelled.
+    /// @param user The address of the user whose redemption request was cancelled.
+    /// @param shares The number of shares that were requested for redemption.
+    event RedeemRequestCancelled(address indexed user, uint256 indexed shares);
 
     /// @notice The vault's state has been updated with new total assets.
     /// @param newTotalAssets The new total assets value for the vault.

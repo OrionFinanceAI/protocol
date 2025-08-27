@@ -193,7 +193,7 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
     // TODO: function called by the vault function, that is in turned called by the liquidity orchestrator.
     // Implement a cleaner pattern in which there is no re-entrancy.
     /// @inheritdoc ILiquidityOrchestrator
-    function transferWithdrawalFunds(address user, uint256 amount) external {
+    function transferRedemptionFunds(address user, uint256 amount) external {
         // Verify the caller is a registered vault
         if (!config.isOrionVault(msg.sender)) revert ErrorsLib.NotAuthorized();
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);

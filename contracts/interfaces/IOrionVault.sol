@@ -9,6 +9,16 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 /// @notice Interface for Orion vaults
 /// @author Orion Finance
 interface IOrionVault is IERC4626 {
+    /// @notice A deposit request has been made by a user.
+    /// @param sender The address of the user making the deposit request.
+    /// @param assets The amount of assets being deposited.
+    event DepositRequest(address indexed sender, uint256 indexed assets);
+
+    /// @notice A redemption request has been made by a user.
+    /// @param sender The address of the user making the redemption request.
+    /// @param shares The number of shares being redeemed.
+    event RedeemRequest(address indexed sender, uint256 indexed shares);
+
     /// @notice Orion config getter
     /// @return The Orion config contract address
     function config() external view returns (IOrionConfig);
@@ -42,8 +52,8 @@ interface IOrionVault is IERC4626 {
     /// @dev No share tokens are minted immediately. The specified amount of underlying tokens
     ///      is transferred to the liquidity orchestrator for centralized liquidity management.
     ///      LPs can later cancel this request to withdraw their funds before any minting occurs.
-    /// @param amount The amount of the underlying asset to deposit.
-    function requestDeposit(uint256 amount) external;
+    /// @param assets The amount of the underlying asset to deposit.
+    function requestDeposit(uint256 assets) external;
 
     /// @notice Cancel a previously submitted deposit request.
     /// @dev Allows LPs to withdraw their funds before any share tokens are minted.
@@ -57,14 +67,14 @@ interface IOrionVault is IERC4626 {
     ///      is transferred to the vault.
     ///      LPs can later cancel this request to withdraw their funds before any burning occurs.
     /// @param shares The amount of the share tokens to withdraw.
-    function requestWithdraw(uint256 shares) external;
+    function requestRedeem(uint256 shares) external;
 
     /// @notice Cancel a previously submitted withdrawal request.
     /// @dev Allows LPs to recover their share tokens before any burning occurs.
     ///      The request must still have enough shares remaining to cover the cancellation.
     ///      Share tokens are returned from the vault.
     /// @param shares The amount of share tokens to recover.
-    function cancelWithdrawRequest(uint256 shares) external;
+    function cancelRedeemRequest(uint256 shares) external;
 
     // --------- VAULT OWNER AND CURATOR FUNCTIONS ---------
 
@@ -98,12 +108,12 @@ interface IOrionVault is IERC4626 {
     /// @notice Get total pending deposit amount across all users
     /// @return Total pending deposits denominated in underlying asset units (e.g., USDC, ETH)
     /// @dev This returns asset amounts, not share amounts
-    function getPendingDeposits() external view returns (uint256);
+    function pendingDeposit() external view returns (uint256);
 
     /// @notice Get total pending withdrawal shares across all users
     /// @return Total pending withdrawals denominated in vault share units
     /// @dev This returns share amounts, not underlying asset amounts
-    function getPendingWithdrawals() external view returns (uint256);
+    function pendingRedeem() external view returns (uint256);
 
     /// @notice Calculate the curator's fee based on total assets
     /// @param totalAssets The total assets under management
@@ -118,7 +128,7 @@ interface IOrionVault is IERC4626 {
     function processDepositRequests() external;
 
     /// @notice Process withdrawal requests from LPs and reset the requestor's request amount
-    function processWithdrawRequests() external;
+    function processRedeemRequests() external;
 
     /// @notice Update the high watermark after trades are executed
     /// @dev Shall be called by the liquidity orchestrator after portfolio rebalancing.

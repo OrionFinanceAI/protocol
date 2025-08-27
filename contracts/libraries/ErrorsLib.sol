@@ -50,8 +50,8 @@ library ErrorsLib {
     /// @notice Not enough deposit requests to proceed with operation.
     error NotEnoughDepositRequest();
 
-    /// @notice Not enough withdrawal requests to proceed with operation.
-    error NotEnoughWithdrawRequest();
+    /// @notice Not enough redemption requests to proceed with operation.
+    error NotEnoughRedeemRequest();
 
     /// @notice Expected adapter address is not set.
     error AdapterNotSet();
@@ -70,10 +70,10 @@ library ErrorsLib {
     /// @param amount The amount that was cancelled.
     error DepositRequestCancelled(address user, uint256 amount);
 
-    /// @notice User's withdrawal request was cancelled.
+    /// @notice User's redemption request was cancelled.
     /// @param user The address of the user.
     /// @param shares The shares that were cancelled.
-    error WithdrawRequestCancelled(address user, uint256 shares);
+    error RedeemRequestCancelled(address user, uint256 shares);
 
     /// @notice One or more function arguments are invalid.
     error InvalidArguments();

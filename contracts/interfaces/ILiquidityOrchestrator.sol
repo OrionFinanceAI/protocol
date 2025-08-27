@@ -68,9 +68,9 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @param amount The amount of fees to transfer
     function transferCuratorFees(uint256 amount) external;
 
-    /// @notice Transfer withdrawal funds to a user after shares are burned
-    /// @dev Called by vault contracts when processing withdrawal requests
+    /// @notice Transfer redemption funds to a user after shares are burned
+    /// @dev Called by vault contracts when processing redemption requests
     /// @param user The user to transfer funds to
     /// @param amount The amount of underlying assets to transfer
-    function transferWithdrawalFunds(address user, uint256 amount) external;
+    function transferRedemptionFunds(address user, uint256 amount) external;
 }
