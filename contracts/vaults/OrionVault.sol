@@ -20,7 +20,9 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
  * @dev
  * Abstract base contract providing common functionality for transparent and encrypted vaults.
  * Implements an asynchronous deposit and redemption pattern inspired by ERC-7540 with custom enhancements:
- * https://eips.ethereum.org/EIPS/eip-7540.
+ * - https://eips.ethereum.org/EIPS/eip-4626
+ * - https://eips.ethereum.org/EIPS/eip-7540
+ * - https://eips.ethereum.org/EIPS/eip-7887
  *
  * Curator-submitted intents define portfolio allocation targets as percentages of total assets.
  * Derived contracts handle intent submission and interpretation:
