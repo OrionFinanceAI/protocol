@@ -294,9 +294,9 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
         //     vault.updateVaultState(?, ?);
         // }
 
-        // TODO: DepositRequest and WithdrawRequest in Vaults to be processed post update
+        // TODO: DepositRequest and RedeemRequest in Vaults to be processed post update
         // (internal logic depends on vaults actual total assets and total supply
-        // (inside the previewDeposit, _mint, _burn and previewRedeem), and removed from
+        // (inside the _convertToShares, _mint, _burn and _convertToAssets calls), and removed from
         // vault state as pending requests. Opportunity to net actual transactions (not just intents),
         // performing minting and burning operation at the same time.
 

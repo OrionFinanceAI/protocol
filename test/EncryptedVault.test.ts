@@ -188,7 +188,7 @@ describe("EncryptedVault - Curator Pipeline", function () {
       const configWhitelist = await orionConfig.getAllWhitelistedAssets();
 
       // Get vault whitelist
-      const vaultWhitelist = await encryptedVault.getVaultWhitelist();
+      const vaultWhitelist = await encryptedVault.vaultWhitelist();
 
       // Compare the whitelists
       expect(vaultWhitelist.length).to.equal(configWhitelist.length);
@@ -248,7 +248,7 @@ describe("EncryptedVault - Curator Pipeline", function () {
 
       await expect(encryptedVault.connect(owner).claimCuratorFees(claimAmount)).to.be.revertedWithCustomError(
         encryptedVault,
-        "InsufficientFunds",
+        "InsufficientAmount",
       );
     });
 

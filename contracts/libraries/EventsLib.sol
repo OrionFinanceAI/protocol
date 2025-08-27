@@ -37,41 +37,9 @@ library EventsLib {
     /// @param curator The address of the curator who submitted the order.
     event OrderSubmitted(address indexed curator);
 
-    /// @notice A deposit request has been processed and completed.
-    /// @param user The address of the user whose deposit was processed.
-    /// @param amount The amount of assets that were deposited.
-    event DepositProcessed(address indexed user, uint256 indexed amount);
-
-    /// @notice A redemption request has been processed and completed.
-    /// @param user The address of the user whose redemption was processed.
-    /// @param shares The number of shares that were redeemed.
-    event RedeemProcessed(address indexed user, uint256 indexed shares);
-
-    /// @notice A deposit request has been cancelled.
-    /// @param user The address of the user whose deposit request was cancelled.
-    /// @param amount The amount of assets that were requested for deposit.
-    event DepositRequestCancelled(address indexed user, uint256 indexed amount);
-
-    /// @notice A redemption request has been cancelled.
-    /// @param user The address of the user whose redemption request was cancelled.
-    /// @param shares The number of shares that were requested for redemption.
-    event RedeemRequestCancelled(address indexed user, uint256 indexed shares);
-
     /// @notice The vault's state has been updated with new total assets.
     /// @param newTotalAssets The new total assets value for the vault.
     event VaultStateUpdated(uint256 indexed newTotalAssets);
-
-    /// @notice The fee model has been updated.
-    /// @param mode The new calculation mode.
-    /// @param performanceFee The new performance fee in basis points.
-    /// @param managementFee The new management fee in basis points.
-    event FeeModelUpdated(uint8 indexed mode, uint16 indexed performanceFee, uint16 indexed managementFee);
-
-    /// @notice Curator fees have been accrued for a specific epoch.
-    /// @param epoch The epoch for which fees were accrued.
-    /// @param feeAmount The amount of fees accrued in underlying asset units.
-    /// @param pendingCuratorFees The total pending curator fees in underlying asset units.
-    event CuratorFeesAccrued(uint256 indexed epoch, uint256 indexed feeAmount, uint256 indexed pendingCuratorFees);
 
     // ====================================
     // === Internal States Orchestrator ===
@@ -112,11 +80,21 @@ library EventsLib {
     /// @param vault The address of the newly created vault.
     /// @param vaultOwner The address of the vault's owner.
     /// @param curator The address of the vault's curator.
+    /// @param name The name of the vault.
+    /// @param symbol The symbol of the vault.
+    /// @param feeType The fee type of the vault.
+    /// @param performanceFee The performance fee of the vault.
+    /// @param managementFee The management fee of the vault.
     /// @param vaultType The type of vault that was created (Transparent or Encrypted).
     event OrionVaultCreated(
         address indexed vault,
         address indexed vaultOwner,
         address indexed curator,
+        string name,
+        string symbol,
+        uint8 feeType,
+        uint16 performanceFee,
+        uint16 managementFee,
         VaultType vaultType
     );
 }

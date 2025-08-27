@@ -21,69 +21,6 @@
       "inputs": [
         {
           "indexed": true,
-          "internalType": "uint256",
-          "name": "epoch",
-          "type": "uint256"
-        },
-        {
-          "indexed": true,
-          "internalType": "uint256",
-          "name": "feeAmount",
-          "type": "uint256"
-        },
-        {
-          "indexed": true,
-          "internalType": "uint256",
-          "name": "pendingCuratorFees",
-          "type": "uint256"
-        }
-      ],
-      "name": "CuratorFeesAccrued",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "user",
-          "type": "address"
-        },
-        {
-          "indexed": true,
-          "internalType": "uint256",
-          "name": "amount",
-          "type": "uint256"
-        }
-      ],
-      "name": "DepositProcessed",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "user",
-          "type": "address"
-        },
-        {
-          "indexed": true,
-          "internalType": "uint256",
-          "name": "amount",
-          "type": "uint256"
-        }
-      ],
-      "name": "DepositRequestCancelled",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
           "internalType": "address",
           "name": "asset",
           "type": "address"
@@ -96,31 +33,6 @@
         }
       ],
       "name": "ExecutionAdapterSet",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "uint8",
-          "name": "mode",
-          "type": "uint8"
-        },
-        {
-          "indexed": true,
-          "internalType": "uint16",
-          "name": "performanceFee",
-          "type": "uint16"
-        },
-        {
-          "indexed": true,
-          "internalType": "uint16",
-          "name": "managementFee",
-          "type": "uint16"
-        }
-      ],
-      "name": "FeeModelUpdated",
       "type": "event"
     },
     {
@@ -185,6 +97,36 @@
         },
         {
           "indexed": false,
+          "internalType": "string",
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "indexed": false,
+          "internalType": "string",
+          "name": "symbol",
+          "type": "string"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint8",
+          "name": "feeType",
+          "type": "uint8"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint16",
+          "name": "performanceFee",
+          "type": "uint16"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint16",
+          "name": "managementFee",
+          "type": "uint16"
+        },
+        {
+          "indexed": false,
           "internalType": "enum EventsLib.VaultType",
           "name": "vaultType",
           "type": "uint8"
@@ -229,44 +171,6 @@
         }
       ],
       "name": "PriceAdapterSet",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "user",
-          "type": "address"
-        },
-        {
-          "indexed": true,
-          "internalType": "uint256",
-          "name": "shares",
-          "type": "uint256"
-        }
-      ],
-      "name": "RedeemProcessed",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "user",
-          "type": "address"
-        },
-        {
-          "indexed": true,
-          "internalType": "uint256",
-          "name": "shares",
-          "type": "uint256"
-        }
-      ],
-      "name": "RedeemRequestCancelled",
       "type": "event"
     },
     {
@@ -322,8 +226,8 @@
       "type": "event"
     }
   ],
-  "bytecode": "0x60556032600b8282823980515f1a607314602657634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f5ffdfea2646970667358221220ab56f2f3281f216a0f216344e8c8d74709b76d32e9153d42abf204789afd7f6164736f6c634300081c0033",
-  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f5ffdfea2646970667358221220ab56f2f3281f216a0f216344e8c8d74709b76d32e9153d42abf204789afd7f6164736f6c634300081c0033",
+  "bytecode": "0x60556032600b8282823980515f1a607314602657634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f5ffdfea26469706673582212206f7562b92035e4fd0f565fcdb5530f4d7c3d73a5cb945eaeed9f845648a25ac964736f6c634300081c0033",
+  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f5ffdfea26469706673582212206f7562b92035e4fd0f565fcdb5530f4d7c3d73a5cb945eaeed9f845648a25ac964736f6c634300081c0033",
   "linkReferences": {},
   "deployedLinkReferences": {}
 }
