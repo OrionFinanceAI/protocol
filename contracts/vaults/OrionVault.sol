@@ -544,7 +544,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
             uint256 shares = convertToShares(amount);
             _mint(user, shares);
 
-            emit Deposit(user, amount);
+            emit Deposit(user, amount, shares);
         }
     }
 

@@ -49,7 +49,8 @@ interface IOrionVault is IERC4626 {
     /// @notice A deposit request has been processed and completed.
     /// @param user The address of the user whose deposit was processed.
     /// @param amount The amount of assets that were deposited.
-    event Deposit(address indexed user, uint256 indexed amount);
+    /// @param shares The number of shares that were minted.
+    event Deposit(address indexed user, uint256 indexed amount, uint256 indexed shares);
 
     /// @notice A redemption request has been processed and completed.
     /// @param user The address of the user whose redemption was processed.
