@@ -11,9 +11,6 @@ library ErrorsLib {
     /// @notice Address parameter is the zero address.
     error ZeroAddress();
 
-    /// @notice The specified asset address is invalid or unsupported.
-    error InvalidAsset();
-
     /// @notice Address or token is already registered or whitelisted.
     error AlreadyRegistered();
 
@@ -27,9 +24,6 @@ library ErrorsLib {
     /// @notice The amount specified must be greater than zero.
     /// @param asset The asset address associated with the amount.
     error AmountMustBeGreaterThanZero(address asset);
-
-    /// @notice External synchronous calls are disabled in the current context.
-    error SynchronousCallDisabled();
 
     /// @notice The total weight assigned to assets or allocations is invalid.
     error InvalidTotalWeight();
@@ -47,33 +41,14 @@ library ErrorsLib {
     /// @notice Operation attempted before the required time or condition has been met.
     error TooEarly();
 
-    /// @notice Not enough deposit requests to proceed with operation.
-    error NotEnoughDepositRequest();
-
-    /// @notice Not enough withdrawal requests to proceed with operation.
-    error NotEnoughWithdrawRequest();
+    /// @notice Insufficient amount to complete the operation.
+    error InsufficientAmount();
 
     /// @notice Expected adapter address is not set.
     error AdapterNotSet();
 
     /// @notice The underlying asset has an unsupported or invalid number of decimals.
     error InvalidUnderlyingDecimals();
-
-    /// @notice Sender has insufficient balance to complete the transaction.
-    /// @param sender The address attempting the transfer.
-    /// @param balance The current balance of the sender.
-    /// @param amount The amount required to complete the transaction.
-    error InsufficientFunds(address sender, uint256 balance, uint256 amount);
-
-    /// @notice User's deposit request was cancelled.
-    /// @param user The address of the user.
-    /// @param amount The amount that was cancelled.
-    error DepositRequestCancelled(address user, uint256 amount);
-
-    /// @notice User's withdrawal request was cancelled.
-    /// @param user The address of the user.
-    /// @param shares The shares that were cancelled.
-    error WithdrawRequestCancelled(address user, uint256 shares);
 
     /// @notice One or more function arguments are invalid.
     error InvalidArguments();

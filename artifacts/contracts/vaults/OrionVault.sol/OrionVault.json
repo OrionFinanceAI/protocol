@@ -190,24 +190,8 @@
       "type": "error"
     },
     {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "sender",
-          "type": "address"
-        },
-        {
-          "internalType": "uint256",
-          "name": "balance",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "amount",
-          "type": "uint256"
-        }
-      ],
-      "name": "InsufficientFunds",
+      "inputs": [],
+      "name": "InsufficientAmount",
       "type": "error"
     },
     {
@@ -223,16 +207,6 @@
     {
       "inputs": [],
       "name": "InvalidUnderlyingDecimals",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "NotEnoughDepositRequest",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "NotEnoughWithdrawRequest",
       "type": "error"
     },
     {
@@ -327,6 +301,19 @@
         {
           "indexed": true,
           "internalType": "address",
+          "name": "newCurator",
+          "type": "address"
+        }
+      ],
+      "name": "CuratorUpdated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
           "name": "sender",
           "type": "address"
         },
@@ -366,9 +353,34 @@
           "internalType": "uint256",
           "name": "amount",
           "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "shares",
+          "type": "uint256"
         }
       ],
-      "name": "DepositProcessed",
+      "name": "Deposit",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "sender",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "assets",
+          "type": "uint256"
+        }
+      ],
+      "name": "DepositRequest",
       "type": "event"
     },
     {
@@ -395,25 +407,6 @@
       "inputs": [
         {
           "indexed": true,
-          "internalType": "address",
-          "name": "user",
-          "type": "address"
-        },
-        {
-          "indexed": true,
-          "internalType": "uint256",
-          "name": "amount",
-          "type": "uint256"
-        }
-      ],
-      "name": "DepositRequested",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
           "internalType": "uint8",
           "name": "mode",
           "type": "uint8"
@@ -432,6 +425,44 @@
         }
       ],
       "name": "FeeModelUpdated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "sender",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "shares",
+          "type": "uint256"
+        }
+      ],
+      "name": "RedeemRequest",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "user",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "shares",
+          "type": "uint256"
+        }
+      ],
+      "name": "RedeemRequestCancelled",
       "type": "event"
     },
     {
@@ -508,21 +539,8 @@
         {
           "indexed": true,
           "internalType": "uint256",
-          "name": "shares",
+          "name": "assets",
           "type": "uint256"
-        }
-      ],
-      "name": "WithdrawProcessed",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "user",
-          "type": "address"
         },
         {
           "indexed": true,
@@ -531,26 +549,7 @@
           "type": "uint256"
         }
       ],
-      "name": "WithdrawRequestCancelled",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "user",
-          "type": "address"
-        },
-        {
-          "indexed": true,
-          "internalType": "uint256",
-          "name": "shares",
-          "type": "uint256"
-        }
-      ],
-      "name": "WithdrawRequested",
+      "name": "Withdraw",
       "type": "event"
     },
     {
@@ -737,7 +736,7 @@
           "type": "uint256"
         }
       ],
-      "name": "cancelWithdrawRequest",
+      "name": "cancelRedeemRequest",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
@@ -947,41 +946,16 @@
     },
     {
       "inputs": [],
-      "name": "getPendingDeposits",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
+      "name": "fulfillDeposit",
+      "outputs": [],
+      "stateMutability": "nonpayable",
       "type": "function"
     },
     {
       "inputs": [],
-      "name": "getPendingWithdrawals",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "getVaultWhitelist",
-      "outputs": [
-        {
-          "internalType": "address[]",
-          "name": "",
-          "type": "address[]"
-        }
-      ],
-      "stateMutability": "view",
+      "name": "fulfillRedeem",
+      "outputs": [],
+      "stateMutability": "nonpayable",
       "type": "function"
     },
     {
@@ -1137,10 +1111,36 @@
       "type": "function"
     },
     {
+      "inputs": [],
+      "name": "pendingDeposit",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "pendingRedeem",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
       "inputs": [
         {
           "internalType": "uint256",
-          "name": "assets",
+          "name": "",
           "type": "uint256"
         }
       ],
@@ -1152,14 +1152,14 @@
           "type": "uint256"
         }
       ],
-      "stateMutability": "view",
+      "stateMutability": "pure",
       "type": "function"
     },
     {
       "inputs": [
         {
           "internalType": "uint256",
-          "name": "shares",
+          "name": "",
           "type": "uint256"
         }
       ],
@@ -1171,14 +1171,14 @@
           "type": "uint256"
         }
       ],
-      "stateMutability": "view",
+      "stateMutability": "pure",
       "type": "function"
     },
     {
       "inputs": [
         {
           "internalType": "uint256",
-          "name": "shares",
+          "name": "",
           "type": "uint256"
         }
       ],
@@ -1190,14 +1190,14 @@
           "type": "uint256"
         }
       ],
-      "stateMutability": "view",
+      "stateMutability": "pure",
       "type": "function"
     },
     {
       "inputs": [
         {
           "internalType": "uint256",
-          "name": "assets",
+          "name": "",
           "type": "uint256"
         }
       ],
@@ -1209,21 +1209,7 @@
           "type": "uint256"
         }
       ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "processDepositRequests",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "processWithdrawRequests",
-      "outputs": [],
-      "stateMutability": "nonpayable",
+      "stateMutability": "pure",
       "type": "function"
     },
     {
@@ -1259,7 +1245,7 @@
       "inputs": [
         {
           "internalType": "uint256",
-          "name": "amount",
+          "name": "assets",
           "type": "uint256"
         }
       ],
@@ -1276,7 +1262,7 @@
           "type": "uint256"
         }
       ],
-      "name": "requestWithdraw",
+      "name": "requestRedeem",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
@@ -1437,6 +1423,19 @@
           "internalType": "address",
           "name": "",
           "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "vaultWhitelist",
+      "outputs": [
+        {
+          "internalType": "address[]",
+          "name": "",
+          "type": "address[]"
         }
       ],
       "stateMutability": "view",

@@ -413,13 +413,13 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
             // STEP 5: WITHDRAWAL EXCHANGE RATE (based on post-fee totalAssets)
             uint256 pendingWithdrawals = vault.convertToAssetsWithPITTotalAssets(
-                vault.getPendingWithdrawals(),
+                vault.pendingRedeem(),
                 totalAssets,
                 Math.Rounding.Floor
             );
 
             // STEP 6: DEPOSIT PROCESSING (add deposits, subtract withdrawals)
-            totalAssets += vault.getPendingDeposits() - pendingWithdrawals;
+            totalAssets += vault.pendingDeposit() - pendingWithdrawals;
 
             _currentEpoch.vaultsTotalAssets[address(vault)] = totalAssets;
         }
@@ -711,8 +711,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
     /// @inheritdoc IInternalStateOrchestrator
     function subtractPendingProtocolFees(uint256 amount) external onlyLiquidityOrchestrator {
-        if (amount > pendingProtocolFees)
-            revert ErrorsLib.InsufficientFunds(underlyingAsset, amount, pendingProtocolFees);
+        if (amount > pendingProtocolFees) revert ErrorsLib.InsufficientAmount();
         pendingProtocolFees -= amount;
     }
 }

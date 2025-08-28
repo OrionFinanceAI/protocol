@@ -46,16 +46,16 @@ contract OrionAssetERC4626ExecutionAdapter is IExecutionAdapter {
         liquidityOrchestrator = config.liquidityOrchestrator();
     }
 
-    /// @notice Executes a buy operation by depositing underlying assets to get vault shares
+    /// @notice Executes a buy operation by depositing underlying assets to mint vault shares
     /// @param vaultAsset The address of the vault to buy
     /// @param amount The amount of underlying assets to deposit
     /// @dev The adapter will pull the underlying assets from the caller
     ///      and push the resulting shares.
     function buy(address vaultAsset, uint256 amount) external override onlyLiquidityOrchestrator {
         try IERC4626(vaultAsset).asset() returns (address vaultUnderlyingAsset) {
-            if (vaultUnderlyingAsset != underlyingAsset) revert ErrorsLib.InvalidAsset();
+            if (vaultUnderlyingAsset != underlyingAsset) revert ErrorsLib.InvalidAddress();
         } catch {
-            revert ErrorsLib.InvalidAsset(); // Not a valid ERC4626 vault
+            revert ErrorsLib.InvalidAddress(); // Adapter not valid for this vault
         }
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(vaultAsset);
 
@@ -75,16 +75,16 @@ contract OrionAssetERC4626ExecutionAdapter is IExecutionAdapter {
         if (!success) revert ErrorsLib.TransferFailed();
     }
 
-    /// @notice Executes a sell operation by redeeming vault shares to get underlying assets
+    /// @notice Executes a sell operation by redeeming vault shares to withdraw underlying assets
     /// @param vaultAsset The address of the vault to sell
     /// @param amount The amount of vault shares to redeem
     /// @dev The adapter will pull the vault shares from the caller
     ///      and push the resulting underlying assets.
     function sell(address vaultAsset, uint256 amount) external override onlyLiquidityOrchestrator {
         try IERC4626(vaultAsset).asset() returns (address vaultUnderlyingAsset) {
-            if (vaultUnderlyingAsset != underlyingAsset) revert ErrorsLib.InvalidAsset();
+            if (vaultUnderlyingAsset != underlyingAsset) revert ErrorsLib.InvalidAddress();
         } catch {
-            revert ErrorsLib.InvalidAsset(); // Not a valid ERC4626 vault
+            revert ErrorsLib.InvalidAddress(); // Adapter not valid for this vault
         }
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(vaultAsset);
 
@@ -94,12 +94,12 @@ contract OrionAssetERC4626ExecutionAdapter is IExecutionAdapter {
         vault.safeTransferFrom(msg.sender, address(this), amount);
         // Approve vault to spend shares
         vault.forceApprove(vaultAsset, amount);
-        // Redeem shares to get underlying assets
+        // Redeem shares to withdraw underlying assets
         uint256 assets = IERC4626(vaultAsset).redeem(amount, address(this), address(this));
         // Clean up approval
         vault.forceApprove(vaultAsset, 0);
 
-        // Push the received underlying assets to the caller
+        // Push the withdrawn underlying assets to the caller
         bool success = underlyingAssetToken.transfer(msg.sender, assets);
         if (!success) revert ErrorsLib.TransferFailed();
     }

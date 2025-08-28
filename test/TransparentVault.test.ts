@@ -207,7 +207,7 @@ describe("TransparentVault - Curator Pipeline", function () {
 
       await expect(transparentVault.connect(owner).claimCuratorFees(claimAmount)).to.be.revertedWithCustomError(
         transparentVault,
-        "InsufficientFunds",
+        "InsufficientAmount",
       );
     });
 
