@@ -57,6 +57,16 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     /// @param amount The amount to subtract from pending protocol fees
     function subtractPendingProtocolFees(uint256 amount) external;
 
+    /// @notice Callback function to decrypt the encrypted values
+    /// @param requestID The request ID
+    /// @param decryptedValues The decrypted values
+    /// @param signatures The signatures
+    function callbackPreProcessDecrypt(
+        uint256 requestID,
+        uint256[] memory decryptedValues,
+        bytes[] memory signatures
+    ) external;
+
     /// @notice Get the selling orders
     /// @return tokens The tokens to sell
     /// @return amounts The amounts to sell in shares (converted from underlying assets)

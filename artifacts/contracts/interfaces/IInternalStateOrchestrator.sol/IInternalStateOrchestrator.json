@@ -6,6 +6,29 @@
     {
       "inputs": [
         {
+          "internalType": "uint256",
+          "name": "requestID",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256[]",
+          "name": "decryptedValues",
+          "type": "uint256[]"
+        },
+        {
+          "internalType": "bytes[]",
+          "name": "signatures",
+          "type": "bytes[]"
+        }
+      ],
+      "name": "callbackPreProcessDecrypt",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
           "internalType": "bytes",
           "name": "checkData",
           "type": "bytes"

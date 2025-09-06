@@ -272,10 +272,6 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     }
 
     /// @notice Performs state reading and estimation operations
-    /// @dev This function:
-    ///      - Reads current vault states and adapter prices;
-    ///      - Computes estimated system states;
-    ///      - Updates epoch state to trigger the Liquidity Orchestrator
     // solhint-disable-next-line code-complexity
     function performUpkeep(bytes calldata performData) external override onlyAutomationRegistry nonReentrant {
         if (performData.length < 4) revert ErrorsLib.InvalidArguments();
@@ -357,7 +353,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
         uint16 i0 = minibatchIndex * transparentMinibatchSize;
         uint16 i1 = i0 + transparentMinibatchSize;
-        if (i1 >= transparentVaultsEpoch.length) {
+        if (i1 > transparentVaultsEpoch.length || i1 == transparentVaultsEpoch.length) {
             i1 = uint16(transparentVaultsEpoch.length);
             currentPhase = InternalUpkeepPhase.PreprocessingEncryptedVaults;
             currentMinibatchIndex = 0;
@@ -442,7 +438,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
         uint16 i0 = minibatchIndex * encryptedMinibatchSize;
         uint16 i1 = i0 + encryptedMinibatchSize;
-        if (i1 >= encryptedVaultsEpoch.length) {
+        if (i1 > encryptedVaultsEpoch.length || i1 == encryptedVaultsEpoch.length) {
             i1 = uint16(encryptedVaultsEpoch.length);
         }
 
@@ -499,26 +495,51 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             _currentEpoch.encryptedVaultsTotalAssets[address(vault)] = totalAssets;
         }
 
-        if (i1 == encryptedVaultsEpoch.length) {
+        uint16 nVaults = uint16(encryptedVaultsEpoch.length);
+        if (i1 == nVaults) {
             if (i1 == 0) {
                 // No encryptedVaults in current Epoch, go directly to Buffering.
                 currentPhase = InternalUpkeepPhase.Buffering;
                 currentMinibatchIndex = 0;
             } else {
-                // TODO: implement decryption logic.
-                // FHE.allowThis(_currentEpoch.encryptedVaultsTotalAssets);
-                // FHE.allowThis(_currentEpoch.encryptedInitialBatchPortfolio);
-                // For decryptions of batched portfolio and total assets array,
-                // populate list of cyphertexts and then decrypt multiple values in one call:
-                // https://docs.zama.ai/protocol/examples/basic/decryption-in-solidity/
-                // TODO: integrate Zama callback in performUpkeep logic breakdown
-                // (the decryption callback, not the encrypted computation updates the phase in this case).
-                currentPhase = InternalUpkeepPhase.Buffering;
-                currentMinibatchIndex = 0;
+                uint16 mTokens = uint16(_currentEpoch.tokens.length);
+                bytes32[] memory cypherTexts = new bytes32[](nVaults + mTokens);
+                for (uint16 i = 0; i < nVaults; ++i) {
+                    address vault = encryptedVaultsEpoch[i];
+                    euint128 totalAssets = _currentEpoch.encryptedVaultsTotalAssets[vault];
+                    // slither-disable-next-line unused-return
+                    FHE.allowThis(totalAssets);
+                    cypherTexts[i] = FHE.toBytes32(totalAssets);
+                }
+                for (uint16 i = 0; i < mTokens; ++i) {
+                    address token = _currentEpoch.tokens[i];
+                    euint128 position = _currentEpoch.encryptedInitialBatchPortfolio[token];
+                    // slither-disable-next-line unused-return
+                    FHE.allowThis(position);
+                    cypherTexts[nVaults + i] = FHE.toBytes32(position);
+                }
+
+                // slither-disable-next-line unused-return
+                FHE.requestDecryption(cypherTexts, this.callbackPreProcessDecrypt.selector);
             }
         }
     }
     // slither-disable-end reentrancy-no-eth
+
+    /// @inheritdoc IInternalStateOrchestrator
+    function callbackPreProcessDecrypt(
+        uint256 requestID,
+        uint256[] calldata decryptedValues,
+        bytes[] calldata signatures
+    ) external {
+        FHE.checkSignatures(requestID, signatures);
+
+        // TODO batched states update logic.
+        // TODO: more states are needed, as step 2 to 6 will follow.
+
+        currentPhase = InternalUpkeepPhase.Buffering;
+        currentMinibatchIndex = 0;
+    }
 
     // TODO: implement second part (from Step 2 to step 6) of preprocess logic.
     // Avoid code duplication with transparent equivalent.
@@ -596,7 +617,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         uint16 i0 = minibatchIndex * transparentMinibatchSize;
         uint16 i1 = i0 + transparentMinibatchSize;
 
-        if (i1 >= transparentVaultsEpoch.length) {
+        if (i1 > transparentVaultsEpoch.length || i1 == transparentVaultsEpoch.length) {
             i1 = uint16(transparentVaultsEpoch.length);
             // Last minibatch, go to next phase.
             currentPhase = InternalUpkeepPhase.PostprocessingEncryptedVaults;
@@ -650,7 +671,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
         uint16 i0 = minibatchIndex * encryptedMinibatchSize;
         uint16 i1 = i0 + encryptedMinibatchSize;
-        if (i1 >= encryptedVaultsEpoch.length) {
+        if (i1 > encryptedVaultsEpoch.length || i1 == encryptedVaultsEpoch.length) {
             i1 = uint16(encryptedVaultsEpoch.length);
             // Last minibatch, go to next phase.
             // TODO: integrate Zama callback in performUpkeep logic breakdown
