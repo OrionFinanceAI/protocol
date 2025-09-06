@@ -503,7 +503,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     /**
      * @notice Updates the protocol buffer to maintain solvency and capital efficiency
      * @dev In general, this function implements a stochastic optimal control framework for buffer management
-     *      that balances critical objectives.
+     *      that balances critical objectives and acts as a clearing house for market impact.
      *
      *      1. **Solvency Constraint:** The buffer must remain non-negative at all times to ensure
      *         protocol solvency.

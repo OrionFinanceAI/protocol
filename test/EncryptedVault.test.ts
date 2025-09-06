@@ -533,6 +533,15 @@ describe("EncryptedVault - Curator Pipeline", function () {
       const [tokens, weights] = await encryptedVault.getIntent();
       void expect(tokens).to.deep.equal([await mockAsset1.getAddress(), await mockAsset2.getAddress()]);
       void expect(weights.length).to.equal(2); // Weights are encrypted, so we just check the length
+
+      // Use the built-in `awaitDecryptionOracle` helper to wait for the FHEVM decryption oracle
+      // to complete all pending Solidity decryption requests.
+      await fhevm.awaitDecryptionOracle();
+
+      // At this point, the Solidity callback should have been invoked by the FHEVM backend.
+      // We can now retrieve the decrypted (clear) value.
+      const isIntentValid = await encryptedVault.isIntentValid();
+      void expect(isIntentValid).to.be.true;
     });
   });
 
@@ -636,6 +645,53 @@ describe("EncryptedVault - Curator Pipeline", function () {
       // This should fail validation in the FHE callback due to zero weight
       await expect(encryptedVault.connect(curator).submitIntent(encryptedIntent, encryptedIntentCiphertexts.inputProof))
         .to.not.be.reverted; // Transaction succeeds, but intent validity will be false
+    });
+
+    it("Should properly cleanup previous intent when submitting new intent", async function () {
+      // Submit first intent with asset1 only (100%)
+      const firstIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), curator.address);
+      firstIntentBuffer.add32(1000000000); // 100% * 10^9
+      const firstIntentCiphertexts = await firstIntentBuffer.encrypt();
+
+      const firstIntent = [
+        {
+          token: await mockAsset1.getAddress(),
+          weight: firstIntentCiphertexts.handles[0],
+        },
+      ];
+
+      // Submit first intent
+      await expect(encryptedVault.connect(curator).submitIntent(firstIntent, firstIntentCiphertexts.inputProof)).to.not
+        .be.reverted;
+
+      // Verify first intent was stored
+      let [tokens, weights] = await encryptedVault.getIntent();
+      expect(tokens).to.deep.equal([await mockAsset1.getAddress()]);
+      expect(weights.length).to.equal(1);
+
+      // Submit second intent with asset2 only (100%) - different asset
+      const secondIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), curator.address);
+      secondIntentBuffer.add32(1000000000); // 100% * 10^9
+      const secondIntentCiphertexts = await secondIntentBuffer.encrypt();
+
+      const secondIntent = [
+        {
+          token: await mockAsset2.getAddress(),
+          weight: secondIntentCiphertexts.handles[0],
+        },
+      ];
+
+      // Submit second intent - this should cleanup the previous intent
+      await expect(encryptedVault.connect(curator).submitIntent(secondIntent, secondIntentCiphertexts.inputProof)).to
+        .not.be.reverted;
+
+      // Verify second intent replaced the first intent
+      [tokens, weights] = await encryptedVault.getIntent();
+      expect(tokens).to.deep.equal([await mockAsset2.getAddress()]);
+      expect(weights.length).to.equal(1);
+
+      // Verify that asset1 is no longer in the intent (cleanup worked)
+      expect(tokens).to.not.include(await mockAsset1.getAddress());
     });
   });
 });
