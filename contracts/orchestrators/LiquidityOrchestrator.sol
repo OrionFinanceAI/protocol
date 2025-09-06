@@ -285,6 +285,7 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
         // }
 
         // TODO: to updateVaultState of encrypted vaults, get the encrypted sharesPerAsset executed by the liquidity
+        // TODO: skip updating encrypted vaults states for which if (!vault.isIntentValid()), see other orchestrator.
 
         address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
         length = uint16(encryptedVaults.length);

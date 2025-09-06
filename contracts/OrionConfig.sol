@@ -111,7 +111,6 @@ contract OrionConfig is Ownable, IOrionConfig {
 
     /// @inheritdoc IOrionConfig
     function setPriceAdapterRegistry(address registry) external onlyOwner {
-        if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         if (registry == address(0)) revert ErrorsLib.ZeroAddress();
         if (priceAdapterRegistry != address(0)) revert ErrorsLib.AlreadyRegistered();
         priceAdapterRegistry = registry;

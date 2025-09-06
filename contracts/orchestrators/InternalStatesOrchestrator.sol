@@ -238,28 +238,30 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
     /// @notice Checks if upkeep is needed based on time interval
     /// @dev https://docs.chain.link/chainlink-automation/reference/automation-interfaces
+    /// @return upkeepNeeded True if upkeep is needed, false otherwise
+    /// @return performData Encoded data needed to perform the upkeep
     function checkUpkeep(bytes calldata) external view override returns (bool upkeepNeeded, bytes memory performData) {
         if (config.isSystemIdle() && _shouldTriggerUpkeep()) {
             upkeepNeeded = true;
-            performData = abi.encodePacked(ACTION_START);
+            performData = abi.encode(ACTION_START, uint8(0));
         } else if (currentPhase == InternalUpkeepPhase.PreprocessingTransparentVaults) {
             upkeepNeeded = true;
-            performData = abi.encodePacked(ACTION_PREPROCESS_T_VAULTS, currentMinibatchIndex);
+            performData = abi.encode(ACTION_PREPROCESS_T_VAULTS, currentMinibatchIndex);
         } else if (currentPhase == InternalUpkeepPhase.PreprocessingEncryptedVaults) {
             upkeepNeeded = true;
-            performData = abi.encodePacked(ACTION_PREPROCESS_E_VAULTS, currentMinibatchIndex);
+            performData = abi.encode(ACTION_PREPROCESS_E_VAULTS, currentMinibatchIndex);
         } else if (currentPhase == InternalUpkeepPhase.Buffering) {
             upkeepNeeded = true;
-            performData = abi.encodePacked(ACTION_BUFFER);
+            performData = abi.encode(ACTION_BUFFER, uint8(0));
         } else if (currentPhase == InternalUpkeepPhase.PostprocessingTransparentVaults) {
             upkeepNeeded = true;
-            performData = abi.encodePacked(ACTION_POSTPROCESS_T_VAULTS, currentMinibatchIndex);
+            performData = abi.encode(ACTION_POSTPROCESS_T_VAULTS, currentMinibatchIndex);
         } else if (currentPhase == InternalUpkeepPhase.PostprocessingEncryptedVaults) {
             upkeepNeeded = true;
-            performData = abi.encodePacked(ACTION_POSTPROCESS_E_VAULTS, currentMinibatchIndex);
+            performData = abi.encode(ACTION_POSTPROCESS_E_VAULTS, currentMinibatchIndex);
         } else if (currentPhase == InternalUpkeepPhase.BuildingOrders) {
             upkeepNeeded = true;
-            performData = abi.encodePacked(ACTION_BUILD_ORDERS);
+            performData = abi.encode(ACTION_BUILD_ORDERS, uint8(0));
         } else {
             upkeepNeeded = false;
             performData = "";
@@ -275,23 +277,19 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     function performUpkeep(bytes calldata performData) external override onlyAutomationRegistry nonReentrant {
         if (performData.length < 4) revert ErrorsLib.InvalidArguments();
 
-        bytes4 action = bytes4(performData[:4]);
+        (bytes4 action, uint8 minibatchIndex) = abi.decode(performData, (bytes4, uint8));
 
         if (action == ACTION_START) {
             _handleStart();
         } else if (action == ACTION_PREPROCESS_T_VAULTS) {
-            uint8 minibatchIndex = abi.decode(performData[4:], (uint8));
             _preprocessTransparentMinibatch(minibatchIndex);
         } else if (action == ACTION_PREPROCESS_E_VAULTS) {
-            uint8 minibatchIndex = abi.decode(performData[4:], (uint8));
             _preprocessEncryptedMinibatch(minibatchIndex);
         } else if (action == ACTION_BUFFER) {
             _buffer();
         } else if (action == ACTION_POSTPROCESS_T_VAULTS) {
-            uint8 minibatchIndex = abi.decode(performData[4:], (uint8));
             _postprocessTransparentMinibatch(minibatchIndex);
         } else if (action == ACTION_POSTPROCESS_E_VAULTS) {
-            uint8 minibatchIndex = abi.decode(performData[4:], (uint8));
             _postprocessEncryptedMinibatch(minibatchIndex);
         } else if (action == ACTION_BUILD_ORDERS) {
             _buildOrders();
@@ -344,7 +342,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
     /// @notice Preprocesses minibatch of transparent vaults
     /// @param minibatchIndex The index of the minibatch to process
-    function _preprocessTransparentMinibatch(uint8 minibatchIndex) internal nonReentrant {
+    function _preprocessTransparentMinibatch(uint8 minibatchIndex) internal {
         // Validate current phase
         if (currentPhase != InternalUpkeepPhase.PreprocessingTransparentVaults) {
             revert ErrorsLib.InvalidState();
@@ -353,7 +351,8 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
         uint16 i0 = minibatchIndex * transparentMinibatchSize;
         uint16 i1 = i0 + transparentMinibatchSize;
-        if (i1 > transparentVaultsEpoch.length) {
+
+        if (i1 >= transparentVaultsEpoch.length) {
             i1 = uint16(transparentVaultsEpoch.length);
             // Last minibatch, go to next phase.
             currentPhase = InternalUpkeepPhase.PreprocessingEncryptedVaults;
@@ -430,7 +429,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     // solhint-disable-next-line code-complexity
     /// @notice Preprocesses minibatch of encrypted vaults
     /// @param minibatchIndex The index of the minibatch to process
-    function _preprocessEncryptedMinibatch(uint8 minibatchIndex) internal nonReentrant {
+    function _preprocessEncryptedMinibatch(uint8 minibatchIndex) internal {
         // Validate current phase
         if (currentPhase != InternalUpkeepPhase.PreprocessingEncryptedVaults) {
             revert ErrorsLib.InvalidState();
@@ -439,7 +438,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
         uint16 i0 = minibatchIndex * encryptedMinibatchSize;
         uint16 i1 = i0 + encryptedMinibatchSize;
-        if (i1 > encryptedVaultsEpoch.length) {
+        if (i1 >= encryptedVaultsEpoch.length) {
             i1 = uint16(encryptedVaultsEpoch.length);
             // Last minibatch, go to next phase.
             // TODO: integrate Zama callback in performUpkeep logic breakdown
@@ -571,7 +570,8 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
         uint16 i0 = minibatchIndex * transparentMinibatchSize;
         uint16 i1 = i0 + transparentMinibatchSize;
-        if (i1 > transparentVaultsEpoch.length) {
+
+        if (i1 >= transparentVaultsEpoch.length) {
             i1 = uint16(transparentVaultsEpoch.length);
             // Last minibatch, go to next phase.
             currentPhase = InternalUpkeepPhase.PostprocessingEncryptedVaults;
@@ -591,6 +591,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                 // Get and cache token decimals and prices if not already cached
                 if (!_currentEpoch.tokenExists[token]) {
                     _currentEpoch.tokenDecimals[token] = IERC20Metadata(token).decimals();
+
                     if (token == underlyingAsset) {
                         _currentEpoch.priceArray[token] = 10 ** underlyingDecimals;
                     } else {
@@ -624,7 +625,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
         uint16 i0 = minibatchIndex * encryptedMinibatchSize;
         uint16 i1 = i0 + encryptedMinibatchSize;
-        if (i1 > encryptedVaultsEpoch.length) {
+        if (i1 >= encryptedVaultsEpoch.length) {
             i1 = uint16(encryptedVaultsEpoch.length);
             // Last minibatch, go to next phase.
             // TODO: integrate Zama callback in performUpkeep logic breakdown

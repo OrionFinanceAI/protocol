@@ -151,6 +151,7 @@ describe("OrionVault - Base Functionality", function () {
     it("Should revert deposit function with SynchronousCallDisabled error", async function () {
       const depositAmount = ethers.parseUnits("100", 6);
 
+      await expect(vault.previewDeposit(depositAmount)).to.be.revertedWithCustomError(vault, "SynchronousCallDisabled");
       await expect(vault.deposit(depositAmount, user.address)).to.be.revertedWithCustomError(
         vault,
         "SynchronousCallDisabled",
@@ -160,6 +161,7 @@ describe("OrionVault - Base Functionality", function () {
     it("Should revert mint function with SynchronousCallDisabled error", async function () {
       const mintAmount = ethers.parseUnits("100", 18);
 
+      await expect(vault.previewMint(mintAmount)).to.be.revertedWithCustomError(vault, "SynchronousCallDisabled");
       await expect(vault.mint(mintAmount, user.address)).to.be.revertedWithCustomError(
         vault,
         "SynchronousCallDisabled",
@@ -169,6 +171,10 @@ describe("OrionVault - Base Functionality", function () {
     it("Should revert withdraw function with SynchronousCallDisabled error", async function () {
       const withdrawAmount = ethers.parseUnits("100", 6);
 
+      await expect(vault.previewWithdraw(withdrawAmount)).to.be.revertedWithCustomError(
+        vault,
+        "SynchronousCallDisabled",
+      );
       await expect(vault.withdraw(withdrawAmount, user.address, user.address)).to.be.revertedWithCustomError(
         vault,
         "SynchronousCallDisabled",
@@ -178,6 +184,7 @@ describe("OrionVault - Base Functionality", function () {
     it("Should revert redeem function with SynchronousCallDisabled error", async function () {
       const redeemAmount = ethers.parseUnits("100", 18);
 
+      await expect(vault.previewRedeem(redeemAmount)).to.be.revertedWithCustomError(vault, "SynchronousCallDisabled");
       await expect(vault.redeem(redeemAmount, user.address, user.address)).to.be.revertedWithCustomError(
         vault,
         "SynchronousCallDisabled",
