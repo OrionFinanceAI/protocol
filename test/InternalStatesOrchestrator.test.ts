@@ -15,6 +15,7 @@ import {
   EncryptedVaultFactory,
   OrionTransparentVault,
   PriceAdapterRegistry,
+  OrionAssetERC4626PriceAdapter,
 } from "../typechain-types";
 
 describe("InternalStatesOrchestrator", function () {
@@ -24,10 +25,13 @@ describe("InternalStatesOrchestrator", function () {
   let underlyingAsset: MockUnderlyingAsset;
   let mockAsset1: MockERC4626Asset;
   let mockAsset2: MockERC4626Asset;
+  let mockAsset3: MockERC4626Asset;
   let mockPriceAdapter1: MockPriceAdapter;
-  let mockPriceAdapter2: MockPriceAdapter;
+  let orionPriceAdapter1: OrionAssetERC4626PriceAdapter;
+  let orionPriceAdapter2: OrionAssetERC4626PriceAdapter;
   let mockExecutionAdapter1: MockExecutionAdapter;
   let mockExecutionAdapter2: MockExecutionAdapter;
+  let mockExecutionAdapter3: MockExecutionAdapter;
   let priceAdapterRegistry: PriceAdapterRegistry;
   let internalStatesOrchestrator: InternalStatesOrchestrator;
   let liquidityOrchestrator: LiquidityOrchestrator;
@@ -67,6 +71,15 @@ describe("InternalStatesOrchestrator", function () {
     await mockAsset2Deployed.waitForDeployment();
     mockAsset2 = mockAsset2Deployed as unknown as MockERC4626Asset;
 
+    const mockAsset3Deployed = await MockERC4626AssetFactory.deploy(
+      await underlyingAsset.getAddress(),
+      "Mock Asset 3",
+      "MA3",
+      18,
+    );
+    await mockAsset3Deployed.waitForDeployment();
+    mockAsset3 = mockAsset3Deployed as unknown as MockERC4626Asset;
+
     // Deploy OrionConfig
     const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
     const orionConfigDeployed = await OrionConfigFactory.deploy(owner.address, await underlyingAsset.getAddress());
@@ -87,8 +100,17 @@ describe("InternalStatesOrchestrator", function () {
     mockPriceAdapter1 = (await MockPriceAdapterFactory.deploy()) as unknown as MockPriceAdapter;
     await mockPriceAdapter1.waitForDeployment();
 
-    mockPriceAdapter2 = (await MockPriceAdapterFactory.deploy()) as unknown as MockPriceAdapter;
-    await mockPriceAdapter2.waitForDeployment();
+    // Deploy OrionAssetERC4626PriceAdapter instances
+    const OrionAssetERC4626PriceAdapterFactory = await ethers.getContractFactory("OrionAssetERC4626PriceAdapter");
+    orionPriceAdapter1 = (await OrionAssetERC4626PriceAdapterFactory.deploy(
+      await orionConfig.getAddress(),
+    )) as unknown as OrionAssetERC4626PriceAdapter;
+    await orionPriceAdapter1.waitForDeployment();
+
+    orionPriceAdapter2 = (await OrionAssetERC4626PriceAdapterFactory.deploy(
+      await orionConfig.getAddress(),
+    )) as unknown as OrionAssetERC4626PriceAdapter;
+    await orionPriceAdapter2.waitForDeployment();
 
     // Deploy Mock Execution Adapters
     const MockExecutionAdapterFactory = await ethers.getContractFactory("MockExecutionAdapter");
@@ -97,6 +119,9 @@ describe("InternalStatesOrchestrator", function () {
 
     mockExecutionAdapter2 = (await MockExecutionAdapterFactory.deploy()) as unknown as MockExecutionAdapter;
     await mockExecutionAdapter2.waitForDeployment();
+
+    mockExecutionAdapter3 = (await MockExecutionAdapterFactory.deploy()) as unknown as MockExecutionAdapter;
+    await mockExecutionAdapter3.waitForDeployment();
 
     // Deploy TransparentVaultFactory
     const TransparentVaultFactoryFactory = await ethers.getContractFactory("TransparentVaultFactory");
@@ -147,16 +172,24 @@ describe("InternalStatesOrchestrator", function () {
     // Set slippage bound to initialize targetBufferRatio
     await liquidityOrchestrator.setSlippageBound(100); // 1% slippage bound
 
-    // Add assets to whitelist
+    // Add assets to whitelist - creating a mixed investment universe
+    // Asset 1: Mock asset with MockPriceAdapter
     await orionConfig.addWhitelistedAsset(
       await mockAsset1.getAddress(),
       await mockPriceAdapter1.getAddress(),
       await mockExecutionAdapter1.getAddress(),
     );
+    // Asset 2: Mock asset with OrionAssetERC4626PriceAdapter
     await orionConfig.addWhitelistedAsset(
       await mockAsset2.getAddress(),
-      await mockPriceAdapter2.getAddress(),
+      await orionPriceAdapter1.getAddress(),
       await mockExecutionAdapter2.getAddress(),
+    );
+    // Asset 3: Mock asset with OrionAssetERC4626PriceAdapter
+    await orionConfig.addWhitelistedAsset(
+      await mockAsset3.getAddress(),
+      await orionPriceAdapter2.getAddress(),
+      await mockExecutionAdapter3.getAddress(),
     );
 
     const tx = await transparentVaultFactory.connect(owner).createVault(curator.address, "Test Vault", "TV", 0, 0, 0);
@@ -184,15 +217,19 @@ describe("InternalStatesOrchestrator", function () {
       vaultAddress,
     )) as unknown as OrionTransparentVault;
 
-    // Submit a plaintext intent to the vault
+    // Submit a plaintext intent to the vault with mixed price adapters
     const intent = [
       {
         token: await mockAsset1.getAddress(),
-        value: 600000000, // 60% (60% of 1e9)
+        value: 400000000, // 40% (40% of 1e9)
       },
       {
         token: await mockAsset2.getAddress(),
-        value: 400000000, // 40% (40% of 1e9)
+        value: 350000000, // 35% (35% of 1e9)
+      },
+      {
+        token: await mockAsset3.getAddress(),
+        value: 250000000, // 25% (25% of 1e9)
       },
     ];
     await transparentVault.connect(curator).submitIntent(intent);
@@ -246,9 +283,9 @@ describe("InternalStatesOrchestrator", function () {
       const [sellingTokens] = await internalStatesOrchestrator.getSellingOrders();
       const [buyingTokens, _buyingAmounts] = await internalStatesOrchestrator.getBuyingOrders();
 
-      // Should have both assets in the orders arrays
-      expect(sellingTokens.length).to.equal(2); // Both assets
-      expect(buyingTokens.length).to.equal(2); // Both assets
+      // Should have all three assets in the orders arrays
+      expect(sellingTokens.length).to.equal(3); // All three assets
+      expect(buyingTokens.length).to.equal(3); // All three assets
     });
 
     it("should not trigger upkeep when system is idle and time hasn't passed", async function () {
