@@ -41,9 +41,9 @@ contract OrionAssetERC4626PriceAdapter is IPriceAdapter {
     /// @return decimals The number of decimals for the returned price (underlying asset decimals)
     function getPriceData(address vaultAsset) external view returns (uint256 price, uint8 decimals) {
         try IERC4626(vaultAsset).asset() returns (address vaultUnderlyingAsset) {
-            if (vaultUnderlyingAsset != underlyingAsset) revert ErrorsLib.InvalidAsset();
+            if (vaultUnderlyingAsset != underlyingAsset) revert ErrorsLib.InvalidAddress();
         } catch {
-            revert ErrorsLib.InvalidAsset(); // Not a valid ERC4626 vault
+            revert ErrorsLib.InvalidAddress(); // Adapter not valid for this vault
         }
 
         uint8 vaultAssetDecimals = IERC20Metadata(vaultAsset).decimals();

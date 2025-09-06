@@ -193,7 +193,7 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
     // TODO: function called by the vault function, that is in turned called by the liquidity orchestrator.
     // Implement a cleaner pattern in which there is no re-entrancy.
     /// @inheritdoc ILiquidityOrchestrator
-    function transferWithdrawalFunds(address user, uint256 amount) external {
+    function transferRedemptionFunds(address user, uint256 amount) external {
         // Verify the caller is a registered vault
         if (!config.isOrionVault(msg.sender)) revert ErrorsLib.NotAuthorized();
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
@@ -285,6 +285,7 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
         // }
 
         // TODO: to updateVaultState of encrypted vaults, get the encrypted sharesPerAsset executed by the liquidity
+        // TODO: skip updating encrypted vaults states for which if (!vault.isIntentValid()), see other orchestrator.
 
         address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
         length = uint16(encryptedVaults.length);
@@ -294,9 +295,9 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
         //     vault.updateVaultState(?, ?);
         // }
 
-        // TODO: DepositRequest and WithdrawRequest in Vaults to be processed post update
+        // TODO: DepositRequest and RedeemRequest in Vaults to be processed post update
         // (internal logic depends on vaults actual total assets and total supply
-        // (inside the previewDeposit, _mint, _burn and previewRedeem), and removed from
+        // (inside the _convertToShares, _mint, _burn and _convertToAssets calls), and removed from
         // vault state as pending requests. Opportunity to net actual transactions (not just intents),
         // performing minting and burning operation at the same time.
 
