@@ -648,7 +648,7 @@
           "type": "address[]"
         },
         {
-          "internalType": "euint32[]",
+          "internalType": "euint128[]",
           "name": "weights",
           "type": "bytes32[]"
         }
@@ -666,7 +666,7 @@
           "type": "address[]"
         },
         {
-          "internalType": "euint32[]",
+          "internalType": "euint128[]",
           "name": "sharesPerAsset",
           "type": "bytes32[]"
         }
@@ -980,7 +980,7 @@
               "type": "address"
             },
             {
-              "internalType": "externalEuint32",
+              "internalType": "externalEuint128",
               "name": "weight",
               "type": "bytes32"
             }
@@ -1145,7 +1145,7 @@
               "type": "address"
             },
             {
-              "internalType": "euint32",
+              "internalType": "euint128",
               "name": "value",
               "type": "bytes32"
             }

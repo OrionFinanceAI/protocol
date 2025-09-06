@@ -229,6 +229,7 @@ describe("InternalStatesOrchestrator", function () {
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // PostprocessingTransparentVaults
 
       [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(5); // PostprocessingEncryptedVaults
 

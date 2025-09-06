@@ -261,8 +261,8 @@ describe("EncryptedVault - Curator Pipeline", function () {
       const encryptedIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), curator.address);
 
       // Add encrypted weights (60% and 40% in curator intent decimals)
-      encryptedIntentBuffer.add32(600000000); // 60% * 10^9
-      encryptedIntentBuffer.add32(400000000); // 40% * 10^9
+      encryptedIntentBuffer.add128(600000000); // 60% * 10^9
+      encryptedIntentBuffer.add128(400000000); // 40% * 10^9
 
       const encryptedIntentCiphertexts = await encryptedIntentBuffer.encrypt();
 
@@ -296,8 +296,8 @@ describe("EncryptedVault - Curator Pipeline", function () {
       const encryptedIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), curator.address);
 
       // Add encrypted weights (60% and 30% - total = 90%)
-      encryptedIntentBuffer.add32(600000000); // 60% * 10^9
-      encryptedIntentBuffer.add32(300000000); // 30% * 10^9
+      encryptedIntentBuffer.add128(600000000); // 60% * 10^9
+      encryptedIntentBuffer.add128(300000000); // 30% * 10^9
 
       const encryptedIntentCiphertexts = await encryptedIntentBuffer.encrypt();
 
@@ -333,7 +333,7 @@ describe("EncryptedVault - Curator Pipeline", function () {
 
       const encryptedIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), curator.address);
 
-      encryptedIntentBuffer.add32(1000000000); // 100% * 10^9
+      encryptedIntentBuffer.add128(1000000000); // 100% * 10^9
 
       const encryptedIntentCiphertexts = await encryptedIntentBuffer.encrypt();
 
@@ -358,7 +358,7 @@ describe("EncryptedVault - Curator Pipeline", function () {
         other.address, // Using other address instead of curator
       );
 
-      encryptedIntentBuffer.add32(1000000000); // 100% * 10^9
+      encryptedIntentBuffer.add128(1000000000); // 100% * 10^9
 
       const encryptedIntentCiphertexts = await encryptedIntentBuffer.encrypt();
 
@@ -396,8 +396,8 @@ describe("EncryptedVault - Curator Pipeline", function () {
       const encryptedIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), curator.address);
 
       // Add encrypted weights
-      encryptedIntentBuffer.add32(500000000); // 50% * 10^9
-      encryptedIntentBuffer.add32(500000000); // 50% * 10^9
+      encryptedIntentBuffer.add128(500000000); // 50% * 10^9
+      encryptedIntentBuffer.add128(500000000); // 50% * 10^9
 
       const encryptedIntentCiphertexts = await encryptedIntentBuffer.encrypt();
 
@@ -511,8 +511,8 @@ describe("EncryptedVault - Curator Pipeline", function () {
       const encryptedIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), curator.address);
 
       // Add encrypted weights (70% and 30%)
-      encryptedIntentBuffer.add32(700000000); // 70% * 10^9
-      encryptedIntentBuffer.add32(300000000); // 30% * 10^9
+      encryptedIntentBuffer.add128(700000000); // 70% * 10^9
+      encryptedIntentBuffer.add128(300000000); // 30% * 10^9
 
       const encryptedIntentCiphertexts = await encryptedIntentBuffer.encrypt();
 
@@ -575,7 +575,7 @@ describe("EncryptedVault - Curator Pipeline", function () {
     it("Should handle single asset encrypted intent", async function () {
       const encryptedIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), curator.address);
 
-      encryptedIntentBuffer.add32(1000000000); // 100% * 10^9
+      encryptedIntentBuffer.add128(1000000000); // 100% * 10^9
 
       const encryptedIntentCiphertexts = await encryptedIntentBuffer.encrypt();
 
@@ -598,8 +598,8 @@ describe("EncryptedVault - Curator Pipeline", function () {
       const encryptedIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), curator.address);
 
       // Add equal weights (50% each)
-      encryptedIntentBuffer.add32(500000000); // 50% * 10^9
-      encryptedIntentBuffer.add32(500000000); // 50% * 10^9
+      encryptedIntentBuffer.add128(500000000); // 50% * 10^9
+      encryptedIntentBuffer.add128(500000000); // 50% * 10^9
 
       const encryptedIntentCiphertexts = await encryptedIntentBuffer.encrypt();
 
@@ -626,8 +626,8 @@ describe("EncryptedVault - Curator Pipeline", function () {
       const encryptedIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), curator.address);
 
       // Add weights including zero
-      encryptedIntentBuffer.add32(1000000000); // 100% * 10^9
-      encryptedIntentBuffer.add32(0); // 0%
+      encryptedIntentBuffer.add128(1000000000); // 100% * 10^9
+      encryptedIntentBuffer.add128(0); // 0%
 
       const encryptedIntentCiphertexts = await encryptedIntentBuffer.encrypt();
 
@@ -650,7 +650,7 @@ describe("EncryptedVault - Curator Pipeline", function () {
     it("Should properly cleanup previous intent when submitting new intent", async function () {
       // Submit first intent with asset1 only (100%)
       const firstIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), curator.address);
-      firstIntentBuffer.add32(1000000000); // 100% * 10^9
+      firstIntentBuffer.add128(1000000000); // 100% * 10^9
       const firstIntentCiphertexts = await firstIntentBuffer.encrypt();
 
       const firstIntent = [
@@ -671,7 +671,7 @@ describe("EncryptedVault - Curator Pipeline", function () {
 
       // Submit second intent with asset2 only (100%) - different asset
       const secondIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), curator.address);
-      secondIntentBuffer.add32(1000000000); // 100% * 10^9
+      secondIntentBuffer.add128(1000000000); // 100% * 10^9
       const secondIntentCiphertexts = await secondIntentBuffer.encrypt();
 
       const secondIntent = [

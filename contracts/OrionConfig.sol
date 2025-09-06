@@ -74,7 +74,7 @@ contract OrionConfig is Ownable, IOrionConfig {
         underlyingAsset = IERC20(underlyingAsset_);
 
         curatorIntentDecimals = 9; // 9 for uint32
-        priceAdapterDecimals = 18; // 18 for uint256
+        priceAdapterDecimals = 14; // 14 for uint128
 
         // slither-disable-next-line unused-return
         whitelistedAssets.add(underlyingAsset_);

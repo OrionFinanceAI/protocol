@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import { euint32, externalEuint32 } from "@fhevm/solidity/lib/FHE.sol";
+import { euint128, externalEuint128 } from "@fhevm/solidity/lib/FHE.sol";
 
 import "./IOrionVault.sol";
 
@@ -11,12 +11,12 @@ import "./IOrionVault.sol";
 interface IOrionEncryptedVault is IOrionVault {
     struct EncryptedIntent {
         address token;
-        externalEuint32 weight;
+        externalEuint128 weight;
     }
 
     struct EncryptedPortfolio {
         address token;
-        euint32 value;
+        euint128 value;
     }
 
     /// @notice Submit an encrypted portfolio intent.
@@ -29,12 +29,12 @@ interface IOrionEncryptedVault is IOrionVault {
     /// @notice Returns the current encrypted portfolio (w_0)
     /// @return tokens The tokens in the portfolio.
     /// @return sharesPerAsset The shares per asset in the portfolio.
-    function getPortfolio() external view returns (address[] memory tokens, euint32[] memory sharesPerAsset);
+    function getPortfolio() external view returns (address[] memory tokens, euint128[] memory sharesPerAsset);
 
     /// @notice Get the encrypted intent.
     /// @return tokens The tokens in the intent.
     /// @return weights The weights in the intent.
-    function getIntent() external view returns (address[] memory tokens, euint32[] memory weights);
+    function getIntent() external view returns (address[] memory tokens, euint128[] memory weights);
 
     /// @notice Get the intent validity.
     /// @return isIntentValid Whether the intent is valid.
