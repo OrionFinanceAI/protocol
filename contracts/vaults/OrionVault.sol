@@ -11,57 +11,30 @@ import "../interfaces/IOrionVault.sol";
 import "../interfaces/IInternalStateOrchestrator.sol";
 import "../interfaces/ILiquidityOrchestrator.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
-import { EventsLib } from "../libraries/EventsLib.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
  * @title OrionVault
- * @notice A modular asset management vault powered by curator intents, with asynchronous deposits and withdrawals
+ * @notice Modular asset management vault with asynchronous deposits and redemptions
  * @author Orion Finance
  * @dev
- * OrionVault is an abstract base contract that provides common functionality for transparent and encrypted vaults.
- * It implements the asynchronous pattern for deposits and withdrawals based on the EIP-7540 standard:
- * https://eips.ethereum.org/EIPS/eip-7540.
- * The vault interprets curator-submitted intents as portfolio allocation targets, expressed as percentages
- * of the total value locked (TVL). These intents define how assets should be allocated or rebalanced over time.
+ * Abstract base contract providing common functionality for transparent and encrypted vaults.
+ * Implements an asynchronous deposit and redemption pattern inspired by ERC-7540 with custom enhancements:
+ * - https://eips.ethereum.org/EIPS/eip-4626
+ * - https://eips.ethereum.org/EIPS/eip-7540
+ * - https://eips.ethereum.org/EIPS/eip-7887
  *
- * Key features:
- * - Asynchronous deposits and withdrawals via request queues
- * - Share price and total assets tracking
- * - Access control for curator and orchestrator roles
- * - ERC4626 vault standard compliance
- * - Reentrancy protection
+ * Curator-submitted intents define portfolio allocation targets as percentages of total assets.
+ * Derived contracts handle intent submission and interpretation:
+ * - OrionTransparentVault: plaintext intents
+ * - OrionEncryptedVault: encrypted, privacy-preserving intents
  *
- * Derived contracts implement the specific intent submission and interpretation logic, either in plaintext
- * (OrionTransparentVault) or encrypted form (OrionEncryptedVault) for privacy-preserving vaults.
- *
- * The vault maintains the following key states that the orchestrators must track and manage:
- *
- * 1. Total Assets (t_0) [assets] - The total value of assets under management in the vault
- *    - Stored in: _totalAssets
- *    - Units: Asset tokens (e.g., USDC, ETH)
- *
- * 2. Deposit Requests (DR_a) [assets] - Pending deposit requests from liquidity providers
- *    - Stored in: _depositRequests mapping
- *    - Units: Asset tokens (e.g., USDC, ETH)
- *    - @dev These are denominated in underlying asset units, not shares
- *
- * 3. Withdraw Requests (WR_s) [shares] - Pending withdrawal requests from liquidity providers
- *    - Stored in: _withdrawRequests mapping
- *    - Units: Vault share tokens
- *    - @dev These are denominated in vault share units, not underlying assets
- *
- * 4. Portfolio Weights (w_0) [shares] - Current portfolio expressed as the number of shares per asset.
- *    - Units: Number of shares
- *    - Using shares instead of percentages allows the estimated TVL to be derived by multiplying with estimated prices.
- *      This reduces reliance on on-chain price adapters and allows the adapter contract to remain stateless.
- *
- * 5. Curator Intent (w_1) [%] - Target portfolio expressed in percentage of total assets.
- *    - Units: Percentage points
- *    - This value must be specified in percentage of total supply because
- *      the curator does not know the point-in-time amount of assets in the vault at the time of intent submission.
- *      While the curator can estimate this value reading the vault's state and adapter prices,
- *      the actual value at time of execution may differ.
+ * Key vault states:
+ * 1. Total Assets (_totalAssets) [assets] – total assets under management
+ * 2. Deposit Requests (_depositRequests) [assets] – pending deposits, denominated in underlying tokens
+ * 3. Redemption Requests (_redeemRequests) [shares] – pending redemptions, denominated in vault shares
+ * 4. Portfolio Weights (w_0) [shares] – current allocation in share units for stateless TVL estimation
+ * 5. Curator Intent (w_1) [%] – target allocation in percentage of total supply
  */
 abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     using Math for uint256;
@@ -89,17 +62,17 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     /// @notice Total assets under management (t_0) - denominated in underlying asset units
     uint256 internal _totalAssets;
 
-    /// @notice Deposit requests queue (D) - mapping of user address to requested [asset] amount
+    /// @notice Deposit requests queue (D) - mapping of user address to requested [assets] amount
     EnumerableMap.AddressToUintMap private _depositRequests;
 
-    /// @notice Withdraw requests queue (W) - mapping of user address to requested [share] amount
-    EnumerableMap.AddressToUintMap private _withdrawRequests;
+    /// @notice Redemption requests queue (R) - mapping of user address to requested [shares] amount
+    EnumerableMap.AddressToUintMap private _redeemRequests;
 
-    /// @notice Cached total pending deposits [assets] - updated incrementally for gas efficiency
-    uint256 private _totalPendingDeposits;
+    /// @notice Cached pending deposit amount [assets] - updated incrementally for gas efficiency
+    uint256 private _pendingDeposit;
 
-    /// @notice Cached total pending withdrawals [shares] - updated incrementally for gas efficiency
-    uint256 private _totalPendingWithdrawals;
+    /// @notice Cached pending redemption amount [shares] - updated incrementally for gas efficiency
+    uint256 private _pendingRedeem;
 
     /// @notice Pending curator fees [assets]
     uint256 public pendingCuratorFees;
@@ -193,8 +166,8 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         curatorIntentDecimals = config_.curatorIntentDecimals();
 
         _totalAssets = 0;
-        _totalPendingDeposits = 0;
-        _totalPendingWithdrawals = 0;
+        _pendingDeposit = 0;
+        _pendingRedeem = 0;
 
         uint8 underlyingDecimals = IERC20Metadata(address(config_.underlyingAsset())).decimals();
         if (underlyingDecimals > SHARE_DECIMALS) revert ErrorsLib.InvalidUnderlyingDecimals();
@@ -224,23 +197,39 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     }
 
     /// @inheritdoc IERC4626
+    function previewDeposit(uint256) public pure override(ERC4626, IERC4626) returns (uint256) {
+        revert SynchronousCallDisabled();
+    }
+    /// @inheritdoc IERC4626
     function deposit(uint256, address) public pure override(ERC4626, IERC4626) returns (uint256) {
-        revert ErrorsLib.SynchronousCallDisabled();
+        revert SynchronousCallDisabled();
     }
 
+    /// @inheritdoc IERC4626
+    function previewMint(uint256) public pure override(ERC4626, IERC4626) returns (uint256) {
+        revert SynchronousCallDisabled();
+    }
     /// @inheritdoc IERC4626
     function mint(uint256, address) public pure override(ERC4626, IERC4626) returns (uint256) {
-        revert ErrorsLib.SynchronousCallDisabled();
+        revert SynchronousCallDisabled();
     }
 
     /// @inheritdoc IERC4626
-    function withdraw(uint256, address, address) public pure override(ERC4626, IERC4626) returns (uint256) {
-        revert ErrorsLib.SynchronousCallDisabled();
+    function previewRedeem(uint256) public pure override(ERC4626, IERC4626) returns (uint256) {
+        revert SynchronousCallDisabled();
     }
-
     /// @inheritdoc IERC4626
     function redeem(uint256, address, address) public pure override(ERC4626, IERC4626) returns (uint256) {
-        revert ErrorsLib.SynchronousCallDisabled();
+        revert SynchronousCallDisabled();
+    }
+
+    /// @inheritdoc IERC4626
+    function previewWithdraw(uint256) public pure override(ERC4626, IERC4626) returns (uint256) {
+        revert SynchronousCallDisabled();
+    }
+    /// @inheritdoc IERC4626
+    function withdraw(uint256, address, address) public pure override(ERC4626, IERC4626) returns (uint256) {
+        revert SynchronousCallDisabled();
     }
 
     /// @inheritdoc IERC4626
@@ -278,23 +267,23 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     /// --------- LP FUNCTIONS ---------
 
     /// @inheritdoc IOrionVault
-    function requestDeposit(uint256 amount) external nonReentrant {
+    function requestDeposit(uint256 assets) external nonReentrant {
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
-        if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
+        if (assets == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
 
         uint256 senderBalance = IERC20(asset()).balanceOf(msg.sender);
-        if (amount > senderBalance) revert ErrorsLib.InsufficientFunds(msg.sender, senderBalance, amount);
+        if (assets > senderBalance) revert ErrorsLib.InsufficientAmount();
 
-        bool success = IERC20(asset()).transferFrom(msg.sender, address(liquidityOrchestrator), amount);
+        bool success = IERC20(asset()).transferFrom(msg.sender, address(liquidityOrchestrator), assets);
         if (!success) revert ErrorsLib.TransferFailed();
 
         // slither-disable-next-line unused-return
         (, uint256 currentAmount) = _depositRequests.tryGet(msg.sender);
         // slither-disable-next-line unused-return
-        _depositRequests.set(msg.sender, currentAmount + amount);
-        _totalPendingDeposits += amount;
+        _depositRequests.set(msg.sender, currentAmount + assets);
+        _pendingDeposit += assets;
 
-        emit EventsLib.DepositRequested(msg.sender, amount);
+        emit DepositRequest(msg.sender, assets);
     }
 
     /// @inheritdoc IOrionVault
@@ -304,7 +293,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
         // slither-disable-next-line unused-return
         (, uint256 currentAmount) = _depositRequests.tryGet(msg.sender);
-        if (currentAmount < amount) revert ErrorsLib.NotEnoughDepositRequest();
+        if (currentAmount < amount) revert ErrorsLib.InsufficientAmount();
 
         // Interactions - request funds from liquidity orchestrator
         liquidityOrchestrator.returnDepositFunds(msg.sender, amount);
@@ -318,56 +307,56 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
             // slither-disable-next-line unused-return
             _depositRequests.set(msg.sender, newAmount);
         }
-        _totalPendingDeposits -= amount;
+        _pendingDeposit -= amount;
 
-        emit EventsLib.DepositRequestCancelled(msg.sender, amount);
+        emit DepositRequestCancelled(msg.sender, amount);
     }
 
     /// @inheritdoc IOrionVault
-    function requestWithdraw(uint256 shares) external {
+    function requestRedeem(uint256 shares) external {
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         if (shares == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(address(this));
 
         uint256 senderBalance = balanceOf(msg.sender);
-        if (shares > senderBalance) revert ErrorsLib.InsufficientFunds(msg.sender, senderBalance, shares);
+        if (shares > senderBalance) revert ErrorsLib.InsufficientAmount();
 
         bool success = IERC20(address(this)).transferFrom(msg.sender, address(this), shares);
         if (!success) revert ErrorsLib.TransferFailed();
 
         // slither-disable-next-line unused-return
-        (, uint256 currentShares) = _withdrawRequests.tryGet(msg.sender);
+        (, uint256 currentShares) = _redeemRequests.tryGet(msg.sender);
         // slither-disable-next-line unused-return
-        _withdrawRequests.set(msg.sender, currentShares + shares);
-        _totalPendingWithdrawals += shares;
+        _redeemRequests.set(msg.sender, currentShares + shares);
+        _pendingRedeem += shares;
 
-        emit EventsLib.WithdrawRequested(msg.sender, shares);
+        emit RedeemRequest(msg.sender, shares);
     }
 
     /// @inheritdoc IOrionVault
-    function cancelWithdrawRequest(uint256 shares) external nonReentrant {
+    function cancelRedeemRequest(uint256 shares) external nonReentrant {
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         if (shares == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(address(this));
 
         // slither-disable-next-line unused-return
-        (, uint256 currentShares) = _withdrawRequests.tryGet(msg.sender);
-        if (currentShares < shares) revert ErrorsLib.NotEnoughWithdrawRequest();
+        (, uint256 currentShares) = _redeemRequests.tryGet(msg.sender);
+        if (currentShares < shares) revert ErrorsLib.InsufficientAmount();
 
         // Effects - update internal state
         uint256 newShares = currentShares - shares;
         if (newShares == 0) {
             // slither-disable-next-line unused-return
-            _withdrawRequests.remove(msg.sender);
+            _redeemRequests.remove(msg.sender);
         } else {
             // slither-disable-next-line unused-return
-            _withdrawRequests.set(msg.sender, newShares);
+            _redeemRequests.set(msg.sender, newShares);
         }
-        _totalPendingWithdrawals -= shares;
+        _pendingRedeem -= shares;
 
         // Interactions - return shares to LP.
         bool success = IERC20(address(this)).transfer(msg.sender, shares);
         if (!success) revert ErrorsLib.TransferFailed();
 
-        emit EventsLib.WithdrawRequestCancelled(msg.sender, shares);
+        emit RedeemRequestCancelled(msg.sender, shares);
     }
 
     /// --------- VAULT OWNER AND CURATOR FUNCTIONS ---------
@@ -376,6 +365,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     function updateCurator(address newCurator) external onlyVaultOwner {
         if (newCurator == address(0)) revert ErrorsLib.InvalidAddress();
         curator = newCurator;
+        emit CuratorUpdated(newCurator);
     }
 
     /// @inheritdoc IOrionVault
@@ -393,7 +383,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     }
 
     /// @inheritdoc IOrionVault
-    function getVaultWhitelist() external view returns (address[] memory) {
+    function vaultWhitelist() external view returns (address[] memory) {
         return _vaultWhitelistedAssets.values();
     }
 
@@ -415,7 +405,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         feeModel.performanceFee = performanceFee;
         feeModel.managementFee = managementFee;
 
-        emit EventsLib.FeeModelUpdated(feeType, performanceFee, managementFee);
+        emit FeeModelUpdated(feeType, performanceFee, managementFee);
     }
 
     /// @notice Validate that all assets in an intent are whitelisted for this vault
@@ -508,7 +498,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     /// @inheritdoc IOrionVault
     function claimCuratorFees(uint256 amount) external onlyVaultOwner {
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
-        if (amount > pendingCuratorFees) revert ErrorsLib.InsufficientFunds(address(this), pendingCuratorFees, amount);
+        if (amount > pendingCuratorFees) revert ErrorsLib.InsufficientAmount();
 
         pendingCuratorFees -= amount;
         liquidityOrchestrator.transferCuratorFees(amount);
@@ -517,19 +507,19 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
 
     /// @inheritdoc IOrionVault
-    function getPendingDeposits() external view returns (uint256) {
-        return _totalPendingDeposits;
+    function pendingDeposit() external view returns (uint256) {
+        return _pendingDeposit;
     }
 
     /// @inheritdoc IOrionVault
-    function getPendingWithdrawals() external view returns (uint256) {
-        return _totalPendingWithdrawals;
+    function pendingRedeem() external view returns (uint256) {
+        return _pendingRedeem;
     }
 
     /// --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
 
     /// @inheritdoc IOrionVault
-    function processDepositRequests() external onlyLiquidityOrchestrator nonReentrant {
+    function fulfillDeposit() external onlyLiquidityOrchestrator nonReentrant {
         uint32 length = uint32(_depositRequests.length());
         // Collect all requests first to avoid index shifting issues when removing during iteration
         address[] memory users = new address[](length);
@@ -541,7 +531,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
             amounts[i] = amount;
         }
 
-        _totalPendingDeposits = 0;
+        _pendingDeposit = 0;
 
         // Process all requests
         for (uint32 i = 0; i < length; ++i) {
@@ -551,27 +541,27 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
             // slither-disable-next-line unused-return
             _depositRequests.remove(user);
 
-            uint256 shares = previewDeposit(amount);
+            uint256 shares = convertToShares(amount);
             _mint(user, shares);
 
-            emit EventsLib.DepositProcessed(user, amount);
+            emit Deposit(user, amount, shares);
         }
     }
 
     /// @inheritdoc IOrionVault
-    function processWithdrawRequests() external onlyLiquidityOrchestrator nonReentrant {
-        uint32 length = uint32(_withdrawRequests.length());
+    function fulfillRedeem() external onlyLiquidityOrchestrator nonReentrant {
+        uint32 length = uint32(_redeemRequests.length());
         // Collect all requests first to avoid index shifting issues when removing during iteration
         address[] memory users = new address[](length);
         uint256[] memory sharesArray = new uint256[](length);
 
         for (uint32 i = 0; i < length; ++i) {
-            (address user, uint256 shares) = _withdrawRequests.at(i);
+            (address user, uint256 shares) = _redeemRequests.at(i);
             users[i] = user;
             sharesArray[i] = shares;
         }
 
-        _totalPendingWithdrawals = 0;
+        _pendingRedeem = 0;
 
         // Process all requests
         for (uint32 i = 0; i < length; ++i) {
@@ -579,15 +569,15 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
             uint256 shares = sharesArray[i];
 
             // slither-disable-next-line unused-return
-            _withdrawRequests.remove(user);
+            _redeemRequests.remove(user);
 
-            uint256 underlyingAmount = previewRedeem(shares);
+            uint256 underlyingAmount = convertToAssets(shares);
             _burn(address(this), shares);
 
             // Transfer underlying assets from liquidity orchestrator to the user
-            liquidityOrchestrator.transferWithdrawalFunds(user, underlyingAmount);
+            liquidityOrchestrator.transferRedemptionFunds(user, underlyingAmount);
 
-            emit EventsLib.WithdrawProcessed(user, shares);
+            emit Withdraw(user, underlyingAmount, shares);
         }
     }
 
@@ -607,6 +597,6 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
         pendingCuratorFees += feeAmount;
 
-        emit EventsLib.CuratorFeesAccrued(epoch, feeAmount, pendingCuratorFees);
+        emit CuratorFeesAccrued(epoch, feeAmount, pendingCuratorFees);
     }
 }

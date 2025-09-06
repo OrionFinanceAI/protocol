@@ -59,6 +59,16 @@ contract EncryptedVaultFactory {
         vault = address(encryptedVault);
 
         config.addOrionVault(vault, EventsLib.VaultType.Encrypted);
-        emit EventsLib.OrionVaultCreated(vault, vaultOwner, curator, EventsLib.VaultType.Encrypted);
+        emit EventsLib.OrionVaultCreated(
+            vault,
+            vaultOwner,
+            curator,
+            name,
+            symbol,
+            feeType,
+            performanceFee,
+            managementFee,
+            EventsLib.VaultType.Encrypted
+        );
     }
 }

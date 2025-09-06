@@ -59,6 +59,16 @@ contract TransparentVaultFactory {
         vault = address(transparentVault);
 
         config.addOrionVault(vault, EventsLib.VaultType.Transparent);
-        emit EventsLib.OrionVaultCreated(vault, vaultOwner, curator, EventsLib.VaultType.Transparent);
+        emit EventsLib.OrionVaultCreated(
+            vault,
+            vaultOwner,
+            curator,
+            name,
+            symbol,
+            feeType,
+            performanceFee,
+            managementFee,
+            EventsLib.VaultType.Transparent
+        );
     }
 }

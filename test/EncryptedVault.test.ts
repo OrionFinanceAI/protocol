@@ -188,7 +188,7 @@ describe("EncryptedVault - Curator Pipeline", function () {
       const configWhitelist = await orionConfig.getAllWhitelistedAssets();
 
       // Get vault whitelist
-      const vaultWhitelist = await encryptedVault.getVaultWhitelist();
+      const vaultWhitelist = await encryptedVault.vaultWhitelist();
 
       // Compare the whitelists
       expect(vaultWhitelist.length).to.equal(configWhitelist.length);
@@ -248,7 +248,7 @@ describe("EncryptedVault - Curator Pipeline", function () {
 
       await expect(encryptedVault.connect(owner).claimCuratorFees(claimAmount)).to.be.revertedWithCustomError(
         encryptedVault,
-        "InsufficientFunds",
+        "InsufficientAmount",
       );
     });
 
@@ -261,8 +261,8 @@ describe("EncryptedVault - Curator Pipeline", function () {
       const encryptedIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), curator.address);
 
       // Add encrypted weights (60% and 40% in curator intent decimals)
-      encryptedIntentBuffer.add32(600000000); // 60% * 10^9
-      encryptedIntentBuffer.add32(400000000); // 40% * 10^9
+      encryptedIntentBuffer.add128(600000000); // 60% * 10^9
+      encryptedIntentBuffer.add128(400000000); // 40% * 10^9
 
       const encryptedIntentCiphertexts = await encryptedIntentBuffer.encrypt();
 
@@ -286,10 +286,6 @@ describe("EncryptedVault - Curator Pipeline", function () {
         console.error("Transaction failed with error:", error);
         throw error;
       }
-
-      // Note: The intent validity will be set asynchronously by the FHEVM callback
-      // In a real scenario, we would wait for the callback to complete
-      // For testing purposes, we verify the transaction was successful
     });
 
     it("Should reject encrypted intent with invalid total weight", async function () {
@@ -300,25 +296,28 @@ describe("EncryptedVault - Curator Pipeline", function () {
       const encryptedIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), curator.address);
 
       // Add encrypted weights (60% and 30% - total = 90%)
-      encryptedIntentBuffer.add32(600000000); // 60% * 10^9
-      encryptedIntentBuffer.add32(300000000); // 30% * 10^9
+      encryptedIntentBuffer.add128(600000000); // 60% * 10^9
+      encryptedIntentBuffer.add128(300000000); // 30% * 10^9
 
       const encryptedIntentCiphertexts = await encryptedIntentBuffer.encrypt();
+
+      // Convert proof and handles to hex
+      const handlesHex = encryptedIntentCiphertexts.handles.map((h) => "0x" + Buffer.from(h).toString("hex"));
+      const inputProofHex = "0x" + Buffer.from(encryptedIntentCiphertexts.inputProof).toString("hex");
 
       const encryptedIntent = [
         {
           token: await mockAsset1.getAddress(),
-          weight: encryptedIntentCiphertexts.handles[0],
+          weight: handlesHex[0],
         },
         {
           token: await mockAsset2.getAddress(),
-          weight: encryptedIntentCiphertexts.handles[1],
+          weight: handlesHex[1],
         },
       ];
 
       // This should fail validation in the FHE callback
-      await expect(encryptedVault.connect(curator).submitIntent(encryptedIntent, encryptedIntentCiphertexts.inputProof))
-        .to.not.be.reverted; // The transaction succeeds, but intent validity will be false
+      await expect(encryptedVault.connect(curator).submitIntent(encryptedIntent, inputProofHex)).to.not.be.reverted; // The transaction succeeds, but intent validity will be false
     });
 
     it("Should reject encrypted intent with non-whitelisted assets", async function () {
@@ -334,7 +333,7 @@ describe("EncryptedVault - Curator Pipeline", function () {
 
       const encryptedIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), curator.address);
 
-      encryptedIntentBuffer.add32(1000000000); // 100% * 10^9
+      encryptedIntentBuffer.add128(1000000000); // 100% * 10^9
 
       const encryptedIntentCiphertexts = await encryptedIntentBuffer.encrypt();
 
@@ -359,7 +358,7 @@ describe("EncryptedVault - Curator Pipeline", function () {
         other.address, // Using other address instead of curator
       );
 
-      encryptedIntentBuffer.add32(1000000000); // 100% * 10^9
+      encryptedIntentBuffer.add128(1000000000); // 100% * 10^9
 
       const encryptedIntentCiphertexts = await encryptedIntentBuffer.encrypt();
 
@@ -397,8 +396,8 @@ describe("EncryptedVault - Curator Pipeline", function () {
       const encryptedIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), curator.address);
 
       // Add encrypted weights
-      encryptedIntentBuffer.add32(500000000); // 50% * 10^9
-      encryptedIntentBuffer.add32(500000000); // 50% * 10^9
+      encryptedIntentBuffer.add128(500000000); // 50% * 10^9
+      encryptedIntentBuffer.add128(500000000); // 50% * 10^9
 
       const encryptedIntentCiphertexts = await encryptedIntentBuffer.encrypt();
 
@@ -512,8 +511,8 @@ describe("EncryptedVault - Curator Pipeline", function () {
       const encryptedIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), curator.address);
 
       // Add encrypted weights (70% and 30%)
-      encryptedIntentBuffer.add32(700000000); // 70% * 10^9
-      encryptedIntentBuffer.add32(300000000); // 30% * 10^9
+      encryptedIntentBuffer.add128(700000000); // 70% * 10^9
+      encryptedIntentBuffer.add128(300000000); // 30% * 10^9
 
       const encryptedIntentCiphertexts = await encryptedIntentBuffer.encrypt();
 
@@ -534,6 +533,15 @@ describe("EncryptedVault - Curator Pipeline", function () {
       const [tokens, weights] = await encryptedVault.getIntent();
       void expect(tokens).to.deep.equal([await mockAsset1.getAddress(), await mockAsset2.getAddress()]);
       void expect(weights.length).to.equal(2); // Weights are encrypted, so we just check the length
+
+      // Use the built-in `awaitDecryptionOracle` helper to wait for the FHEVM decryption oracle
+      // to complete all pending Solidity decryption requests.
+      await fhevm.awaitDecryptionOracle();
+
+      // At this point, the Solidity callback should have been invoked by the FHEVM backend.
+      // We can now retrieve the decrypted (clear) value.
+      const isIntentValid = await encryptedVault.isIntentValid();
+      void expect(isIntentValid).to.be.true;
     });
   });
 
@@ -567,7 +575,7 @@ describe("EncryptedVault - Curator Pipeline", function () {
     it("Should handle single asset encrypted intent", async function () {
       const encryptedIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), curator.address);
 
-      encryptedIntentBuffer.add32(1000000000); // 100% * 10^9
+      encryptedIntentBuffer.add128(1000000000); // 100% * 10^9
 
       const encryptedIntentCiphertexts = await encryptedIntentBuffer.encrypt();
 
@@ -590,8 +598,8 @@ describe("EncryptedVault - Curator Pipeline", function () {
       const encryptedIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), curator.address);
 
       // Add equal weights (50% each)
-      encryptedIntentBuffer.add32(500000000); // 50% * 10^9
-      encryptedIntentBuffer.add32(500000000); // 50% * 10^9
+      encryptedIntentBuffer.add128(500000000); // 50% * 10^9
+      encryptedIntentBuffer.add128(500000000); // 50% * 10^9
 
       const encryptedIntentCiphertexts = await encryptedIntentBuffer.encrypt();
 
@@ -618,8 +626,8 @@ describe("EncryptedVault - Curator Pipeline", function () {
       const encryptedIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), curator.address);
 
       // Add weights including zero
-      encryptedIntentBuffer.add32(1000000000); // 100% * 10^9
-      encryptedIntentBuffer.add32(0); // 0%
+      encryptedIntentBuffer.add128(1000000000); // 100% * 10^9
+      encryptedIntentBuffer.add128(0); // 0%
 
       const encryptedIntentCiphertexts = await encryptedIntentBuffer.encrypt();
 
@@ -637,6 +645,53 @@ describe("EncryptedVault - Curator Pipeline", function () {
       // This should fail validation in the FHE callback due to zero weight
       await expect(encryptedVault.connect(curator).submitIntent(encryptedIntent, encryptedIntentCiphertexts.inputProof))
         .to.not.be.reverted; // Transaction succeeds, but intent validity will be false
+    });
+
+    it("Should properly cleanup previous intent when submitting new intent", async function () {
+      // Submit first intent with asset1 only (100%)
+      const firstIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), curator.address);
+      firstIntentBuffer.add128(1000000000); // 100% * 10^9
+      const firstIntentCiphertexts = await firstIntentBuffer.encrypt();
+
+      const firstIntent = [
+        {
+          token: await mockAsset1.getAddress(),
+          weight: firstIntentCiphertexts.handles[0],
+        },
+      ];
+
+      // Submit first intent
+      await expect(encryptedVault.connect(curator).submitIntent(firstIntent, firstIntentCiphertexts.inputProof)).to.not
+        .be.reverted;
+
+      // Verify first intent was stored
+      let [tokens, weights] = await encryptedVault.getIntent();
+      expect(tokens).to.deep.equal([await mockAsset1.getAddress()]);
+      expect(weights.length).to.equal(1);
+
+      // Submit second intent with asset2 only (100%) - different asset
+      const secondIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), curator.address);
+      secondIntentBuffer.add128(1000000000); // 100% * 10^9
+      const secondIntentCiphertexts = await secondIntentBuffer.encrypt();
+
+      const secondIntent = [
+        {
+          token: await mockAsset2.getAddress(),
+          weight: secondIntentCiphertexts.handles[0],
+        },
+      ];
+
+      // Submit second intent - this should cleanup the previous intent
+      await expect(encryptedVault.connect(curator).submitIntent(secondIntent, secondIntentCiphertexts.inputProof)).to
+        .not.be.reverted;
+
+      // Verify second intent replaced the first intent
+      [tokens, weights] = await encryptedVault.getIntent();
+      expect(tokens).to.deep.equal([await mockAsset2.getAddress()]);
+      expect(weights.length).to.equal(1);
+
+      // Verify that asset1 is no longer in the intent (cleanup worked)
+      expect(tokens).to.not.include(await mockAsset1.getAddress());
     });
   });
 });

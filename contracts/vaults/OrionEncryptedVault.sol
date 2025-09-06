@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import { SepoliaConfig } from "@fhevm/solidity/config/ZamaConfig.sol";
-import { euint32, ebool, FHE } from "@fhevm/solidity/lib/FHE.sol";
+import { euint128, ebool, FHE } from "@fhevm/solidity/lib/FHE.sol";
 import "./OrionVault.sol";
 import "../interfaces/IOrionConfig.sol";
 import "../interfaces/IOrionEncryptedVault.sol";
@@ -20,19 +20,19 @@ import { EventsLib } from "../libraries/EventsLib.sol";
  */
 contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault {
     /// @notice Current portfolio shares per asset (w_0) - mapping of token address to live allocation
-    mapping(address => euint32) internal _portfolio;
+    mapping(address => euint128) internal _portfolio;
     address[] internal _portfolioKeys;
 
     /// @notice Curator intent (w_1) - mapping of token address to target allocation
-    mapping(address => euint32) internal _intent;
+    mapping(address => euint128) internal _intent;
     address[] internal _intentKeys;
 
     /// @notice Temporary mapping to track seen tokens during submitIntent to check for duplicates
     mapping(address => bool) internal _seenTokens;
 
-    euint32 internal _ezero;
+    euint128 internal _ezero;
     ebool internal _eTrue;
-    euint32 internal _encryptedTotalWeight;
+    euint128 internal _encryptedTotalWeight;
 
     /// @notice Whether the intent is valid
     bool public isIntentValid;
@@ -56,9 +56,9 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
         uint16 performanceFee,
         uint16 managementFee
     ) OrionVault(vaultOwner, curator, configAddress, name, symbol, feeType, performanceFee, managementFee) {
-        _ezero = FHE.asEuint32(0);
+        _ezero = FHE.asEuint128(0);
         _eTrue = FHE.asEbool(true);
-        _encryptedTotalWeight = FHE.asEuint32(uint32(10 ** curatorIntentDecimals));
+        _encryptedTotalWeight = FHE.asEuint128(uint128(10 ** curatorIntentDecimals));
         // slither-disable-next-line unused-return
         FHE.allowThis(_ezero);
         // slither-disable-next-line unused-return
@@ -79,10 +79,10 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
         isIntentValid = false; // Reset intent validity flag, asynchronous callback can update it.
 
         uint16 intentLength = uint16(intent.length);
-        euint32 totalWeight = _ezero;
+        euint128 totalWeight = _ezero;
 
         address[] memory tempKeys = new address[](intentLength);
-        euint32[] memory tempWeights = new euint32[](intentLength);
+        euint128[] memory tempWeights = new euint128[](intentLength);
 
         ebool areWeightsValid = _eTrue;
         address[] memory assets = new address[](intentLength);
@@ -90,7 +90,7 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
             address token = intent[i].token;
             assets[i] = token;
 
-            euint32 weight = FHE.fromExternal(intent[i].weight, inputProof);
+            euint128 weight = FHE.fromExternal(intent[i].weight, inputProof);
             // slither-disable-next-line unused-return
             FHE.allowThis(weight);
 
@@ -127,7 +127,7 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
     /// @param assets The assets in the intent
     /// @param totalWeight The total weight of the intent
     /// @param areWeightsValid Whether the weights are valid
-    function _validateIntent(address[] memory assets, euint32 totalWeight, ebool areWeightsValid) internal {
+    function _validateIntent(address[] memory assets, euint128 totalWeight, ebool areWeightsValid) internal {
         _validateIntentAssets(assets);
 
         ebool isIntentEValid = FHE.and(areWeightsValid, FHE.eq(totalWeight, _encryptedTotalWeight));
@@ -145,10 +145,10 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
     // --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
 
     /// @inheritdoc IOrionEncryptedVault
-    function getPortfolio() external view returns (address[] memory tokens, euint32[] memory sharesPerAsset) {
+    function getPortfolio() external view returns (address[] memory tokens, euint128[] memory sharesPerAsset) {
         uint16 length = uint16(_portfolioKeys.length);
         tokens = new address[](length);
-        sharesPerAsset = new euint32[](length);
+        sharesPerAsset = new euint128[](length);
         for (uint16 i = 0; i < length; ++i) {
             address token = _portfolioKeys[i];
             tokens[i] = token;
@@ -157,10 +157,10 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
     }
 
     /// @inheritdoc IOrionEncryptedVault
-    function getIntent() external view returns (address[] memory tokens, euint32[] memory weights) {
+    function getIntent() external view returns (address[] memory tokens, euint128[] memory weights) {
         uint16 length = uint16(_intentKeys.length);
         tokens = new address[](length);
-        weights = new euint32[](length);
+        weights = new euint128[](length);
         for (uint16 i = 0; i < length; ++i) {
             tokens[i] = _intentKeys[i];
             weights[i] = _intent[_intentKeys[i]];

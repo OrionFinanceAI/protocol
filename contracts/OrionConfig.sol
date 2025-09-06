@@ -74,7 +74,7 @@ contract OrionConfig is Ownable, IOrionConfig {
         underlyingAsset = IERC20(underlyingAsset_);
 
         curatorIntentDecimals = 9; // 9 for uint32
-        priceAdapterDecimals = 18; // 18 for uint256
+        priceAdapterDecimals = 14; // 14 for uint128
 
         // slither-disable-next-line unused-return
         whitelistedAssets.add(underlyingAsset_);
@@ -111,7 +111,6 @@ contract OrionConfig is Ownable, IOrionConfig {
 
     /// @inheritdoc IOrionConfig
     function setPriceAdapterRegistry(address registry) external onlyOwner {
-        if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         if (registry == address(0)) revert ErrorsLib.ZeroAddress();
         if (priceAdapterRegistry != address(0)) revert ErrorsLib.AlreadyRegistered();
         priceAdapterRegistry = registry;
