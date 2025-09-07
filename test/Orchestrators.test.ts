@@ -19,7 +19,7 @@ import {
   OrionAssetERC4626PriceAdapter,
 } from "../typechain-types";
 
-describe("InternalStatesOrchestrator", function () {
+describe("Orchestrators", function () {
   let transparentVaultFactory: TransparentVaultFactory;
   let encryptedVaultFactory: EncryptedVaultFactory;
   let orionConfig: OrionConfig;
@@ -301,7 +301,7 @@ describe("InternalStatesOrchestrator", function () {
   });
 
   describe("performUpkeep", function () {
-    // TODO: https://github.com/zama-ai/fhevm/issues/837
+    // TODO(fhevm): https://github.com/zama-ai/fhevm/issues/837
     // it("should complete full upkeep cycle with intent decryption", async function () {
     // // Await decryption oracle and verify intent is valid
     // await fhevm.awaitDecryptionOracle();
@@ -354,7 +354,7 @@ describe("InternalStatesOrchestrator", function () {
     // expect(buyingTokens.length).to.equal(3); // All three assets
     // });
 
-    it("should complete full upkeep cycle without intent decryption", async function () {
+    it("should complete full upkeep cycles without intent decryption", async function () {
       // Skip intent decryption - don't await decryption oracle
       // Encrypted Vault intents is invalid, so they are not processed
 
@@ -375,8 +375,6 @@ describe("InternalStatesOrchestrator", function () {
       [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // Buffering
-
-      console.log("Buffering");
 
       [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
@@ -403,6 +401,10 @@ describe("InternalStatesOrchestrator", function () {
       // Should have all three assets in the orders arrays
       expect(sellingTokens.length).to.equal(3); // All three assets
       expect(buyingTokens.length).to.equal(3); // All three assets
+
+      // Now check if liquidity orchestrator needs to be triggered
+      const [liquidityUpkeepNeeded, _liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      void expect(liquidityUpkeepNeeded).to.be.true;
     });
 
     it("should not trigger upkeep when system is idle and time hasn't passed", async function () {
@@ -439,6 +441,26 @@ describe("InternalStatesOrchestrator", function () {
       // Should succeed when called by automation registry
       await expect(internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData)).to.not.be
         .reverted;
+    });
+
+    it("should not trigger liquidity orchestrator when epoch counter hasn't changed", async function () {
+      // Initially, liquidity orchestrator should not need upkeep
+      let [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      void expect(liquidityUpkeepNeeded).to.be.false;
+      expect(liquidityPerformData).to.equal("0x");
+
+      // Now liquidity orchestrator should not need upkeep
+      [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      void expect(liquidityUpkeepNeeded).to.be.false;
+      expect(liquidityPerformData).to.equal("0x");
+    });
+
+    it("should only allow automation registry to call liquidity orchestrator performUpkeep", async function () {
+      // Should fail when called by non-automation registry
+      await expect(liquidityOrchestrator.connect(owner).performUpkeep("0x")).to.be.revertedWithCustomError(
+        liquidityOrchestrator,
+        "NotAuthorized",
+      );
     });
   });
 
