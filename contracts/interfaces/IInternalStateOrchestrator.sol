@@ -13,6 +13,7 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
         Idle,
         PreprocessingTransparentVaults,
         PreprocessingEncryptedVaults,
+        ProcessingDecryptedValues,
         Buffering,
         PostprocessingTransparentVaults,
         PostprocessingEncryptedVaults,
