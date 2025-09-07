@@ -54,17 +54,26 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
     /// @notice Last processed epoch counter from Internal States Orchestrator
     uint16 public lastProcessedEpoch;
 
+    /// @notice Execution minibatch size
+    uint8 public executionMinibatchSize;
+
     /// @notice Upkeep phase
     LiquidityUpkeepPhase public currentPhase;
 
-    /// @notice Execution minibatch size
-    uint8 public executionMinibatchSize;
+    /// @notice Current minibatch index
+    uint8 public currentMinibatchIndex;
 
     /// @notice Slippage bound in basis points
     uint256 public slippageBound;
 
     /// @notice Target buffer ratio
     uint256 public targetBufferRatio;
+
+    /// @notice Action constants for checkUpkeep and performUpkeep
+    bytes4 private constant ACTION_START = bytes4(keccak256("start()"));
+    bytes4 private constant ACTION_PROCESS_SELL = bytes4(keccak256("processSell(uint8)"));
+    bytes4 private constant ACTION_PROCESS_BUY = bytes4(keccak256("processBuy(uint8)"));
+    // TODO: add state update actions.
 
     /* -------------------------------------------------------------------------- */
     /*                                MODIFIERS                                   */
@@ -97,6 +106,7 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
         lastProcessedEpoch = 0;
         currentPhase = LiquidityUpkeepPhase.Idle;
         executionMinibatchSize = 1;
+        currentMinibatchIndex = 0;
     }
 
     /* -------------------------------------------------------------------------- */
@@ -190,8 +200,6 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
         if (!success) revert ErrorsLib.TransferFailed();
     }
 
-    // TODO: function called by the vault function, that is in turned called by the liquidity orchestrator.
-    // Implement a cleaner pattern in which there is no re-entrancy.
     /// @inheritdoc ILiquidityOrchestrator
     function transferRedemptionFunds(address user, uint256 amount) external {
         // Verify the caller is a registered vault
@@ -211,13 +219,17 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
     /// @return upkeepNeeded Whether the upkeep is needed
     /// @return performData The data to perform the upkeep
     function checkUpkeep(bytes calldata) external view override returns (bool upkeepNeeded, bytes memory performData) {
-        uint16 currentEpoch = internalStatesOrchestrator.epochCounter();
-        if (currentEpoch > lastProcessedEpoch && config.isSystemIdle()) {
+        if (config.isSystemIdle() && internalStatesOrchestrator.epochCounter() > lastProcessedEpoch) {
             upkeepNeeded = true;
-            // TODO: same as internal states orchestrator, use bytes4 and encodePacked.
-            performData = abi.encode("start");
+            performData = abi.encode(ACTION_START, uint8(0));
+        } else if (currentPhase == LiquidityUpkeepPhase.SellingLeg) {
+            upkeepNeeded = true;
+            performData = abi.encode(ACTION_PROCESS_SELL, currentMinibatchIndex);
+        } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
+            upkeepNeeded = true;
+            performData = abi.encode(ACTION_PROCESS_BUY, currentMinibatchIndex);
         }
-        // TODO: ...
+        // TODO: add state update actions.
         else {
             upkeepNeeded = false;
             performData = "";
@@ -260,10 +272,10 @@ contract LiquidityOrchestrator is Ownable, ILiquidityOrchestrator {
             address token = sellingTokens[i];
             uint256 amount = sellingAmounts[i];
             _executeSell(token, amount);
+            // TODO: every transaction should enable the update of the buffer liquidity,
+            // making use of the average execution price,
+            // and the oracle prices used to generate the orders.
         }
-
-        // Measure intermediate underlying balance of this contract.
-        // uint256 intermediateUnderlyingBalance = IERC20(underlyingAsset).balanceOf(address(this));
 
         (address[] memory buyingTokens, uint256[] memory buyingAmounts) = internalStatesOrchestrator.getBuyingOrders();
 
