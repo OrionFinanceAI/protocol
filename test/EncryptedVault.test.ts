@@ -277,15 +277,7 @@ describe("EncryptedVault - Curator Pipeline", function () {
         },
       ];
 
-      try {
-        const tx = await encryptedVault
-          .connect(curator)
-          .submitIntent(encryptedIntent, encryptedIntentCiphertexts.inputProof);
-        await tx.wait();
-      } catch (error) {
-        console.error("Transaction failed with error:", error);
-        throw error;
-      }
+      await encryptedVault.connect(curator).submitIntent(encryptedIntent, encryptedIntentCiphertexts.inputProof);
     });
 
     it("Should reject encrypted intent with invalid total weight", async function () {

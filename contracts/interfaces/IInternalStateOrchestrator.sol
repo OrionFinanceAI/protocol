@@ -13,6 +13,7 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
         Idle,
         PreprocessingTransparentVaults,
         PreprocessingEncryptedVaults,
+        ProcessingDecryptedValues,
         Buffering,
         PostprocessingTransparentVaults,
         PostprocessingEncryptedVaults,
@@ -56,6 +57,16 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     /// @notice Subtracts a specified amount from the pending protocol fees
     /// @param amount The amount to subtract from pending protocol fees
     function subtractPendingProtocolFees(uint256 amount) external;
+
+    /// @notice Callback function to decrypt the encrypted values
+    /// @param requestID The request ID
+    /// @param decryptedValues The decrypted values
+    /// @param signatures The signatures
+    function callbackPreProcessDecrypt(
+        uint256 requestID,
+        uint256[] memory decryptedValues,
+        bytes[] memory signatures
+    ) external;
 
     /// @notice Get the selling orders
     /// @return tokens The tokens to sell

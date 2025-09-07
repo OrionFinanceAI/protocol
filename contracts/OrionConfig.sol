@@ -52,6 +52,9 @@ contract OrionConfig is Ownable, IOrionConfig {
     using EnumerableSet for EnumerableSet.AddressSet;
     EnumerableSet.AddressSet private whitelistedAssets;
 
+    /// @notice Mapping of token address to its decimals
+    mapping(address => uint8) public tokenDecimals;
+
     // Orion-specific configuration
     EnumerableSet.AddressSet private transparentVaults;
     EnumerableSet.AddressSet private encryptedVaults;
@@ -75,6 +78,9 @@ contract OrionConfig is Ownable, IOrionConfig {
 
         curatorIntentDecimals = 9; // 9 for uint32
         priceAdapterDecimals = 14; // 14 for uint128
+
+        // Store underlying asset decimals
+        tokenDecimals[underlyingAsset_] = IERC20Metadata(underlyingAsset_).decimals();
 
         // slither-disable-next-line unused-return
         whitelistedAssets.add(underlyingAsset_);
@@ -134,6 +140,11 @@ contract OrionConfig is Ownable, IOrionConfig {
         bool inserted = whitelistedAssets.add(asset);
         if (!inserted) revert ErrorsLib.AlreadyRegistered();
 
+        // Store token decimals
+        // ⚠️ WARNING: Assumes ERC20 decimals are immutable (standard-compliant).
+        // Non-standard tokens that allow decimals to change at runtime MUST NOT be whitelisted.
+        tokenDecimals[asset] = IERC20Metadata(asset).decimals();
+
         // Register the adapters
         IPriceAdapterRegistry(priceAdapterRegistry).setPriceAdapter(asset, IPriceAdapter(priceAdapter));
         ILiquidityOrchestrator(liquidityOrchestrator).setExecutionAdapter(asset, IExecutionAdapter(executionAdapter));
@@ -147,6 +158,8 @@ contract OrionConfig is Ownable, IOrionConfig {
 
         bool removed = whitelistedAssets.remove(asset);
         if (!removed) revert ErrorsLib.TokenNotWhitelisted(asset);
+
+        delete tokenDecimals[asset];
 
         IPriceAdapterRegistry(priceAdapterRegistry).unsetPriceAdapter(asset);
         ILiquidityOrchestrator(liquidityOrchestrator).unsetExecutionAdapter(asset);
@@ -236,5 +249,10 @@ contract OrionConfig is Ownable, IOrionConfig {
             ILiquidityOrchestrator.LiquidityUpkeepPhase.Idle &&
             IInternalStateOrchestrator(internalStatesOrchestrator).currentPhase() ==
             IInternalStateOrchestrator.InternalUpkeepPhase.Idle;
+    }
+
+    /// @inheritdoc IOrionConfig
+    function getTokenDecimals(address token) external view returns (uint8) {
+        return tokenDecimals[token];
     }
 }

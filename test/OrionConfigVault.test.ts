@@ -146,6 +146,84 @@ beforeEach(async function () {
   await underlyingAsset.connect(user).approve(await vault.getAddress(), ethers.parseUnits("10000", 6));
 });
 
+describe("Config", function () {
+  describe("removeWhitelistedAsset", function () {
+    it("Should successfully remove a whitelisted asset", async function () {
+      const assetAddress = await mockAsset1.getAddress();
+
+      expect(await orionConfig.isWhitelisted(assetAddress)).to.equal(true);
+      await expect(orionConfig.removeWhitelistedAsset(assetAddress)).to.not.be.reverted;
+      expect(await orionConfig.isWhitelisted(assetAddress)).to.equal(false);
+    });
+
+    it("Should emit WhitelistedAssetRemoved event when removing asset", async function () {
+      const assetAddress = await mockAsset1.getAddress();
+
+      await expect(orionConfig.removeWhitelistedAsset(assetAddress))
+        .to.emit(orionConfig, "WhitelistedAssetRemoved")
+        .withArgs(assetAddress);
+    });
+
+    it("Should update whitelisted assets count after removal", async function () {
+      const initialCount = await orionConfig.whitelistedAssetsLength();
+      expect(initialCount).to.equal(3); // underlying asset + 2 test assets
+
+      await orionConfig.removeWhitelistedAsset(await mockAsset1.getAddress());
+      const finalCount = await orionConfig.whitelistedAssetsLength();
+      expect(finalCount).to.equal(2); // underlying asset + 1 test asset
+    });
+
+    it("Should remove asset from getAllWhitelistedAssets array", async function () {
+      const assetAddress = await mockAsset1.getAddress();
+
+      const initialAssets = await orionConfig.getAllWhitelistedAssets();
+      expect(initialAssets).to.include(assetAddress);
+
+      await orionConfig.removeWhitelistedAsset(assetAddress);
+
+      const finalAssets = await orionConfig.getAllWhitelistedAssets();
+      expect(finalAssets).to.not.include(assetAddress);
+    });
+
+    it("Should remove price adapter from registry when removing asset", async function () {
+      const assetAddress = await mockAsset1.getAddress();
+
+      await expect(priceAdapterRegistry.getPrice(assetAddress)).to.not.be.reverted;
+      await orionConfig.removeWhitelistedAsset(assetAddress);
+      await expect(priceAdapterRegistry.getPrice(assetAddress)).to.be.revertedWithCustomError(
+        priceAdapterRegistry,
+        "AdapterNotSet",
+      );
+    });
+
+    it("Should remove execution adapter from liquidity orchestrator when removing asset", async function () {
+      const assetAddress = await mockAsset1.getAddress();
+
+      const executionAdapterBefore = await liquidityOrchestrator.executionAdapterOf(assetAddress);
+      expect(executionAdapterBefore).to.not.equal(ethers.ZeroAddress);
+      await orionConfig.removeWhitelistedAsset(assetAddress);
+      const executionAdapterAfter = await liquidityOrchestrator.executionAdapterOf(assetAddress);
+      expect(executionAdapterAfter).to.equal(ethers.ZeroAddress);
+    });
+
+    it("Should revert when trying to remove non-whitelisted asset", async function () {
+      const nonWhitelistedAsset = other.address;
+
+      await expect(orionConfig.removeWhitelistedAsset(nonWhitelistedAsset))
+        .to.be.revertedWithCustomError(orionConfig, "TokenNotWhitelisted")
+        .withArgs(nonWhitelistedAsset);
+    });
+
+    it("Should revert when called by non-owner", async function () {
+      const assetAddress = await mockAsset1.getAddress();
+
+      await expect(orionConfig.connect(user).removeWhitelistedAsset(assetAddress))
+        .to.be.revertedWithCustomError(orionConfig, "OwnableUnauthorizedAccount")
+        .withArgs(user.address);
+    });
+  });
+});
+
 describe("OrionVault - Base Functionality", function () {
   describe("Synchronous ERC4626 Functions", function () {
     it("Should revert deposit function with SynchronousCallDisabled error", async function () {
