@@ -140,6 +140,8 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     address[] public transparentVaultsEpoch;
     /// @notice Encrypted vaults associated to the current epoch
     address[] public encryptedVaultsEpoch;
+    /// @notice Number of valid encrypted vaults processed in current epoch
+    uint16 public validEncryptedVaultsCount;
 
     /// @notice Buffer amount [assets]
     uint256 public bufferAmount;
@@ -341,6 +343,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
         transparentVaultsEpoch = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
         encryptedVaultsEpoch = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
+        validEncryptedVaultsCount = 0;
 
         currentPhase = InternalUpkeepPhase.PreprocessingTransparentVaults;
     }
@@ -455,6 +458,8 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                 continue;
             }
 
+            ++validEncryptedVaultsCount;
+
             (address[] memory portfolioTokens, euint128[] memory sharesPerAsset) = vault.getPortfolio();
 
             // STEP 1: LIVE PORTFOLIO
@@ -496,8 +501,8 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         }
 
         if (i1 == nVaults) {
-            if (i1 == 0) {
-                // No encryptedVaults in current Epoch, go directly to Buffering.
+            if (i1 == 0 || validEncryptedVaultsCount == 0) {
+                // No encryptedVaults in current Epoch or no valid encrypted vaults, go directly to Buffering.
                 currentPhase = InternalUpkeepPhase.Buffering;
                 currentMinibatchIndex = 0;
             } else {
@@ -534,7 +539,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         FHE.checkSignatures(requestID, signatures);
 
         // Store decrypted values for processing in the next phase.
-        // TODO: avoid breaking down this into two phases, consider letting Zama callback do all the work.
+        // TODO(fhevm): avoid breaking down this into two phases, consider letting Zama callback do all the work.
         _decryptedValues = decryptedValues;
 
         currentPhase = InternalUpkeepPhase.ProcessingDecryptedValues;
@@ -721,7 +726,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         if (currentPhase != InternalUpkeepPhase.PostprocessingEncryptedVaults) {
             revert ErrorsLib.InvalidState();
         }
-        // TODO: Populate function body.
+        // TODO(fhevm): Populate function body.
         ++currentMinibatchIndex;
 
         uint16 nVaults = uint16(encryptedVaultsEpoch.length);
@@ -730,9 +735,9 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         if (i1 > nVaults || i1 == nVaults) {
             i1 = nVaults;
             // Last minibatch, go to next phase.
-            // TODO: integrate Zama callback in performUpkeep logic breakdown
+            // TODO(fhevm): integrate Zama callback in performUpkeep logic breakdown
             // (the decryption callback, not the encrypted computation here, updates the phase).
-            // TODO: the state is updated in _preprocessEncryptedMinibatch only if there are no encrypted vaults
+            // TODO(fhevm): the state is updated in _preprocessEncryptedMinibatch only if there are no encrypted vaults
             // in the minibatch and currentMinibatchIndex == 0.
             currentPhase = InternalUpkeepPhase.BuildingOrders;
             currentMinibatchIndex = 0;
@@ -776,13 +781,11 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         emit EventsLib.InternalStateProcessed(epochCounter);
     }
 
-    // TODO: a lot of code duplication, refactor for maintainability and scalability.
+    // TODO(finally): a lot of code duplication, refactor for maintainability and scalability.
 
     /* -------------------------------------------------------------------------- */
     /*                      LIQUIDITY ORCHESTRATOR FUNCTIONS                      */
     /* -------------------------------------------------------------------------- */
-
-    // TODO: coalesce both getOrders functions into one, accepting an order type as an argument.
 
     /// @inheritdoc IInternalStateOrchestrator
     function getSellingOrders() external view returns (address[] memory tokens, uint256[] memory amounts) {

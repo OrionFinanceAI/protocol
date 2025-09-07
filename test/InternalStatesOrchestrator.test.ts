@@ -59,7 +59,7 @@ describe("InternalStatesOrchestrator", function () {
       await underlyingAsset.getAddress(),
       "Mock Asset 1",
       "MA1",
-      18,
+      10,
     );
     await mockAsset1Deployed.waitForDeployment();
     mockAsset1 = mockAsset1Deployed as unknown as MockERC4626Asset;
@@ -303,108 +303,107 @@ describe("InternalStatesOrchestrator", function () {
   describe("performUpkeep", function () {
     // TODO: https://github.com/zama-ai/fhevm/issues/837
     // it("should complete full upkeep cycle with intent decryption", async function () {
-    //   // Await decryption oracle and verify intent is valid
-    //   await fhevm.awaitDecryptionOracle();
-    //   const isIntentValid = await encryptedVault.isIntentValid();
-    //   void expect(isIntentValid).to.be.true;
+    // // Await decryption oracle and verify intent is valid
+    // await fhevm.awaitDecryptionOracle();
+    // const isIntentValid = await encryptedVault.isIntentValid();
+    // void expect(isIntentValid).to.be.true;
 
-    //   // Fast forward time to trigger upkeep
-    //   expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Idle
+    // // Fast forward time to trigger upkeep
+    // expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Idle
 
-    //   const epochDuration = await internalStatesOrchestrator.epochDuration();
-    //   await time.increase(epochDuration + 1n);
+    // const epochDuration = await internalStatesOrchestrator.epochDuration();
+    // await time.increase(epochDuration + 1n);
 
-    //   let [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-    //   await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    //   expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
+    // let [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+    // await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    // expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
 
-    //   [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-    //   await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    //   expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // PreprocessingEncryptedVaults
+    // [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+    // await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    // expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // PreprocessingEncryptedVaults
 
-    //   [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-    //   await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    //   await fhevm.awaitDecryptionOracle();
-    //   expect(await internalStatesOrchestrator.currentPhase()).to.equal(3); // ProcessingDecryptedValues
+    // [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+    // await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    // await fhevm.awaitDecryptionOracle();
+    // expect(await internalStatesOrchestrator.currentPhase()).to.equal(3); // ProcessingDecryptedValues
 
-    //   [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-    //   await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    //   expect(await internalStatesOrchestrator.currentPhase()).to.equal(5); // PostprocessingTransparentVaults
+    // [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+    // await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    // expect(await internalStatesOrchestrator.currentPhase()).to.equal(5); // PostprocessingTransparentVaults
 
-    //   [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+    // [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
 
-    //   await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    //   expect(await internalStatesOrchestrator.currentPhase()).to.equal(6); // PostprocessingEncryptedVaults
+    // await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    // expect(await internalStatesOrchestrator.currentPhase()).to.equal(6); // PostprocessingEncryptedVaults
 
-    //   [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-    //   await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    //   expect(await internalStatesOrchestrator.currentPhase()).to.equal(7); // BuildingOrders
+    // [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+    // await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    // expect(await internalStatesOrchestrator.currentPhase()).to.equal(7); // BuildingOrders
 
-    //   [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-    //   await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    //   expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Back to Idle
-    //   expect(await internalStatesOrchestrator.epochCounter()).to.equal(1); // Epoch incremented
+    // [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+    // await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    // expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Back to Idle
+    // expect(await internalStatesOrchestrator.epochCounter()).to.equal(1); // Epoch incremented
 
-    //   // Check that orders were built
-    //   const [sellingTokens] = await internalStatesOrchestrator.getSellingOrders();
-    //   const [buyingTokens, _buyingAmounts] = await internalStatesOrchestrator.getBuyingOrders();
+    // // Check that orders were built
+    // const [sellingTokens] = await internalStatesOrchestrator.getSellingOrders();
+    // const [buyingTokens, _buyingAmounts] = await internalStatesOrchestrator.getBuyingOrders();
 
-    //   // Should have all three assets in the orders arrays
-    //   expect(sellingTokens.length).to.equal(3); // All three assets
-    //   expect(buyingTokens.length).to.equal(3); // All three assets
+    // // Should have all three assets in the orders arrays
+    // expect(sellingTokens.length).to.equal(3); // All three assets
+    // expect(buyingTokens.length).to.equal(3); // All three assets
     // });
 
-    // TODO: fix this test, should work with the logic as is.
-    // it("should complete full upkeep cycle without intent decryption", async function () {
-    //   // Skip intent decryption - don't await decryption oracle
-    //   // Vault intent is invalid
+    it("should complete full upkeep cycle without intent decryption", async function () {
+      // Skip intent decryption - don't await decryption oracle
+      // Encrypted Vault intents is invalid, so they are not processed
 
-    //   // Fast forward time to trigger upkeep
-    //   expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Idle
+      // Fast forward time to trigger upkeep
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Idle
 
-    //   const epochDuration = await internalStatesOrchestrator.epochDuration();
-    //   await time.increase(epochDuration + 1n);
+      const epochDuration = await internalStatesOrchestrator.epochDuration();
+      await time.increase(epochDuration + 1n);
 
-    //   let [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-    //   await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    //   expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
+      let [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
 
-    //   [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-    //   await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    //   expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // PreprocessingEncryptedVaults
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // PreprocessingEncryptedVaults
 
-    //   [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-    //   await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    //   expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // Buffering
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // Buffering
 
-    //   console.log("Buffering");
+      console.log("Buffering");
 
-    //   [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-    //   await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    //   expect(await internalStatesOrchestrator.currentPhase()).to.equal(5); // PostprocessingTransparentVaults
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(5); // PostprocessingTransparentVaults
 
-    //   [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
 
-    //   await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    //   expect(await internalStatesOrchestrator.currentPhase()).to.equal(6); // PostprocessingEncryptedVaults
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(6); // PostprocessingEncryptedVaults
 
-    //   [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-    //   await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    //   expect(await internalStatesOrchestrator.currentPhase()).to.equal(7); // BuildingOrders
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(7); // BuildingOrders
 
-    //   [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-    //   await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    //   expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Back to Idle
-    //   expect(await internalStatesOrchestrator.epochCounter()).to.equal(1); // Epoch incremented
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Back to Idle
+      expect(await internalStatesOrchestrator.epochCounter()).to.equal(1); // Epoch incremented
 
-    //   // Check that orders were built
-    //   const [sellingTokens] = await internalStatesOrchestrator.getSellingOrders();
-    //   const [buyingTokens, _buyingAmounts] = await internalStatesOrchestrator.getBuyingOrders();
+      // Check that orders were built
+      const [sellingTokens] = await internalStatesOrchestrator.getSellingOrders();
+      const [buyingTokens, _buyingAmounts] = await internalStatesOrchestrator.getBuyingOrders();
 
-    //   // Should have all three assets in the orders arrays
-    //   expect(sellingTokens.length).to.equal(3); // All three assets
-    //   expect(buyingTokens.length).to.equal(3); // All three assets
-    // });
+      // Should have all three assets in the orders arrays
+      expect(sellingTokens.length).to.equal(3); // All three assets
+      expect(buyingTokens.length).to.equal(3); // All three assets
+    });
 
     it("should not trigger upkeep when system is idle and time hasn't passed", async function () {
       // Don't fast forward time, so system should be idle because time hasn't passed

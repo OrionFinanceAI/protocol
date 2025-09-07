@@ -159,6 +159,8 @@ contract OrionConfig is Ownable, IOrionConfig {
         bool removed = whitelistedAssets.remove(asset);
         if (!removed) revert ErrorsLib.TokenNotWhitelisted(asset);
 
+        delete tokenDecimals[asset];
+
         IPriceAdapterRegistry(priceAdapterRegistry).unsetPriceAdapter(asset);
         ILiquidityOrchestrator(liquidityOrchestrator).unsetExecutionAdapter(asset);
 
