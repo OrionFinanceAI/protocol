@@ -66,14 +66,8 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     /// @notice Pending protocol fees [assets]
     uint256 public pendingProtocolFees;
 
-    /// @notice Constants for protocol fee calculations
-    uint32 public constant YEAR_IN_SECONDS = 365 days;
     /// @notice Basis points factor
     uint16 public constant BASIS_POINTS_FACTOR = 10_000;
-    /// @notice Maximum volume fee (1%)
-    uint16 public constant MAX_VOLUME_FEE = 100;
-    /// @notice Maximum revenue share fee (15%)
-    uint16 public constant MAX_REVENUE_SHARE_FEE = 1_500;
 
     /// @notice Action constants for checkUpkeep and performUpkeep
     bytes4 private constant ACTION_START = bytes4(keccak256("start()"));
@@ -89,8 +83,6 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     /* -------------------------------------------------------------------------- */
     /// @notice Struct to hold epoch state data
     struct EpochState {
-        /// @notice Mapping of token address to its decimals
-        mapping(address => uint8) tokenDecimals;
         /// @notice Price array - mapping of token address to estimated price [shares/assets]
         mapping(address => uint256) priceArray;
         /// @notice Initial batch portfolio - mapping of token address to estimated value [shares]
@@ -178,7 +170,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         registry = IPriceAdapterRegistry(config.priceAdapterRegistry());
         intentFactor = 10 ** config.curatorIntentDecimals();
         underlyingAsset = address(config.underlyingAsset());
-        underlyingDecimals = IERC20Metadata(underlyingAsset).decimals();
+        underlyingDecimals = config.getTokenDecimals(underlyingAsset);
         priceAdapterPrecision = 10 ** config.priceAdapterDecimals();
         transparentMinibatchSize = 1;
         encryptedMinibatchSize = 1;
@@ -231,8 +223,9 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
     /// @inheritdoc IInternalStateOrchestrator
     function updateProtocolFees(uint16 _vFeeCoefficient, uint16 _rsFeeCoefficient) external onlyOwner {
-        if (_vFeeCoefficient > MAX_VOLUME_FEE || _rsFeeCoefficient > MAX_REVENUE_SHARE_FEE)
-            revert ErrorsLib.InvalidArguments();
+        /// Maximum volume fee: 1%
+        /// Maximum revenue share fee: 20%
+        if (_vFeeCoefficient > 100 || _rsFeeCoefficient > 2_000) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         vFeeCoefficient = _vFeeCoefficient;
@@ -329,7 +322,6 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             delete _currentEpoch.sellingOrders[token];
             delete _currentEpoch.buyingOrders[token];
             delete _currentEpoch.tokenExists[token];
-            delete _currentEpoch.tokenDecimals[token];
             _currentEpoch.encryptedInitialBatchPortfolio[token] = _ezero;
             _currentEpoch.encryptedVaultsTotalAssets[token] = _ezero;
             _currentEpoch.encryptedFinalBatchPortfolio[token] = _ezero;
@@ -372,22 +364,20 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
                 _currentEpoch.initialBatchPortfolio[token] += shares;
 
-                // Get and cache token decimals and prices if not already cached
+                // Get and cache prices if not already cached
                 if (!_currentEpoch.tokenExists[token]) {
-                    _currentEpoch.tokenDecimals[token] = IERC20Metadata(token).decimals();
                     if (token == underlyingAsset) {
                         _currentEpoch.priceArray[token] = 10 ** underlyingDecimals;
                     } else {
                         _currentEpoch.priceArray[token] = registry.getPrice(token);
                     }
                 }
-                uint8 tokenDecimals = _currentEpoch.tokenDecimals[token];
                 uint256 price = _currentEpoch.priceArray[token];
 
                 // Calculate estimated value of the asset in underlying asset decimals
                 uint256 value = UtilitiesLib.convertDecimals(
                     price.mulDiv(shares, priceAdapterPrecision),
-                    tokenDecimals,
+                    config.getTokenDecimals(token),
                     underlyingDecimals
                 );
 
@@ -397,7 +387,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
             // STEP 2: PROTOCOL VOLUME FEE
             uint256 protocolVolumeFee = uint256(vFeeCoefficient).mulDiv(totalAssets, BASIS_POINTS_FACTOR);
-            protocolVolumeFee = protocolVolumeFee.mulDiv(epochDuration, YEAR_IN_SECONDS);
+            protocolVolumeFee = protocolVolumeFee.mulDiv(epochDuration, 365 days);
             pendingProtocolFees += protocolVolumeFee;
             totalAssets -= protocolVolumeFee;
 
@@ -466,16 +456,14 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                     shares
                 );
 
-                // Get and cache token decimals and prices if not already cached
+                // Get and cache prices if not already cached
                 if (!_currentEpoch.tokenExists[token]) {
-                    _currentEpoch.tokenDecimals[token] = IERC20Metadata(token).decimals();
                     if (token == underlyingAsset) {
                         _currentEpoch.priceArray[token] = 10 ** underlyingDecimals;
                     } else {
                         _currentEpoch.priceArray[token] = registry.getPrice(token);
                     }
                 }
-                uint8 tokenDecimals = _currentEpoch.tokenDecimals[token];
                 uint256 price = _currentEpoch.priceArray[token];
 
                 // Calculate estimated value of the asset in underlying asset decimals
@@ -485,7 +473,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                 );
                 euint128 value = UtilitiesLib.convertEncryptedDecimals(
                     unscaledValue,
-                    tokenDecimals,
+                    config.getTokenDecimals(token),
                     underlyingDecimals
                 );
 
@@ -634,23 +622,20 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                 address token = intentTokens[j];
                 uint32 weight = intentWeights[j];
 
-                // Get and cache token decimals and prices if not already cached
+                // Get and cache prices if not already cached
                 if (!_currentEpoch.tokenExists[token]) {
-                    _currentEpoch.tokenDecimals[token] = IERC20Metadata(token).decimals();
-
                     if (token == underlyingAsset) {
                         _currentEpoch.priceArray[token] = 10 ** underlyingDecimals;
                     } else {
                         _currentEpoch.priceArray[token] = registry.getPrice(token);
                     }
                 }
-                uint8 tokenDecimals = _currentEpoch.tokenDecimals[token];
                 uint256 price = _currentEpoch.priceArray[token];
 
                 uint256 value = UtilitiesLib.convertDecimals(
                     finalTotalAssets.mulDiv(weight, intentFactor).mulDiv(priceAdapterPrecision, price),
                     underlyingDecimals,
-                    tokenDecimals
+                    config.getTokenDecimals(token)
                 );
 
                 _currentEpoch.finalBatchPortfolio[token] += value;

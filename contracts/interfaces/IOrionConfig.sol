@@ -128,4 +128,10 @@ interface IOrionConfig {
     /// @dev This function checks if both the liquidity orchestrator and the internal states orchestrator are idle
     /// @return True if the system is idle, false otherwise
     function isSystemIdle() external view returns (bool);
+
+    /// @notice Returns the number of decimals for a given token
+    /// @dev This function returns the stored decimals for whitelisted tokens
+    /// @param token The address of the token
+    /// @return The number of decimals for the token
+    function getTokenDecimals(address token) external view returns (uint8);
 }

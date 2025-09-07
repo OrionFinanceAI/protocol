@@ -342,10 +342,61 @@ describe("InternalStatesOrchestrator", function () {
       expect(await internalStatesOrchestrator.rsFeeCoefficient()).to.equal(100);
     });
 
+    it("should revert when updating protocol fees with invalid arguments", async function () {
+      // Test with volume fee coefficient exceeding maximum
+      await expect(internalStatesOrchestrator.updateProtocolFees(101, 100)).to.be.revertedWithCustomError(
+        internalStatesOrchestrator,
+        "InvalidArguments",
+      );
+
+      // Test with revenue share fee coefficient exceeding maximum
+      await expect(internalStatesOrchestrator.updateProtocolFees(50, 2001)).to.be.revertedWithCustomError(
+        internalStatesOrchestrator,
+        "InvalidArguments",
+      );
+
+      // Test with both coefficients exceeding maximum
+      await expect(internalStatesOrchestrator.updateProtocolFees(101, 2001)).to.be.revertedWithCustomError(
+        internalStatesOrchestrator,
+        "InvalidArguments",
+      );
+    });
+
     it("should not allow non-owner to update configuration", async function () {
       await expect(
         internalStatesOrchestrator.connect(curator).updateEpochDuration(86400),
       ).to.be.revertedWithCustomError(internalStatesOrchestrator, "OwnableUnauthorizedAccount");
+    });
+
+    it("should revert when updating automation registry with zero address", async function () {
+      await expect(
+        internalStatesOrchestrator.updateAutomationRegistry(ethers.ZeroAddress),
+      ).to.be.revertedWithCustomError(internalStatesOrchestrator, "ZeroAddress");
+    });
+
+    it("should revert when updating automation registry when system is not idle", async function () {
+      // Fast forward time to trigger upkeep and make system not idle
+      const epochDuration = await internalStatesOrchestrator.epochDuration();
+      await time.increase(epochDuration + 1n);
+
+      const [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+
+      // Now system is not idle (in PreprocessingTransparentVaults phase)
+      const newAutomationRegistry = user.address;
+      await expect(
+        internalStatesOrchestrator.updateAutomationRegistry(newAutomationRegistry),
+      ).to.be.revertedWithCustomError(internalStatesOrchestrator, "SystemNotIdle");
+    });
+
+    it("should successfully update automation registry and emit event", async function () {
+      const newAutomationRegistry = user.address;
+
+      await expect(internalStatesOrchestrator.updateAutomationRegistry(newAutomationRegistry))
+        .to.emit(internalStatesOrchestrator, "AutomationRegistryUpdated")
+        .withArgs(newAutomationRegistry);
+
+      expect(await internalStatesOrchestrator.automationRegistry()).to.equal(newAutomationRegistry);
     });
   });
 });
