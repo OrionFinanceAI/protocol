@@ -77,6 +77,18 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     // TODO: add state update action(s).
 
     /* -------------------------------------------------------------------------- */
+    /*                                 EPOCH STATE                                */
+    /* -------------------------------------------------------------------------- */
+    /// @notice Selling tokens for current epoch
+    address[] public sellingTokens;
+    /// @notice Selling amounts for current epoch
+    uint256[] public sellingAmounts;
+    /// @notice Buying tokens for current epoch
+    address[] public buyingTokens;
+    /// @notice Buying amounts for current epoch
+    uint256[] public buyingAmounts;
+
+    /* -------------------------------------------------------------------------- */
     /*                                MODIFIERS                                   */
     /* -------------------------------------------------------------------------- */
 
@@ -238,9 +250,9 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     }
 
     /// @notice Performs the upkeep
+    /// @param performData The encoded data containing the action and minibatch index
     function performUpkeep(bytes calldata performData) external override onlyAutomationRegistry nonReentrant {
         if (performData.length < 4) revert ErrorsLib.InvalidArguments();
-
         (bytes4 action, uint8 minibatchIndex) = abi.decode(performData, (bytes4, uint8));
 
         if (action == ACTION_START) {
@@ -252,44 +264,12 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         }
         // TODO: add state update action(s).
 
-        // TODO: buy and sell orders all in shares at this point, fix execution adapter API accordingly.
-        // this implies we can match intents with adapter price and use those variables to update vault states
-        // we nonetheless do this update after the actual execution, in line with a re-entrancy protection design.
-        // Here we are dealing with multiple transactions, not a single one, so the pattern has not the same use.
-
-        // Execute sequentially the trades to reach target state
-        (address[] memory sellingTokens, uint256[] memory sellingAmounts) = internalStatesOrchestrator
-            .getSellingOrders();
-        // TODO: can here the returned value be zero? If so fix in internal states orchestrator.
-        // TODO: same for buying orders.
-
-        // TODO: use executionMinibatchSize, akin to internal states orchestrator.
-
         // TODO: analogous to internal state orchestrator,
         // TODO: store underlying asset as contract variable at construction to avoid gas.
         // if (token == address(config.underlyingAsset())) pass for both sell and buy
 
-        // Sell before buy, avoid undercollateralization risk.
-        for (uint16 i = 0; i < sellingTokens.length; ++i) {
-            address token = sellingTokens[i];
-            uint256 amount = sellingAmounts[i];
-            _executeSell(token, amount);
-            // TODO: every transaction should enable the update of the buffer liquidity,
-            // making use of the average execution price,
-            // and the oracle prices used to generate the orders.
-        }
-
-        (address[] memory buyingTokens, uint256[] memory buyingAmounts) = internalStatesOrchestrator.getBuyingOrders();
-
-        for (uint16 i = 0; i < buyingTokens.length; ++i) {
-            address token = buyingTokens[i];
-            uint256 amount = buyingAmounts[i];
-            _executeBuy(token, amount);
-        }
-
         // TODO: StateUpdate phase start, refacto.
         // // Consistency between operation orders in internal states orchestrator and here is crucial.
-
         // address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
         // uint16 length = uint16(transparentVaults.length);
         // // TODO: implement.
@@ -297,7 +277,6 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         // //     IOrionTransparentVault vault = IOrionTransparentVault(transparentVaults[i]);
         // //     vault.updateVaultState(?, ?);
         // // }
-
         // // TODO: to updateVaultState of encrypted vaults, get the encrypted sharesPerAsset executed by the liquidity
         // // TODO: skip updating encrypted vaults states for which if (!vault.isIntentValid()), see other orchestrator.
 
@@ -321,7 +300,6 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
 
         // TODO: update pendingCuratorFees calling accrueCuratorFees of each vault.
         // Use the value computed in internal states orchestrator.
-
         emit EventsLib.PortfolioRebalanced();
     }
 
@@ -336,17 +314,47 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
             return;
         }
         lastProcessedEpoch = currentEpoch;
+
+        // Clear previous epoch data
+        delete sellingTokens;
+        delete sellingAmounts;
+        delete buyingTokens;
+        delete buyingAmounts;
+
+        // Populate new epoch data
+        (sellingTokens, sellingAmounts) = internalStatesOrchestrator.getSellingOrders();
+        (buyingTokens, buyingAmounts) = internalStatesOrchestrator.getBuyingOrders();
+        // TODO: can here the returned amounts be zero? If so fix in internal states orchestrator.
+
         currentPhase = LiquidityUpkeepPhase.SellingLeg;
     }
 
     /// @notice Handles the sell action
+    /// @param minibatchIndex The index of the minibatch to process
     function _processMinibatchSell(uint8 minibatchIndex) internal {
         // TODO: implement.
+        // TODO: sell orders all in shares at this point, fix execution adapter API accordingly.
+        //
+        // for (uint16 i = 0; i < sellingTokens.length; ++i) {
+        //     address token = sellingTokens[i];
+        //     uint256 amount = sellingAmounts[i];
+        //     _executeSell(token, amount);
+        //     // TODO: every transaction should enable the update of the buffer liquidity,
+        //     // making use of the average execution price,
+        //     // and the oracle prices used to generate the orders.
+        // }
     }
 
     /// @notice Handles the buy action
+    /// @param minibatchIndex The index of the minibatch to process
     function _processMinibatchBuy(uint8 minibatchIndex) internal {
         // TODO: implement.
+        // TODO: buy orders all in shares at this point, fix execution adapter API accordingly.
+        // for (uint16 i = 0; i < buyingTokens.length; ++i) {
+        //     address token = buyingTokens[i];
+        //     uint256 amount = buyingAmounts[i];
+        //     _executeBuy(token, amount);
+        // }
     }
 
     /// @notice Executes a sell order

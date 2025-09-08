@@ -31,6 +31,7 @@ export default defineConfig([
     "**/scripts",
     "**/.venv",
     "**/fhevmTemp",
+    "**/protocol-costs",
     // files
     "**/*.env",
     "**/*.log",
