@@ -19,6 +19,7 @@ abi/
 __pycache__/
 typechain-types/
 scripts/
+protocol-costs/
 
 # files
 *.env
