@@ -634,12 +634,15 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         }
         currentPhase = InternalUpkeepPhase.PostprocessingTransparentVaults;
 
+        uint16 nTransparentVaults = uint16(transparentVaultsEpoch.length);
+        uint16 nEncryptedVaults = uint16(encryptedVaultsEpoch.length);
+
         uint256 protocolTotalAssets = 0;
-        for (uint16 i = 0; i < transparentVaultsEpoch.length; ++i) {
+        for (uint16 i = 0; i < nTransparentVaults; ++i) {
             address vault = transparentVaultsEpoch[i];
             protocolTotalAssets += _currentEpoch.vaultsTotalAssets[address(vault)];
         }
-        for (uint16 i = 0; i < encryptedVaultsEpoch.length; ++i) {
+        for (uint16 i = 0; i < nEncryptedVaults; ++i) {
             address vault = encryptedVaultsEpoch[i];
             protocolTotalAssets += _currentEpoch.vaultsTotalAssets[address(vault)];
         }
@@ -653,13 +656,13 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         if (bufferAmount > targetBufferAmount) return;
 
         uint256 deltaBufferAmount = targetBufferAmount - bufferAmount;
-        for (uint16 i = 0; i < transparentVaultsEpoch.length; ++i) {
+        for (uint16 i = 0; i < nTransparentVaults; ++i) {
             address vault = transparentVaultsEpoch[i];
             uint256 vaultAssets = _currentEpoch.vaultsTotalAssets[address(vault)];
             uint256 vaultBufferCost = deltaBufferAmount.mulDiv(vaultAssets, protocolTotalAssets);
             _currentEpoch.vaultsTotalAssets[address(vault)] -= vaultBufferCost;
         }
-        for (uint16 i = 0; i < encryptedVaultsEpoch.length; ++i) {
+        for (uint16 i = 0; i < nEncryptedVaults; ++i) {
             address vault = encryptedVaultsEpoch[i];
             uint256 vaultAssets = _currentEpoch.vaultsTotalAssets[address(vault)];
             uint256 vaultBufferCost = deltaBufferAmount.mulDiv(vaultAssets, protocolTotalAssets);
