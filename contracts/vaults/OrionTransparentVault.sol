@@ -63,7 +63,6 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
             address token = intent[i].token;
             uint32 weight = intent[i].value;
             assets[i] = token;
-            if (weight == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(token);
             bool inserted = _portfolioIntent.set(token, weight);
             if (!inserted) revert ErrorsLib.TokenAlreadyInOrder(token);
             totalWeight += weight;

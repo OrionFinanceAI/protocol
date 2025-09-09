@@ -84,7 +84,6 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
         address[] memory tempKeys = new address[](intentLength);
         euint128[] memory tempWeights = new euint128[](intentLength);
 
-        ebool areWeightsValid = _eTrue;
         address[] memory assets = new address[](intentLength);
         for (uint16 i = 0; i < intentLength; ++i) {
             address token = intent[i].token;
@@ -94,9 +93,6 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
             // slither-disable-next-line unused-return
             FHE.allowThis(weight);
 
-            ebool isWeightValid = FHE.gt(weight, _ezero);
-            areWeightsValid = FHE.and(areWeightsValid, isWeightValid);
-
             if (_seenTokens[token]) revert ErrorsLib.TokenAlreadyInOrder(token);
 
             _seenTokens[token] = true;
@@ -105,7 +101,7 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
             totalWeight = FHE.add(totalWeight, weight);
         }
 
-        _validateIntent(assets, totalWeight, areWeightsValid);
+        _validateIntent(assets, totalWeight);
 
         // Clear previous intent by setting weights to zero (state write after all external calls)
         for (uint16 i = 0; i < uint16(_intentKeys.length); ++i) {
@@ -126,11 +122,10 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
     /// @notice Validates the intent
     /// @param assets The assets in the intent
     /// @param totalWeight The total weight of the intent
-    /// @param areWeightsValid Whether the weights are valid
-    function _validateIntent(address[] memory assets, euint128 totalWeight, ebool areWeightsValid) internal {
+    function _validateIntent(address[] memory assets, euint128 totalWeight) internal {
         _validateIntentAssets(assets);
 
-        ebool isIntentEValid = FHE.and(areWeightsValid, FHE.eq(totalWeight, _encryptedTotalWeight));
+        ebool isIntentEValid = FHE.eq(totalWeight, _encryptedTotalWeight);
 
         // slither-disable-next-line unused-return
         FHE.allowThis(isIntentEValid);

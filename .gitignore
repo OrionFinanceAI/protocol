@@ -20,7 +20,7 @@ __pycache__/
 typechain-types/
 scripts/
 protocol-costs/
-
+reports/
 # files
 *.env
 *.log
