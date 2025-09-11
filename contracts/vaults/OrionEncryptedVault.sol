@@ -84,7 +84,6 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
         address[] memory tempKeys = new address[](intentLength);
         euint128[] memory tempWeights = new euint128[](intentLength);
 
-        ebool areWeightsValid = _eTrue;
         address[] memory assets = new address[](intentLength);
         for (uint16 i = 0; i < intentLength; ++i) {
             address token = intent[i].token;
@@ -94,9 +93,6 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
             // slither-disable-next-line unused-return
             FHE.allowThis(weight);
 
-            ebool isWeightValid = FHE.gt(weight, _ezero);
-            areWeightsValid = FHE.and(areWeightsValid, isWeightValid);
-
             if (_seenTokens[token]) revert ErrorsLib.TokenAlreadyInOrder(token);
 
             _seenTokens[token] = true;
@@ -105,7 +101,7 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
             totalWeight = FHE.add(totalWeight, weight);
         }
 
-        _validateIntent(assets, totalWeight, areWeightsValid);
+        _validateIntent(assets, totalWeight);
 
         // Clear previous intent by setting weights to zero (state write after all external calls)
         for (uint16 i = 0; i < uint16(_intentKeys.length); ++i) {
@@ -126,20 +122,19 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
     /// @notice Validates the intent
     /// @param assets The assets in the intent
     /// @param totalWeight The total weight of the intent
-    /// @param areWeightsValid Whether the weights are valid
-    function _validateIntent(address[] memory assets, euint128 totalWeight, ebool areWeightsValid) internal {
+    function _validateIntent(address[] memory assets, euint128 totalWeight) internal {
         _validateIntentAssets(assets);
 
-        ebool isIntentEValid = FHE.and(areWeightsValid, FHE.eq(totalWeight, _encryptedTotalWeight));
+        ebool isIntentEValid = FHE.eq(totalWeight, _encryptedTotalWeight);
 
         // slither-disable-next-line unused-return
         FHE.allowThis(isIntentEValid);
 
-        bytes32[] memory cypherTexts = new bytes32[](1);
-        cypherTexts[0] = FHE.toBytes32(isIntentEValid);
+        bytes32[] memory cipherTexts = new bytes32[](1);
+        cipherTexts[0] = FHE.toBytes32(isIntentEValid);
 
         // slither-disable-next-line unused-return
-        FHE.requestDecryption(cypherTexts, this.callbackDecryptSingleEbool.selector);
+        FHE.requestDecryption(cipherTexts, this.callbackDecryptSingleEbool.selector);
     }
 
     // --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
@@ -182,7 +177,8 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
         delete _portfolioKeys;
 
         // Update portfolio
-        for (uint16 i = 0; i < portfolioLength; ++i) {
+        uint16 newPortfolioLength = uint16(portfolio.length);
+        for (uint16 i = 0; i < newPortfolioLength; ++i) {
             _portfolio[portfolio[i].token] = portfolio[i].value;
             _portfolioKeys.push(portfolio[i].token);
         }
@@ -196,8 +192,13 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
     // --------- ZAMA COPROCESSOR FUNCTIONS ---------
 
     /// @inheritdoc IOrionEncryptedVault
-    function callbackDecryptSingleEbool(uint256 requestID, bool decryptedInput, bytes[] calldata signatures) external {
-        FHE.checkSignatures(requestID, signatures);
-        isIntentValid = decryptedInput;
+    function callbackDecryptSingleEbool(
+        uint256 requestID,
+        bytes calldata cleartexts,
+        bytes calldata decryptionProof
+    ) external {
+        FHE.checkSignatures(requestID, cleartexts, decryptionProof);
+
+        isIntentValid = abi.decode(cleartexts, (bool));
     }
 }

@@ -11,14 +11,14 @@
           "type": "uint256"
         },
         {
-          "internalType": "uint256[]",
-          "name": "decryptedValues",
-          "type": "uint256[]"
+          "internalType": "bytes",
+          "name": "cleartexts",
+          "type": "bytes"
         },
         {
-          "internalType": "bytes[]",
-          "name": "signatures",
-          "type": "bytes[]"
+          "internalType": "bytes",
+          "name": "decryptionProof",
+          "type": "bytes"
         }
       ],
       "name": "callbackPreProcessDecrypt",

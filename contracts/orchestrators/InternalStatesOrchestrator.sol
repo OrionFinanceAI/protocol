@@ -238,11 +238,11 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         rsFeeCoefficient = _rsFeeCoefficient;
     }
 
+    /* solhint-disable code-complexity */
     /// @notice Checks if upkeep is needed based on time interval
     /// @dev https://docs.chain.link/chainlink-automation/reference/automation-interfaces
     /// @return upkeepNeeded True if upkeep is needed, false otherwise
     /// @return performData Encoded data needed to perform the upkeep
-    // solhint-disable-next-line code-complexity
     function checkUpkeep(bytes calldata) external view override returns (bool upkeepNeeded, bytes memory performData) {
         if (config.isSystemIdle() && _shouldTriggerUpkeep()) {
             upkeepNeeded = true;
@@ -275,9 +275,9 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     }
 
     /// @notice Performs state reading and estimation operations
-    // solhint-disable-next-line code-complexity
+    /// @param performData Encoded data containing the action type and minibatch index
     function performUpkeep(bytes calldata performData) external override onlyAutomationRegistry nonReentrant {
-        if (performData.length < 4) revert ErrorsLib.InvalidArguments();
+        if (performData.length < 5) revert ErrorsLib.InvalidArguments();
 
         (bytes4 action, uint8 minibatchIndex) = abi.decode(performData, (bytes4, uint8));
 
@@ -299,6 +299,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             _buildOrders();
         }
     }
+    /* solhint-enable code-complexity */
 
     /* -------------------------------------------------------------------------- */
     /*                               INTERNAL LOGIC                               */
@@ -428,11 +429,12 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         }
     }
 
+    /* solhint-disable code-complexity */
+    // slither-disable-start reentrancy-no-eth
+    // Safe reentrancy: external calls are view; nonReentrant applied to caller.
+
     /// @notice Preprocesses minibatch of encrypted vaults
     /// @param minibatchIndex The index of the minibatch to process
-    // slither-disable-start reentrancy-no-eth
-    // Safe: external calls are view; nonReentrant applied to caller.
-    // solhint-disable-next-line code-complexity
     function _preprocessEncryptedMinibatch(uint8 minibatchIndex) internal {
         // Validate current phase
         if (currentPhase != InternalUpkeepPhase.PreprocessingEncryptedVaults) {
@@ -502,45 +504,52 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
         if (i1 == nVaults) {
             if (i1 == 0 || validEncryptedVaultsCount == 0) {
-                // No encryptedVaults in current Epoch or no valid encrypted vaults, go directly to Buffering.
+                // No encryptedVaults in current Epoch or no valid encrypted intents, go directly to Buffering.
                 currentPhase = InternalUpkeepPhase.Buffering;
                 currentMinibatchIndex = 0;
             } else {
                 uint16 mTokens = uint16(_currentEpoch.tokens.length);
-                bytes32[] memory cypherTexts = new bytes32[](nVaults + mTokens);
+                bytes32[] memory cipherTexts = new bytes32[](nVaults + mTokens);
                 for (uint16 i = 0; i < nVaults; ++i) {
                     address vault = encryptedVaultsEpoch[i];
                     euint128 totalAssets = _currentEpoch.encryptedVaultsTotalAssets[vault];
                     // slither-disable-next-line unused-return
                     FHE.allowThis(totalAssets);
-                    cypherTexts[i] = FHE.toBytes32(totalAssets);
+                    cipherTexts[i] = FHE.toBytes32(totalAssets);
                 }
                 for (uint16 i = 0; i < mTokens; ++i) {
                     address token = _currentEpoch.tokens[i];
                     euint128 position = _currentEpoch.encryptedInitialBatchPortfolio[token];
                     // slither-disable-next-line unused-return
                     FHE.allowThis(position);
-                    cypherTexts[nVaults + i] = FHE.toBytes32(position);
+                    cipherTexts[nVaults + i] = FHE.toBytes32(position);
                 }
 
                 // slither-disable-next-line unused-return
-                FHE.requestDecryption(cypherTexts, this.callbackPreProcessDecrypt.selector);
+                FHE.requestDecryption(cipherTexts, this.callbackPreProcessDecrypt.selector);
             }
         }
     }
     // slither-disable-end reentrancy-no-eth
+    /* solhint-enable code-complexity */
 
     /// @inheritdoc IInternalStateOrchestrator
     function callbackPreProcessDecrypt(
         uint256 requestID,
-        uint256[] calldata decryptedValues,
-        bytes[] calldata signatures
+        bytes calldata cleartexts,
+        bytes calldata decryptionProof
     ) external {
-        FHE.checkSignatures(requestID, signatures);
+        FHE.checkSignatures(requestID, cleartexts, decryptionProof);
+
+        if (keccak256(cleartexts) == keccak256(abi.encode(uint256(0)))) {
+            currentPhase = InternalUpkeepPhase.Buffering;
+            currentMinibatchIndex = 0;
+            return;
+        }
 
         // Store decrypted values for processing in the next phase.
         // TODO(fhevm): avoid breaking down this into two phases, consider letting Zama callback do all the work.
-        _decryptedValues = decryptedValues;
+        _decryptedValues = abi.decode(cleartexts, (uint256[]));
 
         currentPhase = InternalUpkeepPhase.ProcessingDecryptedValues;
         currentMinibatchIndex = 0;
@@ -550,11 +559,9 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     /// @dev This function completes the fee calculations and state updates for encrypted vaults
     ///      using the decrypted values from the FHEVM callback
     function _processDecryptedValues() internal {
-        // Validate current phase
         if (currentPhase != InternalUpkeepPhase.ProcessingDecryptedValues) {
             revert ErrorsLib.InvalidState();
         }
-
         uint16 nVaults = uint16(encryptedVaultsEpoch.length);
         uint16 mTokens = uint16(_currentEpoch.tokens.length);
 
@@ -563,12 +570,9 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             address vault = encryptedVaultsEpoch[i];
             IOrionEncryptedVault vaultContract = IOrionEncryptedVault(vault);
 
-            // Skip if intent is invalid
             if (!vaultContract.isIntentValid()) {
-                continue;
+                continue; // Skip if intent is invalid
             }
-
-            // Get the decrypted total assets from the callback
             uint256 totalAssets = _decryptedValues[i];
 
             // STEP 2: PROTOCOL VOLUME FEE
@@ -577,11 +581,9 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             pendingProtocolFees += protocolVolumeFee;
             totalAssets -= protocolVolumeFee;
 
-            // STEP 3 & 4: CURATOR FEES (Management + Performance)
+            // STEP 3 & 4: CURATOR + PROTOCOL REVENUE SHARE FEES
             uint256 curatorFee = vaultContract.curatorFee(totalAssets);
             totalAssets -= curatorFee;
-
-            // Protocol revenue share fee on curator fee
             uint256 protocolRevenueShareFee = uint256(rsFeeCoefficient).mulDiv(curatorFee, BASIS_POINTS_FACTOR);
             pendingProtocolFees += protocolRevenueShareFee;
             curatorFee -= protocolRevenueShareFee;
@@ -595,14 +597,12 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
             // STEP 6: DEPOSIT PROCESSING (add deposits, subtract withdrawals)
             totalAssets += vaultContract.pendingDeposit() - pendingWithdrawals;
-
             _currentEpoch.vaultsTotalAssets[vault] = totalAssets;
         }
 
         // Process decrypted initial batch portfolio values
         for (uint16 i = 0; i < mTokens; ++i) {
             address token = _currentEpoch.tokens[i];
-            // Get the decrypted initial batch portfolio value from the callback
             uint256 decryptedValue = _decryptedValues[nVaults + i];
             _currentEpoch.initialBatchPortfolio[token] += decryptedValue;
         }
@@ -634,12 +634,15 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         }
         currentPhase = InternalUpkeepPhase.PostprocessingTransparentVaults;
 
+        uint16 nTransparentVaults = uint16(transparentVaultsEpoch.length);
+        uint16 nEncryptedVaults = uint16(encryptedVaultsEpoch.length);
+
         uint256 protocolTotalAssets = 0;
-        for (uint16 i = 0; i < transparentVaultsEpoch.length; ++i) {
+        for (uint16 i = 0; i < nTransparentVaults; ++i) {
             address vault = transparentVaultsEpoch[i];
             protocolTotalAssets += _currentEpoch.vaultsTotalAssets[address(vault)];
         }
-        for (uint16 i = 0; i < encryptedVaultsEpoch.length; ++i) {
+        for (uint16 i = 0; i < nEncryptedVaults; ++i) {
             address vault = encryptedVaultsEpoch[i];
             protocolTotalAssets += _currentEpoch.vaultsTotalAssets[address(vault)];
         }
@@ -653,13 +656,13 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         if (bufferAmount > targetBufferAmount) return;
 
         uint256 deltaBufferAmount = targetBufferAmount - bufferAmount;
-        for (uint16 i = 0; i < transparentVaultsEpoch.length; ++i) {
+        for (uint16 i = 0; i < nTransparentVaults; ++i) {
             address vault = transparentVaultsEpoch[i];
             uint256 vaultAssets = _currentEpoch.vaultsTotalAssets[address(vault)];
             uint256 vaultBufferCost = deltaBufferAmount.mulDiv(vaultAssets, protocolTotalAssets);
             _currentEpoch.vaultsTotalAssets[address(vault)] -= vaultBufferCost;
         }
-        for (uint16 i = 0; i < encryptedVaultsEpoch.length; ++i) {
+        for (uint16 i = 0; i < nEncryptedVaults; ++i) {
             address vault = encryptedVaultsEpoch[i];
             uint256 vaultAssets = _currentEpoch.vaultsTotalAssets[address(vault)];
             uint256 vaultBufferCost = deltaBufferAmount.mulDiv(vaultAssets, protocolTotalAssets);

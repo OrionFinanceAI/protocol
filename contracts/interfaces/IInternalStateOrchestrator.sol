@@ -60,12 +60,12 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
 
     /// @notice Callback function to decrypt the encrypted values
     /// @param requestID The request ID
-    /// @param decryptedValues The decrypted values
-    /// @param signatures The signatures
+    /// @param cleartexts The cleartexts
+    /// @param decryptionProof The decryption proof
     function callbackPreProcessDecrypt(
         uint256 requestID,
-        uint256[] memory decryptedValues,
-        bytes[] memory signatures
+        bytes calldata cleartexts,
+        bytes calldata decryptionProof
     ) external;
 
     /// @notice Get the selling orders
