@@ -504,7 +504,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
         if (i1 == nVaults) {
             if (i1 == 0 || validEncryptedVaultsCount == 0) {
-                // No encryptedVaults in current Epoch or no valid encrypted vaults, go directly to Buffering.
+                // No encryptedVaults in current Epoch or no valid encrypted intents, go directly to Buffering.
                 currentPhase = InternalUpkeepPhase.Buffering;
                 currentMinibatchIndex = 0;
             } else {
@@ -536,14 +536,20 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     /// @inheritdoc IInternalStateOrchestrator
     function callbackPreProcessDecrypt(
         uint256 requestID,
-        uint256[] calldata decryptedValues,
-        bytes[] calldata signatures
+        bytes calldata cleartexts,
+        bytes calldata decryptionProof
     ) external {
-        FHE.checkSignatures(requestID, signatures);
+        FHE.checkSignatures(requestID, cleartexts, decryptionProof);
+
+        if (keccak256(cleartexts) == keccak256(abi.encode(uint256(0)))) {
+            currentPhase = InternalUpkeepPhase.Buffering;
+            currentMinibatchIndex = 0;
+            return;
+        }
 
         // Store decrypted values for processing in the next phase.
         // TODO(fhevm): avoid breaking down this into two phases, consider letting Zama callback do all the work.
-        _decryptedValues = decryptedValues;
+        _decryptedValues = abi.decode(cleartexts, (uint256[]));
 
         currentPhase = InternalUpkeepPhase.ProcessingDecryptedValues;
         currentMinibatchIndex = 0;

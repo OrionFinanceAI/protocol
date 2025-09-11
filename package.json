@@ -1,7 +1,7 @@
 {
   "name": "@orion-finance/protocol",
   "description": "Orion Finance Protocol",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "engines": {
     "node": ">=20.0.0"
   },
@@ -32,7 +32,8 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
     "@eslint/js": "^9.33.0",
-    "@fhevm/hardhat-plugin": "^0.0.1-6",
+    "@fhevm/hardhat-plugin": "^0.1.0",
+    "@fhevm/mock-utils": "0.1.0",
     "@nomicfoundation/hardhat-chai-matchers": "^2.1.0",
     "@nomicfoundation/hardhat-ethers": "^3.1.0",
     "@nomicfoundation/hardhat-toolbox": "^3.0.0",
@@ -46,6 +47,7 @@
     "@typescript-eslint/eslint-plugin": "^8.38.0",
     "@typescript-eslint/parser": "^8.38.0",
     "@zama-fhe/oracle-solidity": "^0.1.0",
+    "@zama-fhe/relayer-sdk": "^0.2.0",
     "chai": "^4.5.0",
     "chai-as-promised": "^8.0.1",
     "cross-env": "^7.0.3",
@@ -70,7 +72,7 @@
   },
   "dependencies": {
     "@chainlink/contracts": "^1.4.0",
-    "@fhevm/solidity": "^0.7.0",
+    "@fhevm/solidity": "^0.8.0",
     "@openzeppelin/contracts": "^5.4.0",
     "encrypted-types": "^0.0.4"
   }

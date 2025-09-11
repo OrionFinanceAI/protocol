@@ -192,8 +192,13 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
     // --------- ZAMA COPROCESSOR FUNCTIONS ---------
 
     /// @inheritdoc IOrionEncryptedVault
-    function callbackDecryptSingleEbool(uint256 requestID, bool decryptedInput, bytes[] calldata signatures) external {
-        FHE.checkSignatures(requestID, signatures);
-        isIntentValid = decryptedInput;
+    function callbackDecryptSingleEbool(
+        uint256 requestID,
+        bytes calldata cleartexts,
+        bytes calldata decryptionProof
+    ) external {
+        FHE.checkSignatures(requestID, cleartexts, decryptionProof);
+
+        isIntentValid = abi.decode(cleartexts, (bool));
     }
 }

@@ -50,7 +50,11 @@ interface IOrionEncryptedVault is IOrionVault {
 
     /// @notice Callback function to decrypt a single ebool
     /// @param requestID The request ID
-    /// @param decryptedInput The decrypted input
-    /// @param signatures The signatures to validate the authenticity of the decrypted input
-    function callbackDecryptSingleEbool(uint256 requestID, bool decryptedInput, bytes[] calldata signatures) external;
+    /// @param cleartexts The cleartexts
+    /// @param decryptionProof The decryption proof
+    function callbackDecryptSingleEbool(
+        uint256 requestID,
+        bytes calldata cleartexts,
+        bytes calldata decryptionProof
+    ) external;
 }

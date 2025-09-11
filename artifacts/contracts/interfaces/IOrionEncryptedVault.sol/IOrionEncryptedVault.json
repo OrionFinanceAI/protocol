@@ -421,14 +421,14 @@
           "type": "uint256"
         },
         {
-          "internalType": "bool",
-          "name": "decryptedInput",
-          "type": "bool"
+          "internalType": "bytes",
+          "name": "cleartexts",
+          "type": "bytes"
         },
         {
-          "internalType": "bytes[]",
-          "name": "signatures",
-          "type": "bytes[]"
+          "internalType": "bytes",
+          "name": "decryptionProof",
+          "type": "bytes"
         }
       ],
       "name": "callbackDecryptSingleEbool",
