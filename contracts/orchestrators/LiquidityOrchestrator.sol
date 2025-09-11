@@ -252,7 +252,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     /// @notice Performs the upkeep
     /// @param performData The encoded data containing the action and minibatch index
     function performUpkeep(bytes calldata performData) external override onlyAutomationRegistry nonReentrant {
-        if (performData.length < 4) revert ErrorsLib.InvalidArguments();
+        if (performData.length < 5) revert ErrorsLib.InvalidArguments();
         (bytes4 action, uint8 minibatchIndex) = abi.decode(performData, (bytes4, uint8));
 
         if (action == ACTION_START) {
@@ -365,8 +365,10 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
 
         // Approve adapter to spend shares
-        bool success = IERC20(asset).approve(address(adapter), amount);
-        if (!success) revert ErrorsLib.TransferFailed();
+        // slither-disable-next-line unused-return
+        IERC20(asset).approve(address(adapter), 0);
+        // slither-disable-next-line unused-return
+        IERC20(asset).approve(address(adapter), amount);
 
         // TODO: pass slippageBound, oracle price and number of shares to adapters.
 
@@ -390,8 +392,10 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         // is set into the portfolio state for all vaults.
 
         // Approve adapter to spend underlying assets
-        bool success = IERC20(underlyingAsset).approve(address(adapter), amount);
-        if (!success) revert ErrorsLib.TransferFailed();
+        // slither-disable-next-line unused-return
+        IERC20(underlyingAsset).approve(address(adapter), 0);
+        // slither-disable-next-line unused-return
+        IERC20(underlyingAsset).approve(address(adapter), amount);
 
         // Execute buy through adapter, pull underlying assets from this contract and push shares to it.
         adapter.buy(asset, amount);

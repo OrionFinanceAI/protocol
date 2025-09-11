@@ -277,7 +277,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     /// @notice Performs state reading and estimation operations
     /// @param performData Encoded data containing the action type and minibatch index
     function performUpkeep(bytes calldata performData) external override onlyAutomationRegistry nonReentrant {
-        if (performData.length < 4) revert ErrorsLib.InvalidArguments();
+        if (performData.length < 5) revert ErrorsLib.InvalidArguments();
 
         (bytes4 action, uint8 minibatchIndex) = abi.decode(performData, (bytes4, uint8));
 
@@ -509,24 +509,24 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                 currentMinibatchIndex = 0;
             } else {
                 uint16 mTokens = uint16(_currentEpoch.tokens.length);
-                bytes32[] memory cypherTexts = new bytes32[](nVaults + mTokens);
+                bytes32[] memory cipherTexts = new bytes32[](nVaults + mTokens);
                 for (uint16 i = 0; i < nVaults; ++i) {
                     address vault = encryptedVaultsEpoch[i];
                     euint128 totalAssets = _currentEpoch.encryptedVaultsTotalAssets[vault];
                     // slither-disable-next-line unused-return
                     FHE.allowThis(totalAssets);
-                    cypherTexts[i] = FHE.toBytes32(totalAssets);
+                    cipherTexts[i] = FHE.toBytes32(totalAssets);
                 }
                 for (uint16 i = 0; i < mTokens; ++i) {
                     address token = _currentEpoch.tokens[i];
                     euint128 position = _currentEpoch.encryptedInitialBatchPortfolio[token];
                     // slither-disable-next-line unused-return
                     FHE.allowThis(position);
-                    cypherTexts[nVaults + i] = FHE.toBytes32(position);
+                    cipherTexts[nVaults + i] = FHE.toBytes32(position);
                 }
 
                 // slither-disable-next-line unused-return
-                FHE.requestDecryption(cypherTexts, this.callbackPreProcessDecrypt.selector);
+                FHE.requestDecryption(cipherTexts, this.callbackPreProcessDecrypt.selector);
             }
         }
     }

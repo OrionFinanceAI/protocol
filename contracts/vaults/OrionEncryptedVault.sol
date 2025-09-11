@@ -130,11 +130,11 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
         // slither-disable-next-line unused-return
         FHE.allowThis(isIntentEValid);
 
-        bytes32[] memory cypherTexts = new bytes32[](1);
-        cypherTexts[0] = FHE.toBytes32(isIntentEValid);
+        bytes32[] memory cipherTexts = new bytes32[](1);
+        cipherTexts[0] = FHE.toBytes32(isIntentEValid);
 
         // slither-disable-next-line unused-return
-        FHE.requestDecryption(cypherTexts, this.callbackDecryptSingleEbool.selector);
+        FHE.requestDecryption(cipherTexts, this.callbackDecryptSingleEbool.selector);
     }
 
     // --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
@@ -177,7 +177,8 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
         delete _portfolioKeys;
 
         // Update portfolio
-        for (uint16 i = 0; i < portfolioLength; ++i) {
+        uint16 newPortfolioLength = uint16(portfolio.length);
+        for (uint16 i = 0; i < newPortfolioLength; ++i) {
             _portfolio[portfolio[i].token] = portfolio[i].value;
             _portfolioKeys.push(portfolio[i].token);
         }
