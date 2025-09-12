@@ -241,9 +241,9 @@ describe("Orchestrators", function () {
     await transparentVault.connect(curator).submitIntent(intent);
 
     // Mint underlying assets to the user and make a deposit request
-    await underlyingAsset.mint(user.address, ethers.parseUnits("10000", 6));
-    await underlyingAsset.connect(user).approve(await transparentVault.getAddress(), ethers.parseUnits("10000", 6));
-    const depositAmount = ethers.parseUnits("100", 6);
+    await underlyingAsset.mint(user.address, ethers.parseUnits("10000", 12));
+    await underlyingAsset.connect(user).approve(await transparentVault.getAddress(), ethers.parseUnits("10000", 12));
+    const depositAmount = ethers.parseUnits("100", 12);
     await transparentVault.connect(user).requestDeposit(depositAmount);
 
     // Create an encrypted vault
@@ -302,8 +302,126 @@ describe("Orchestrators", function () {
 
     await encryptedVault.connect(curator).submitIntent(encryptedIntent, encryptedIntentCiphertexts.inputProof);
 
-    await underlyingAsset.connect(user).approve(await encryptedVault.getAddress(), ethers.parseUnits("100", 6));
+    await underlyingAsset.connect(user).approve(await encryptedVault.getAddress(), ethers.parseUnits("100", 12));
     await encryptedVault.connect(user).requestDeposit(depositAmount);
+  });
+
+  describe("Idle-only functionality", function () {
+    it("should revert when system is not idle", async function () {
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Idle
+
+      const epochDuration = await internalStatesOrchestrator.epochDuration();
+      await time.increase(epochDuration + 1n);
+
+      const [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // Not idle anymore
+
+      const vaultAddress = await encryptedVault.getAddress();
+      await expect(orionConfig.removeOrionVault(vaultAddress, 1)).to.be.revertedWithCustomError(
+        orionConfig,
+        "SystemNotIdle",
+      );
+
+      await expect(
+        orionConfig.setVaultFactories(
+          await transparentVaultFactory.getAddress(),
+          await encryptedVaultFactory.getAddress(),
+        ),
+      ).to.be.revertedWithCustomError(orionConfig, "SystemNotIdle");
+
+      await expect(orionConfig.setProtocolRiskFreeRate(1000)).to.be.revertedWithCustomError(
+        orionConfig,
+        "SystemNotIdle",
+      );
+
+      await expect(
+        orionConfig.addWhitelistedAsset(
+          await mockAsset1.getAddress(),
+          await mockPriceAdapter1.getAddress(),
+          await mockExecutionAdapter1.getAddress(),
+        ),
+      ).to.be.revertedWithCustomError(orionConfig, "SystemNotIdle");
+
+      await expect(orionConfig.removeWhitelistedAsset(await mockAsset1.getAddress())).to.be.revertedWithCustomError(
+        orionConfig,
+        "SystemNotIdle",
+      );
+
+      await expect(orionConfig.removeOrionVault(await encryptedVault.getAddress(), 1)).to.be.revertedWithCustomError(
+        orionConfig,
+        "SystemNotIdle",
+      );
+
+      // Test InternalStatesOrchestrator functions
+      await expect(internalStatesOrchestrator.updateEpochDuration(3600)).to.be.revertedWithCustomError(
+        internalStatesOrchestrator,
+        "SystemNotIdle",
+      );
+
+      await expect(internalStatesOrchestrator.updateMinibatchSizes(5, 3)).to.be.revertedWithCustomError(
+        internalStatesOrchestrator,
+        "SystemNotIdle",
+      );
+
+      await expect(internalStatesOrchestrator.updateProtocolFees(50, 1000)).to.be.revertedWithCustomError(
+        internalStatesOrchestrator,
+        "SystemNotIdle",
+      );
+
+      // Test LiquidityOrchestrator functions
+      await expect(liquidityOrchestrator.updateExecutionMinibatchSize(10)).to.be.revertedWithCustomError(
+        liquidityOrchestrator,
+        "SystemNotIdle",
+      );
+
+      await expect(liquidityOrchestrator.updateAutomationRegistry(user.address)).to.be.revertedWithCustomError(
+        liquidityOrchestrator,
+        "SystemNotIdle",
+      );
+
+      await expect(liquidityOrchestrator.setSlippageBound(ethers.parseUnits("0.01", 18))).to.be.revertedWithCustomError(
+        liquidityOrchestrator,
+        "SystemNotIdle",
+      );
+
+      // Test vault functions
+      const depositAmount = ethers.parseUnits("100", 12);
+      await expect(encryptedVault.connect(user).requestDeposit(depositAmount)).to.be.revertedWithCustomError(
+        encryptedVault,
+        "SystemNotIdle",
+      );
+
+      await expect(encryptedVault.connect(user).cancelDepositRequest(depositAmount)).to.be.revertedWithCustomError(
+        encryptedVault,
+        "SystemNotIdle",
+      );
+
+      const redeemAmount = ethers.parseUnits("50", 18);
+      await expect(encryptedVault.connect(user).requestRedeem(redeemAmount)).to.be.revertedWithCustomError(
+        encryptedVault,
+        "SystemNotIdle",
+      );
+
+      await expect(encryptedVault.connect(user).cancelRedeemRequest(redeemAmount)).to.be.revertedWithCustomError(
+        encryptedVault,
+        "SystemNotIdle",
+      );
+
+      await expect(encryptedVault.connect(owner).updateFeeModel(0, 1000, 200)).to.be.revertedWithCustomError(
+        encryptedVault,
+        "SystemNotIdle",
+      );
+
+      // Test factory functions
+      await expect(
+        encryptedVaultFactory.createVault(curator.address, "Test Encrypted Vault", "TEV", 0, 0, 0),
+      ).to.be.revertedWithCustomError(encryptedVaultFactory, "SystemNotIdle");
+
+      await expect(
+        transparentVaultFactory.createVault(curator.address, "Test Transparent Vault", "TTV", 0, 0, 0),
+      ).to.be.revertedWithCustomError(transparentVaultFactory, "SystemNotIdle");
+    });
   });
 
   describe("performUpkeep", function () {

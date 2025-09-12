@@ -332,19 +332,6 @@ describe("Config", function () {
       );
     });
 
-    it("Should revert when system is not idle", async function () {
-      const vaultAddress = await vault.getAddress();
-
-      // Mock the system to be not idle by setting up a non-idle state
-      // We'll need to create a scenario where the orchestrators are not in idle phase
-      // For now, we'll test the basic case where the system should be idle
-      // This test would need to be expanded when we have a way to set orchestrators to non-idle state
-
-      // The current test setup should have the system in idle state, so this test
-      // demonstrates the structure for when we can control orchestrator phases
-      await expect(orionConfig.removeOrionVault(vaultAddress, 1)).to.not.be.reverted;
-    });
-
     it("Should revert when trying to remove vault with zero address", async function () {
       await expect(orionConfig.removeOrionVault(ethers.ZeroAddress, 1)).to.be.revertedWithCustomError(
         orionConfig,

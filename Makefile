@@ -2,5 +2,5 @@
 ci:
 	pnpm slither
 	pnpm lint
-	pnpm coverage
+	pnpm test
 	pnpm typechain
