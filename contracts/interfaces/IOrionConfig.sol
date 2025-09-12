@@ -84,12 +84,6 @@ interface IOrionConfig {
     /// @return The count of whitelisted assets
     function whitelistedAssetsLength() external view returns (uint16);
 
-    /// @notice Returns the whitelisted asset address at the specified index
-    /// @dev Uses EnumerableSet ordering, which may change when assets are added/removed
-    /// @param index The index of the asset to retrieve
-    /// @return The address of the whitelisted asset at the given index
-    function getWhitelistedAssetAt(uint16 index) external view returns (address);
-
     /// @notice Returns all whitelisted assets
     /// @return An array of whitelisted asset addresses
     function getAllWhitelistedAssets() external view returns (address[] memory);
