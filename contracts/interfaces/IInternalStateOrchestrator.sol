@@ -82,4 +82,9 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
             address[] memory buyingTokens,
             uint256[] memory buyingAmounts
         );
+
+    /// @notice Get price for a specific token
+    /// @param token The token to get the price of
+    /// @return price The corresponding price [shares/assets]
+    function getPriceOf(address token) external view returns (uint256 price);
 }

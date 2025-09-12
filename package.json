@@ -1,7 +1,7 @@
 {
   "name": "@orion-finance/protocol",
   "description": "Orion Finance Protocol",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "engines": {
     "node": ">=20.0.0"
   },

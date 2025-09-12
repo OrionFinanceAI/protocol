@@ -74,11 +74,12 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     bytes4 private constant ACTION_START = bytes4(keccak256("start()"));
     bytes4 private constant ACTION_PROCESS_SELL = bytes4(keccak256("processSell(uint8)"));
     bytes4 private constant ACTION_PROCESS_BUY = bytes4(keccak256("processBuy(uint8)"));
-    // TODO: add state update action(s).
+    bytes4 private constant ACTION_STATE_UPDATE = bytes4(keccak256("stateUpdate()"));
 
     /* -------------------------------------------------------------------------- */
     /*                                 EPOCH STATE                                */
     /* -------------------------------------------------------------------------- */
+
     /// @notice Selling tokens for current epoch
     address[] public sellingTokens;
     /// @notice Selling amounts for current epoch
@@ -263,10 +264,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
             _processMinibatchBuy(minibatchIndex);
         }
         // TODO: add state update action(s).
-
-        // TODO: analogous to internal state orchestrator,
-        // TODO: store underlying asset as contract variable at construction to avoid gas.
-        // if (token == address(config.underlyingAsset())) pass for both sell and buy
+        // Consider modularizing the steps.
 
         // TODO: StateUpdate phase start, refacto.
         // // Consistency between operation orders in internal states orchestrator and here is crucial.
@@ -320,23 +318,38 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         delete sellingAmounts;
         delete buyingTokens;
         delete buyingAmounts;
-
         // Populate new epoch data
         (sellingTokens, sellingAmounts, buyingTokens, buyingAmounts) = internalStatesOrchestrator.getOrders();
 
         currentPhase = LiquidityUpkeepPhase.SellingLeg;
+        if (sellingTokens.length == 0) {
+            currentPhase = LiquidityUpkeepPhase.BuyingLeg;
+            if (buyingTokens.length == 0) {
+                currentPhase = LiquidityUpkeepPhase.Idle;
+            }
+        }
     }
 
     /// @notice Handles the sell action
     /// @param minibatchIndex The index of the minibatch to process
     function _processMinibatchSell(uint8 minibatchIndex) internal {
-        // TODO: implement.
-        // TODO: sell orders all in shares at this point, fix execution adapter API accordingly.
+        if (currentPhase != LiquidityUpkeepPhase.SellingLeg) {
+            revert ErrorsLib.InvalidState();
+        }
+        ++currentMinibatchIndex;
+
+        uint16 i0 = minibatchIndex * executionMinibatchSize;
+        uint16 i1 = i0 + executionMinibatchSize;
+
+        // TODO: skip underlying asset processing.
+        // if (token == address(underlyingAsset)) pass
+        //
+        // Sell orders all in shares at this point, fix execution adapter API accordingly.
         // for (uint16 i = 0; i < sellingTokens.length; ++i) {
         //     address token = sellingTokens[i];
         //     uint256 amount = sellingAmounts[i];
         //     _executeSell(token, amount);
-        //     // TODO: every transaction should enable the update of the buffer liquidity,
+        //     // every transaction should enable the update of the buffer liquidity,
         //     // making use of the average execution price,
         //     // and the oracle prices used to generate the orders.
         // }
@@ -345,13 +358,26 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     /// @notice Handles the buy action
     /// @param minibatchIndex The index of the minibatch to process
     function _processMinibatchBuy(uint8 minibatchIndex) internal {
-        // TODO: implement.
-        // TODO: buy orders all in shares at this point, fix execution adapter API accordingly.
-        // for (uint16 i = 0; i < buyingTokens.length; ++i) {
-        //     address token = buyingTokens[i];
-        //     uint256 amount = buyingAmounts[i];
-        //     _executeBuy(token, amount);
-        // }
+        if (currentPhase != LiquidityUpkeepPhase.BuyingLeg) {
+            revert ErrorsLib.InvalidState();
+        }
+        ++currentMinibatchIndex;
+
+        uint16 i0 = minibatchIndex * executionMinibatchSize;
+        uint16 i1 = i0 + executionMinibatchSize;
+
+        if (i1 > buyingTokens.length || i1 == buyingTokens.length) {
+            i1 = uint16(buyingTokens.length);
+            currentPhase = LiquidityUpkeepPhase.StateUpdate;
+            currentMinibatchIndex = 0;
+        }
+
+        for (uint16 i = i0; i < i1; ++i) {
+            address token = buyingTokens[i];
+            if (token == address(underlyingAsset)) continue;
+            uint256 amount = buyingAmounts[i];
+            _executeBuy(token, amount);
+        }
     }
 
     /// @notice Executes a sell order
@@ -383,7 +409,6 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         IExecutionAdapter adapter = executionAdapterOf[asset];
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
 
-        // TODO: analogous API updates as sell.
         // TODO: underlying asset/numeraire needs to be part of the whitelisted investment universe,
         // as if an order does not pass the underlying equivalent
         // is set into the portfolio state for all vaults.

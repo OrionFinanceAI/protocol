@@ -797,7 +797,6 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     {
         address[] memory allTokens = _currentEpoch.tokens;
         uint16 allTokensLength = uint16(allTokens.length);
-
         // First pass: count non-zero orders
         uint16 sellingCount = 0;
         uint16 buyingCount = 0;
@@ -805,19 +804,17 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         for (uint16 i = 0; i < allTokensLength; ++i) {
             address token = allTokens[i];
             if (_currentEpoch.sellingOrders[token] > 0) {
-                sellingCount++;
+                ++sellingCount;
             }
             if (_currentEpoch.buyingOrders[token] > 0) {
-                buyingCount++;
+                ++buyingCount;
             }
         }
-
         // Initialize arrays with correct sizes (only for non-zero values)
         sellingTokens = new address[](sellingCount);
         sellingAmounts = new uint256[](sellingCount);
         buyingTokens = new address[](buyingCount);
         buyingAmounts = new uint256[](buyingCount);
-
         // Second pass: populate arrays with non-zero values
         uint16 sellingIndex = 0;
         uint16 buyingIndex = 0;
@@ -830,15 +827,19 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             if (sellingAmount > 0) {
                 sellingTokens[sellingIndex] = token;
                 sellingAmounts[sellingIndex] = sellingAmount;
-                sellingIndex++;
+                ++sellingIndex;
             }
-
             if (buyingAmount > 0) {
                 buyingTokens[buyingIndex] = token;
                 buyingAmounts[buyingIndex] = buyingAmount;
-                buyingIndex++;
+                ++buyingIndex;
             }
         }
+    }
+
+    /// @inheritdoc IInternalStateOrchestrator
+    function getPriceOf(address token) external view returns (uint256 price) {
+        return _currentEpoch.priceArray[token];
     }
 
     /// @inheritdoc IInternalStateOrchestrator

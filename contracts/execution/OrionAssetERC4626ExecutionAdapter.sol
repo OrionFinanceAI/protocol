@@ -52,15 +52,16 @@ contract OrionAssetERC4626ExecutionAdapter is IExecutionAdapter {
     /// @dev The adapter will pull the underlying assets from the caller
     ///      and push the resulting shares.
     function buy(address vaultAsset, uint256 amount) external override onlyLiquidityOrchestrator {
+        // TODO: buy orders all in shares at this point, fix execution adapter API accordingly.
+        revert ErrorsLib.InvalidArguments();
+
         try IERC4626(vaultAsset).asset() returns (address vaultUnderlyingAsset) {
             if (vaultUnderlyingAsset != underlyingAsset) revert ErrorsLib.InvalidAddress();
         } catch {
             revert ErrorsLib.InvalidAddress(); // Adapter not valid for this vault
         }
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(vaultAsset);
-
         IERC4626 vault = IERC4626(vaultAsset);
-
         // Pull underlying assets from the caller
         underlyingAssetToken.safeTransferFrom(msg.sender, address(this), amount);
         // Approve vault to spend underlying assets
@@ -69,7 +70,6 @@ contract OrionAssetERC4626ExecutionAdapter is IExecutionAdapter {
         uint256 shares = vault.deposit(amount, address(this));
         // Clean up approval
         underlyingAssetToken.forceApprove(vaultAsset, 0);
-
         // Push the received shares to the caller
         bool success = vault.transfer(msg.sender, shares);
         if (!success) revert ErrorsLib.TransferFailed();
@@ -81,6 +81,9 @@ contract OrionAssetERC4626ExecutionAdapter is IExecutionAdapter {
     /// @dev The adapter will pull the vault shares from the caller
     ///      and push the resulting underlying assets.
     function sell(address vaultAsset, uint256 amount) external override onlyLiquidityOrchestrator {
+        // TODO: sell orders all in shares at this point, fix execution adapter API accordingly.
+        revert ErrorsLib.InvalidArguments();
+
         try IERC4626(vaultAsset).asset() returns (address vaultUnderlyingAsset) {
             if (vaultUnderlyingAsset != underlyingAsset) revert ErrorsLib.InvalidAddress();
         } catch {

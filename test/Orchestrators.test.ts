@@ -535,12 +535,16 @@ describe("Orchestrators", function () {
 
       // Now check if liquidity orchestrator needs to be triggered
       expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
-      const [liquidityUpkeepNeeded, _liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
 
+      let [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
       void expect(liquidityUpkeepNeeded).to.be.true;
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
 
-      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(_liquidityPerformData);
-      expect(await liquidityOrchestrator.currentPhase()).to.equal(1); // SellingLeg
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(2); // BuyingLeg
+
+      [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      void expect(liquidityUpkeepNeeded).to.be.true;
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
     });
 
     it("should not trigger upkeep when system is idle and time hasn't passed", async function () {
