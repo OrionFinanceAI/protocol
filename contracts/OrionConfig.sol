@@ -173,11 +173,6 @@ contract OrionConfig is Ownable, IOrionConfig {
     }
 
     /// @inheritdoc IOrionConfig
-    function getWhitelistedAssetAt(uint16 index) external view returns (address) {
-        return whitelistedAssets.at(index);
-    }
-
-    /// @inheritdoc IOrionConfig
     function getAllWhitelistedAssets() external view returns (address[] memory assets) {
         uint16 length = uint16(whitelistedAssets.length());
         assets = new address[](length);

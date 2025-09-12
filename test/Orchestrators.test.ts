@@ -49,7 +49,7 @@ describe("Orchestrators", function () {
 
     // Deploy Mock Underlying Asset
     const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
-    const underlyingAssetDeployed = await MockUnderlyingAssetFactory.deploy(6);
+    const underlyingAssetDeployed = await MockUnderlyingAssetFactory.deploy(12);
     await underlyingAssetDeployed.waitForDeployment();
     underlyingAsset = underlyingAssetDeployed as unknown as MockUnderlyingAsset;
 
@@ -234,8 +234,9 @@ describe("Orchestrators", function () {
       },
       {
         token: await mockAsset3.getAddress(),
-        value: 250000000, // 25% (25% of 1e9)
+        value: 240000000, // 24% (24% of 1e9)
       },
+      { token: await underlyingAsset.getAddress(), value: 10000000 }, // 1% (1% of 1e9)
     ];
     await transparentVault.connect(curator).submitIntent(intent);
 
@@ -275,7 +276,8 @@ describe("Orchestrators", function () {
 
     encryptedIntentBuffer.add128(400000000); // 40% * 10^9
     encryptedIntentBuffer.add128(350000000); // 35% * 10^9
-    encryptedIntentBuffer.add128(250000000); // 25% * 10^9
+    encryptedIntentBuffer.add128(240000000); // 24% * 10^9
+    encryptedIntentBuffer.add128(10000000); // 1% * 10^9
 
     const encryptedIntentCiphertexts = await encryptedIntentBuffer.encrypt();
 
@@ -291,6 +293,10 @@ describe("Orchestrators", function () {
       {
         token: await mockAsset3.getAddress(),
         weight: encryptedIntentCiphertexts.handles[2],
+      },
+      {
+        token: await underlyingAsset.getAddress(),
+        weight: encryptedIntentCiphertexts.handles[3],
       },
     ];
 
@@ -349,8 +355,8 @@ describe("Orchestrators", function () {
       const [buyingTokens, _buyingAmounts] = await internalStatesOrchestrator.getBuyingOrders();
 
       // Should have all three assets in the orders arrays
-      expect(sellingTokens.length).to.equal(3); // All three assets
-      expect(buyingTokens.length).to.equal(3); // All three assets
+      expect(sellingTokens.length).to.equal(4);
+      expect(buyingTokens.length).to.equal(4);
     });
 
     it("should complete full upkeep cycles without intent decryption", async function () {
@@ -398,8 +404,8 @@ describe("Orchestrators", function () {
       const [buyingTokens, _buyingAmounts] = await internalStatesOrchestrator.getBuyingOrders();
 
       // Should have all three assets in the orders arrays
-      expect(sellingTokens.length).to.equal(3); // All three assets
-      expect(buyingTokens.length).to.equal(3); // All three assets
+      expect(sellingTokens.length).to.equal(4);
+      expect(buyingTokens.length).to.equal(4);
 
       // Now check if liquidity orchestrator needs to be triggered
       const [liquidityUpkeepNeeded, _liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
@@ -535,6 +541,154 @@ describe("Orchestrators", function () {
         .withArgs(newAutomationRegistry);
 
       expect(await internalStatesOrchestrator.automationRegistry()).to.equal(newAutomationRegistry);
+    });
+  });
+
+  describe("Security Tests - InvalidState Protection", function () {
+    const createMaliciousPerformData = (action: string, minibatchIndex: number = 0) => {
+      const actionHash = ethers.keccak256(ethers.toUtf8Bytes(action));
+      const actionBytes4 = actionHash.slice(0, 10);
+      return ethers.AbiCoder.defaultAbiCoder().encode(["bytes4", "uint8"], [actionBytes4, minibatchIndex]);
+    };
+
+    it("should revert with InvalidState when calling preprocessTV in wrong phase", async function () {
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Idle
+
+      const maliciousData = createMaliciousPerformData("preprocessTV(uint8)", 0);
+
+      await expect(
+        internalStatesOrchestrator.connect(automationRegistry).performUpkeep(maliciousData),
+      ).to.be.revertedWithCustomError(internalStatesOrchestrator, "InvalidState");
+    });
+
+    it("should revert with InvalidState when calling preprocessEV in wrong phase", async function () {
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Idle
+
+      const maliciousData = createMaliciousPerformData("preprocessEV(uint8)", 0);
+
+      await expect(
+        internalStatesOrchestrator.connect(automationRegistry).performUpkeep(maliciousData),
+      ).to.be.revertedWithCustomError(internalStatesOrchestrator, "InvalidState");
+    });
+
+    it("should revert with InvalidState when calling processDecryptedValues in wrong phase", async function () {
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Idle
+
+      const maliciousData = createMaliciousPerformData("processDecryptedValues()", 0);
+
+      await expect(
+        internalStatesOrchestrator.connect(automationRegistry).performUpkeep(maliciousData),
+      ).to.be.revertedWithCustomError(internalStatesOrchestrator, "InvalidState");
+    });
+
+    it("should revert with InvalidState when calling buffer in wrong phase", async function () {
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Idle
+
+      const maliciousData = createMaliciousPerformData("buffer()", 0);
+
+      await expect(
+        internalStatesOrchestrator.connect(automationRegistry).performUpkeep(maliciousData),
+      ).to.be.revertedWithCustomError(internalStatesOrchestrator, "InvalidState");
+    });
+
+    it("should revert with InvalidState when calling postprocessTV in wrong phase", async function () {
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Idle
+
+      const maliciousData = createMaliciousPerformData("postprocessTV(uint8)", 0);
+
+      await expect(
+        internalStatesOrchestrator.connect(automationRegistry).performUpkeep(maliciousData),
+      ).to.be.revertedWithCustomError(internalStatesOrchestrator, "InvalidState");
+    });
+
+    it("should revert with InvalidState when calling postprocessEV in wrong phase", async function () {
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Idle
+
+      const maliciousData = createMaliciousPerformData("postprocessEV(uint8)", 0);
+
+      await expect(
+        internalStatesOrchestrator.connect(automationRegistry).performUpkeep(maliciousData),
+      ).to.be.revertedWithCustomError(internalStatesOrchestrator, "InvalidState");
+    });
+
+    it("should revert with InvalidState when calling buildOrders in wrong phase", async function () {
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Idle
+
+      const maliciousData = createMaliciousPerformData("buildOrders()", 0);
+
+      await expect(
+        internalStatesOrchestrator.connect(automationRegistry).performUpkeep(maliciousData),
+      ).to.be.revertedWithCustomError(internalStatesOrchestrator, "InvalidState");
+    });
+
+    it("should revert with InvalidState when trying to execute phases out of order", async function () {
+      const epochDuration = await internalStatesOrchestrator.epochDuration();
+      await time.increase(epochDuration + 1n);
+
+      const [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
+
+      const maliciousData = createMaliciousPerformData("buffer()", 0);
+
+      await expect(
+        internalStatesOrchestrator.connect(automationRegistry).performUpkeep(maliciousData),
+      ).to.be.revertedWithCustomError(internalStatesOrchestrator, "InvalidState");
+    });
+
+    it("should revert with InvalidState when trying to replay completed phases", async function () {
+      const epochDuration = await internalStatesOrchestrator.epochDuration();
+      await time.increase(epochDuration + 1n);
+
+      let [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // PreprocessingEncryptedVaults
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      await fhevm.awaitDecryptionOracle();
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // Buffering
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(5); // PostprocessingTransparentVaults
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(6); // PostprocessingEncryptedVaults
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(7); // BuildingOrders
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Back to Idle
+
+      const maliciousData = createMaliciousPerformData("preprocessTV(uint8)", 0);
+
+      await expect(
+        internalStatesOrchestrator.connect(automationRegistry).performUpkeep(maliciousData),
+      ).to.be.revertedWithCustomError(internalStatesOrchestrator, "InvalidState");
+    });
+
+    it("should revert with InvalidState when trying to execute wrong minibatch action in current phase", async function () {
+      const epochDuration = await internalStatesOrchestrator.epochDuration();
+      await time.increase(epochDuration + 1n);
+
+      const [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
+
+      const maliciousData = createMaliciousPerformData("preprocessEV(uint8)", 0);
+
+      await expect(
+        internalStatesOrchestrator.connect(automationRegistry).performUpkeep(maliciousData),
+      ).to.be.revertedWithCustomError(internalStatesOrchestrator, "InvalidState");
     });
   });
 });

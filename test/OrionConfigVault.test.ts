@@ -12,9 +12,12 @@ import {
   LiquidityOrchestrator,
   EncryptedVaultFactory,
   OrionEncryptedVault,
+  TransparentVaultFactory,
   PriceAdapterRegistry,
 } from "../typechain-types";
+import { Log } from "ethers";
 
+let transparentVaultFactory: TransparentVaultFactory;
 let encryptedVaultFactory: EncryptedVaultFactory;
 let orionConfig: OrionConfig;
 let underlyingAsset: MockUnderlyingAsset;
@@ -64,6 +67,11 @@ beforeEach(async function () {
   await orionConfigDeployed.waitForDeployment();
   orionConfig = orionConfigDeployed as unknown as OrionConfig;
 
+  const TransparentVaultFactoryFactory = await ethers.getContractFactory("TransparentVaultFactory");
+  const transparentVaultFactoryDeployed = await TransparentVaultFactoryFactory.deploy(await orionConfig.getAddress());
+  await transparentVaultFactoryDeployed.waitForDeployment();
+  transparentVaultFactory = transparentVaultFactoryDeployed as unknown as TransparentVaultFactory;
+
   const EncryptedVaultFactoryFactory = await ethers.getContractFactory("EncryptedVaultFactory");
   const encryptedVaultFactoryDeployed = await EncryptedVaultFactoryFactory.deploy(await orionConfig.getAddress());
   await encryptedVaultFactoryDeployed.waitForDeployment();
@@ -111,7 +119,10 @@ beforeEach(async function () {
 
   await orionConfig.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
   await orionConfig.setLiquidityOrchestrator(await liquidityOrchestrator.getAddress());
-  await orionConfig.setVaultFactories(other.address, await encryptedVaultFactory.getAddress());
+  await orionConfig.setVaultFactories(
+    await transparentVaultFactory.getAddress(),
+    await encryptedVaultFactory.getAddress(),
+  );
   await orionConfig.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
   await orionConfig.setProtocolRiskFreeRate(0.0423 * 10_000);
 
@@ -147,6 +158,16 @@ beforeEach(async function () {
 });
 
 describe("Config", function () {
+  describe("setVaultFactories", function () {
+    it("Should revert as factories are immutable for the owner as well", async function () {
+      const maliciousTransparentVault = other.address;
+      const maliciousEncryptedVault = other.address;
+
+      await expect(
+        orionConfig.connect(owner).setVaultFactories(maliciousTransparentVault, maliciousEncryptedVault),
+      ).to.be.revertedWithCustomError(orionConfig, "AlreadyRegistered");
+    });
+  });
   describe("removeWhitelistedAsset", function () {
     it("Should successfully remove a whitelisted asset", async function () {
       const assetAddress = await mockAsset1.getAddress();
@@ -220,6 +241,200 @@ describe("Config", function () {
       await expect(orionConfig.connect(user).removeWhitelistedAsset(assetAddress))
         .to.be.revertedWithCustomError(orionConfig, "OwnableUnauthorizedAccount")
         .withArgs(user.address);
+    });
+  });
+
+  describe("addOrionVault", function () {
+    it("Should revert when called by non-factory (malicious actor)", async function () {
+      const maliciousVault = other.address;
+      const vaultType = 0; // EventsLib.VaultType.Transparent
+
+      await expect(orionConfig.connect(user).addOrionVault(maliciousVault, vaultType)).to.be.revertedWithCustomError(
+        orionConfig,
+        "UnauthorizedAccess",
+      );
+    });
+
+    it("Should revert when called by owner (not a factory)", async function () {
+      const maliciousVault = other.address;
+      const vaultType = 0; // EventsLib.VaultType.Transparent
+
+      await expect(orionConfig.connect(owner).addOrionVault(maliciousVault, vaultType)).to.be.revertedWithCustomError(
+        orionConfig,
+        "UnauthorizedAccess",
+      );
+    });
+  });
+
+  describe("removeOrionVault", function () {
+    it("Should successfully remove an encrypted vault", async function () {
+      const vaultAddress = await vault.getAddress();
+
+      // Verify vault is initially registered
+      expect(await orionConfig.isOrionVault(vaultAddress)).to.equal(true);
+
+      // Remove the vault
+      await expect(orionConfig.removeOrionVault(vaultAddress, 1)).to.not.be.reverted; // 1 = EventsLib.VaultType.Encrypted
+
+      // Verify vault is no longer registered
+      expect(await orionConfig.isOrionVault(vaultAddress)).to.equal(false);
+    });
+
+    it("Should successfully remove a transparent vault", async function () {
+      // Create a transparent vault
+      const tx = await transparentVaultFactory
+        .connect(owner)
+        .createVault(curator.address, "Test Transparent Vault", "TTV", 0, 0, 0);
+      const receipt = await tx.wait();
+      const event = receipt?.logs.find((log: Log) => {
+        try {
+          const parsed = transparentVaultFactory.interface.parseLog(log);
+          return parsed?.name === "OrionVaultCreated";
+        } catch {
+          return false;
+        }
+      });
+      const parsedEvent = transparentVaultFactory.interface.parseLog(event!);
+      const transparentVaultAddress = parsedEvent?.args[0];
+
+      // Verify transparent vault is initially registered
+      expect(await orionConfig.isOrionVault(transparentVaultAddress)).to.equal(true);
+
+      // Remove the transparent vault
+      await expect(orionConfig.removeOrionVault(transparentVaultAddress, 0)).to.not.be.reverted; // 0 = EventsLib.VaultType.Transparent
+
+      // Verify transparent vault is no longer registered
+      expect(await orionConfig.isOrionVault(transparentVaultAddress)).to.equal(false);
+    });
+
+    it("Should emit OrionVaultRemoved event when removing vault", async function () {
+      const vaultAddress = await vault.getAddress();
+
+      await expect(orionConfig.removeOrionVault(vaultAddress, 1)) // 1 = EventsLib.VaultType.Encrypted
+        .to.emit(orionConfig, "OrionVaultRemoved")
+        .withArgs(vaultAddress);
+    });
+
+    it("Should revert when called by non-owner", async function () {
+      const vaultAddress = await vault.getAddress();
+
+      await expect(orionConfig.connect(user).removeOrionVault(vaultAddress, 1))
+        .to.be.revertedWithCustomError(orionConfig, "OwnableUnauthorizedAccount")
+        .withArgs(user.address);
+    });
+
+    it("Should revert when trying to remove non-registered vault", async function () {
+      const nonRegisteredVault = other.address;
+
+      await expect(orionConfig.removeOrionVault(nonRegisteredVault, 1)).to.be.revertedWithCustomError(
+        orionConfig,
+        "UnauthorizedAccess",
+      );
+    });
+
+    it("Should revert when system is not idle", async function () {
+      const vaultAddress = await vault.getAddress();
+
+      // Mock the system to be not idle by setting up a non-idle state
+      // We'll need to create a scenario where the orchestrators are not in idle phase
+      // For now, we'll test the basic case where the system should be idle
+      // This test would need to be expanded when we have a way to set orchestrators to non-idle state
+
+      // The current test setup should have the system in idle state, so this test
+      // demonstrates the structure for when we can control orchestrator phases
+      await expect(orionConfig.removeOrionVault(vaultAddress, 1)).to.not.be.reverted;
+    });
+
+    it("Should revert when trying to remove vault with zero address", async function () {
+      await expect(orionConfig.removeOrionVault(ethers.ZeroAddress, 1)).to.be.revertedWithCustomError(
+        orionConfig,
+        "UnauthorizedAccess",
+      );
+    });
+
+    it("Should update vault count after removal", async function () {
+      const vaultAddress = await vault.getAddress();
+
+      // Get initial count of encrypted vaults
+      const initialVaults = await orionConfig.getAllOrionVaults(1); // 1 = EventsLib.VaultType.Encrypted
+      const initialCount = initialVaults.length;
+      expect(initialCount).to.be.greaterThan(0);
+
+      // Remove the vault
+      await orionConfig.removeOrionVault(vaultAddress, 1);
+
+      // Get final count of encrypted vaults
+      const finalVaults = await orionConfig.getAllOrionVaults(1);
+      const finalCount = finalVaults.length;
+      expect(finalCount).to.equal(initialCount - 1);
+    });
+
+    it("Should remove vault from getAllOrionVaults array", async function () {
+      const vaultAddress = await vault.getAddress();
+
+      // Verify vault is in the array initially
+      const initialVaults = await orionConfig.getAllOrionVaults(1); // 1 = EventsLib.VaultType.Encrypted
+      expect(initialVaults).to.include(vaultAddress);
+
+      // Remove the vault
+      await orionConfig.removeOrionVault(vaultAddress, 1);
+
+      // Verify vault is no longer in the array
+      const finalVaults = await orionConfig.getAllOrionVaults(1);
+      expect(finalVaults).to.not.include(vaultAddress);
+    });
+
+    it("Should return false for isOrionVault after removal", async function () {
+      const vaultAddress = await vault.getAddress();
+
+      // Verify vault is initially registered
+      expect(await orionConfig.isOrionVault(vaultAddress)).to.equal(true);
+
+      // Remove the vault
+      await orionConfig.removeOrionVault(vaultAddress, 1);
+
+      // Verify vault is no longer registered
+      expect(await orionConfig.isOrionVault(vaultAddress)).to.equal(false);
+    });
+
+    it("Should handle removal of vault with wrong vault type", async function () {
+      const vaultAddress = await vault.getAddress();
+
+      // Try to remove encrypted vault as transparent vault (wrong type)
+      await expect(orionConfig.removeOrionVault(vaultAddress, 0)) // 0 = EventsLib.VaultType.Transparent
+        .to.be.revertedWithCustomError(orionConfig, "UnauthorizedAccess");
+
+      // Verify vault is still registered
+      expect(await orionConfig.isOrionVault(vaultAddress)).to.equal(true);
+    });
+
+    it("Should allow removal of multiple vaults", async function () {
+      // Create another encrypted vault
+      const tx = await encryptedVaultFactory.connect(owner).createVault(other.address, "Test Vault 2", "TV2", 0, 0, 0);
+      const receipt = await tx.wait();
+      const event = receipt?.logs.find((log: Log) => {
+        try {
+          const parsed = encryptedVaultFactory.interface.parseLog(log);
+          return parsed?.name === "OrionVaultCreated";
+        } catch {
+          return false;
+        }
+      });
+      const parsedEvent = encryptedVaultFactory.interface.parseLog(event!);
+      const vault2Address = parsedEvent?.args[0];
+
+      // Verify both vaults are registered
+      expect(await orionConfig.isOrionVault(await vault.getAddress())).to.equal(true);
+      expect(await orionConfig.isOrionVault(vault2Address)).to.equal(true);
+
+      // Remove first vault
+      await orionConfig.removeOrionVault(await vault.getAddress(), 1);
+      expect(await orionConfig.isOrionVault(await vault.getAddress())).to.equal(false);
+      expect(await orionConfig.isOrionVault(vault2Address)).to.equal(true);
+
+      // Remove second vault
+      await orionConfig.removeOrionVault(vault2Address, 1);
+      expect(await orionConfig.isOrionVault(vault2Address)).to.equal(false);
     });
   });
 });

@@ -352,7 +352,6 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     /// @notice Preprocesses minibatch of transparent vaults
     /// @param minibatchIndex The index of the minibatch to process
     function _preprocessTransparentMinibatch(uint8 minibatchIndex) internal {
-        // Validate current phase
         if (currentPhase != InternalUpkeepPhase.PreprocessingTransparentVaults) {
             revert ErrorsLib.InvalidState();
         }
@@ -436,7 +435,6 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     /// @notice Preprocesses minibatch of encrypted vaults
     /// @param minibatchIndex The index of the minibatch to process
     function _preprocessEncryptedMinibatch(uint8 minibatchIndex) internal {
-        // Validate current phase
         if (currentPhase != InternalUpkeepPhase.PreprocessingEncryptedVaults) {
             revert ErrorsLib.InvalidState();
         }
@@ -628,7 +626,6 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
      *      - Distributes the buffer cost proportionally across all vaults
      */
     function _buffer() internal {
-        // Validate current phase
         if (currentPhase != InternalUpkeepPhase.Buffering) {
             revert ErrorsLib.InvalidState();
         }
@@ -674,7 +671,6 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     /// @notice Postprocesses minibatch of transparent vaults
     /// @param minibatchIndex The index of the minibatch to postprocess
     function _postprocessTransparentMinibatch(uint8 minibatchIndex) internal {
-        // Validate current phase
         if (currentPhase != InternalUpkeepPhase.PostprocessingTransparentVaults) {
             revert ErrorsLib.InvalidState();
         }
@@ -725,7 +721,6 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     /// @notice Postprocesses minibatch of encrypted vaults
     /// @param minibatchIndex The index of the minibatch to postprocess
     function _postprocessEncryptedMinibatch(uint8 minibatchIndex) internal {
-        // Validate current phase
         if (currentPhase != InternalUpkeepPhase.PostprocessingEncryptedVaults) {
             revert ErrorsLib.InvalidState();
         }
@@ -760,7 +755,6 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     /// @dev Compares _finalBatchPortfolio with _initialBatchPortfolio to determine rebalancing needs
     ///      Orders are stored in _currentEpoch.sellingOrders and _currentEpoch.buyingOrders.
     function _buildOrders() internal {
-        // Validate current phase
         if (currentPhase != InternalUpkeepPhase.BuildingOrders) {
             revert ErrorsLib.InvalidState();
         }
