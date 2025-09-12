@@ -785,32 +785,59 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     /* -------------------------------------------------------------------------- */
 
     /// @inheritdoc IInternalStateOrchestrator
-    function getSellingOrders() external view returns (address[] memory tokens, uint256[] memory amounts) {
+    function getOrders()
+        external
+        view
+        returns (
+            address[] memory sellingTokens,
+            uint256[] memory sellingAmounts,
+            address[] memory buyingTokens,
+            uint256[] memory buyingAmounts
+        )
+    {
         address[] memory allTokens = _currentEpoch.tokens;
         uint16 allTokensLength = uint16(allTokens.length);
 
-        tokens = new address[](allTokensLength);
-        amounts = new uint256[](allTokensLength);
+        // First pass: count non-zero orders
+        uint16 sellingCount = 0;
+        uint16 buyingCount = 0;
 
         for (uint16 i = 0; i < allTokensLength; ++i) {
             address token = allTokens[i];
-            tokens[i] = token;
-            amounts[i] = _currentEpoch.sellingOrders[token];
+            if (_currentEpoch.sellingOrders[token] > 0) {
+                sellingCount++;
+            }
+            if (_currentEpoch.buyingOrders[token] > 0) {
+                buyingCount++;
+            }
         }
-    }
 
-    /// @inheritdoc IInternalStateOrchestrator
-    function getBuyingOrders() external view returns (address[] memory tokens, uint256[] memory amounts) {
-        address[] memory allTokens = _currentEpoch.tokens;
-        uint16 allTokensLength = uint16(allTokens.length);
+        // Initialize arrays with correct sizes (only for non-zero values)
+        sellingTokens = new address[](sellingCount);
+        sellingAmounts = new uint256[](sellingCount);
+        buyingTokens = new address[](buyingCount);
+        buyingAmounts = new uint256[](buyingCount);
 
-        tokens = new address[](allTokensLength);
-        amounts = new uint256[](allTokensLength);
+        // Second pass: populate arrays with non-zero values
+        uint16 sellingIndex = 0;
+        uint16 buyingIndex = 0;
 
         for (uint16 i = 0; i < allTokensLength; ++i) {
             address token = allTokens[i];
-            tokens[i] = token;
-            amounts[i] = _currentEpoch.buyingOrders[token];
+            uint256 sellingAmount = _currentEpoch.sellingOrders[token];
+            uint256 buyingAmount = _currentEpoch.buyingOrders[token];
+
+            if (sellingAmount > 0) {
+                sellingTokens[sellingIndex] = token;
+                sellingAmounts[sellingIndex] = sellingAmount;
+                sellingIndex++;
+            }
+
+            if (buyingAmount > 0) {
+                buyingTokens[buyingIndex] = token;
+                buyingAmounts[buyingIndex] = buyingAmount;
+                buyingIndex++;
+            }
         }
     }
 

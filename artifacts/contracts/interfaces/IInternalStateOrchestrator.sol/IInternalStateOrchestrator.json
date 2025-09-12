@@ -91,34 +91,26 @@
     },
     {
       "inputs": [],
-      "name": "getBuyingOrders",
+      "name": "getOrders",
       "outputs": [
         {
           "internalType": "address[]",
-          "name": "",
+          "name": "sellingTokens",
           "type": "address[]"
         },
         {
           "internalType": "uint256[]",
-          "name": "",
+          "name": "sellingAmounts",
           "type": "uint256[]"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "getSellingOrders",
-      "outputs": [
+        },
         {
           "internalType": "address[]",
-          "name": "",
+          "name": "buyingTokens",
           "type": "address[]"
         },
         {
           "internalType": "uint256[]",
-          "name": "",
+          "name": "buyingAmounts",
           "type": "uint256[]"
         }
       ],

@@ -68,13 +68,18 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
         bytes calldata decryptionProof
     ) external;
 
-    /// @notice Get the selling orders
-    /// @return tokens The tokens to sell
-    /// @return amounts The amounts to sell in shares (converted from underlying assets)
-    function getSellingOrders() external view returns (address[] memory, uint256[] memory);
-
-    /// @notice Get the buying orders
-    /// @return tokens The tokens to buy
-    /// @return amounts The amounts to buy in underlying assets (as expected by LiquidityOrchestrator)
-    function getBuyingOrders() external view returns (address[] memory, uint256[] memory);
+    /// @notice Get selling and buying orders
+    /// @return sellingTokens The tokens to sell
+    /// @return sellingAmounts The amounts to sell in shares
+    /// @return buyingTokens The tokens to buy
+    /// @return buyingAmounts The amounts to buy in underlying assets
+    function getOrders()
+        external
+        view
+        returns (
+            address[] memory sellingTokens,
+            uint256[] memory sellingAmounts,
+            address[] memory buyingTokens,
+            uint256[] memory buyingAmounts
+        );
 }

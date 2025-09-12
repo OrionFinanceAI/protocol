@@ -322,9 +322,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         delete buyingAmounts;
 
         // Populate new epoch data
-        (sellingTokens, sellingAmounts) = internalStatesOrchestrator.getSellingOrders();
-        (buyingTokens, buyingAmounts) = internalStatesOrchestrator.getBuyingOrders();
-        // TODO: can here the returned amounts be zero? If so fix in internal states orchestrator.
+        (sellingTokens, sellingAmounts, buyingTokens, buyingAmounts) = internalStatesOrchestrator.getOrders();
 
         currentPhase = LiquidityUpkeepPhase.SellingLeg;
     }
@@ -334,7 +332,6 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     function _processMinibatchSell(uint8 minibatchIndex) internal {
         // TODO: implement.
         // TODO: sell orders all in shares at this point, fix execution adapter API accordingly.
-        //
         // for (uint16 i = 0; i < sellingTokens.length; ++i) {
         //     address token = sellingTokens[i];
         //     uint256 amount = sellingAmounts[i];

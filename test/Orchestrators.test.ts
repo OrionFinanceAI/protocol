@@ -469,11 +469,11 @@ describe("Orchestrators", function () {
       expect(await internalStatesOrchestrator.epochCounter()).to.equal(1); // Epoch incremented
 
       // Check that orders were built
-      const [sellingTokens] = await internalStatesOrchestrator.getSellingOrders();
-      const [buyingTokens, _buyingAmounts] = await internalStatesOrchestrator.getBuyingOrders();
+      const [sellingTokens, _sellingAmounts, buyingTokens, _buyingAmounts] =
+        await internalStatesOrchestrator.getOrders();
 
       // Should have all three assets in the orders arrays
-      expect(sellingTokens.length).to.equal(4);
+      expect(sellingTokens.length).to.equal(0);
       expect(buyingTokens.length).to.equal(4);
     });
 
@@ -518,16 +518,29 @@ describe("Orchestrators", function () {
       expect(await internalStatesOrchestrator.epochCounter()).to.equal(1); // Epoch incremented
 
       // Check that orders were built
-      const [sellingTokens] = await internalStatesOrchestrator.getSellingOrders();
-      const [buyingTokens, _buyingAmounts] = await internalStatesOrchestrator.getBuyingOrders();
+      const [sellingTokens, _sellingAmounts, buyingTokens, _buyingAmounts] =
+        await internalStatesOrchestrator.getOrders();
+
+      // Check that all amounts are greater than 0
+      for (const amount of _sellingAmounts) {
+        expect(amount).to.be.gt(0);
+      }
+      for (const amount of _buyingAmounts) {
+        expect(amount).to.be.gt(0);
+      }
 
       // Should have all three assets in the orders arrays
-      expect(sellingTokens.length).to.equal(4);
+      expect(sellingTokens.length).to.equal(0);
       expect(buyingTokens.length).to.equal(4);
 
       // Now check if liquidity orchestrator needs to be triggered
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
       const [liquidityUpkeepNeeded, _liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+
       void expect(liquidityUpkeepNeeded).to.be.true;
+
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(_liquidityPerformData);
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(1); // SellingLeg
     });
 
     it("should not trigger upkeep when system is idle and time hasn't passed", async function () {
