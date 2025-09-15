@@ -562,7 +562,7 @@ describe("Orchestrators", function () {
       void expect(liquidityUpkeepNeeded).to.be.true;
       await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
 
-      expect(await liquidityOrchestrator.currentPhase()).to.equal(3);
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(0);
     });
 
     it("should not trigger upkeep when system is idle and time hasn't passed", async function () {

@@ -102,13 +102,11 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
         }
     }
 
-    // --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
-
     /// @inheritdoc IOrionTransparentVault
     function updateVaultState(
         Position[] calldata portfolio,
         uint256 newTotalAssets
-    ) external onlyLiquidityOrchestrator {
+    ) external onlyInternalStatesOrchestrator {
         _portfolio.clear();
 
         uint16 portfolioLength = uint16(portfolio.length);

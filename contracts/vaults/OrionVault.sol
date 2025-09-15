@@ -130,9 +130,9 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         _;
     }
 
-    /// @dev Restricts function to only liquidity orchestrator
-    modifier onlyLiquidityOrchestrator() {
-        if (msg.sender != address(liquidityOrchestrator)) revert ErrorsLib.UnauthorizedAccess();
+    /// @dev Restricts function to only internal states orchestrator
+    modifier onlyInternalStatesOrchestrator() {
+        if (msg.sender != address(internalStatesOrchestrator)) revert ErrorsLib.UnauthorizedAccess();
         _;
     }
 
@@ -516,10 +516,17 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         return _pendingRedeem;
     }
 
-    /// --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
+    /// @inheritdoc IOrionVault
+    function accrueCuratorFees(uint256 epoch, uint256 feeAmount) external onlyInternalStatesOrchestrator {
+        if (feeAmount == 0) return;
+
+        pendingCuratorFees += feeAmount;
+
+        emit CuratorFeesAccrued(epoch, feeAmount, pendingCuratorFees);
+    }
 
     /// @inheritdoc IOrionVault
-    function fulfillDeposit() external onlyLiquidityOrchestrator nonReentrant {
+    function fulfillDeposit() external onlyInternalStatesOrchestrator nonReentrant {
         uint32 length = uint32(_depositRequests.length());
         // Collect all requests first to avoid index shifting issues when removing during iteration
         address[] memory users = new address[](length);
@@ -549,7 +556,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     }
 
     /// @inheritdoc IOrionVault
-    function fulfillRedeem() external onlyLiquidityOrchestrator nonReentrant {
+    function fulfillRedeem() external onlyInternalStatesOrchestrator nonReentrant {
         uint32 length = uint32(_redeemRequests.length());
         // Collect all requests first to avoid index shifting issues when removing during iteration
         address[] memory users = new address[](length);
@@ -582,21 +589,12 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     }
 
     /// @inheritdoc IOrionVault
-    function updateHighWaterMark() external onlyLiquidityOrchestrator {
+    function updateHighWaterMark() external onlyInternalStatesOrchestrator {
         uint256 currentSharePrice = convertToAssets(10 ** decimals());
 
         // Update high watermark if current price is higher
         if (currentSharePrice > feeModel.highWaterMark) {
             feeModel.highWaterMark = currentSharePrice;
         }
-    }
-
-    /// @inheritdoc IOrionVault
-    function accrueCuratorFees(uint256 epoch, uint256 feeAmount) external onlyLiquidityOrchestrator {
-        if (feeAmount == 0) return;
-
-        pendingCuratorFees += feeAmount;
-
-        emit CuratorFeesAccrued(epoch, feeAmount, pendingCuratorFees);
     }
 }

@@ -18,13 +18,10 @@ import "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
 /**
  * @title Liquidity Orchestrator
- * @notice Contract that orchestrates liquidity operations and vault state updates
+ * @notice Contract that orchestrates liquidity operations
  * @author Orion Finance
  * @dev This contract is responsible for:
  *      - Executing actual buy and sell orders on investment universe;
- *      - Processing actual curator fees with vaults and protocol fees;
- *      - Processing deposit and withdrawal requests from LPs;
- *      - Updating vault states post-execution (checks-effects-interactions pattern at the protocol level);
  *      - Handling slippage and market execution differences from adapter price estimates via liquidity buffer.
  */
 contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrator {
@@ -58,9 +55,6 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     /// @notice Execution minibatch size
     uint8 public executionMinibatchSize;
 
-    /// @notice Vault states minibatch size
-    uint8 public vaultStatesMinibatchSize;
-
     /// @notice Upkeep phase
     LiquidityUpkeepPhase public currentPhase;
 
@@ -77,8 +71,6 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     bytes4 private constant ACTION_START = bytes4(keccak256("start()"));
     bytes4 private constant ACTION_PROCESS_SELL = bytes4(keccak256("processSell(uint8)"));
     bytes4 private constant ACTION_PROCESS_BUY = bytes4(keccak256("processBuy(uint8)"));
-    bytes4 private constant ACTION_STATE_UPDATE_T_VAULTS = bytes4(keccak256("stateUpdateTV(uint8)"));
-    bytes4 private constant ACTION_STATE_UPDATE_E_VAULTS = bytes4(keccak256("stateUpdateEV(uint8)"));
 
     /* -------------------------------------------------------------------------- */
     /*                                 EPOCH STATE                                */
@@ -130,7 +122,6 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         lastProcessedEpoch = 0;
         currentPhase = LiquidityUpkeepPhase.Idle;
         executionMinibatchSize = 1;
-        vaultStatesMinibatchSize = 1;
         currentMinibatchIndex = 0;
     }
 
@@ -143,13 +134,6 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         if (_executionMinibatchSize == 0) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         executionMinibatchSize = _executionMinibatchSize;
-    }
-
-    /// @inheritdoc ILiquidityOrchestrator
-    function updateVaultStatesMinibatchSize(uint8 _vaultStatesMinibatchSize) external onlyOwner {
-        if (_vaultStatesMinibatchSize == 0) revert ErrorsLib.InvalidArguments();
-        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
-        vaultStatesMinibatchSize = _vaultStatesMinibatchSize;
     }
 
     /// @inheritdoc ILiquidityOrchestrator
@@ -260,12 +244,6 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
             upkeepNeeded = true;
             performData = abi.encode(ACTION_PROCESS_BUY, currentMinibatchIndex);
-        } else if (currentPhase == LiquidityUpkeepPhase.TransparentVaultStatesUpdate) {
-            upkeepNeeded = true;
-            performData = abi.encode(ACTION_STATE_UPDATE_T_VAULTS, currentMinibatchIndex);
-        } else if (currentPhase == LiquidityUpkeepPhase.EncryptedVaultStatesUpdate) {
-            upkeepNeeded = true;
-            performData = abi.encode(ACTION_STATE_UPDATE_E_VAULTS, currentMinibatchIndex);
         } else {
             upkeepNeeded = false;
             performData = "";
@@ -276,6 +254,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     /// @param performData The encoded data containing the action and minibatch index
     function performUpkeep(bytes calldata performData) external override onlyAutomationRegistry nonReentrant {
         if (performData.length < 5) revert ErrorsLib.InvalidArguments();
+
         (bytes4 action, uint8 minibatchIndex) = abi.decode(performData, (bytes4, uint8));
 
         if (action == ACTION_START) {
@@ -284,10 +263,6 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
             _processMinibatchSell(minibatchIndex);
         } else if (action == ACTION_PROCESS_BUY) {
             _processMinibatchBuy(minibatchIndex);
-        } else if (action == ACTION_STATE_UPDATE_T_VAULTS) {
-            _processMinibatchTVStatesUpdate(minibatchIndex);
-        } else if (action == ACTION_STATE_UPDATE_E_VAULTS) {
-            _processMinibatchEVStatesUpdate(minibatchIndex);
         }
         emit EventsLib.PortfolioRebalanced();
     }
@@ -369,7 +344,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
 
         if (i1 > buyingTokens.length || i1 == buyingTokens.length) {
             i1 = uint16(buyingTokens.length);
-            currentPhase = LiquidityUpkeepPhase.TransparentVaultStatesUpdate;
+            currentPhase = LiquidityUpkeepPhase.Idle;
             currentMinibatchIndex = 0;
         }
 
@@ -427,79 +402,5 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         uint256 executionUnderlyingAmount = adapter.buy(asset, sharesAmount, maxUnderlyingAmount);
 
         deltaBufferAmount += int256(estimatedUnderlyingAmount) - int256(executionUnderlyingAmount);
-    }
-
-    /// @notice Handles the vault states update action
-    /// @param minibatchIndex The index of the minibatch to process
-    function _processMinibatchTVStatesUpdate(uint8 minibatchIndex) internal {
-        if (currentPhase != LiquidityUpkeepPhase.TransparentVaultStatesUpdate) {
-            revert ErrorsLib.InvalidState();
-        }
-        ++currentMinibatchIndex;
-
-        uint16 i0 = minibatchIndex * vaultStatesMinibatchSize;
-        uint16 i1 = i0 + vaultStatesMinibatchSize;
-
-        address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
-        uint16 length = uint16(transparentVaults.length);
-
-        if (i1 > length || i1 == length) {
-            i1 = uint16(length);
-            currentPhase = LiquidityUpkeepPhase.EncryptedVaultStatesUpdate;
-            currentMinibatchIndex = 0;
-        }
-
-        for (uint16 i = i0; i < i1; ++i) {
-            IOrionTransparentVault vault = IOrionTransparentVault(transparentVaults[i]);
-            // vault.updateVaultState(?, ?); // TODO: read from internal states orchestrator and shoot to vault.
-        }
-
-        // TODO: Consistency between operation orders in internal states orchestrator and here is crucial.
-        // TODO: to updateVaultState of encrypted vaults, get the encrypted sharesPerAsset executed by the liquidity
-        // TODO: skip updating encrypted vaults states for which if (!vault.isIntentValid()), see other orchestrator.
-
-        // address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
-        // length = uint16(encryptedVaults.length);
-        // TODO: implement.
-        // for (uint16 i = 0; i < length; i++) {
-        //     IOrionEncryptedVault vault = IOrionEncryptedVault(encryptedVaults[i]);
-        //     vault.updateVaultState(?, ?);
-        // }
-
-        // TODO: DepositRequest and RedeemRequest in Vaults to be processed post update
-        // (internal logic depends on vaults actual total assets and total supply
-        // (inside the _convertToShares, _mint, _burn and _convertToAssets calls), and removed from
-        // vault state as pending requests. Opportunity to net actual transactions (not just intents),
-        // performing minting and burning operation at the same time.
-
-        // TODO: update pendingCuratorFees calling accrueCuratorFees of each vault.
-        // Use the value computed in internal states orchestrator.
-
-        // TODO: call updateHighWaterMark. Works only if actual vault states updated,
-        // ok to use real total assets/share price there, but then this update shall
-        // be done after all other states updates for convertToAssets to work.
-    }
-
-    /// @notice Handles the encrypted vault states update action
-    /// @param minibatchIndex The index of the minibatch to process
-    function _processMinibatchEVStatesUpdate(uint8 minibatchIndex) internal {
-        if (currentPhase != LiquidityUpkeepPhase.EncryptedVaultStatesUpdate) {
-            revert ErrorsLib.InvalidState();
-        }
-        ++currentMinibatchIndex;
-
-        uint16 i0 = minibatchIndex * vaultStatesMinibatchSize;
-        uint16 i1 = i0 + vaultStatesMinibatchSize;
-
-        address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
-        uint16 length = uint16(encryptedVaults.length);
-
-        if (i1 > length || i1 == length) {
-            i1 = uint16(length);
-            currentPhase = LiquidityUpkeepPhase.Idle;
-            currentMinibatchIndex = 0;
-        }
-
-        // ... TODO: implement.
     }
 }

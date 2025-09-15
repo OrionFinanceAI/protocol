@@ -24,12 +24,11 @@ import { SepoliaConfig } from "@fhevm/solidity/config/ZamaConfig.sol";
  * @author Orion Finance
  * @dev This contract is responsible for:
  *      - Reading current vault states and market data;
+ *      - Processing deposit and withdrawal requests from LPs;
+ *      - Processing curator fees and high water mark;
+ *      - Updating vault states;
  *      - Computing state estimations for Liquidity Orchestrator;
  *      - Trigger the Liquidity Orchestrator.
- *
- *      This contract does NOT execute transactions or write vault states.
- *      It only performs read operations and calculations to estimate state changes.
- *      Actual state modifications and transaction execution are handled by the Liquidity Orchestrator contract.
  */
 contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, IInternalStateOrchestrator {
     using Math for uint256;
@@ -413,6 +412,8 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             uint256 protocolRevenueShareFee = uint256(rsFeeCoefficient).mulDiv(curatorFee, BASIS_POINTS_FACTOR);
             pendingProtocolFees += protocolRevenueShareFee;
             curatorFee -= protocolRevenueShareFee;
+
+            vault.accrueCuratorFees(epochCounter, curatorFee);
 
             // STEP 5: WITHDRAWAL EXCHANGE RATE (based on post-fee totalAssets)
             uint256 pendingWithdrawals = vault.convertToAssetsWithPITTotalAssets(
