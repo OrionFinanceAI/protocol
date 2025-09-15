@@ -1170,13 +1170,6 @@
       "type": "function"
     },
     {
-      "inputs": [],
-      "name": "updateHighWaterMark",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
       "inputs": [
         {
           "components": [

@@ -407,8 +407,6 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             // STEP 3 & 4: CURATOR FEES (Management + Performance)
             uint256 curatorFee = vault.curatorFee(totalAssets);
             totalAssets -= curatorFee;
-
-            // Protocol revenue share fee on curator fee
             uint256 protocolRevenueShareFee = uint256(rsFeeCoefficient).mulDiv(curatorFee, BASIS_POINTS_FACTOR);
             pendingProtocolFees += protocolRevenueShareFee;
             curatorFee -= protocolRevenueShareFee;
@@ -426,7 +424,6 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             totalAssets -= pendingRedeem;
             uint256 pendingDeposit = vault.pendingDeposit();
             vault.fulfillDeposit(totalAssets);
-
             totalAssets += pendingDeposit;
 
             _currentEpoch.vaultsTotalAssets[address(vault)] = totalAssets;
@@ -489,6 +486,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                 uint256 price = _currentEpoch.priceArray[token];
 
                 // Calculate estimated value of the asset in underlying asset decimals
+                // TODO: https://github.com/OpenZeppelin/openzeppelin-confidential-contracts/issues/200
                 euint128 unscaledValue = FHE.div(
                     FHE.mul(FHE.asEuint128(uint128(price)), shares),
                     uint128(priceAdapterPrecision)
@@ -551,7 +549,6 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         }
 
         // Store decrypted values for processing in the next phase.
-        // TODO(fhevm): avoid breaking down this into two phases, consider letting Zama callback do all the work.
         _decryptedValues = abi.decode(cleartexts, (uint256[]));
 
         currentPhase = InternalUpkeepPhase.ProcessingDecryptedValues;
@@ -570,10 +567,9 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
         // Process each encrypted vault with decrypted total assets
         for (uint16 i = 0; i < nVaults; ++i) {
-            address vault = encryptedVaultsEpoch[i];
-            IOrionEncryptedVault vaultContract = IOrionEncryptedVault(vault);
+            IOrionEncryptedVault vault = IOrionEncryptedVault(encryptedVaultsEpoch[i]);
 
-            if (!vaultContract.isIntentValid()) {
+            if (!vault.isIntentValid()) {
                 continue; // Skip if intent is invalid
             }
             uint256 totalAssets = _decryptedValues[i];
@@ -585,22 +581,28 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             totalAssets -= protocolVolumeFee;
 
             // STEP 3 & 4: CURATOR + PROTOCOL REVENUE SHARE FEES
-            uint256 curatorFee = vaultContract.curatorFee(totalAssets);
+            uint256 curatorFee = vault.curatorFee(totalAssets);
             totalAssets -= curatorFee;
             uint256 protocolRevenueShareFee = uint256(rsFeeCoefficient).mulDiv(curatorFee, BASIS_POINTS_FACTOR);
             pendingProtocolFees += protocolRevenueShareFee;
             curatorFee -= protocolRevenueShareFee;
+            vault.accrueCuratorFees(epochCounter, curatorFee);
 
             // STEP 5: WITHDRAWAL EXCHANGE RATE (based on post-fee totalAssets)
-            uint256 pendingRedeem = vaultContract.convertToAssetsWithPITTotalAssets(
-                vaultContract.pendingRedeem(),
+            uint256 pendingRedeem = vault.convertToAssetsWithPITTotalAssets(
+                vault.pendingRedeem(),
                 totalAssets,
                 Math.Rounding.Floor
             );
+            vault.fulfillRedeem(totalAssets);
 
             // STEP 6: DEPOSIT PROCESSING (add deposits, subtract withdrawals)
-            totalAssets += vaultContract.pendingDeposit() - pendingRedeem;
-            _currentEpoch.vaultsTotalAssets[vault] = totalAssets;
+            totalAssets -= pendingRedeem;
+            uint256 pendingDeposit = vault.pendingDeposit();
+            vault.fulfillDeposit(totalAssets);
+            totalAssets += pendingDeposit;
+
+            _currentEpoch.vaultsTotalAssets[address(vault)] = totalAssets;
         }
 
         // Process decrypted initial batch portfolio values
@@ -697,6 +699,11 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             (address[] memory intentTokens, uint32[] memory intentWeights) = vault.getIntent();
             uint256 finalTotalAssets = _currentEpoch.vaultsTotalAssets[address(vault)];
 
+            // Create Position array for updateVaultState
+            IOrionTransparentVault.Position[] memory portfolio = new IOrionTransparentVault.Position[](
+                intentTokens.length
+            );
+
             for (uint16 j = 0; j < intentTokens.length; ++j) {
                 address token = intentTokens[j];
                 uint32 weight = intentWeights[j];
@@ -717,9 +724,14 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                     config.getTokenDecimals(token)
                 );
 
+                // Populate Position array
+                portfolio[j] = IOrionTransparentVault.Position({ token: token, value: uint32(value) });
+
                 _currentEpoch.finalBatchPortfolio[token] += value;
                 _addTokenIfNotExists(token);
             }
+
+            vault.updateVaultState(portfolio, finalTotalAssets);
         }
     }
 
