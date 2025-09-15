@@ -396,30 +396,36 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
 
     /// @notice Executes a sell order
     /// @param asset The asset to sell
-    /// @param amount The amount of shares to sell
-    function _executeSell(address asset, uint256 amount) internal {
+    /// @param sharesAmount The amount of shares to sell
+    /// @param estimatedUnderlyingAmount The estimated underlying amount to receive
+    /// @return executionUnderlyingAmount The actual execution underlying amount received
+    function _executeSell(
+        address asset,
+        uint256 sharesAmount,
+        uint256 estimatedUnderlyingAmount
+    ) internal returns (uint256 executionUnderlyingAmount) {
         IExecutionAdapter adapter = executionAdapterOf[asset];
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
+
+        uint256 minUnderlyingAmount = estimatedUnderlyingAmount.mulDiv(10000 - slippageBound, 10000);
 
         // Approve adapter to spend shares
         // slither-disable-next-line unused-return
         IERC20(asset).approve(address(adapter), 0);
         // slither-disable-next-line unused-return
-        IERC20(asset).approve(address(adapter), amount);
-
-        // TODO: pass slippageBound, oracle price and number of shares to adapters.
-
-        // TODO: not performing trade if slippage is too high, record we still have
-        // the open position.
+        IERC20(asset).approve(address(adapter), sharesAmount);
 
         // Execute sell through adapter, pull shares from this contract and push underlying assets to it.
-        adapter.sell(asset, amount);
+        executionUnderlyingAmount = adapter.sell(asset, sharesAmount, minUnderlyingAmount);
+
+        // TODO: use executionUnderlyingAmount and estimatedUnderlyingAmount to update buffer state.
     }
 
     /// @notice Executes a buy order
     /// @param asset The asset to buy
     /// @param sharesAmount The amount of shares to buy
-    /// @return executionUnderlyingAmount The actual execution underlying amount
+    /// @param estimatedUnderlyingAmount The estimated underlying amount to spend
+    /// @return executionUnderlyingAmount The actual execution underlying amount spent
     function _executeBuy(
         address asset,
         uint256 sharesAmount,

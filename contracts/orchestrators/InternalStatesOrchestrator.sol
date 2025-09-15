@@ -895,4 +895,13 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         if (amount > pendingProtocolFees) revert ErrorsLib.InsufficientAmount();
         pendingProtocolFees -= amount;
     }
+
+    /// @inheritdoc IInternalStateOrchestrator
+    function updateBufferAmount(int256 deltaAmount) external onlyLiquidityOrchestrator {
+        if (deltaAmount > 0) {
+            bufferAmount += uint256(deltaAmount);
+        } else if (deltaAmount < 0) {
+            bufferAmount -= uint256(-deltaAmount);
+        }
+    }
 }

@@ -89,4 +89,9 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     /// @param token The token to get the price of
     /// @return price The corresponding price [shares/assets]
     function getPriceOf(address token) external view returns (uint256 price);
+
+    /// @notice Updates the buffer amount based on execution vs estimated amounts
+    /// @param deltaAmount The amount to add/subtract from the buffer (can be negative)
+    /// @dev Can only be called by the Liquidity Orchestrator
+    function updateBufferAmount(int256 deltaAmount) external;
 }

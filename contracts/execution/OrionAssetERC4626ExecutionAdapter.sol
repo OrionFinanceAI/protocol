@@ -92,12 +92,12 @@ contract OrionAssetERC4626ExecutionAdapter is IExecutionAdapter {
         if (!success) revert ErrorsLib.TransferFailed();
     }
 
-    /// @notice Executes a sell operation by redeeming vault shares to withdraw underlying assets
-    /// @param vaultAsset The address of the vault to sell
-    /// @param amount The amount of vault shares to redeem
-    /// @dev The adapter will pull the vault shares from the caller
-    ///      and push the resulting underlying assets.
-    function sell(address vaultAsset, uint256 amount) external override onlyLiquidityOrchestrator {
+    /// @inheritdoc IExecutionAdapter
+    function sell(
+        address vaultAsset,
+        uint256 sharesAmount,
+        uint256 minUnderlyingAmount
+    ) external override onlyLiquidityOrchestrator returns (uint256 executionUnderlyingAmount) {
         // TODO: sell orders all in shares at this point, fix execution adapter API accordingly.
         revert ErrorsLib.InvalidArguments();
 
@@ -106,21 +106,21 @@ contract OrionAssetERC4626ExecutionAdapter is IExecutionAdapter {
         } catch {
             revert ErrorsLib.InvalidAddress(); // Adapter not valid for this vault
         }
-        if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(vaultAsset);
+        if (sharesAmount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(vaultAsset);
 
         IERC20 vault = IERC20(vaultAsset);
 
         // Pull vault shares from the caller
-        vault.safeTransferFrom(msg.sender, address(this), amount);
+        vault.safeTransferFrom(msg.sender, address(this), sharesAmount);
         // Approve vault to spend shares
-        vault.forceApprove(vaultAsset, amount);
+        vault.forceApprove(vaultAsset, sharesAmount);
         // Redeem shares to withdraw underlying assets
-        uint256 assets = IERC4626(vaultAsset).redeem(amount, address(this), address(this));
+        executionUnderlyingAmount = IERC4626(vaultAsset).redeem(sharesAmount, address(this), address(this));
         // Clean up approval
         vault.forceApprove(vaultAsset, 0);
 
         // Push the withdrawn underlying assets to the caller
-        bool success = underlyingAssetToken.transfer(msg.sender, assets);
+        bool success = underlyingAssetToken.transfer(msg.sender, executionUnderlyingAmount);
         if (!success) revert ErrorsLib.TransferFailed();
     }
 }

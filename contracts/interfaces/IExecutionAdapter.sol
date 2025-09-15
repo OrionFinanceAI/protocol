@@ -15,12 +15,21 @@ interface IExecutionAdapter {
     /// @param asset The address of the asset to buy
     /// @param sharesAmount The amount of shares to buy
     /// @param maxUnderlyingAmount The maximum amount of underlying assets to spend
-    /// @return executionUnderlyingAmount The actual execution underlying amount
+    /// @return executionUnderlyingAmount The actual execution underlying amount spent
     function buy(
         address asset,
         uint256 sharesAmount,
         uint256 maxUnderlyingAmount
     ) external returns (uint256 executionUnderlyingAmount);
 
-    function sell(address asset, uint256 amount) external;
+    /// @notice Executes a sell operation by converting asset shares to underlying assets
+    /// @param asset The address of the asset to sell
+    /// @param sharesAmount The amount of shares to sell
+    /// @param minUnderlyingAmount The minimum amount of underlying assets to receive
+    /// @return executionUnderlyingAmount The actual execution underlying amount received
+    function sell(
+        address asset,
+        uint256 sharesAmount,
+        uint256 minUnderlyingAmount
+    ) external returns (uint256 executionUnderlyingAmount);
 }
