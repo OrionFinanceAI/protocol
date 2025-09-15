@@ -369,7 +369,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
 
         if (i1 > buyingTokens.length || i1 == buyingTokens.length) {
             i1 = uint16(buyingTokens.length);
-            currentPhase = LiquidityUpkeepPhase.VaultStatesUpdate;
+            currentPhase = LiquidityUpkeepPhase.TransparentVaultStatesUpdate;
             currentMinibatchIndex = 0;
         }
 
@@ -442,30 +442,29 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
 
         address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
         uint16 length = uint16(transparentVaults.length);
+
+        if (i1 > length || i1 == length) {
+            i1 = uint16(length);
+            currentPhase = LiquidityUpkeepPhase.EncryptedVaultStatesUpdate;
+            currentMinibatchIndex = 0;
+        }
+
         for (uint16 i = i0; i < i1; ++i) {
             IOrionTransparentVault vault = IOrionTransparentVault(transparentVaults[i]);
             // vault.updateVaultState(?, ?); // TODO: read from internal states orchestrator and shoot to vault.
         }
 
-        // TODO: VaultStatesUpdate phase start, refacto.
-        // // Consistency between operation orders in internal states orchestrator and here is crucial.
-        // address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
-        // uint16 length = uint16(transparentVaults.length);
-        // // TODO: implement.
-        // // for (uint16 i = 0; i < length; i++) {
-        // //     IOrionTransparentVault vault = IOrionTransparentVault(transparentVaults[i]);
-        // //     vault.updateVaultState(?, ?);
-        // // }
-        // // TODO: to updateVaultState of encrypted vaults, get the encrypted sharesPerAsset executed by the liquidity
-        // // TODO: skip updating encrypted vaults states for which if (!vault.isIntentValid()), see other orchestrator.
+        // TODO: Consistency between operation orders in internal states orchestrator and here is crucial.
+        // TODO: to updateVaultState of encrypted vaults, get the encrypted sharesPerAsset executed by the liquidity
+        // TODO: skip updating encrypted vaults states for which if (!vault.isIntentValid()), see other orchestrator.
 
         // address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
         // length = uint16(encryptedVaults.length);
-        // // TODO: implement.
-        // // for (uint16 i = 0; i < length; i++) {
-        // //     IOrionEncryptedVault vault = IOrionEncryptedVault(encryptedVaults[i]);
-        // //     vault.updateVaultState(?, ?);
-        // // }
+        // TODO: implement.
+        // for (uint16 i = 0; i < length; i++) {
+        //     IOrionEncryptedVault vault = IOrionEncryptedVault(encryptedVaults[i]);
+        //     vault.updateVaultState(?, ?);
+        // }
 
         // TODO: DepositRequest and RedeemRequest in Vaults to be processed post update
         // (internal logic depends on vaults actual total assets and total supply
@@ -491,5 +490,16 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
 
         uint16 i0 = minibatchIndex * vaultStatesMinibatchSize;
         uint16 i1 = i0 + vaultStatesMinibatchSize;
+
+        address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
+        uint16 length = uint16(encryptedVaults.length);
+
+        if (i1 > length || i1 == length) {
+            i1 = uint16(length);
+            currentPhase = LiquidityUpkeepPhase.Idle;
+            currentMinibatchIndex = 0;
+        }
+
+        // ... TODO: implement.
     }
 }
