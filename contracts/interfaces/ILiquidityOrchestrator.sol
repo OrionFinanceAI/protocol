@@ -13,7 +13,8 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
         Idle,
         SellingLeg,
         BuyingLeg,
-        VaultStatesUpdate
+        TransparentVaultStatesUpdate,
+        EncryptedVaultStatesUpdate
     }
 
     /// @notice Returns the current upkeep phase

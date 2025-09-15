@@ -77,7 +77,8 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     bytes4 private constant ACTION_START = bytes4(keccak256("start()"));
     bytes4 private constant ACTION_PROCESS_SELL = bytes4(keccak256("processSell(uint8)"));
     bytes4 private constant ACTION_PROCESS_BUY = bytes4(keccak256("processBuy(uint8)"));
-    bytes4 private constant ACTION_VAULT_STATES_UPDATE = bytes4(keccak256("vaultStatesUpdate(uint8)"));
+    bytes4 private constant ACTION_STATE_UPDATE_T_VAULTS = bytes4(keccak256("stateUpdateTV(uint8)"));
+    bytes4 private constant ACTION_STATE_UPDATE_E_VAULTS = bytes4(keccak256("stateUpdateEV(uint8)"));
 
     /* -------------------------------------------------------------------------- */
     /*                                 EPOCH STATE                                */
@@ -259,9 +260,12 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
             upkeepNeeded = true;
             performData = abi.encode(ACTION_PROCESS_BUY, currentMinibatchIndex);
-        } else if (currentPhase == LiquidityUpkeepPhase.VaultStatesUpdate) {
+        } else if (currentPhase == LiquidityUpkeepPhase.TransparentVaultStatesUpdate) {
             upkeepNeeded = true;
-            performData = abi.encode(ACTION_VAULT_STATES_UPDATE, currentMinibatchIndex);
+            performData = abi.encode(ACTION_STATE_UPDATE_T_VAULTS, currentMinibatchIndex);
+        } else if (currentPhase == LiquidityUpkeepPhase.EncryptedVaultStatesUpdate) {
+            upkeepNeeded = true;
+            performData = abi.encode(ACTION_STATE_UPDATE_E_VAULTS, currentMinibatchIndex);
         } else {
             upkeepNeeded = false;
             performData = "";
@@ -280,8 +284,10 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
             _processMinibatchSell(minibatchIndex);
         } else if (action == ACTION_PROCESS_BUY) {
             _processMinibatchBuy(minibatchIndex);
-        } else if (action == ACTION_VAULT_STATES_UPDATE) {
-            _processMinibatchVaultStatesUpdate(minibatchIndex);
+        } else if (action == ACTION_STATE_UPDATE_T_VAULTS) {
+            _processMinibatchTVStatesUpdate(minibatchIndex);
+        } else if (action == ACTION_STATE_UPDATE_E_VAULTS) {
+            _processMinibatchEVStatesUpdate(minibatchIndex);
         }
         emit EventsLib.PortfolioRebalanced();
     }
@@ -425,9 +431,20 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
 
     /// @notice Handles the vault states update action
     /// @param minibatchIndex The index of the minibatch to process
-    function _processMinibatchVaultStatesUpdate(uint8 minibatchIndex) internal {
-        if (currentPhase != LiquidityUpkeepPhase.VaultStatesUpdate) {
+    function _processMinibatchTVStatesUpdate(uint8 minibatchIndex) internal {
+        if (currentPhase != LiquidityUpkeepPhase.TransparentVaultStatesUpdate) {
             revert ErrorsLib.InvalidState();
+        }
+        ++currentMinibatchIndex;
+
+        uint16 i0 = minibatchIndex * vaultStatesMinibatchSize;
+        uint16 i1 = i0 + vaultStatesMinibatchSize;
+
+        address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
+        uint16 length = uint16(transparentVaults.length);
+        for (uint16 i = i0; i < i1; ++i) {
+            IOrionTransparentVault vault = IOrionTransparentVault(transparentVaults[i]);
+            // vault.updateVaultState(?, ?); // TODO: read from internal states orchestrator and shoot to vault.
         }
 
         // TODO: VaultStatesUpdate phase start, refacto.
@@ -462,5 +479,17 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         // TODO: call updateHighWaterMark. Works only if actual vault states updated,
         // ok to use real total assets/share price there, but then this update shall
         // be done after all other states updates for convertToAssets to work.
+    }
+
+    /// @notice Handles the encrypted vault states update action
+    /// @param minibatchIndex The index of the minibatch to process
+    function _processMinibatchEVStatesUpdate(uint8 minibatchIndex) internal {
+        if (currentPhase != LiquidityUpkeepPhase.EncryptedVaultStatesUpdate) {
+            revert ErrorsLib.InvalidState();
+        }
+        ++currentMinibatchIndex;
+
+        uint16 i0 = minibatchIndex * vaultStatesMinibatchSize;
+        uint16 i1 = i0 + vaultStatesMinibatchSize;
     }
 }
