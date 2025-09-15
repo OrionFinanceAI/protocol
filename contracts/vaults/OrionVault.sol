@@ -264,6 +264,15 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         return shares.mulDiv(pointInTimeTotalAssets + 1, totalSupply() + 10 ** _decimalsOffset(), rounding);
     }
 
+    /// @inheritdoc IOrionVault
+    function convertToSharesWithPITTotalAssets(
+        uint256 assets,
+        uint256 pointInTimeTotalAssets,
+        Math.Rounding rounding
+    ) public view returns (uint256) {
+        return assets.mulDiv(totalSupply() + 10 ** _decimalsOffset(), pointInTimeTotalAssets + 1, rounding);
+    }
+
     /// --------- LP FUNCTIONS ---------
 
     /// @inheritdoc IOrionVault
@@ -526,7 +535,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     }
 
     /// @inheritdoc IOrionVault
-    function fulfillDeposit() external onlyInternalStatesOrchestrator nonReentrant {
+    function fulfillDeposit(uint256 depositTotalAssets) external onlyInternalStatesOrchestrator nonReentrant {
         uint32 length = uint32(_depositRequests.length());
         // Collect all requests first to avoid index shifting issues when removing during iteration
         address[] memory users = new address[](length);
@@ -548,7 +557,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
             // slither-disable-next-line unused-return
             _depositRequests.remove(user);
 
-            uint256 shares = convertToShares(amount);
+            uint256 shares = convertToSharesWithPITTotalAssets(amount, depositTotalAssets, Math.Rounding.Floor);
             _mint(user, shares);
 
             emit Deposit(user, amount, shares);
@@ -556,7 +565,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     }
 
     /// @inheritdoc IOrionVault
-    function fulfillRedeem() external onlyInternalStatesOrchestrator nonReentrant {
+    function fulfillRedeem(uint256 redeemTotalAssets) external onlyInternalStatesOrchestrator nonReentrant {
         uint32 length = uint32(_redeemRequests.length());
         // Collect all requests first to avoid index shifting issues when removing during iteration
         address[] memory users = new address[](length);
@@ -578,8 +587,14 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
             // slither-disable-next-line unused-return
             _redeemRequests.remove(user);
 
-            uint256 underlyingAmount = convertToAssets(shares);
+            uint256 underlyingAmount = convertToAssetsWithPITTotalAssets(
+                shares,
+                redeemTotalAssets,
+                Math.Rounding.Floor
+            );
             _burn(address(this), shares);
+            // TODO: Opportunity to net actual transactions (not just intents),
+            // performing minting and burning operation in sequence at the same time.
 
             // Transfer underlying assets from liquidity orchestrator to the user
             liquidityOrchestrator.transferRedemptionFunds(user, underlyingAmount);

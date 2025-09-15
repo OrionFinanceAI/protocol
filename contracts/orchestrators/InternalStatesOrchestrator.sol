@@ -412,18 +412,22 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             uint256 protocolRevenueShareFee = uint256(rsFeeCoefficient).mulDiv(curatorFee, BASIS_POINTS_FACTOR);
             pendingProtocolFees += protocolRevenueShareFee;
             curatorFee -= protocolRevenueShareFee;
-
             vault.accrueCuratorFees(epochCounter, curatorFee);
 
             // STEP 5: WITHDRAWAL EXCHANGE RATE (based on post-fee totalAssets)
-            uint256 pendingWithdrawals = vault.convertToAssetsWithPITTotalAssets(
+            uint256 pendingRedeem = vault.convertToAssetsWithPITTotalAssets(
                 vault.pendingRedeem(),
                 totalAssets,
                 Math.Rounding.Floor
             );
+            vault.fulfillRedeem(totalAssets);
 
             // STEP 6: DEPOSIT PROCESSING (add deposits, subtract withdrawals)
-            totalAssets += vault.pendingDeposit() - pendingWithdrawals;
+            totalAssets -= pendingRedeem;
+            uint256 pendingDeposit = vault.pendingDeposit();
+            vault.fulfillDeposit(totalAssets);
+
+            totalAssets += pendingDeposit;
 
             _currentEpoch.vaultsTotalAssets[address(vault)] = totalAssets;
         }
@@ -588,14 +592,14 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             curatorFee -= protocolRevenueShareFee;
 
             // STEP 5: WITHDRAWAL EXCHANGE RATE (based on post-fee totalAssets)
-            uint256 pendingWithdrawals = vaultContract.convertToAssetsWithPITTotalAssets(
+            uint256 pendingRedeem = vaultContract.convertToAssetsWithPITTotalAssets(
                 vaultContract.pendingRedeem(),
                 totalAssets,
                 Math.Rounding.Floor
             );
 
             // STEP 6: DEPOSIT PROCESSING (add deposits, subtract withdrawals)
-            totalAssets += vaultContract.pendingDeposit() - pendingWithdrawals;
+            totalAssets += vaultContract.pendingDeposit() - pendingRedeem;
             _currentEpoch.vaultsTotalAssets[vault] = totalAssets;
         }
 

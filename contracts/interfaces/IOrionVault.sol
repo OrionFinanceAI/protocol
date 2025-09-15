@@ -93,6 +93,17 @@ interface IOrionVault is IERC4626 {
         Math.Rounding rounding
     ) external view returns (uint256);
 
+    /// @notice Convert assets to shares with point in time total assets.
+    /// @param assets The amount of assets to convert.
+    /// @param pointInTimeTotalAssets The point in time total assets.
+    /// @param rounding The rounding mode.
+    /// @return The amount of shares.
+    function convertToSharesWithPITTotalAssets(
+        uint256 assets,
+        uint256 pointInTimeTotalAssets,
+        Math.Rounding rounding
+    ) external view returns (uint256);
+
     /// --------- LP FUNCTIONS ---------
 
     /// @notice Submit an asynchronous deposit request.
@@ -170,10 +181,12 @@ interface IOrionVault is IERC4626 {
     /// --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
 
     /// @notice Process all pending deposit requests and mint shares to depositors
-    function fulfillDeposit() external;
+    /// @param depositTotalAssets The total assets associated with the deposit requests
+    function fulfillDeposit(uint256 depositTotalAssets) external;
 
     /// @notice Process all pending redemption requests and burn shares from redeemers
-    function fulfillRedeem() external;
+    /// @param redeemTotalAssets The total assets associated with the redemption requests
+    function fulfillRedeem(uint256 redeemTotalAssets) external;
 
     /// @notice Update the high watermark after trades are executed
     /// @dev Shall be called by the liquidity orchestrator after portfolio rebalancing.
