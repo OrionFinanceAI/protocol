@@ -73,6 +73,8 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     /// @return sellingAmounts The amounts to sell in shares
     /// @return buyingTokens The tokens to buy
     /// @return buyingAmounts The amounts to buy in underlying assets
+    /// @return sellingEstimatedUnderlyingAmounts The estimated underlying amounts to sell
+    /// @return buyingEstimatedUnderlyingAmounts The estimated underlying amounts to buy
     function getOrders()
         external
         view

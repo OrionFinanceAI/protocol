@@ -92,6 +92,9 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     uint256[] public buyingAmounts;
     /// @notice Buying underlying amounts for current epoch
     uint256[] public buyingEstimatedUnderlyingAmounts;
+
+    /// @notice Delta buffer amount for current epoch
+    int256 public deltaBufferAmount;
     /* -------------------------------------------------------------------------- */
     /*                                MODIFIERS                                   */
     /* -------------------------------------------------------------------------- */
@@ -323,6 +326,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         delete buyingAmounts;
         delete sellingEstimatedUnderlyingAmounts;
         delete buyingEstimatedUnderlyingAmounts;
+        deltaBufferAmount = 0;
         // Populate new epoch data
         (
             sellingTokens,
@@ -353,19 +357,18 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         uint16 i0 = minibatchIndex * executionMinibatchSize;
         uint16 i1 = i0 + executionMinibatchSize;
 
-        // TODO: skip underlying asset processing.
-        // if (token == address(underlyingAsset)) pass
-        //
-        // Sell orders all in shares at this point, fix execution adapter API accordingly.
-        // for (uint16 i = 0; i < sellingTokens.length; ++i) {
-        //     address token = sellingTokens[i];
-        //     uint256 amount = sellingAmounts[i];
-        //     uint256 estimatedUnderlyingAmount = sellingEstimatedUnderlyingAmounts[i];
-        //     _executeSell(token, amount);
-        //     // every transaction should enable the update of the buffer liquidity,
-        //     // making use of the average execution price,
-        //     // and the oracle prices used to generate the orders.
-        // }
+        if (i1 > sellingTokens.length || i1 == sellingTokens.length) {
+            i1 = uint16(sellingTokens.length);
+            currentPhase = LiquidityUpkeepPhase.BuyingLeg;
+            currentMinibatchIndex = 0;
+        }
+
+        for (uint16 i = i0; i < i1; ++i) {
+            address token = sellingTokens[i];
+            if (token == address(underlyingAsset)) continue;
+            uint256 amount = sellingAmounts[i];
+            _executeSell(token, amount, sellingEstimatedUnderlyingAmounts[i]);
+        }
     }
 
     /// @notice Handles the buy action
@@ -389,8 +392,11 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
             address token = buyingTokens[i];
             if (token == address(underlyingAsset)) continue;
             uint256 amount = buyingAmounts[i];
-            uint256 executionUnderlyingAmount = _executeBuy(token, amount, buyingEstimatedUnderlyingAmounts[i]);
-            // TODO: use executionPrice and oraclePrice to update buffer state.
+            _executeBuy(token, amount, buyingEstimatedUnderlyingAmounts[i]);
+        }
+
+        if (i1 == buyingTokens.length) {
+            internalStatesOrchestrator.updateBufferAmount(deltaBufferAmount);
         }
     }
 
@@ -398,12 +404,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     /// @param asset The asset to sell
     /// @param sharesAmount The amount of shares to sell
     /// @param estimatedUnderlyingAmount The estimated underlying amount to receive
-    /// @return executionUnderlyingAmount The actual execution underlying amount received
-    function _executeSell(
-        address asset,
-        uint256 sharesAmount,
-        uint256 estimatedUnderlyingAmount
-    ) internal returns (uint256 executionUnderlyingAmount) {
+    function _executeSell(address asset, uint256 sharesAmount, uint256 estimatedUnderlyingAmount) internal {
         IExecutionAdapter adapter = executionAdapterOf[asset];
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
 
@@ -416,21 +417,16 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         IERC20(asset).approve(address(adapter), sharesAmount);
 
         // Execute sell through adapter, pull shares from this contract and push underlying assets to it.
-        executionUnderlyingAmount = adapter.sell(asset, sharesAmount, minUnderlyingAmount);
+        uint256 executionUnderlyingAmount = adapter.sell(asset, sharesAmount, minUnderlyingAmount);
 
-        // TODO: use executionUnderlyingAmount and estimatedUnderlyingAmount to update buffer state.
+        deltaBufferAmount += int256(executionUnderlyingAmount) - int256(estimatedUnderlyingAmount);
     }
 
     /// @notice Executes a buy order
     /// @param asset The asset to buy
     /// @param sharesAmount The amount of shares to buy
     /// @param estimatedUnderlyingAmount The estimated underlying amount to spend
-    /// @return executionUnderlyingAmount The actual execution underlying amount spent
-    function _executeBuy(
-        address asset,
-        uint256 sharesAmount,
-        uint256 estimatedUnderlyingAmount
-    ) internal returns (uint256 executionUnderlyingAmount) {
+    function _executeBuy(address asset, uint256 sharesAmount, uint256 estimatedUnderlyingAmount) internal {
         IExecutionAdapter adapter = executionAdapterOf[asset];
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
 
@@ -443,8 +439,8 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         IERC20(underlyingAsset).approve(address(adapter), maxUnderlyingAmount);
 
         // Execute buy through adapter, pull underlying assets from this contract and push shares to it.
-        executionUnderlyingAmount = adapter.buy(asset, sharesAmount, maxUnderlyingAmount);
+        uint256 executionUnderlyingAmount = adapter.buy(asset, sharesAmount, maxUnderlyingAmount);
 
-        // TODO: use executionUnderlyingAmount and estimatedUnderlyingAmount to update buffer state.
+        deltaBufferAmount += int256(estimatedUnderlyingAmount) - int256(executionUnderlyingAmount);
     }
 }

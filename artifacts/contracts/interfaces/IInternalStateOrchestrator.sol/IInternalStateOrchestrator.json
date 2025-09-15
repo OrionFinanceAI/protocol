@@ -201,6 +201,19 @@
     {
       "inputs": [
         {
+          "internalType": "int256",
+          "name": "deltaAmount",
+          "type": "int256"
+        }
+      ],
+      "name": "updateBufferAmount",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
           "internalType": "uint32",
           "name": "newEpochDuration",
           "type": "uint32"

@@ -10,7 +10,6 @@ contract MockExecutionAdapter is IExecutionAdapter {
     constructor() {}
 
     /// @inheritdoc IExecutionAdapter
-    // solhint-disable-next-line no-empty-blocks
     function buy(
         address asset,
         uint256 sharesAmount,
@@ -20,6 +19,11 @@ contract MockExecutionAdapter is IExecutionAdapter {
     }
 
     /// @inheritdoc IExecutionAdapter
-    // solhint-disable-next-line no-empty-blocks
-    function sell(address asset, uint256 amount) external {}
+    function sell(
+        address asset,
+        uint256 sharesAmount,
+        uint256 minUnderlyingAmount
+    ) external returns (uint256 executionUnderlyingAmount) {
+        executionUnderlyingAmount = 1e12;
+    }
 }
