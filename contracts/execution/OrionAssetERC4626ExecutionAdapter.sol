@@ -54,6 +54,32 @@ contract OrionAssetERC4626ExecutionAdapter is IExecutionAdapter {
     // associated with the partial_portfolio * oracle_prices. For encrypted vaults this implies a decryption.
 
     /// @inheritdoc IExecutionAdapter
+    function sell(
+        address vaultAsset,
+        uint256 sharesAmount,
+        uint256 minUnderlyingAmount
+    ) external override onlyLiquidityOrchestrator returns (uint256 receivedUnderlyingAmount) {
+        try IERC4626(vaultAsset).asset() returns (address vaultUnderlyingAsset) {
+            if (vaultUnderlyingAsset != underlyingAsset) revert ErrorsLib.InvalidAddress();
+        } catch {
+            revert ErrorsLib.InvalidAddress(); // Adapter not valid for this vault
+        }
+        if (sharesAmount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(vaultAsset);
+
+        IERC4626 vault = IERC4626(vaultAsset);
+
+        receivedUnderlyingAmount = vault.previewMint(sharesAmount);
+
+        if (receivedUnderlyingAmount < minUnderlyingAmount) {
+            revert ErrorsLib.SlippageExceeded();
+        }
+
+        // Redeem shares to get underlying assets
+        // slither-disable-next-line unused-return
+        receivedUnderlyingAmount = vault.redeem(sharesAmount, msg.sender, msg.sender);
+    }
+
+    /// @inheritdoc IExecutionAdapter
     function buy(
         address vaultAsset,
         uint256 sharesAmount,
@@ -89,38 +115,6 @@ contract OrionAssetERC4626ExecutionAdapter is IExecutionAdapter {
 
         // Push the received shares to the caller
         bool success = vault.transfer(msg.sender, sharesAmount);
-        if (!success) revert ErrorsLib.TransferFailed();
-    }
-
-    /// @inheritdoc IExecutionAdapter
-    function sell(
-        address vaultAsset,
-        uint256 sharesAmount,
-        uint256 minUnderlyingAmount
-    ) external override onlyLiquidityOrchestrator returns (uint256 executionUnderlyingAmount) {
-        // TODO: sell orders all in shares at this point, fix execution adapter API accordingly.
-        revert ErrorsLib.InvalidArguments();
-
-        try IERC4626(vaultAsset).asset() returns (address vaultUnderlyingAsset) {
-            if (vaultUnderlyingAsset != underlyingAsset) revert ErrorsLib.InvalidAddress();
-        } catch {
-            revert ErrorsLib.InvalidAddress(); // Adapter not valid for this vault
-        }
-        if (sharesAmount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(vaultAsset);
-
-        IERC20 vault = IERC20(vaultAsset);
-
-        // Pull vault shares from the caller
-        vault.safeTransferFrom(msg.sender, address(this), sharesAmount);
-        // Approve vault to spend shares
-        vault.forceApprove(vaultAsset, sharesAmount);
-        // Redeem shares to withdraw underlying assets
-        executionUnderlyingAmount = IERC4626(vaultAsset).redeem(sharesAmount, address(this), address(this));
-        // Clean up approval
-        vault.forceApprove(vaultAsset, 0);
-
-        // Push the withdrawn underlying assets to the caller
-        bool success = underlyingAssetToken.transfer(msg.sender, executionUnderlyingAmount);
         if (!success) revert ErrorsLib.TransferFailed();
     }
 }
