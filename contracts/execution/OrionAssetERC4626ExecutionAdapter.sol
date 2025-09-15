@@ -46,7 +46,7 @@ contract OrionAssetERC4626ExecutionAdapter is IExecutionAdapter {
         liquidityOrchestrator = config.liquidityOrchestrator();
     }
 
-    // TODO: true for both buy and sell. We need a solution to gracefully handle failing transactions.
+    // TODO: true for both buy and sell: We need a solution to gracefully handle failing transactions.
     // As improbable as it is, it could happen and can block the system.
     // A mask of the failed asset transactions leads to a partial update of the vault states.
     // To compute the resulting amount to be added to the underlying asset (in the whitelisted assets)

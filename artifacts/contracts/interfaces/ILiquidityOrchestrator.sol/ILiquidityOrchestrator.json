@@ -210,6 +210,19 @@
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint8",
+          "name": "_vaultStatesMinibatchSize",
+          "type": "uint8"
+        }
+      ],
+      "name": "updateVaultStatesMinibatchSize",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
     }
   ],
   "bytecode": "0x",

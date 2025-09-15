@@ -58,6 +58,9 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     /// @notice Execution minibatch size
     uint8 public executionMinibatchSize;
 
+    /// @notice Vault states minibatch size
+    uint8 public vaultStatesMinibatchSize;
+
     /// @notice Upkeep phase
     LiquidityUpkeepPhase public currentPhase;
 
@@ -74,7 +77,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     bytes4 private constant ACTION_START = bytes4(keccak256("start()"));
     bytes4 private constant ACTION_PROCESS_SELL = bytes4(keccak256("processSell(uint8)"));
     bytes4 private constant ACTION_PROCESS_BUY = bytes4(keccak256("processBuy(uint8)"));
-    bytes4 private constant ACTION_STATE_UPDATE = bytes4(keccak256("stateUpdate()"));
+    bytes4 private constant ACTION_VAULT_STATES_UPDATE = bytes4(keccak256("vaultStatesUpdate(uint8)"));
 
     /* -------------------------------------------------------------------------- */
     /*                                 EPOCH STATE                                */
@@ -126,6 +129,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         lastProcessedEpoch = 0;
         currentPhase = LiquidityUpkeepPhase.Idle;
         executionMinibatchSize = 1;
+        vaultStatesMinibatchSize = 1;
         currentMinibatchIndex = 0;
     }
 
@@ -138,6 +142,13 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         if (_executionMinibatchSize == 0) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         executionMinibatchSize = _executionMinibatchSize;
+    }
+
+    /// @inheritdoc ILiquidityOrchestrator
+    function updateVaultStatesMinibatchSize(uint8 _vaultStatesMinibatchSize) external onlyOwner {
+        if (_vaultStatesMinibatchSize == 0) revert ErrorsLib.InvalidArguments();
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+        vaultStatesMinibatchSize = _vaultStatesMinibatchSize;
     }
 
     /// @inheritdoc ILiquidityOrchestrator
@@ -248,9 +259,10 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
             upkeepNeeded = true;
             performData = abi.encode(ACTION_PROCESS_BUY, currentMinibatchIndex);
-        }
-        // TODO: add state update action(s).
-        else {
+        } else if (currentPhase == LiquidityUpkeepPhase.VaultStatesUpdate) {
+            upkeepNeeded = true;
+            performData = abi.encode(ACTION_VAULT_STATES_UPDATE, currentMinibatchIndex);
+        } else {
             upkeepNeeded = false;
             performData = "";
         }
@@ -268,42 +280,9 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
             _processMinibatchSell(minibatchIndex);
         } else if (action == ACTION_PROCESS_BUY) {
             _processMinibatchBuy(minibatchIndex);
+        } else if (action == ACTION_VAULT_STATES_UPDATE) {
+            _processMinibatchVaultStatesUpdate(minibatchIndex);
         }
-        // TODO: add state update action(s).
-        // Consider modularizing the steps.
-
-        // TODO: StateUpdate phase start, refacto.
-        // // Consistency between operation orders in internal states orchestrator and here is crucial.
-        // address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
-        // uint16 length = uint16(transparentVaults.length);
-        // // TODO: implement.
-        // // for (uint16 i = 0; i < length; i++) {
-        // //     IOrionTransparentVault vault = IOrionTransparentVault(transparentVaults[i]);
-        // //     vault.updateVaultState(?, ?);
-        // // }
-        // // TODO: to updateVaultState of encrypted vaults, get the encrypted sharesPerAsset executed by the liquidity
-        // // TODO: skip updating encrypted vaults states for which if (!vault.isIntentValid()), see other orchestrator.
-
-        // address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
-        // length = uint16(encryptedVaults.length);
-        // // TODO: implement.
-        // // for (uint16 i = 0; i < length; i++) {
-        // //     IOrionEncryptedVault vault = IOrionEncryptedVault(encryptedVaults[i]);
-        // //     vault.updateVaultState(?, ?);
-        // // }
-
-        // TODO: DepositRequest and RedeemRequest in Vaults to be processed post update
-        // (internal logic depends on vaults actual total assets and total supply
-        // (inside the _convertToShares, _mint, _burn and _convertToAssets calls), and removed from
-        // vault state as pending requests. Opportunity to net actual transactions (not just intents),
-        // performing minting and burning operation at the same time.
-
-        // TODO: call updateHighWaterMark. Works only if actual vault states updated,
-        // ok to use real total assets/share price there, but then this update shall
-        // be done after all other states updates for convertToAssets to work.
-
-        // TODO: update pendingCuratorFees calling accrueCuratorFees of each vault.
-        // Use the value computed in internal states orchestrator.
         emit EventsLib.PortfolioRebalanced();
     }
 
@@ -384,7 +363,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
 
         if (i1 > buyingTokens.length || i1 == buyingTokens.length) {
             i1 = uint16(buyingTokens.length);
-            currentPhase = LiquidityUpkeepPhase.StateUpdate;
+            currentPhase = LiquidityUpkeepPhase.VaultStatesUpdate;
             currentMinibatchIndex = 0;
         }
 
@@ -442,5 +421,46 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         uint256 executionUnderlyingAmount = adapter.buy(asset, sharesAmount, maxUnderlyingAmount);
 
         deltaBufferAmount += int256(estimatedUnderlyingAmount) - int256(executionUnderlyingAmount);
+    }
+
+    /// @notice Handles the vault states update action
+    /// @param minibatchIndex The index of the minibatch to process
+    function _processMinibatchVaultStatesUpdate(uint8 minibatchIndex) internal {
+        if (currentPhase != LiquidityUpkeepPhase.VaultStatesUpdate) {
+            revert ErrorsLib.InvalidState();
+        }
+
+        // TODO: VaultStatesUpdate phase start, refacto.
+        // // Consistency between operation orders in internal states orchestrator and here is crucial.
+        // address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
+        // uint16 length = uint16(transparentVaults.length);
+        // // TODO: implement.
+        // // for (uint16 i = 0; i < length; i++) {
+        // //     IOrionTransparentVault vault = IOrionTransparentVault(transparentVaults[i]);
+        // //     vault.updateVaultState(?, ?);
+        // // }
+        // // TODO: to updateVaultState of encrypted vaults, get the encrypted sharesPerAsset executed by the liquidity
+        // // TODO: skip updating encrypted vaults states for which if (!vault.isIntentValid()), see other orchestrator.
+
+        // address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
+        // length = uint16(encryptedVaults.length);
+        // // TODO: implement.
+        // // for (uint16 i = 0; i < length; i++) {
+        // //     IOrionEncryptedVault vault = IOrionEncryptedVault(encryptedVaults[i]);
+        // //     vault.updateVaultState(?, ?);
+        // // }
+
+        // TODO: DepositRequest and RedeemRequest in Vaults to be processed post update
+        // (internal logic depends on vaults actual total assets and total supply
+        // (inside the _convertToShares, _mint, _burn and _convertToAssets calls), and removed from
+        // vault state as pending requests. Opportunity to net actual transactions (not just intents),
+        // performing minting and burning operation at the same time.
+
+        // TODO: update pendingCuratorFees calling accrueCuratorFees of each vault.
+        // Use the value computed in internal states orchestrator.
+
+        // TODO: call updateHighWaterMark. Works only if actual vault states updated,
+        // ok to use real total assets/share price there, but then this update shall
+        // be done after all other states updates for convertToAssets to work.
     }
 }

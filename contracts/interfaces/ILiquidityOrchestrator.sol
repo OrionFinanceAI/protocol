@@ -13,7 +13,7 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
         Idle,
         SellingLeg,
         BuyingLeg,
-        StateUpdate
+        VaultStatesUpdate
     }
 
     /// @notice Returns the current upkeep phase
@@ -27,6 +27,10 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @notice Updates the execution minibatch size
     /// @param _executionMinibatchSize The new execution minibatch size
     function updateExecutionMinibatchSize(uint8 _executionMinibatchSize) external;
+
+    /// @notice Updates the vault states minibatch size
+    /// @param _vaultStatesMinibatchSize The new vault states minibatch size
+    function updateVaultStatesMinibatchSize(uint8 _vaultStatesMinibatchSize) external;
 
     /// @notice Updates the Chainlink Automation Registry address
     /// @param newAutomationRegistry The new automation registry address
