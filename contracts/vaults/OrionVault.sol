@@ -602,14 +602,4 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
             emit Withdraw(user, underlyingAmount, shares);
         }
     }
-
-    /// @inheritdoc IOrionVault
-    function updateHighWaterMark() external onlyInternalStatesOrchestrator {
-        uint256 currentSharePrice = convertToAssets(10 ** decimals());
-
-        // Update high watermark if current price is higher
-        if (currentSharePrice > feeModel.highWaterMark) {
-            feeModel.highWaterMark = currentSharePrice;
-        }
-    }
 }

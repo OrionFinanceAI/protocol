@@ -783,8 +783,6 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         emit EventsLib.InternalStateProcessed(epochCounter);
     }
 
-    // TODO(finally): a lot of code duplication, refactor for maintainability and scalability.
-
     /* -------------------------------------------------------------------------- */
     /*                      LIQUIDITY ORCHESTRATOR FUNCTIONS                      */
     /* -------------------------------------------------------------------------- */

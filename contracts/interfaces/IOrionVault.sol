@@ -188,12 +188,6 @@ interface IOrionVault is IERC4626 {
     /// @param redeemTotalAssets The total assets associated with the redemption requests
     function fulfillRedeem(uint256 redeemTotalAssets) external;
 
-    /// @notice Update the high watermark after trades are executed
-    /// @dev Shall be called by the liquidity orchestrator after portfolio rebalancing.
-    ///      Updates high watermark if current share price exceeds the previous high watermark.
-    ///      This is used to calculate the performance fee.
-    function updateHighWaterMark() external;
-
     /// @notice Accrue curator fees for a specific epoch
     /// @param epoch The epoch for which to accrue fees
     /// @param feeAmount The amount of curator fees to accrue in underlying asset units
