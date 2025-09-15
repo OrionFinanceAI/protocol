@@ -44,7 +44,6 @@ beforeEach(async function () {
     await underlyingAsset.getAddress(),
     "Mock Asset 1",
     "MA1",
-    18,
   );
   await mockAsset1Deployed.waitForDeployment();
   mockAsset1 = mockAsset1Deployed as unknown as MockERC4626Asset;
@@ -53,7 +52,6 @@ beforeEach(async function () {
     await underlyingAsset.getAddress(),
     "Mock Asset 2",
     "MA2",
-    18,
   );
   await mockAsset2Deployed.waitForDeployment();
   mockAsset2 = mockAsset2Deployed as unknown as MockERC4626Asset;
@@ -319,7 +317,6 @@ describe("EncryptedVault - Curator Pipeline", function () {
         await underlyingAsset.getAddress(),
         "Non Whitelisted Asset",
         "NWA",
-        18,
       );
       await nonWhitelistedAsset.waitForDeployment();
 

@@ -6,8 +6,7 @@ import { time } from "@nomicfoundation/hardhat-network-helpers";
 import {
   MockUnderlyingAsset,
   MockERC4626Asset,
-  MockPriceAdapter,
-  MockExecutionAdapter,
+  OrionAssetERC4626ExecutionAdapter,
   OrionConfig,
   InternalStatesOrchestrator,
   LiquidityOrchestrator,
@@ -27,12 +26,12 @@ describe("Orchestrators", function () {
   let mockAsset1: MockERC4626Asset;
   let mockAsset2: MockERC4626Asset;
   let mockAsset3: MockERC4626Asset;
-  let mockPriceAdapter1: MockPriceAdapter;
   let orionPriceAdapter1: OrionAssetERC4626PriceAdapter;
   let orionPriceAdapter2: OrionAssetERC4626PriceAdapter;
-  let mockExecutionAdapter1: MockExecutionAdapter;
-  let mockExecutionAdapter2: MockExecutionAdapter;
-  let mockExecutionAdapter3: MockExecutionAdapter;
+  let orionPriceAdapter3: OrionAssetERC4626PriceAdapter;
+  let orionExecutionAdapter1: OrionAssetERC4626ExecutionAdapter;
+  let orionExecutionAdapter2: OrionAssetERC4626ExecutionAdapter;
+  let orionExecutionAdapter3: OrionAssetERC4626ExecutionAdapter;
   let priceAdapterRegistry: PriceAdapterRegistry;
   let internalStatesOrchestrator: InternalStatesOrchestrator;
   let liquidityOrchestrator: LiquidityOrchestrator;
@@ -59,7 +58,6 @@ describe("Orchestrators", function () {
       await underlyingAsset.getAddress(),
       "Mock Asset 1",
       "MA1",
-      10,
     );
     await mockAsset1Deployed.waitForDeployment();
     mockAsset1 = mockAsset1Deployed as unknown as MockERC4626Asset;
@@ -68,7 +66,6 @@ describe("Orchestrators", function () {
       await underlyingAsset.getAddress(),
       "Mock Asset 2",
       "MA2",
-      18,
     );
     await mockAsset2Deployed.waitForDeployment();
     mockAsset2 = mockAsset2Deployed as unknown as MockERC4626Asset;
@@ -77,7 +74,6 @@ describe("Orchestrators", function () {
       await underlyingAsset.getAddress(),
       "Mock Asset 3",
       "MA3",
-      18,
     );
     await mockAsset3Deployed.waitForDeployment();
     mockAsset3 = mockAsset3Deployed as unknown as MockERC4626Asset;
@@ -97,11 +93,6 @@ describe("Orchestrators", function () {
     await priceAdapterRegistryDeployed.waitForDeployment();
     priceAdapterRegistry = priceAdapterRegistryDeployed as unknown as PriceAdapterRegistry;
 
-    // Deploy Mock Price Adapters
-    const MockPriceAdapterFactory = await ethers.getContractFactory("MockPriceAdapter");
-    mockPriceAdapter1 = (await MockPriceAdapterFactory.deploy()) as unknown as MockPriceAdapter;
-    await mockPriceAdapter1.waitForDeployment();
-
     // Deploy OrionAssetERC4626PriceAdapter instances
     const OrionAssetERC4626PriceAdapterFactory = await ethers.getContractFactory("OrionAssetERC4626PriceAdapter");
     orionPriceAdapter1 = (await OrionAssetERC4626PriceAdapterFactory.deploy(
@@ -114,16 +105,10 @@ describe("Orchestrators", function () {
     )) as unknown as OrionAssetERC4626PriceAdapter;
     await orionPriceAdapter2.waitForDeployment();
 
-    // Deploy Mock Execution Adapters
-    const MockExecutionAdapterFactory = await ethers.getContractFactory("MockExecutionAdapter");
-    mockExecutionAdapter1 = (await MockExecutionAdapterFactory.deploy()) as unknown as MockExecutionAdapter;
-    await mockExecutionAdapter1.waitForDeployment();
-
-    mockExecutionAdapter2 = (await MockExecutionAdapterFactory.deploy()) as unknown as MockExecutionAdapter;
-    await mockExecutionAdapter2.waitForDeployment();
-
-    mockExecutionAdapter3 = (await MockExecutionAdapterFactory.deploy()) as unknown as MockExecutionAdapter;
-    await mockExecutionAdapter3.waitForDeployment();
+    orionPriceAdapter3 = (await OrionAssetERC4626PriceAdapterFactory.deploy(
+      await orionConfig.getAddress(),
+    )) as unknown as OrionAssetERC4626PriceAdapter;
+    await orionPriceAdapter3.waitForDeployment();
 
     // Deploy TransparentVaultFactory
     const TransparentVaultFactoryFactory = await ethers.getContractFactory("TransparentVaultFactory");
@@ -174,24 +159,43 @@ describe("Orchestrators", function () {
     // Set slippage bound to initialize targetBufferRatio
     await liquidityOrchestrator.setSlippageBound(100); // 1% slippage bound
 
+    // Deploy Execution Adapters
+    const OrionAssetERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
+      "OrionAssetERC4626ExecutionAdapter",
+    );
+    orionExecutionAdapter1 = (await OrionAssetERC4626ExecutionAdapterFactory.deploy(
+      await orionConfig.getAddress(),
+    )) as unknown as OrionAssetERC4626ExecutionAdapter;
+    await orionExecutionAdapter1.waitForDeployment();
+
+    orionExecutionAdapter2 = (await OrionAssetERC4626ExecutionAdapterFactory.deploy(
+      await orionConfig.getAddress(),
+    )) as unknown as OrionAssetERC4626ExecutionAdapter;
+    await orionExecutionAdapter2.waitForDeployment();
+
+    orionExecutionAdapter3 = (await OrionAssetERC4626ExecutionAdapterFactory.deploy(
+      await orionConfig.getAddress(),
+    )) as unknown as OrionAssetERC4626ExecutionAdapter;
+    await orionExecutionAdapter3.waitForDeployment();
+
     // Add assets to whitelist - creating a mixed investment universe
     // Asset 1: Mock asset with MockPriceAdapter
     await orionConfig.addWhitelistedAsset(
       await mockAsset1.getAddress(),
-      await mockPriceAdapter1.getAddress(),
-      await mockExecutionAdapter1.getAddress(),
+      await orionPriceAdapter1.getAddress(),
+      await orionExecutionAdapter1.getAddress(),
     );
     // Asset 2: Mock asset with OrionAssetERC4626PriceAdapter
     await orionConfig.addWhitelistedAsset(
       await mockAsset2.getAddress(),
-      await orionPriceAdapter1.getAddress(),
-      await mockExecutionAdapter2.getAddress(),
+      await orionPriceAdapter2.getAddress(),
+      await orionExecutionAdapter2.getAddress(),
     );
     // Asset 3: Mock asset with OrionAssetERC4626PriceAdapter
     await orionConfig.addWhitelistedAsset(
       await mockAsset3.getAddress(),
-      await orionPriceAdapter2.getAddress(),
-      await mockExecutionAdapter3.getAddress(),
+      await orionPriceAdapter3.getAddress(),
+      await orionExecutionAdapter3.getAddress(),
     );
 
     // Create a transparent vault
@@ -338,8 +342,8 @@ describe("Orchestrators", function () {
       await expect(
         orionConfig.addWhitelistedAsset(
           await mockAsset1.getAddress(),
-          await mockPriceAdapter1.getAddress(),
-          await mockExecutionAdapter1.getAddress(),
+          await orionPriceAdapter1.getAddress(),
+          await orionExecutionAdapter1.getAddress(),
         ),
       ).to.be.revertedWithCustomError(orionConfig, "SystemNotIdle");
 
@@ -540,11 +544,25 @@ describe("Orchestrators", function () {
       void expect(liquidityUpkeepNeeded).to.be.true;
       await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
 
-      expect(await liquidityOrchestrator.currentPhase()).to.equal(2); // BuyingLeg
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(2);
 
       [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
       void expect(liquidityUpkeepNeeded).to.be.true;
       await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+
+      [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      void expect(liquidityUpkeepNeeded).to.be.true;
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+
+      [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      void expect(liquidityUpkeepNeeded).to.be.true;
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+
+      [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      void expect(liquidityUpkeepNeeded).to.be.true;
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(3);
     });
 
     it("should not trigger upkeep when system is idle and time hasn't passed", async function () {

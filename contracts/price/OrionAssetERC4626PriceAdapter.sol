@@ -6,7 +6,6 @@ import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/I
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
-
 /**
  * @title OrionAssetERC4626PriceAdapter
  * @notice Price adapter for ERC-4626 vaults sharing the same underlying asset as the Orion protocol.

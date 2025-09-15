@@ -84,11 +84,14 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     address[] public sellingTokens;
     /// @notice Selling amounts for current epoch
     uint256[] public sellingAmounts;
+    /// @notice Selling underlying amounts for current epoch
+    uint256[] public sellingEstimatedUnderlyingAmounts;
     /// @notice Buying tokens for current epoch
     address[] public buyingTokens;
     /// @notice Buying amounts for current epoch
     uint256[] public buyingAmounts;
-
+    /// @notice Buying underlying amounts for current epoch
+    uint256[] public buyingEstimatedUnderlyingAmounts;
     /* -------------------------------------------------------------------------- */
     /*                                MODIFIERS                                   */
     /* -------------------------------------------------------------------------- */
@@ -318,8 +321,17 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         delete sellingAmounts;
         delete buyingTokens;
         delete buyingAmounts;
+        delete sellingEstimatedUnderlyingAmounts;
+        delete buyingEstimatedUnderlyingAmounts;
         // Populate new epoch data
-        (sellingTokens, sellingAmounts, buyingTokens, buyingAmounts) = internalStatesOrchestrator.getOrders();
+        (
+            sellingTokens,
+            sellingAmounts,
+            buyingTokens,
+            buyingAmounts,
+            sellingEstimatedUnderlyingAmounts,
+            buyingEstimatedUnderlyingAmounts
+        ) = internalStatesOrchestrator.getOrders();
 
         currentPhase = LiquidityUpkeepPhase.SellingLeg;
         if (sellingTokens.length == 0) {
@@ -348,6 +360,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         // for (uint16 i = 0; i < sellingTokens.length; ++i) {
         //     address token = sellingTokens[i];
         //     uint256 amount = sellingAmounts[i];
+        //     uint256 estimatedUnderlyingAmount = sellingEstimatedUnderlyingAmounts[i];
         //     _executeSell(token, amount);
         //     // every transaction should enable the update of the buffer liquidity,
         //     // making use of the average execution price,
@@ -376,7 +389,8 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
             address token = buyingTokens[i];
             if (token == address(underlyingAsset)) continue;
             uint256 amount = buyingAmounts[i];
-            _executeBuy(token, amount);
+            uint256 executionUnderlyingAmount = _executeBuy(token, amount, buyingEstimatedUnderlyingAmounts[i]);
+            // TODO: use executionPrice and oraclePrice to update buffer state.
         }
     }
 
@@ -404,22 +418,27 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
 
     /// @notice Executes a buy order
     /// @param asset The asset to buy
-    /// @param amount The amount of shares to buy
-    function _executeBuy(address asset, uint256 amount) internal {
+    /// @param sharesAmount The amount of shares to buy
+    /// @return executionUnderlyingAmount The actual execution underlying amount
+    function _executeBuy(
+        address asset,
+        uint256 sharesAmount,
+        uint256 estimatedUnderlyingAmount
+    ) internal returns (uint256 executionUnderlyingAmount) {
         IExecutionAdapter adapter = executionAdapterOf[asset];
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
 
-        // TODO: underlying asset/numeraire needs to be part of the whitelisted investment universe,
-        // as if an order does not pass the underlying equivalent
-        // is set into the portfolio state for all vaults.
+        uint256 maxUnderlyingAmount = estimatedUnderlyingAmount.mulDiv(10000 + slippageBound, 10000);
 
-        // Approve adapter to spend underlying assets
+        // Approve adapter to spend underlying assets with slippage tolerance
         // slither-disable-next-line unused-return
         IERC20(underlyingAsset).approve(address(adapter), 0);
         // slither-disable-next-line unused-return
-        IERC20(underlyingAsset).approve(address(adapter), amount);
+        IERC20(underlyingAsset).approve(address(adapter), maxUnderlyingAmount);
 
         // Execute buy through adapter, pull underlying assets from this contract and push shares to it.
-        adapter.buy(asset, amount);
+        executionUnderlyingAmount = adapter.buy(asset, sharesAmount, maxUnderlyingAmount);
+
+        // TODO: use executionUnderlyingAmount and estimatedUnderlyingAmount to update buffer state.
     }
 }

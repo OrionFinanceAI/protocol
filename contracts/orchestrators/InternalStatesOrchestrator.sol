@@ -792,14 +792,40 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             address[] memory sellingTokens,
             uint256[] memory sellingAmounts,
             address[] memory buyingTokens,
-            uint256[] memory buyingAmounts
+            uint256[] memory buyingAmounts,
+            uint256[] memory sellingEstimatedUnderlyingAmounts,
+            uint256[] memory buyingEstimatedUnderlyingAmounts
         )
     {
         address[] memory allTokens = _currentEpoch.tokens;
+        (uint16 sellingCount, uint16 buyingCount) = _countOrders(allTokens);
+
+        // Initialize arrays with correct sizes (only for non-zero values)
+        sellingTokens = new address[](sellingCount);
+        sellingAmounts = new uint256[](sellingCount);
+        buyingTokens = new address[](buyingCount);
+        buyingAmounts = new uint256[](buyingCount);
+        sellingEstimatedUnderlyingAmounts = new uint256[](sellingCount);
+        buyingEstimatedUnderlyingAmounts = new uint256[](buyingCount);
+
+        // Populate arrays with non-zero values
+        _populateOrders(
+            allTokens,
+            sellingTokens,
+            sellingAmounts,
+            sellingEstimatedUnderlyingAmounts,
+            buyingTokens,
+            buyingAmounts,
+            buyingEstimatedUnderlyingAmounts
+        );
+    }
+
+    /// @notice Counts the number of non-zero selling and buying orders
+    /// @param allTokens Array of all tokens to check
+    /// @return sellingCount Number of tokens with non-zero selling orders
+    /// @return buyingCount Number of tokens with non-zero buying orders
+    function _countOrders(address[] memory allTokens) private view returns (uint16 sellingCount, uint16 buyingCount) {
         uint16 allTokensLength = uint16(allTokens.length);
-        // First pass: count non-zero orders
-        uint16 sellingCount = 0;
-        uint16 buyingCount = 0;
 
         for (uint16 i = 0; i < allTokensLength; ++i) {
             address token = allTokens[i];
@@ -810,12 +836,26 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                 ++buyingCount;
             }
         }
-        // Initialize arrays with correct sizes (only for non-zero values)
-        sellingTokens = new address[](sellingCount);
-        sellingAmounts = new uint256[](sellingCount);
-        buyingTokens = new address[](buyingCount);
-        buyingAmounts = new uint256[](buyingCount);
-        // Second pass: populate arrays with non-zero values
+    }
+
+    /// @notice Populates the order arrays with non-zero values
+    /// @param allTokens Array of all tokens
+    /// @param sellingTokens Array to populate with selling tokens
+    /// @param sellingAmounts Array to populate with selling amounts
+    /// @param sellingEstimatedUnderlyingAmounts Array to populate with selling estimated amounts
+    /// @param buyingTokens Array to populate with buying tokens
+    /// @param buyingAmounts Array to populate with buying amounts
+    /// @param buyingEstimatedUnderlyingAmounts Array to populate with buying estimated amounts
+    function _populateOrders(
+        address[] memory allTokens,
+        address[] memory sellingTokens,
+        uint256[] memory sellingAmounts,
+        uint256[] memory sellingEstimatedUnderlyingAmounts,
+        address[] memory buyingTokens,
+        uint256[] memory buyingAmounts,
+        uint256[] memory buyingEstimatedUnderlyingAmounts
+    ) private view {
+        uint16 allTokensLength = uint16(allTokens.length);
         uint16 sellingIndex = 0;
         uint16 buyingIndex = 0;
 
@@ -827,11 +867,19 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             if (sellingAmount > 0) {
                 sellingTokens[sellingIndex] = token;
                 sellingAmounts[sellingIndex] = sellingAmount;
+                sellingEstimatedUnderlyingAmounts[sellingIndex] = sellingAmount.mulDiv(
+                    _currentEpoch.priceArray[token],
+                    priceAdapterPrecision
+                );
                 ++sellingIndex;
             }
             if (buyingAmount > 0) {
                 buyingTokens[buyingIndex] = token;
                 buyingAmounts[buyingIndex] = buyingAmount;
+                buyingEstimatedUnderlyingAmounts[buyingIndex] = buyingAmount.mulDiv(
+                    _currentEpoch.priceArray[token],
+                    priceAdapterPrecision
+                );
                 ++buyingIndex;
             }
         }

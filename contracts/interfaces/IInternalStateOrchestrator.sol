@@ -80,7 +80,9 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
             address[] memory sellingTokens,
             uint256[] memory sellingAmounts,
             address[] memory buyingTokens,
-            uint256[] memory buyingAmounts
+            uint256[] memory buyingAmounts,
+            uint256[] memory sellingEstimatedUnderlyingAmounts,
+            uint256[] memory buyingEstimatedUnderlyingAmounts
         );
 
     /// @notice Get price for a specific token

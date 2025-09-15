@@ -61,4 +61,7 @@ library ErrorsLib {
 
     /// @notice Transfer of tokens failed.
     error TransferFailed();
+
+    /// @notice Slippage tolerance exceeded during execution.
+    error SlippageExceeded();
 }

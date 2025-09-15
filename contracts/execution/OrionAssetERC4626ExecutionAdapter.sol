@@ -46,32 +46,49 @@ contract OrionAssetERC4626ExecutionAdapter is IExecutionAdapter {
         liquidityOrchestrator = config.liquidityOrchestrator();
     }
 
-    /// @notice Executes a buy operation by depositing underlying assets to mint vault shares
-    /// @param vaultAsset The address of the vault to buy
-    /// @param amount The amount of underlying assets to deposit
-    /// @dev The adapter will pull the underlying assets from the caller
-    ///      and push the resulting shares.
-    function buy(address vaultAsset, uint256 amount) external override onlyLiquidityOrchestrator {
-        // TODO: buy orders all in shares at this point, fix execution adapter API accordingly.
-        revert ErrorsLib.InvalidArguments();
+    // TODO: true for both buy and sell. We need a solution to gracefully handle failing transactions.
+    // As improbable as it is, it could happen and can block the system.
+    // A mask of the failed asset transactions leads to a partial update of the vault states.
+    // To compute the resulting amount to be added to the underlying asset (in the whitelisted assets)
+    // necessary to compute the mismatch between the previously computed total assets (iso) and the one
+    // associated with the partial_portfolio * oracle_prices. For encrypted vaults this implies a decryption.
 
+    /// @inheritdoc IExecutionAdapter
+    function buy(
+        address vaultAsset,
+        uint256 sharesAmount,
+        uint256 maxUnderlyingAmount
+    ) external override onlyLiquidityOrchestrator returns (uint256 spentUnderlyingAmount) {
         try IERC4626(vaultAsset).asset() returns (address vaultUnderlyingAsset) {
             if (vaultUnderlyingAsset != underlyingAsset) revert ErrorsLib.InvalidAddress();
         } catch {
             revert ErrorsLib.InvalidAddress(); // Adapter not valid for this vault
         }
-        if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(vaultAsset);
+        if (sharesAmount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(vaultAsset);
+
         IERC4626 vault = IERC4626(vaultAsset);
+
+        spentUnderlyingAmount = vault.previewMint(sharesAmount);
+
+        if (spentUnderlyingAmount > maxUnderlyingAmount) {
+            revert ErrorsLib.SlippageExceeded();
+        }
+
         // Pull underlying assets from the caller
-        underlyingAssetToken.safeTransferFrom(msg.sender, address(this), amount);
+        underlyingAssetToken.safeTransferFrom(msg.sender, address(this), spentUnderlyingAmount);
+
         // Approve vault to spend underlying assets
-        underlyingAssetToken.forceApprove(vaultAsset, amount);
+        underlyingAssetToken.forceApprove(vaultAsset, spentUnderlyingAmount);
+
         // Deposit underlying assets to get vault shares
-        uint256 shares = vault.deposit(amount, address(this));
+        // slither-disable-next-line unused-return
+        vault.deposit(spentUnderlyingAmount, address(this));
+
         // Clean up approval
         underlyingAssetToken.forceApprove(vaultAsset, 0);
+
         // Push the received shares to the caller
-        bool success = vault.transfer(msg.sender, shares);
+        bool success = vault.transfer(msg.sender, sharesAmount);
         if (!success) revert ErrorsLib.TransferFailed();
     }
 
