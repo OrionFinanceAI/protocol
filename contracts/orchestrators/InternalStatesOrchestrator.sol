@@ -24,7 +24,7 @@ import { SepoliaConfig } from "@fhevm/solidity/config/ZamaConfig.sol";
  * @author Orion Finance
  * @dev This contract is responsible for:
  *      - Reading current vault states and market data;
- *      - Processing deposit and withdrawal requests from LPs;
+ *      - Processing deposit requests from LPs;
  *      - Processing curator fees and high water mark;
  *      - Updating vault states;
  *      - Computing state estimations for Liquidity Orchestrator;
@@ -487,7 +487,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                 uint256 price = _currentEpoch.priceArray[token];
 
                 // Calculate estimated value of the asset in underlying asset decimals
-                // TODO: https://github.com/OpenZeppelin/openzeppelin-confidential-contracts/issues/200
+                // TODO(fhevm): https://github.com/OpenZeppelin/openzeppelin-confidential-contracts/issues/200
                 euint128 unscaledValue = FHE.div(
                     FHE.mul(FHE.asEuint128(uint128(price)), shares),
                     uint128(priceAdapterPrecision)
