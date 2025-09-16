@@ -83,23 +83,25 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     /* -------------------------------------------------------------------------- */
     /// @notice Struct to hold epoch state data
     struct EpochState {
-        /// @notice Price array - mapping of token address to estimated price [shares/assets]
+        /// @notice Price array - token address to estimated price [shares/assets]
         mapping(address => uint256) priceArray;
-        /// @notice Initial batch portfolio - mapping of token address to estimated value [shares]
+        /// @notice Initial batch portfolio - token address to estimated value [shares]
         mapping(address => uint256) initialBatchPortfolio;
-        /// @notice Encrypted initial batch portfolio - mapping of token address to encrypted estimated value [shares]
+        /// @notice Encrypted initial batch portfolio - token address to encrypted estimated value [shares]
         mapping(address => euint128) encryptedInitialBatchPortfolio;
-        /// @notice Total assets - mapping of Orion vault address to estimated value [assets]
+        /// @notice Total assets - Orion vault address to estimated value [assets]
         mapping(address => uint256) vaultsTotalAssets;
-        /// @notice Encrypted total assets - mapping of Orion vault address to encrypted estimated value [assets]
+        /// @notice Encrypted total assets - Orion vault address to encrypted estimated value [assets]
         mapping(address => euint128) encryptedVaultsTotalAssets;
-        /// @notice Final batch portfolio - mapping of token address to estimated value [shares]
+        /// @notice Final batch portfolio - token address to estimated value [shares]
         mapping(address => uint256) finalBatchPortfolio;
-        /// @notice Encrypted final batch portfolio - mapping of token address to encrypted estimated value [shares]
+        /// @notice Encrypted final batch portfolio - token address to encrypted estimated value [shares]
         mapping(address => euint128) encryptedFinalBatchPortfolio;
-        /// @notice Selling orders - mapping of token address to number of shares that needs to be sold [shares]
+        /// @notice Total assets for fulfill redeem - vault address to total assets for fulfillRedeem [assets]
+        mapping(address => uint256) vaultsTotalAssetsForFulfillRedeem;
+        /// @notice Selling orders - token address to number of shares that needs to be sold [shares]
         mapping(address => uint256) sellingOrders;
-        /// @notice Buying orders - mapping of token address to number of shares that needs to be bought [shares]
+        /// @notice Buying orders - token address to number of shares that needs to be bought [shares]
         mapping(address => uint256) buyingOrders;
         /// @notice Array of all tokens used in this epoch for iteration
         address[] tokens;
@@ -330,6 +332,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             delete _currentEpoch.priceArray[token];
             delete _currentEpoch.initialBatchPortfolio[token];
             delete _currentEpoch.vaultsTotalAssets[token];
+            delete _currentEpoch.vaultsTotalAssetsForFulfillRedeem[token];
             delete _currentEpoch.finalBatchPortfolio[token];
             delete _currentEpoch.sellingOrders[token];
             delete _currentEpoch.buyingOrders[token];
@@ -566,7 +569,6 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         // Process each encrypted vault with decrypted total assets
         for (uint16 i = 0; i < nVaults; ++i) {
             IOrionEncryptedVault vault = IOrionEncryptedVault(encryptedVaultsEpoch[i]);
-
             if (!vault.isIntentValid()) {
                 continue; // Skip if intent is invalid
             }
@@ -592,14 +594,13 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                 totalAssets,
                 Math.Rounding.Floor
             );
-            vault.fulfillRedeem(totalAssets);
+            _currentEpoch.vaultsTotalAssetsForFulfillRedeem[address(vault)] = totalAssets;
 
             // STEP 6: DEPOSIT PROCESSING (add deposits, subtract withdrawals)
             totalAssets -= pendingRedeem;
             uint256 pendingDeposit = vault.pendingDeposit();
             vault.fulfillDeposit(totalAssets);
             totalAssets += pendingDeposit;
-
             _currentEpoch.vaultsTotalAssets[address(vault)] = totalAssets;
         }
 
@@ -913,5 +914,12 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         } else if (deltaAmount < 0) {
             bufferAmount -= uint256(-deltaAmount);
         }
+    }
+
+    /// @notice Get total assets for fulfill redeem for a specific vault
+    /// @param vault The vault address
+    /// @return totalAssets The total assets for fulfill redeem
+    function getVaultTotalAssetsForFulfillRedeem(address vault) external view returns (uint256 totalAssets) {
+        return _currentEpoch.vaultsTotalAssetsForFulfillRedeem[vault];
     }
 }

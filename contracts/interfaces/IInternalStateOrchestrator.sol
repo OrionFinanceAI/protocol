@@ -96,4 +96,9 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     /// @param deltaAmount The amount to add/subtract from the buffer (can be negative)
     /// @dev Can only be called by the Liquidity Orchestrator
     function updateBufferAmount(int256 deltaAmount) external;
+
+    /// @notice Get total assets for fulfill redeem for a specific vault
+    /// @param vault The vault address
+    /// @return totalAssets The total assets for fulfill redeem
+    function getVaultTotalAssetsForFulfillRedeem(address vault) external view returns (uint256 totalAssets);
 }

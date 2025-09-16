@@ -554,6 +554,12 @@ describe("Orchestrators", function () {
       void expect(liquidityUpkeepNeeded).to.be.true;
       await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
 
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(3);
+
+      [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      void expect(liquidityUpkeepNeeded).to.be.true;
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+
       expect(await liquidityOrchestrator.currentPhase()).to.equal(0);
     });
 
@@ -615,13 +621,13 @@ describe("Orchestrators", function () {
 
     it("should handle slippage calculations safely with edge cases", async function () {
       // Test with maximum valid slippage bound
-      await liquidityOrchestrator.setSlippageBound(9999); // 99.99% slippage bound
+      await liquidityOrchestrator.setSlippageBound(1999);
 
       // Test with minimum valid slippage bound
-      await liquidityOrchestrator.setSlippageBound(1); // 0.01% slippage bound
+      await liquidityOrchestrator.setSlippageBound(1);
 
       // Test with typical slippage bound
-      await liquidityOrchestrator.setSlippageBound(100); // 1% slippage bound
+      await liquidityOrchestrator.setSlippageBound(100);
 
       // Verify slippage bound is set correctly
       expect(await liquidityOrchestrator.slippageBound()).to.equal(100);

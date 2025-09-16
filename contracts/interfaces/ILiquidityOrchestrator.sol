@@ -12,7 +12,8 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     enum LiquidityUpkeepPhase {
         Idle,
         SellingLeg,
-        BuyingLeg
+        BuyingLeg,
+        FulfillRedeem
     }
 
     /// @notice Returns the current upkeep phase

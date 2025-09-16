@@ -71,6 +71,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     bytes4 private constant ACTION_START = bytes4(keccak256("start()"));
     bytes4 private constant ACTION_PROCESS_SELL = bytes4(keccak256("processSell(uint8)"));
     bytes4 private constant ACTION_PROCESS_BUY = bytes4(keccak256("processBuy(uint8)"));
+    bytes4 private constant ACTION_PROCESS_FULFILL_REDEEM = bytes4(keccak256("processFulfillRedeem()"));
 
     /* -------------------------------------------------------------------------- */
     /*                                 EPOCH STATE                                */
@@ -245,6 +246,9 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
             upkeepNeeded = true;
             performData = abi.encode(ACTION_PROCESS_BUY, currentMinibatchIndex);
+        } else if (currentPhase == LiquidityUpkeepPhase.FulfillRedeem) {
+            upkeepNeeded = true;
+            performData = abi.encode(ACTION_PROCESS_FULFILL_REDEEM, uint8(0));
         } else {
             upkeepNeeded = false;
             performData = "";
@@ -264,6 +268,8 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
             _processMinibatchSell(minibatchIndex);
         } else if (action == ACTION_PROCESS_BUY) {
             _processMinibatchBuy(minibatchIndex);
+        } else if (action == ACTION_PROCESS_FULFILL_REDEEM) {
+            _processMinibatchFulfillRedeem();
         }
         emit EventsLib.PortfolioRebalanced();
     }
@@ -345,7 +351,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
 
         if (i1 > buyingTokens.length || i1 == buyingTokens.length) {
             i1 = uint16(buyingTokens.length);
-            currentPhase = LiquidityUpkeepPhase.Idle;
+            currentPhase = LiquidityUpkeepPhase.FulfillRedeem;
             currentMinibatchIndex = 0;
         }
 
@@ -403,5 +409,38 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         uint256 executionUnderlyingAmount = adapter.buy(asset, sharesAmount, maxUnderlyingAmount);
 
         deltaBufferAmount += int256(estimatedUnderlyingAmount) - int256(executionUnderlyingAmount);
+    }
+
+    /// @notice Handles the fulfill redeem action
+    function _processMinibatchFulfillRedeem() internal {
+        if (currentPhase != LiquidityUpkeepPhase.FulfillRedeem) {
+            revert ErrorsLib.InvalidState();
+        }
+
+        currentPhase = LiquidityUpkeepPhase.Idle;
+
+        // Process transparent vaults
+        address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
+        for (uint16 i = 0; i < transparentVaults.length; ++i) {
+            address vault = transparentVaults[i];
+            uint256 totalAssetsForRedeem = internalStatesOrchestrator.getVaultTotalAssetsForFulfillRedeem(vault);
+
+            if (totalAssetsForRedeem > 0) {
+                // Call fulfillRedeem on the vault with the stored totalAssets
+                IOrionVault(vault).fulfillRedeem(totalAssetsForRedeem);
+            }
+        }
+
+        // Process encrypted vaults
+        address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
+        for (uint16 i = 0; i < encryptedVaults.length; ++i) {
+            address vault = encryptedVaults[i];
+            uint256 totalAssetsForRedeem = internalStatesOrchestrator.getVaultTotalAssetsForFulfillRedeem(vault);
+
+            if (totalAssetsForRedeem > 0) {
+                // Call fulfillRedeem on the vault with the stored totalAssets
+                IOrionVault(vault).fulfillRedeem(totalAssetsForRedeem);
+            }
+        }
     }
 }
