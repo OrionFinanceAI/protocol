@@ -12,12 +12,23 @@
         },
         {
           "internalType": "uint256",
-          "name": "amount",
+          "name": "sharesAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "maxUnderlyingAmount",
           "type": "uint256"
         }
       ],
       "name": "buy",
-      "outputs": [],
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "executionUnderlyingAmount",
+          "type": "uint256"
+        }
+      ],
       "stateMutability": "nonpayable",
       "type": "function"
     },
@@ -30,12 +41,23 @@
         },
         {
           "internalType": "uint256",
-          "name": "amount",
+          "name": "sharesAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "minUnderlyingAmount",
           "type": "uint256"
         }
       ],
       "name": "sell",
-      "outputs": [],
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "executionUnderlyingAmount",
+          "type": "uint256"
+        }
+      ],
       "stateMutability": "nonpayable",
       "type": "function"
     }

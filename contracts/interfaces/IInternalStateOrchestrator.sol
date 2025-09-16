@@ -68,13 +68,37 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
         bytes calldata decryptionProof
     ) external;
 
-    /// @notice Get the selling orders
-    /// @return tokens The tokens to sell
-    /// @return amounts The amounts to sell in shares (converted from underlying assets)
-    function getSellingOrders() external view returns (address[] memory, uint256[] memory);
+    /// @notice Get selling and buying orders
+    /// @return sellingTokens The tokens to sell
+    /// @return sellingAmounts The amounts to sell in shares
+    /// @return buyingTokens The tokens to buy
+    /// @return buyingAmounts The amounts to buy in underlying assets
+    /// @return sellingEstimatedUnderlyingAmounts The estimated underlying amounts to sell
+    /// @return buyingEstimatedUnderlyingAmounts The estimated underlying amounts to buy
+    function getOrders()
+        external
+        view
+        returns (
+            address[] memory sellingTokens,
+            uint256[] memory sellingAmounts,
+            address[] memory buyingTokens,
+            uint256[] memory buyingAmounts,
+            uint256[] memory sellingEstimatedUnderlyingAmounts,
+            uint256[] memory buyingEstimatedUnderlyingAmounts
+        );
 
-    /// @notice Get the buying orders
-    /// @return tokens The tokens to buy
-    /// @return amounts The amounts to buy in underlying assets (as expected by LiquidityOrchestrator)
-    function getBuyingOrders() external view returns (address[] memory, uint256[] memory);
+    /// @notice Get price for a specific token
+    /// @param token The token to get the price of
+    /// @return price The corresponding price [shares/assets]
+    function getPriceOf(address token) external view returns (uint256 price);
+
+    /// @notice Updates the buffer amount based on execution vs estimated amounts
+    /// @param deltaAmount The amount to add/subtract from the buffer (can be negative)
+    /// @dev Can only be called by the Liquidity Orchestrator
+    function updateBufferAmount(int256 deltaAmount) external;
+
+    /// @notice Get total assets for fulfill redeem for a specific vault
+    /// @param vault The vault address
+    /// @return totalAssets The total assets for fulfill redeem
+    function getVaultTotalAssetsForFulfillRedeem(address vault) external view returns (uint256 totalAssets);
 }

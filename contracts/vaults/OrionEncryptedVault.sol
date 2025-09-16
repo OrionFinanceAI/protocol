@@ -162,13 +162,11 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
         }
     }
 
-    // --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
-
     /// @inheritdoc IOrionEncryptedVault
     function updateVaultState(
         EncryptedPortfolio[] calldata portfolio,
         uint256 newTotalAssets
-    ) external onlyLiquidityOrchestrator {
+    ) external onlyInternalStatesOrchestrator {
         // Clear previous portfolio by setting weights to zero
         uint16 portfolioLength = uint16(_portfolioKeys.length);
         for (uint16 i = 0; i < portfolioLength; ++i) {
@@ -184,6 +182,13 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
         }
 
         _totalAssets = newTotalAssets;
+
+        // Update high watermark if current price is higher
+        uint256 currentSharePrice = convertToAssets(10 ** decimals());
+
+        if (currentSharePrice > feeModel.highWaterMark) {
+            feeModel.highWaterMark = currentSharePrice;
+        }
 
         // Emit event for tracking state updates
         emit EventsLib.VaultStateUpdated(newTotalAssets);

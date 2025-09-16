@@ -102,13 +102,11 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
         }
     }
 
-    // --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
-
     /// @inheritdoc IOrionTransparentVault
     function updateVaultState(
         Position[] calldata portfolio,
         uint256 newTotalAssets
-    ) external onlyLiquidityOrchestrator {
+    ) external onlyInternalStatesOrchestrator {
         _portfolio.clear();
 
         uint16 portfolioLength = uint16(portfolio.length);
@@ -118,6 +116,13 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
         }
 
         _totalAssets = newTotalAssets;
+
+        // Update high watermark if current price is higher
+        uint256 currentSharePrice = convertToAssets(10 ** decimals());
+
+        if (currentSharePrice > feeModel.highWaterMark) {
+            feeModel.highWaterMark = currentSharePrice;
+        }
 
         // Emit event for tracking state updates
         emit EventsLib.VaultStateUpdated(newTotalAssets);

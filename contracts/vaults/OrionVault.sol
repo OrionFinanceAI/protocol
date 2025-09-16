@@ -130,9 +130,9 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         _;
     }
 
-    /// @dev Restricts function to only liquidity orchestrator
-    modifier onlyLiquidityOrchestrator() {
-        if (msg.sender != address(liquidityOrchestrator)) revert ErrorsLib.UnauthorizedAccess();
+    /// @dev Restricts function to only internal states orchestrator
+    modifier onlyInternalStatesOrchestrator() {
+        if (msg.sender != address(internalStatesOrchestrator)) revert ErrorsLib.UnauthorizedAccess();
         _;
     }
 
@@ -262,6 +262,15 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         Math.Rounding rounding
     ) public view returns (uint256) {
         return shares.mulDiv(pointInTimeTotalAssets + 1, totalSupply() + 10 ** _decimalsOffset(), rounding);
+    }
+
+    /// @inheritdoc IOrionVault
+    function convertToSharesWithPITTotalAssets(
+        uint256 assets,
+        uint256 pointInTimeTotalAssets,
+        Math.Rounding rounding
+    ) public view returns (uint256) {
+        return assets.mulDiv(totalSupply() + 10 ** _decimalsOffset(), pointInTimeTotalAssets + 1, rounding);
     }
 
     /// --------- LP FUNCTIONS ---------
@@ -516,10 +525,17 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         return _pendingRedeem;
     }
 
-    /// --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
+    /// @inheritdoc IOrionVault
+    function accrueCuratorFees(uint256 epoch, uint256 feeAmount) external onlyInternalStatesOrchestrator {
+        if (feeAmount == 0) return;
+
+        pendingCuratorFees += feeAmount;
+
+        emit CuratorFeesAccrued(epoch, feeAmount, pendingCuratorFees);
+    }
 
     /// @inheritdoc IOrionVault
-    function fulfillDeposit() external onlyLiquidityOrchestrator nonReentrant {
+    function fulfillDeposit(uint256 depositTotalAssets) external onlyInternalStatesOrchestrator nonReentrant {
         uint32 length = uint32(_depositRequests.length());
         // Collect all requests first to avoid index shifting issues when removing during iteration
         address[] memory users = new address[](length);
@@ -541,7 +557,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
             // slither-disable-next-line unused-return
             _depositRequests.remove(user);
 
-            uint256 shares = convertToShares(amount);
+            uint256 shares = convertToSharesWithPITTotalAssets(amount, depositTotalAssets, Math.Rounding.Floor);
             _mint(user, shares);
 
             emit Deposit(user, amount, shares);
@@ -549,7 +565,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     }
 
     /// @inheritdoc IOrionVault
-    function fulfillRedeem() external onlyLiquidityOrchestrator nonReentrant {
+    function fulfillRedeem(uint256 redeemTotalAssets) external onlyInternalStatesOrchestrator nonReentrant {
         uint32 length = uint32(_redeemRequests.length());
         // Collect all requests first to avoid index shifting issues when removing during iteration
         address[] memory users = new address[](length);
@@ -571,32 +587,19 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
             // slither-disable-next-line unused-return
             _redeemRequests.remove(user);
 
-            uint256 underlyingAmount = convertToAssets(shares);
+            uint256 underlyingAmount = convertToAssetsWithPITTotalAssets(
+                shares,
+                redeemTotalAssets,
+                Math.Rounding.Floor
+            );
             _burn(address(this), shares);
+            // TODO: Opportunity to net actual transactions (not just intents),
+            // performing minting and burning operation in sequence at the same time.
 
             // Transfer underlying assets from liquidity orchestrator to the user
             liquidityOrchestrator.transferRedemptionFunds(user, underlyingAmount);
 
             emit Withdraw(user, underlyingAmount, shares);
         }
-    }
-
-    /// @inheritdoc IOrionVault
-    function updateHighWaterMark() external onlyLiquidityOrchestrator {
-        uint256 currentSharePrice = convertToAssets(10 ** decimals());
-
-        // Update high watermark if current price is higher
-        if (currentSharePrice > feeModel.highWaterMark) {
-            feeModel.highWaterMark = currentSharePrice;
-        }
-    }
-
-    /// @inheritdoc IOrionVault
-    function accrueCuratorFees(uint256 epoch, uint256 feeAmount) external onlyLiquidityOrchestrator {
-        if (feeAmount == 0) return;
-
-        pendingCuratorFees += feeAmount;
-
-        emit CuratorFeesAccrued(epoch, feeAmount, pendingCuratorFees);
     }
 }

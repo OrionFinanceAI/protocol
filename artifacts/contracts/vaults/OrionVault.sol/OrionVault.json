@@ -835,6 +835,35 @@
       "type": "function"
     },
     {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "assets",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "pointInTimeTotalAssets",
+          "type": "uint256"
+        },
+        {
+          "internalType": "enum Math.Rounding",
+          "name": "rounding",
+          "type": "uint8"
+        }
+      ],
+      "name": "convertToSharesWithPITTotalAssets",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
       "inputs": [],
       "name": "curator",
       "outputs": [
@@ -945,14 +974,26 @@
       "type": "function"
     },
     {
-      "inputs": [],
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "depositTotalAssets",
+          "type": "uint256"
+        }
+      ],
       "name": "fulfillDeposit",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
     },
     {
-      "inputs": [],
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "redeemTotalAssets",
+          "type": "uint256"
+        }
+      ],
       "name": "fulfillRedeem",
       "outputs": [],
       "stateMutability": "nonpayable",
@@ -1391,13 +1432,6 @@
         }
       ],
       "name": "updateFeeModel",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "updateHighWaterMark",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

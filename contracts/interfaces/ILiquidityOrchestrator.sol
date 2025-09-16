@@ -13,7 +13,7 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
         Idle,
         SellingLeg,
         BuyingLeg,
-        StateUpdate
+        FulfillRedeem
     }
 
     /// @notice Returns the current upkeep phase

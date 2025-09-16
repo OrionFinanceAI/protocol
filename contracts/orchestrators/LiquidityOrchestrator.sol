@@ -18,13 +18,11 @@ import "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
 /**
  * @title Liquidity Orchestrator
- * @notice Contract that orchestrates liquidity operations and vault state updates
+ * @notice Contract that orchestrates liquidity operations
  * @author Orion Finance
  * @dev This contract is responsible for:
  *      - Executing actual buy and sell orders on investment universe;
- *      - Processing actual curator fees with vaults and protocol fees;
- *      - Processing deposit and withdrawal requests from LPs;
- *      - Updating vault states post-execution (checks-effects-interactions pattern at the protocol level);
+ *      - Processing withdrawal requests from LPs;
  *      - Handling slippage and market execution differences from adapter price estimates via liquidity buffer.
  */
 contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrator {
@@ -74,20 +72,27 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     bytes4 private constant ACTION_START = bytes4(keccak256("start()"));
     bytes4 private constant ACTION_PROCESS_SELL = bytes4(keccak256("processSell(uint8)"));
     bytes4 private constant ACTION_PROCESS_BUY = bytes4(keccak256("processBuy(uint8)"));
-    // TODO: add state update action(s).
+    bytes4 private constant ACTION_PROCESS_FULFILL_REDEEM = bytes4(keccak256("processFulfillRedeem()"));
 
     /* -------------------------------------------------------------------------- */
     /*                                 EPOCH STATE                                */
     /* -------------------------------------------------------------------------- */
+
     /// @notice Selling tokens for current epoch
     address[] public sellingTokens;
     /// @notice Selling amounts for current epoch
     uint256[] public sellingAmounts;
+    /// @notice Selling underlying amounts for current epoch
+    uint256[] public sellingEstimatedUnderlyingAmounts;
     /// @notice Buying tokens for current epoch
     address[] public buyingTokens;
     /// @notice Buying amounts for current epoch
     uint256[] public buyingAmounts;
+    /// @notice Buying underlying amounts for current epoch
+    uint256[] public buyingEstimatedUnderlyingAmounts;
 
+    /// @notice Delta buffer amount for current epoch
+    int256 public deltaBufferAmount;
     /* -------------------------------------------------------------------------- */
     /*                                MODIFIERS                                   */
     /* -------------------------------------------------------------------------- */
@@ -152,6 +157,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     /// @inheritdoc ILiquidityOrchestrator
     function setSlippageBound(uint256 _slippageBound) external onlyOwner {
         if (_slippageBound == 0) revert ErrorsLib.InvalidArguments();
+        if (_slippageBound > 2000) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         slippageBound = _slippageBound;
         targetBufferRatio = slippageBound.mulDiv(1100, 1000);
@@ -241,9 +247,10 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
             upkeepNeeded = true;
             performData = abi.encode(ACTION_PROCESS_BUY, currentMinibatchIndex);
-        }
-        // TODO: add state update action(s).
-        else {
+        } else if (currentPhase == LiquidityUpkeepPhase.FulfillRedeem) {
+            upkeepNeeded = true;
+            performData = abi.encode(ACTION_PROCESS_FULFILL_REDEEM, uint8(0));
+        } else {
             upkeepNeeded = false;
             performData = "";
         }
@@ -253,6 +260,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     /// @param performData The encoded data containing the action and minibatch index
     function performUpkeep(bytes calldata performData) external override onlyAutomationRegistry nonReentrant {
         if (performData.length < 5) revert ErrorsLib.InvalidArguments();
+
         (bytes4 action, uint8 minibatchIndex) = abi.decode(performData, (bytes4, uint8));
 
         if (action == ACTION_START) {
@@ -261,45 +269,9 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
             _processMinibatchSell(minibatchIndex);
         } else if (action == ACTION_PROCESS_BUY) {
             _processMinibatchBuy(minibatchIndex);
+        } else if (action == ACTION_PROCESS_FULFILL_REDEEM) {
+            _processFulfillRedeem();
         }
-        // TODO: add state update action(s).
-
-        // TODO: analogous to internal state orchestrator,
-        // TODO: store underlying asset as contract variable at construction to avoid gas.
-        // if (token == address(config.underlyingAsset())) pass for both sell and buy
-
-        // TODO: StateUpdate phase start, refacto.
-        // // Consistency between operation orders in internal states orchestrator and here is crucial.
-        // address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
-        // uint16 length = uint16(transparentVaults.length);
-        // // TODO: implement.
-        // // for (uint16 i = 0; i < length; i++) {
-        // //     IOrionTransparentVault vault = IOrionTransparentVault(transparentVaults[i]);
-        // //     vault.updateVaultState(?, ?);
-        // // }
-        // // TODO: to updateVaultState of encrypted vaults, get the encrypted sharesPerAsset executed by the liquidity
-        // // TODO: skip updating encrypted vaults states for which if (!vault.isIntentValid()), see other orchestrator.
-
-        // address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
-        // length = uint16(encryptedVaults.length);
-        // // TODO: implement.
-        // // for (uint16 i = 0; i < length; i++) {
-        // //     IOrionEncryptedVault vault = IOrionEncryptedVault(encryptedVaults[i]);
-        // //     vault.updateVaultState(?, ?);
-        // // }
-
-        // TODO: DepositRequest and RedeemRequest in Vaults to be processed post update
-        // (internal logic depends on vaults actual total assets and total supply
-        // (inside the _convertToShares, _mint, _burn and _convertToAssets calls), and removed from
-        // vault state as pending requests. Opportunity to net actual transactions (not just intents),
-        // performing minting and burning operation at the same time.
-
-        // TODO: call updateHighWaterMark. Works only if actual vault states updated,
-        // ok to use real total assets/share price there, but then this update shall
-        // be done after all other states updates for convertToAssets to work.
-
-        // TODO: update pendingCuratorFees calling accrueCuratorFees of each vault.
-        // Use the value computed in internal states orchestrator.
         emit EventsLib.PortfolioRebalanced();
     }
 
@@ -320,84 +292,156 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         delete sellingAmounts;
         delete buyingTokens;
         delete buyingAmounts;
-
+        delete sellingEstimatedUnderlyingAmounts;
+        delete buyingEstimatedUnderlyingAmounts;
+        deltaBufferAmount = 0;
         // Populate new epoch data
-        (sellingTokens, sellingAmounts) = internalStatesOrchestrator.getSellingOrders();
-        (buyingTokens, buyingAmounts) = internalStatesOrchestrator.getBuyingOrders();
-        // TODO: can here the returned amounts be zero? If so fix in internal states orchestrator.
+        (
+            sellingTokens,
+            sellingAmounts,
+            buyingTokens,
+            buyingAmounts,
+            sellingEstimatedUnderlyingAmounts,
+            buyingEstimatedUnderlyingAmounts
+        ) = internalStatesOrchestrator.getOrders();
 
         currentPhase = LiquidityUpkeepPhase.SellingLeg;
+        if (sellingTokens.length == 0) {
+            currentPhase = LiquidityUpkeepPhase.BuyingLeg;
+            if (buyingTokens.length == 0) {
+                currentPhase = LiquidityUpkeepPhase.Idle;
+            }
+        }
     }
 
     /// @notice Handles the sell action
     /// @param minibatchIndex The index of the minibatch to process
     function _processMinibatchSell(uint8 minibatchIndex) internal {
-        // TODO: implement.
-        // TODO: sell orders all in shares at this point, fix execution adapter API accordingly.
-        //
-        // for (uint16 i = 0; i < sellingTokens.length; ++i) {
-        //     address token = sellingTokens[i];
-        //     uint256 amount = sellingAmounts[i];
-        //     _executeSell(token, amount);
-        //     // TODO: every transaction should enable the update of the buffer liquidity,
-        //     // making use of the average execution price,
-        //     // and the oracle prices used to generate the orders.
-        // }
+        if (currentPhase != LiquidityUpkeepPhase.SellingLeg) {
+            revert ErrorsLib.InvalidState();
+        }
+        ++currentMinibatchIndex;
+
+        uint16 i0 = minibatchIndex * executionMinibatchSize;
+        uint16 i1 = i0 + executionMinibatchSize;
+
+        if (i1 > sellingTokens.length || i1 == sellingTokens.length) {
+            i1 = uint16(sellingTokens.length);
+            currentPhase = LiquidityUpkeepPhase.BuyingLeg;
+            currentMinibatchIndex = 0;
+        }
+
+        for (uint16 i = i0; i < i1; ++i) {
+            address token = sellingTokens[i];
+            if (token == address(underlyingAsset)) continue;
+            uint256 amount = sellingAmounts[i];
+            _executeSell(token, amount, sellingEstimatedUnderlyingAmounts[i]);
+        }
     }
 
     /// @notice Handles the buy action
     /// @param minibatchIndex The index of the minibatch to process
     function _processMinibatchBuy(uint8 minibatchIndex) internal {
-        // TODO: implement.
-        // TODO: buy orders all in shares at this point, fix execution adapter API accordingly.
-        // for (uint16 i = 0; i < buyingTokens.length; ++i) {
-        //     address token = buyingTokens[i];
-        //     uint256 amount = buyingAmounts[i];
-        //     _executeBuy(token, amount);
-        // }
+        if (currentPhase != LiquidityUpkeepPhase.BuyingLeg) {
+            revert ErrorsLib.InvalidState();
+        }
+        ++currentMinibatchIndex;
+
+        uint16 i0 = minibatchIndex * executionMinibatchSize;
+        uint16 i1 = i0 + executionMinibatchSize;
+
+        if (i1 > buyingTokens.length || i1 == buyingTokens.length) {
+            i1 = uint16(buyingTokens.length);
+            currentPhase = LiquidityUpkeepPhase.FulfillRedeem;
+            currentMinibatchIndex = 0;
+        }
+
+        for (uint16 i = i0; i < i1; ++i) {
+            address token = buyingTokens[i];
+            if (token == address(underlyingAsset)) continue;
+            uint256 amount = buyingAmounts[i];
+            _executeBuy(token, amount, buyingEstimatedUnderlyingAmounts[i]);
+        }
+
+        if (i1 == buyingTokens.length) {
+            internalStatesOrchestrator.updateBufferAmount(deltaBufferAmount);
+        }
     }
 
     /// @notice Executes a sell order
     /// @param asset The asset to sell
-    /// @param amount The amount of shares to sell
-    function _executeSell(address asset, uint256 amount) internal {
+    /// @param sharesAmount The amount of shares to sell
+    /// @param estimatedUnderlyingAmount The estimated underlying amount to receive
+    function _executeSell(address asset, uint256 sharesAmount, uint256 estimatedUnderlyingAmount) internal {
         IExecutionAdapter adapter = executionAdapterOf[asset];
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
+
+        uint256 minUnderlyingAmount = estimatedUnderlyingAmount.mulDiv(10000 - slippageBound, 10000);
 
         // Approve adapter to spend shares
         // slither-disable-next-line unused-return
         IERC20(asset).approve(address(adapter), 0);
         // slither-disable-next-line unused-return
-        IERC20(asset).approve(address(adapter), amount);
-
-        // TODO: pass slippageBound, oracle price and number of shares to adapters.
-
-        // TODO: not performing trade if slippage is too high, record we still have
-        // the open position.
+        IERC20(asset).approve(address(adapter), sharesAmount);
 
         // Execute sell through adapter, pull shares from this contract and push underlying assets to it.
-        adapter.sell(asset, amount);
+        uint256 executionUnderlyingAmount = adapter.sell(asset, sharesAmount, minUnderlyingAmount);
+
+        deltaBufferAmount += int256(executionUnderlyingAmount) - int256(estimatedUnderlyingAmount);
     }
 
     /// @notice Executes a buy order
     /// @param asset The asset to buy
-    /// @param amount The amount of shares to buy
-    function _executeBuy(address asset, uint256 amount) internal {
+    /// @param sharesAmount The amount of shares to buy
+    /// @param estimatedUnderlyingAmount The estimated underlying amount to spend
+    function _executeBuy(address asset, uint256 sharesAmount, uint256 estimatedUnderlyingAmount) internal {
         IExecutionAdapter adapter = executionAdapterOf[asset];
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
 
-        // TODO: analogous API updates as sell.
-        // TODO: underlying asset/numeraire needs to be part of the whitelisted investment universe,
-        // as if an order does not pass the underlying equivalent
-        // is set into the portfolio state for all vaults.
+        uint256 maxUnderlyingAmount = estimatedUnderlyingAmount.mulDiv(10000 + slippageBound, 10000);
 
-        // Approve adapter to spend underlying assets
+        // Approve adapter to spend underlying assets with slippage tolerance
         // slither-disable-next-line unused-return
         IERC20(underlyingAsset).approve(address(adapter), 0);
         // slither-disable-next-line unused-return
-        IERC20(underlyingAsset).approve(address(adapter), amount);
+        IERC20(underlyingAsset).approve(address(adapter), maxUnderlyingAmount);
 
         // Execute buy through adapter, pull underlying assets from this contract and push shares to it.
-        adapter.buy(asset, amount);
+        uint256 executionUnderlyingAmount = adapter.buy(asset, sharesAmount, maxUnderlyingAmount);
+
+        deltaBufferAmount += int256(estimatedUnderlyingAmount) - int256(executionUnderlyingAmount);
+    }
+
+    /// @notice Handles the fulfill redeem action
+    function _processFulfillRedeem() internal {
+        if (currentPhase != LiquidityUpkeepPhase.FulfillRedeem) {
+            revert ErrorsLib.InvalidState();
+        }
+
+        currentPhase = LiquidityUpkeepPhase.Idle;
+
+        // Process transparent vaults
+        address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
+        for (uint16 i = 0; i < transparentVaults.length; ++i) {
+            address vault = transparentVaults[i];
+            uint256 totalAssetsForRedeem = internalStatesOrchestrator.getVaultTotalAssetsForFulfillRedeem(vault);
+
+            if (totalAssetsForRedeem > 0) {
+                // Call fulfillRedeem on the vault with the stored totalAssets
+                IOrionVault(vault).fulfillRedeem(totalAssetsForRedeem);
+            }
+        }
+
+        // Process encrypted vaults
+        address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
+        for (uint16 i = 0; i < encryptedVaults.length; ++i) {
+            address vault = encryptedVaults[i];
+            uint256 totalAssetsForRedeem = internalStatesOrchestrator.getVaultTotalAssetsForFulfillRedeem(vault);
+
+            if (totalAssetsForRedeem > 0) {
+                // Call fulfillRedeem on the vault with the stored totalAssets
+                IOrionVault(vault).fulfillRedeem(totalAssetsForRedeem);
+            }
+        }
     }
 }

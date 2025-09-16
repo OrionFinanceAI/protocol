@@ -24,12 +24,11 @@ import { SepoliaConfig } from "@fhevm/solidity/config/ZamaConfig.sol";
  * @author Orion Finance
  * @dev This contract is responsible for:
  *      - Reading current vault states and market data;
+ *      - Processing deposit requests from LPs;
+ *      - Processing curator fees and high water mark;
+ *      - Updating vault states;
  *      - Computing state estimations for Liquidity Orchestrator;
  *      - Trigger the Liquidity Orchestrator.
- *
- *      This contract does NOT execute transactions or write vault states.
- *      It only performs read operations and calculations to estimate state changes.
- *      Actual state modifications and transaction execution are handled by the Liquidity Orchestrator contract.
  */
 contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, IInternalStateOrchestrator {
     using Math for uint256;
@@ -84,23 +83,25 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     /* -------------------------------------------------------------------------- */
     /// @notice Struct to hold epoch state data
     struct EpochState {
-        /// @notice Price array - mapping of token address to estimated price [shares/assets]
+        /// @notice Price array - token address to estimated price [shares/assets]
         mapping(address => uint256) priceArray;
-        /// @notice Initial batch portfolio - mapping of token address to estimated value [shares]
+        /// @notice Initial batch portfolio - token address to estimated value [shares]
         mapping(address => uint256) initialBatchPortfolio;
-        /// @notice Encrypted initial batch portfolio - mapping of token address to encrypted estimated value [shares]
+        /// @notice Encrypted initial batch portfolio - token address to encrypted estimated value [shares]
         mapping(address => euint128) encryptedInitialBatchPortfolio;
-        /// @notice Total assets - mapping of Orion vault address to estimated value [assets]
+        /// @notice Total assets - Orion vault address to estimated value [assets]
         mapping(address => uint256) vaultsTotalAssets;
-        /// @notice Encrypted total assets - mapping of Orion vault address to encrypted estimated value [assets]
+        /// @notice Encrypted total assets - Orion vault address to encrypted estimated value [assets]
         mapping(address => euint128) encryptedVaultsTotalAssets;
-        /// @notice Final batch portfolio - mapping of token address to estimated value [shares]
+        /// @notice Final batch portfolio - token address to estimated value [shares]
         mapping(address => uint256) finalBatchPortfolio;
-        /// @notice Encrypted final batch portfolio - mapping of token address to encrypted estimated value [shares]
+        /// @notice Encrypted final batch portfolio - token address to encrypted estimated value [shares]
         mapping(address => euint128) encryptedFinalBatchPortfolio;
-        /// @notice Selling orders - mapping of token address to number of shares that needs to be sold [shares]
+        /// @notice Total assets for fulfill redeem - vault address to total assets for fulfillRedeem [assets]
+        mapping(address => uint256) vaultsTotalAssetsForFulfillRedeem;
+        /// @notice Selling orders - token address to number of shares that needs to be sold [shares]
         mapping(address => uint256) sellingOrders;
-        /// @notice Buying orders - mapping of token address to number of shares that needs to be bought [shares]
+        /// @notice Buying orders - token address to number of shares that needs to be bought [shares]
         mapping(address => uint256) buyingOrders;
         /// @notice Array of all tokens used in this epoch for iteration
         address[] tokens;
@@ -331,6 +332,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             delete _currentEpoch.priceArray[token];
             delete _currentEpoch.initialBatchPortfolio[token];
             delete _currentEpoch.vaultsTotalAssets[token];
+            delete _currentEpoch.vaultsTotalAssetsForFulfillRedeem[token];
             delete _currentEpoch.finalBatchPortfolio[token];
             delete _currentEpoch.sellingOrders[token];
             delete _currentEpoch.buyingOrders[token];
@@ -348,6 +350,8 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
         currentPhase = InternalUpkeepPhase.PreprocessingTransparentVaults;
     }
+
+    // slither-disable-start reentrancy-no-eth
 
     /// @notice Preprocesses minibatch of transparent vaults
     /// @param minibatchIndex The index of the minibatch to process
@@ -408,30 +412,29 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             // STEP 3 & 4: CURATOR FEES (Management + Performance)
             uint256 curatorFee = vault.curatorFee(totalAssets);
             totalAssets -= curatorFee;
-
-            // Protocol revenue share fee on curator fee
             uint256 protocolRevenueShareFee = uint256(rsFeeCoefficient).mulDiv(curatorFee, BASIS_POINTS_FACTOR);
             pendingProtocolFees += protocolRevenueShareFee;
             curatorFee -= protocolRevenueShareFee;
+            vault.accrueCuratorFees(epochCounter, curatorFee);
 
             // STEP 5: WITHDRAWAL EXCHANGE RATE (based on post-fee totalAssets)
-            uint256 pendingWithdrawals = vault.convertToAssetsWithPITTotalAssets(
+            uint256 pendingRedeem = vault.convertToAssetsWithPITTotalAssets(
                 vault.pendingRedeem(),
                 totalAssets,
                 Math.Rounding.Floor
             );
+            _currentEpoch.vaultsTotalAssetsForFulfillRedeem[address(vault)] = totalAssets;
 
             // STEP 6: DEPOSIT PROCESSING (add deposits, subtract withdrawals)
-            totalAssets += vault.pendingDeposit() - pendingWithdrawals;
-
+            totalAssets -= pendingRedeem;
+            uint256 pendingDeposit = vault.pendingDeposit();
+            vault.fulfillDeposit(totalAssets);
+            totalAssets += pendingDeposit;
             _currentEpoch.vaultsTotalAssets[address(vault)] = totalAssets;
         }
     }
 
     /* solhint-disable code-complexity */
-    // slither-disable-start reentrancy-no-eth
-    // Safe reentrancy: external calls are view; nonReentrant applied to caller.
-
     /// @notice Preprocesses minibatch of encrypted vaults
     /// @param minibatchIndex The index of the minibatch to process
     function _preprocessEncryptedMinibatch(uint8 minibatchIndex) internal {
@@ -484,6 +487,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                 uint256 price = _currentEpoch.priceArray[token];
 
                 // Calculate estimated value of the asset in underlying asset decimals
+                // TODO(fhevm): https://github.com/OpenZeppelin/openzeppelin-confidential-contracts/issues/200
                 euint128 unscaledValue = FHE.div(
                     FHE.mul(FHE.asEuint128(uint128(price)), shares),
                     uint128(priceAdapterPrecision)
@@ -528,7 +532,6 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             }
         }
     }
-    // slither-disable-end reentrancy-no-eth
     /* solhint-enable code-complexity */
 
     /// @inheritdoc IInternalStateOrchestrator
@@ -546,7 +549,6 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         }
 
         // Store decrypted values for processing in the next phase.
-        // TODO(fhevm): avoid breaking down this into two phases, consider letting Zama callback do all the work.
         _decryptedValues = abi.decode(cleartexts, (uint256[]));
 
         currentPhase = InternalUpkeepPhase.ProcessingDecryptedValues;
@@ -565,10 +567,8 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
         // Process each encrypted vault with decrypted total assets
         for (uint16 i = 0; i < nVaults; ++i) {
-            address vault = encryptedVaultsEpoch[i];
-            IOrionEncryptedVault vaultContract = IOrionEncryptedVault(vault);
-
-            if (!vaultContract.isIntentValid()) {
+            IOrionEncryptedVault vault = IOrionEncryptedVault(encryptedVaultsEpoch[i]);
+            if (!vault.isIntentValid()) {
                 continue; // Skip if intent is invalid
             }
             uint256 totalAssets = _decryptedValues[i];
@@ -580,22 +580,27 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             totalAssets -= protocolVolumeFee;
 
             // STEP 3 & 4: CURATOR + PROTOCOL REVENUE SHARE FEES
-            uint256 curatorFee = vaultContract.curatorFee(totalAssets);
+            uint256 curatorFee = vault.curatorFee(totalAssets);
             totalAssets -= curatorFee;
             uint256 protocolRevenueShareFee = uint256(rsFeeCoefficient).mulDiv(curatorFee, BASIS_POINTS_FACTOR);
             pendingProtocolFees += protocolRevenueShareFee;
             curatorFee -= protocolRevenueShareFee;
+            vault.accrueCuratorFees(epochCounter, curatorFee);
 
             // STEP 5: WITHDRAWAL EXCHANGE RATE (based on post-fee totalAssets)
-            uint256 pendingWithdrawals = vaultContract.convertToAssetsWithPITTotalAssets(
-                vaultContract.pendingRedeem(),
+            uint256 pendingRedeem = vault.convertToAssetsWithPITTotalAssets(
+                vault.pendingRedeem(),
                 totalAssets,
                 Math.Rounding.Floor
             );
+            _currentEpoch.vaultsTotalAssetsForFulfillRedeem[address(vault)] = totalAssets;
 
             // STEP 6: DEPOSIT PROCESSING (add deposits, subtract withdrawals)
-            totalAssets += vaultContract.pendingDeposit() - pendingWithdrawals;
-            _currentEpoch.vaultsTotalAssets[vault] = totalAssets;
+            totalAssets -= pendingRedeem;
+            uint256 pendingDeposit = vault.pendingDeposit();
+            vault.fulfillDeposit(totalAssets);
+            totalAssets += pendingDeposit;
+            _currentEpoch.vaultsTotalAssets[address(vault)] = totalAssets;
         }
 
         // Process decrypted initial batch portfolio values
@@ -692,11 +697,14 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             (address[] memory intentTokens, uint32[] memory intentWeights) = vault.getIntent();
             uint256 finalTotalAssets = _currentEpoch.vaultsTotalAssets[address(vault)];
 
+            IOrionTransparentVault.Position[] memory portfolio = new IOrionTransparentVault.Position[](
+                intentTokens.length
+            );
+
             for (uint16 j = 0; j < intentTokens.length; ++j) {
                 address token = intentTokens[j];
                 uint32 weight = intentWeights[j];
 
-                // Get and cache prices if not already cached
                 if (!_currentEpoch.tokenExists[token]) {
                     if (token == underlyingAsset) {
                         _currentEpoch.priceArray[token] = 10 ** underlyingDecimals;
@@ -712,9 +720,11 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                     config.getTokenDecimals(token)
                 );
 
+                portfolio[j] = IOrionTransparentVault.Position({ token: token, value: uint32(value) });
                 _currentEpoch.finalBatchPortfolio[token] += value;
                 _addTokenIfNotExists(token);
             }
+            vault.updateVaultState(portfolio, finalTotalAssets);
         }
     }
 
@@ -741,6 +751,8 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             currentMinibatchIndex = 0;
         }
     }
+
+    // slither-disable-end reentrancy-no-eth
 
     /// @notice Adds a token to the current epoch if it doesn't exist
     /// @param token The token address to add
@@ -778,45 +790,135 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         emit EventsLib.InternalStateProcessed(epochCounter);
     }
 
-    // TODO(finally): a lot of code duplication, refactor for maintainability and scalability.
-
     /* -------------------------------------------------------------------------- */
     /*                      LIQUIDITY ORCHESTRATOR FUNCTIONS                      */
     /* -------------------------------------------------------------------------- */
 
     /// @inheritdoc IInternalStateOrchestrator
-    function getSellingOrders() external view returns (address[] memory tokens, uint256[] memory amounts) {
+    function getOrders()
+        external
+        view
+        returns (
+            address[] memory sellingTokens,
+            uint256[] memory sellingAmounts,
+            address[] memory buyingTokens,
+            uint256[] memory buyingAmounts,
+            uint256[] memory sellingEstimatedUnderlyingAmounts,
+            uint256[] memory buyingEstimatedUnderlyingAmounts
+        )
+    {
         address[] memory allTokens = _currentEpoch.tokens;
-        uint16 allTokensLength = uint16(allTokens.length);
+        (uint16 sellingCount, uint16 buyingCount) = _countOrders(allTokens);
 
-        tokens = new address[](allTokensLength);
-        amounts = new uint256[](allTokensLength);
+        // Initialize arrays with correct sizes (only for non-zero values)
+        sellingTokens = new address[](sellingCount);
+        sellingAmounts = new uint256[](sellingCount);
+        buyingTokens = new address[](buyingCount);
+        buyingAmounts = new uint256[](buyingCount);
+        sellingEstimatedUnderlyingAmounts = new uint256[](sellingCount);
+        buyingEstimatedUnderlyingAmounts = new uint256[](buyingCount);
+
+        // Populate arrays with non-zero values
+        _populateOrders(
+            allTokens,
+            sellingTokens,
+            sellingAmounts,
+            sellingEstimatedUnderlyingAmounts,
+            buyingTokens,
+            buyingAmounts,
+            buyingEstimatedUnderlyingAmounts
+        );
+    }
+
+    /// @notice Counts the number of non-zero selling and buying orders
+    /// @param allTokens Array of all tokens to check
+    /// @return sellingCount Number of tokens with non-zero selling orders
+    /// @return buyingCount Number of tokens with non-zero buying orders
+    function _countOrders(address[] memory allTokens) private view returns (uint16 sellingCount, uint16 buyingCount) {
+        uint16 allTokensLength = uint16(allTokens.length);
 
         for (uint16 i = 0; i < allTokensLength; ++i) {
             address token = allTokens[i];
-            tokens[i] = token;
-            amounts[i] = _currentEpoch.sellingOrders[token];
+            if (_currentEpoch.sellingOrders[token] > 0) {
+                ++sellingCount;
+            }
+            if (_currentEpoch.buyingOrders[token] > 0) {
+                ++buyingCount;
+            }
+        }
+    }
+
+    /// @notice Populates the order arrays with non-zero values
+    /// @param allTokens Array of all tokens
+    /// @param sellingTokens Array to populate with selling tokens
+    /// @param sellingAmounts Array to populate with selling amounts
+    /// @param sellingEstimatedUnderlyingAmounts Array to populate with selling estimated amounts
+    /// @param buyingTokens Array to populate with buying tokens
+    /// @param buyingAmounts Array to populate with buying amounts
+    /// @param buyingEstimatedUnderlyingAmounts Array to populate with buying estimated amounts
+    function _populateOrders(
+        address[] memory allTokens,
+        address[] memory sellingTokens,
+        uint256[] memory sellingAmounts,
+        uint256[] memory sellingEstimatedUnderlyingAmounts,
+        address[] memory buyingTokens,
+        uint256[] memory buyingAmounts,
+        uint256[] memory buyingEstimatedUnderlyingAmounts
+    ) private view {
+        uint16 allTokensLength = uint16(allTokens.length);
+        uint16 sellingIndex = 0;
+        uint16 buyingIndex = 0;
+
+        for (uint16 i = 0; i < allTokensLength; ++i) {
+            address token = allTokens[i];
+            uint256 sellingAmount = _currentEpoch.sellingOrders[token];
+            uint256 buyingAmount = _currentEpoch.buyingOrders[token];
+
+            if (sellingAmount > 0) {
+                sellingTokens[sellingIndex] = token;
+                sellingAmounts[sellingIndex] = sellingAmount;
+                sellingEstimatedUnderlyingAmounts[sellingIndex] = sellingAmount.mulDiv(
+                    _currentEpoch.priceArray[token],
+                    priceAdapterPrecision
+                );
+                ++sellingIndex;
+            }
+            if (buyingAmount > 0) {
+                buyingTokens[buyingIndex] = token;
+                buyingAmounts[buyingIndex] = buyingAmount;
+                buyingEstimatedUnderlyingAmounts[buyingIndex] = buyingAmount.mulDiv(
+                    _currentEpoch.priceArray[token],
+                    priceAdapterPrecision
+                );
+                ++buyingIndex;
+            }
         }
     }
 
     /// @inheritdoc IInternalStateOrchestrator
-    function getBuyingOrders() external view returns (address[] memory tokens, uint256[] memory amounts) {
-        address[] memory allTokens = _currentEpoch.tokens;
-        uint16 allTokensLength = uint16(allTokens.length);
-
-        tokens = new address[](allTokensLength);
-        amounts = new uint256[](allTokensLength);
-
-        for (uint16 i = 0; i < allTokensLength; ++i) {
-            address token = allTokens[i];
-            tokens[i] = token;
-            amounts[i] = _currentEpoch.buyingOrders[token];
-        }
+    function getPriceOf(address token) external view returns (uint256 price) {
+        return _currentEpoch.priceArray[token];
     }
 
     /// @inheritdoc IInternalStateOrchestrator
     function subtractPendingProtocolFees(uint256 amount) external onlyLiquidityOrchestrator {
         if (amount > pendingProtocolFees) revert ErrorsLib.InsufficientAmount();
         pendingProtocolFees -= amount;
+    }
+
+    /// @inheritdoc IInternalStateOrchestrator
+    function updateBufferAmount(int256 deltaAmount) external onlyLiquidityOrchestrator {
+        if (deltaAmount > 0) {
+            bufferAmount += uint256(deltaAmount);
+        } else if (deltaAmount < 0) {
+            bufferAmount -= uint256(-deltaAmount);
+        }
+    }
+
+    /// @notice Get total assets for fulfill redeem for a specific vault
+    /// @param vault The vault address
+    /// @return totalAssets The total assets for fulfill redeem
+    function getVaultTotalAssetsForFulfillRedeem(address vault) external view returns (uint256 totalAssets) {
+        return _currentEpoch.vaultsTotalAssetsForFulfillRedeem[vault];
     }
 }
