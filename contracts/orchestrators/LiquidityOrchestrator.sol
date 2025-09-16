@@ -22,6 +22,7 @@ import "@openzeppelin/contracts/interfaces/IERC4626.sol";
  * @author Orion Finance
  * @dev This contract is responsible for:
  *      - Executing actual buy and sell orders on investment universe;
+ *      - Processing withdrawal requests from LPs;
  *      - Handling slippage and market execution differences from adapter price estimates via liquidity buffer.
  */
 contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrator {
