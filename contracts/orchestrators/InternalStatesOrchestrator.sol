@@ -423,14 +423,13 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                 totalAssets,
                 Math.Rounding.Floor
             );
-            vault.fulfillRedeem(totalAssets);
+            _currentEpoch.vaultsTotalAssetsForFulfillRedeem[address(vault)] = totalAssets;
 
             // STEP 6: DEPOSIT PROCESSING (add deposits, subtract withdrawals)
             totalAssets -= pendingRedeem;
             uint256 pendingDeposit = vault.pendingDeposit();
             vault.fulfillDeposit(totalAssets);
             totalAssets += pendingDeposit;
-
             _currentEpoch.vaultsTotalAssets[address(vault)] = totalAssets;
         }
     }
