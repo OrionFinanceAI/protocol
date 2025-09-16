@@ -270,7 +270,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         } else if (action == ACTION_PROCESS_BUY) {
             _processMinibatchBuy(minibatchIndex);
         } else if (action == ACTION_PROCESS_FULFILL_REDEEM) {
-            _processMinibatchFulfillRedeem();
+            _processFulfillRedeem();
         }
         emit EventsLib.PortfolioRebalanced();
     }
@@ -413,7 +413,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     }
 
     /// @notice Handles the fulfill redeem action
-    function _processMinibatchFulfillRedeem() internal {
+    function _processFulfillRedeem() internal {
         if (currentPhase != LiquidityUpkeepPhase.FulfillRedeem) {
             revert ErrorsLib.InvalidState();
         }
