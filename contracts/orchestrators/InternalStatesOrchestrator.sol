@@ -348,6 +348,8 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         currentPhase = InternalUpkeepPhase.PreprocessingTransparentVaults;
     }
 
+    // slither-disable-start reentrancy-no-eth
+
     /// @notice Preprocesses minibatch of transparent vaults
     /// @param minibatchIndex The index of the minibatch to process
     function _preprocessTransparentMinibatch(uint8 minibatchIndex) internal {
@@ -431,9 +433,6 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     }
 
     /* solhint-disable code-complexity */
-    // slither-disable-start reentrancy-no-eth
-    // Safe reentrancy: external calls are view; nonReentrant applied to caller.
-
     /// @notice Preprocesses minibatch of encrypted vaults
     /// @param minibatchIndex The index of the minibatch to process
     function _preprocessEncryptedMinibatch(uint8 minibatchIndex) internal {
@@ -531,7 +530,6 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             }
         }
     }
-    // slither-disable-end reentrancy-no-eth
     /* solhint-enable code-complexity */
 
     /// @inheritdoc IInternalStateOrchestrator
@@ -699,7 +697,6 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             (address[] memory intentTokens, uint32[] memory intentWeights) = vault.getIntent();
             uint256 finalTotalAssets = _currentEpoch.vaultsTotalAssets[address(vault)];
 
-            // Create Position array for updateVaultState
             IOrionTransparentVault.Position[] memory portfolio = new IOrionTransparentVault.Position[](
                 intentTokens.length
             );
@@ -708,7 +705,6 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                 address token = intentTokens[j];
                 uint32 weight = intentWeights[j];
 
-                // Get and cache prices if not already cached
                 if (!_currentEpoch.tokenExists[token]) {
                     if (token == underlyingAsset) {
                         _currentEpoch.priceArray[token] = 10 ** underlyingDecimals;
@@ -724,13 +720,10 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                     config.getTokenDecimals(token)
                 );
 
-                // Populate Position array
                 portfolio[j] = IOrionTransparentVault.Position({ token: token, value: uint32(value) });
-
                 _currentEpoch.finalBatchPortfolio[token] += value;
                 _addTokenIfNotExists(token);
             }
-
             vault.updateVaultState(portfolio, finalTotalAssets);
         }
     }
@@ -758,6 +751,8 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             currentMinibatchIndex = 0;
         }
     }
+
+    // slither-disable-end reentrancy-no-eth
 
     /// @notice Adds a token to the current epoch if it doesn't exist
     /// @param token The token address to add

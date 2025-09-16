@@ -26,12 +26,8 @@ describe("Orchestrators", function () {
   let mockAsset1: MockERC4626Asset;
   let mockAsset2: MockERC4626Asset;
   let mockAsset3: MockERC4626Asset;
-  let orionPriceAdapter1: OrionAssetERC4626PriceAdapter;
-  let orionPriceAdapter2: OrionAssetERC4626PriceAdapter;
-  let orionPriceAdapter3: OrionAssetERC4626PriceAdapter;
-  let orionExecutionAdapter1: OrionAssetERC4626ExecutionAdapter;
-  let orionExecutionAdapter2: OrionAssetERC4626ExecutionAdapter;
-  let orionExecutionAdapter3: OrionAssetERC4626ExecutionAdapter;
+  let orionPriceAdapter: OrionAssetERC4626PriceAdapter;
+  let orionExecutionAdapter: OrionAssetERC4626ExecutionAdapter;
   let priceAdapterRegistry: PriceAdapterRegistry;
   let internalStatesOrchestrator: InternalStatesOrchestrator;
   let liquidityOrchestrator: LiquidityOrchestrator;
@@ -95,20 +91,10 @@ describe("Orchestrators", function () {
 
     // Deploy OrionAssetERC4626PriceAdapter instances
     const OrionAssetERC4626PriceAdapterFactory = await ethers.getContractFactory("OrionAssetERC4626PriceAdapter");
-    orionPriceAdapter1 = (await OrionAssetERC4626PriceAdapterFactory.deploy(
+    orionPriceAdapter = (await OrionAssetERC4626PriceAdapterFactory.deploy(
       await orionConfig.getAddress(),
     )) as unknown as OrionAssetERC4626PriceAdapter;
-    await orionPriceAdapter1.waitForDeployment();
-
-    orionPriceAdapter2 = (await OrionAssetERC4626PriceAdapterFactory.deploy(
-      await orionConfig.getAddress(),
-    )) as unknown as OrionAssetERC4626PriceAdapter;
-    await orionPriceAdapter2.waitForDeployment();
-
-    orionPriceAdapter3 = (await OrionAssetERC4626PriceAdapterFactory.deploy(
-      await orionConfig.getAddress(),
-    )) as unknown as OrionAssetERC4626PriceAdapter;
-    await orionPriceAdapter3.waitForDeployment();
+    await orionPriceAdapter.waitForDeployment();
 
     // Deploy TransparentVaultFactory
     const TransparentVaultFactoryFactory = await ethers.getContractFactory("TransparentVaultFactory");
@@ -159,43 +145,49 @@ describe("Orchestrators", function () {
     // Set slippage bound to initialize targetBufferRatio
     await liquidityOrchestrator.setSlippageBound(100); // 1% slippage bound
 
+    // Test slippage bound validation
+    await expect(liquidityOrchestrator.setSlippageBound(0)).to.be.revertedWithCustomError(
+      liquidityOrchestrator,
+      "InvalidArguments",
+    );
+
+    await expect(liquidityOrchestrator.setSlippageBound(2001)).to.be.revertedWithCustomError(
+      liquidityOrchestrator,
+      "InvalidArguments",
+    );
+
+    // Test valid slippage bounds
+    await liquidityOrchestrator.setSlippageBound(2000); // 20% slippage bound
+    await liquidityOrchestrator.setSlippageBound(1); // 0.01% slippage bound
+    await liquidityOrchestrator.setSlippageBound(500); // 5% slippage bound
+
     // Deploy Execution Adapters
     const OrionAssetERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
       "OrionAssetERC4626ExecutionAdapter",
     );
-    orionExecutionAdapter1 = (await OrionAssetERC4626ExecutionAdapterFactory.deploy(
+    orionExecutionAdapter = (await OrionAssetERC4626ExecutionAdapterFactory.deploy(
       await orionConfig.getAddress(),
     )) as unknown as OrionAssetERC4626ExecutionAdapter;
-    await orionExecutionAdapter1.waitForDeployment();
-
-    orionExecutionAdapter2 = (await OrionAssetERC4626ExecutionAdapterFactory.deploy(
-      await orionConfig.getAddress(),
-    )) as unknown as OrionAssetERC4626ExecutionAdapter;
-    await orionExecutionAdapter2.waitForDeployment();
-
-    orionExecutionAdapter3 = (await OrionAssetERC4626ExecutionAdapterFactory.deploy(
-      await orionConfig.getAddress(),
-    )) as unknown as OrionAssetERC4626ExecutionAdapter;
-    await orionExecutionAdapter3.waitForDeployment();
+    await orionExecutionAdapter.waitForDeployment();
 
     // Add assets to whitelist - creating a mixed investment universe
     // Asset 1: Mock asset with MockPriceAdapter
     await orionConfig.addWhitelistedAsset(
       await mockAsset1.getAddress(),
-      await orionPriceAdapter1.getAddress(),
-      await orionExecutionAdapter1.getAddress(),
+      await orionPriceAdapter.getAddress(),
+      await orionExecutionAdapter.getAddress(),
     );
     // Asset 2: Mock asset with OrionAssetERC4626PriceAdapter
     await orionConfig.addWhitelistedAsset(
       await mockAsset2.getAddress(),
-      await orionPriceAdapter2.getAddress(),
-      await orionExecutionAdapter2.getAddress(),
+      await orionPriceAdapter.getAddress(),
+      await orionExecutionAdapter.getAddress(),
     );
     // Asset 3: Mock asset with OrionAssetERC4626PriceAdapter
     await orionConfig.addWhitelistedAsset(
       await mockAsset3.getAddress(),
-      await orionPriceAdapter3.getAddress(),
-      await orionExecutionAdapter3.getAddress(),
+      await orionPriceAdapter.getAddress(),
+      await orionExecutionAdapter.getAddress(),
     );
 
     // Create a transparent vault
@@ -342,8 +334,8 @@ describe("Orchestrators", function () {
       await expect(
         orionConfig.addWhitelistedAsset(
           await mockAsset1.getAddress(),
-          await orionPriceAdapter1.getAddress(),
-          await orionExecutionAdapter1.getAddress(),
+          await orionPriceAdapter.getAddress(),
+          await orionExecutionAdapter.getAddress(),
         ),
       ).to.be.revertedWithCustomError(orionConfig, "SystemNotIdle");
 
@@ -384,7 +376,7 @@ describe("Orchestrators", function () {
         "SystemNotIdle",
       );
 
-      await expect(liquidityOrchestrator.setSlippageBound(ethers.parseUnits("0.01", 18))).to.be.revertedWithCustomError(
+      await expect(liquidityOrchestrator.setSlippageBound(100)).to.be.revertedWithCustomError(
         liquidityOrchestrator,
         "SystemNotIdle",
       );
@@ -619,6 +611,20 @@ describe("Orchestrators", function () {
         liquidityOrchestrator,
         "NotAuthorized",
       );
+    });
+
+    it("should handle slippage calculations safely with edge cases", async function () {
+      // Test with maximum valid slippage bound
+      await liquidityOrchestrator.setSlippageBound(9999); // 99.99% slippage bound
+
+      // Test with minimum valid slippage bound
+      await liquidityOrchestrator.setSlippageBound(1); // 0.01% slippage bound
+
+      // Test with typical slippage bound
+      await liquidityOrchestrator.setSlippageBound(100); // 1% slippage bound
+
+      // Verify slippage bound is set correctly
+      expect(await liquidityOrchestrator.slippageBound()).to.equal(100);
     });
   });
 

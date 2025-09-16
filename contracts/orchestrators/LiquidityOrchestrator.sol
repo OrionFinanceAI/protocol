@@ -155,6 +155,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     /// @inheritdoc ILiquidityOrchestrator
     function setSlippageBound(uint256 _slippageBound) external onlyOwner {
         if (_slippageBound == 0) revert ErrorsLib.InvalidArguments();
+        if (_slippageBound > 2000) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         slippageBound = _slippageBound;
         targetBufferRatio = slippageBound.mulDiv(1100, 1000);
