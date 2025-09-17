@@ -1,6 +1,7 @@
-# protocol 
-
 <div align="center">
+
+<img src="./assets/Orion_Logo_white_horizontal.png" alt="orion" width="75%">
+
 
 [![codecov][codecov-badge]][codecov] [![Github Actions][gha-badge]][gha] [![Hardhat][hardhat-badge]][hardhat]  [![Discord][discord-badge]][discord]
 
@@ -17,7 +18,6 @@
 [codecov-badge]: https://codecov.io/gh/OrionFinanceAI/protocol/branch/main/graph/badge.svg
 
 
-![orion](./assets/OF_lockup_white.png)
 
 
 ## About
