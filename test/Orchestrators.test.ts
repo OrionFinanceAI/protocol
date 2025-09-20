@@ -139,6 +139,8 @@ describe("Orchestrators", function () {
       await encryptedVaultFactory.getAddress(),
     );
 
+    await internalStatesOrchestrator.connect(owner).updateProtocolFees(10, 1000);
+
     // Configure LiquidityOrchestrator
     await liquidityOrchestrator.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
 
@@ -217,6 +219,8 @@ describe("Orchestrators", function () {
       "OrionTransparentVault",
       vaultAddress,
     )) as unknown as OrionTransparentVault;
+
+    await transparentVault.connect(owner).updateFeeModel(4, 1000, 100); // HURDLE_HWM, 10% performance fee, 1% management fee
 
     // Submit a plaintext intent to the vault with mixed price adapters
     const intent = [
@@ -514,8 +518,7 @@ describe("Orchestrators", function () {
       expect(await internalStatesOrchestrator.epochCounter()).to.equal(1); // Epoch incremented
 
       // Check that orders were built
-      const [sellingTokens, _sellingAmounts, buyingTokens, _buyingAmounts] =
-        await internalStatesOrchestrator.getOrders();
+      let [sellingTokens, _sellingAmounts, buyingTokens, _buyingAmounts] = await internalStatesOrchestrator.getOrders();
 
       // Check that all amounts are greater than 0
       for (const amount of _sellingAmounts) {
@@ -561,6 +564,101 @@ describe("Orchestrators", function () {
       await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
 
       expect(await liquidityOrchestrator.currentPhase()).to.equal(0);
+
+      // Have curators request fees redemption
+      const pendingFees = await transparentVault.pendingCuratorFees();
+      if (pendingFees > 0) {
+        await transparentVault.connect(owner).claimCuratorFees(pendingFees);
+      }
+
+      await time.increase(epochDuration + 1n);
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // PreprocessingEncryptedVaults
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // Buffering
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(5); // PostprocessingTransparentVaults
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(6); // PostprocessingEncryptedVaults
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(7); // BuildingOrders
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Back to Idle
+      expect(await internalStatesOrchestrator.epochCounter()).to.equal(2); // Epoch incremented
+
+      // Check that orders were built
+      [sellingTokens, _sellingAmounts, buyingTokens, _buyingAmounts] = await internalStatesOrchestrator.getOrders();
+
+      // Check that all amounts are greater than 0
+      for (const amount of _sellingAmounts) {
+        expect(amount).to.be.gt(0);
+      }
+      for (const amount of _buyingAmounts) {
+        expect(amount).to.be.gt(0);
+      }
+
+      expect(sellingTokens.length + buyingTokens.length).to.equal(4);
+
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
+
+      [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      void expect(liquidityUpkeepNeeded).to.be.true;
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(1);
+
+      [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      void expect(liquidityUpkeepNeeded).to.be.true;
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+
+      [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      void expect(liquidityUpkeepNeeded).to.be.true;
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+
+      [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      void expect(liquidityUpkeepNeeded).to.be.true;
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(2);
+
+      [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      void expect(liquidityUpkeepNeeded).to.be.true;
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(3);
+
+      [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      void expect(liquidityUpkeepNeeded).to.be.true;
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(0);
+
+      // Test LiquidityOrchestrator functions
+      await expect(liquidityOrchestrator.updateExecutionMinibatchSize(1)).to.not.be.reverted;
+
+      // Check and claim protocol fees
+      const pendingProtocolFees = await internalStatesOrchestrator.pendingProtocolFees();
+      if (pendingProtocolFees > 0) {
+        await liquidityOrchestrator.connect(owner).claimProtocolFees(pendingProtocolFees);
+      }
     });
 
     it("should not trigger upkeep when system is idle and time hasn't passed", async function () {
