@@ -19,3 +19,6 @@ overrides:
   - files: "*.ts"
     options:
       parser: "typescript"
+  - files: "LICENSE"
+    options:
+      proseWrap: "preserve"
