@@ -136,6 +136,12 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         _;
     }
 
+    /// @dev Restricts function to only liquidity orchestrator
+    modifier onlyLiquidityOrchestrator() {
+        if (msg.sender != address(liquidityOrchestrator)) revert ErrorsLib.UnauthorizedAccess();
+        _;
+    }
+
     /// @notice Constructor
     /// @param vaultOwner_ The address of the vault owner
     /// @param curator_ The address of the vault curator
@@ -565,7 +571,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     }
 
     /// @inheritdoc IOrionVault
-    function fulfillRedeem(uint256 redeemTotalAssets) external onlyInternalStatesOrchestrator nonReentrant {
+    function fulfillRedeem(uint256 redeemTotalAssets) external onlyLiquidityOrchestrator nonReentrant {
         uint32 length = uint32(_redeemRequests.length());
         // Collect all requests first to avoid index shifting issues when removing during iteration
         address[] memory users = new address[](length);
