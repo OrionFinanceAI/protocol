@@ -38,3 +38,11 @@ source .venv/bin/activate
 uv pip install slither-analyzer==0.11.3
 pnpm install
 ```
+
+## Sequence Diagram
+
+```bash
+# https://github.com/calltrace/traverse
+sol2cg -f mermaid -o diagram.mmd ./contracts/
+```
+
