@@ -74,6 +74,27 @@ describe("Orchestrators", function () {
     await mockAsset3Deployed.waitForDeployment();
     mockAsset3 = mockAsset3Deployed as unknown as MockERC4626Asset;
 
+    // Initialize mock assets with different amounts of underlying assets
+    // This creates initial liquidity in each vault for realistic price testing
+    const initialDeposit1 = ethers.parseUnits("1000", 12); // 1000 underlying assets for mockAsset1
+    const initialDeposit2 = ethers.parseUnits("2000", 12); // 2000 underlying assets for mockAsset2
+    const initialDeposit3 = ethers.parseUnits("1500", 12); // 1500 underlying assets for mockAsset3
+
+    // Mint underlying assets to user for deposits
+    await underlyingAsset.mint(user.address, ethers.parseUnits("10000", 12));
+
+    // Deposit to mockAsset1
+    await underlyingAsset.connect(user).approve(await mockAsset1.getAddress(), initialDeposit1);
+    await mockAsset1.connect(user).deposit(initialDeposit1, user.address);
+
+    // Deposit to mockAsset2
+    await underlyingAsset.connect(user).approve(await mockAsset2.getAddress(), initialDeposit2);
+    await mockAsset2.connect(user).deposit(initialDeposit2, user.address);
+
+    // Deposit to mockAsset3
+    await underlyingAsset.connect(user).approve(await mockAsset3.getAddress(), initialDeposit3);
+    await mockAsset3.connect(user).deposit(initialDeposit3, user.address);
+
     // Deploy OrionConfig
     const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
     const orionConfigDeployed = await OrionConfigFactory.deploy(owner.address, await underlyingAsset.getAddress());
@@ -240,8 +261,7 @@ describe("Orchestrators", function () {
     ];
     await transparentVault.connect(curator).submitIntent(intent);
 
-    // Mint underlying assets to the user and make a deposit request
-    await underlyingAsset.mint(user.address, ethers.parseUnits("10000", 12));
+    // Make a deposit request (underlying assets already minted earlier)
     await underlyingAsset.connect(user).approve(await transparentVault.getAddress(), ethers.parseUnits("10000", 12));
     const depositAmount = ethers.parseUnits("100", 12);
     await transparentVault.connect(user).requestDeposit(depositAmount);
@@ -531,6 +551,20 @@ describe("Orchestrators", function () {
       // Should have all three assets in the orders arrays
       expect(sellingTokens.length).to.equal(0);
       expect(buyingTokens.length).to.equal(4);
+
+      // Interact with investment universe assets here, leading to mismatch between measured and execution prices.
+      // Simulate different gains for each mock asset to create price mismatches
+      const gainAmount1 = ethers.parseUnits("10", 12);
+      await underlyingAsset.connect(user).approve(await mockAsset1.getAddress(), gainAmount1);
+      await mockAsset1.connect(user).simulateGains(gainAmount1);
+
+      const gainAmount2 = ethers.parseUnits("10", 12);
+      await underlyingAsset.connect(user).approve(await mockAsset2.getAddress(), gainAmount2);
+      await mockAsset2.connect(user).simulateGains(gainAmount2);
+
+      const gainAmount3 = ethers.parseUnits("15", 12);
+      await underlyingAsset.connect(user).approve(await mockAsset3.getAddress(), gainAmount3);
+      await mockAsset3.connect(user).simulateGains(gainAmount3);
 
       // Now check if liquidity orchestrator needs to be triggered
       expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
