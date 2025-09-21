@@ -460,9 +460,9 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     function _performanceFeeAmount(uint256 feeTotalAssets) internal view returns (uint256) {
         if (feeModel.performanceFee == 0) return 0;
 
-        uint256 activeSharePrice = (10 ** decimals()).mulDiv(
-            feeTotalAssets + 1,
-            totalSupply() + 10 ** _decimalsOffset(),
+        uint256 activeSharePrice = convertToAssetsWithPITTotalAssets(
+            10 ** decimals(),
+            feeTotalAssets,
             Math.Rounding.Floor
         );
 
