@@ -185,7 +185,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         liquidityOrchestrator = ILiquidityOrchestrator(config.liquidityOrchestrator());
 
         epochDuration = 1 days;
-        _nextUpdateTime = _computeNextUpdateTime(block.timestamp);
+        _nextUpdateTime = block.timestamp + epochDuration;
 
         currentPhase = InternalUpkeepPhase.Idle;
         epochCounter = 0;
@@ -216,6 +216,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         epochDuration = newEpochDuration;
+        _nextUpdateTime = block.timestamp + epochDuration;
     }
 
     /// @inheritdoc IInternalStateOrchestrator
@@ -305,13 +306,6 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     /*                               INTERNAL LOGIC                               */
     /* -------------------------------------------------------------------------- */
 
-    /// @notice Computes the next update time based on current timestamp
-    /// @param currentTime Current block timestamp
-    /// @return Next update time
-    function _computeNextUpdateTime(uint256 currentTime) internal view returns (uint256) {
-        return currentTime + epochDuration;
-    }
-
     /// @notice Checks if upkeep should be triggered based on time
     /// @return True if upkeep should be triggered
     function _shouldTriggerUpkeep() internal view returns (bool) {
@@ -324,7 +318,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         // Validate current phase
         if (!_shouldTriggerUpkeep() || !config.isSystemIdle()) revert ErrorsLib.TooEarly();
 
-        _nextUpdateTime = _computeNextUpdateTime(block.timestamp);
+        _nextUpdateTime = block.timestamp + epochDuration;
 
         for (uint16 i = 0; i < _currentEpoch.tokens.length; ++i) {
             address token = _currentEpoch.tokens[i];
