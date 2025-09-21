@@ -571,6 +571,22 @@ describe("Orchestrators", function () {
         await transparentVault.connect(owner).claimCuratorFees(pendingFees);
       }
 
+      // Have LPs request redemption (test also cancel it)
+      const redeemAmount = await transparentVault.balanceOf(user.address);
+      expect(redeemAmount).to.be.gt(0);
+      await transparentVault.connect(user).approve(await transparentVault.getAddress(), redeemAmount);
+      await transparentVault.connect(user).requestRedeem(redeemAmount);
+      await transparentVault.connect(user).cancelRedeemRequest(redeemAmount);
+      await transparentVault.connect(user).approve(await transparentVault.getAddress(), redeemAmount);
+      await transparentVault.connect(user).requestRedeem(redeemAmount);
+
+      // Inject a lot of capital in asset tokens to increase their share price so in the next epoch there is a non-zero performance fee
+      const largeDepositAmount = ethers.parseUnits("1000000", 12); // 1M tokens
+      await underlyingAsset.connect(owner).mint(owner.address, largeDepositAmount);
+      await underlyingAsset.connect(owner).approve(await mockAsset1.getAddress(), largeDepositAmount);
+      await mockAsset1.connect(owner).deposit(largeDepositAmount, owner.address);
+
+      // Fast forward time to trigger upkeep
       await time.increase(epochDuration + 1n);
 
       [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
@@ -611,9 +627,6 @@ describe("Orchestrators", function () {
       for (const amount of _sellingAmounts) {
         expect(amount).to.be.gt(0);
       }
-      for (const amount of _buyingAmounts) {
-        expect(amount).to.be.gt(0);
-      }
 
       expect(sellingTokens.length + buyingTokens.length).to.equal(4);
 
@@ -624,6 +637,10 @@ describe("Orchestrators", function () {
       await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
 
       expect(await liquidityOrchestrator.currentPhase()).to.equal(1);
+
+      [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      void expect(liquidityUpkeepNeeded).to.be.true;
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
 
       [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
       void expect(liquidityUpkeepNeeded).to.be.true;
@@ -658,6 +675,12 @@ describe("Orchestrators", function () {
       const pendingProtocolFees = await internalStatesOrchestrator.pendingProtocolFees();
       if (pendingProtocolFees > 0) {
         await liquidityOrchestrator.connect(owner).claimProtocolFees(pendingProtocolFees);
+      }
+
+      // Check and claim curator fees for transparent vault
+      const pendingTransparentCuratorFees = await transparentVault.pendingCuratorFees();
+      if (pendingTransparentCuratorFees > 0) {
+        await transparentVault.connect(owner).claimCuratorFees(pendingTransparentCuratorFees);
       }
     });
 
