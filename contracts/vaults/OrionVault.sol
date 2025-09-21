@@ -12,7 +12,6 @@ import "../interfaces/IInternalStateOrchestrator.sol";
 import "../interfaces/ILiquidityOrchestrator.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
-
 /**
  * @title OrionVault
  * @notice Modular asset management vault with asynchronous deposits and redemptions
@@ -186,7 +185,8 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         feeModel.feeType = FeeType(feeType_);
         feeModel.performanceFee = performanceFee_;
         feeModel.managementFee = managementFee_;
-        feeModel.highWaterMark = 10 ** SHARE_DECIMALS;
+
+        feeModel.highWaterMark = 10 ** underlyingDecimals;
 
         _initializeVaultWhitelist();
     }
@@ -460,9 +460,9 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     function _performanceFeeAmount(uint256 feeTotalAssets) internal view returns (uint256) {
         if (feeModel.performanceFee == 0) return 0;
 
-        uint256 activeSharePrice = (10 ** decimals()).mulDiv(
-            feeTotalAssets + 1,
-            totalSupply() + 10 ** _decimalsOffset(),
+        uint256 activeSharePrice = convertToAssetsWithPITTotalAssets(
+            10 ** decimals(),
+            feeTotalAssets,
             Math.Rounding.Floor
         );
 
@@ -470,7 +470,6 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
         if (activeSharePrice < benchmark) return 0;
         uint256 feeRate = uint256(feeModel.performanceFee).mulDiv(activeSharePrice, divisor);
-
         return feeRate.mulDiv(feeTotalAssets, BASIS_POINTS_FACTOR);
     }
 

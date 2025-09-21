@@ -17,7 +17,6 @@ import { EventsLib } from "../libraries/EventsLib.sol";
 import { UtilitiesLib } from "../libraries/UtilitiesLib.sol";
 import { FHE, euint128 } from "@fhevm/solidity/lib/FHE.sol";
 import { SepoliaConfig } from "@fhevm/solidity/config/ZamaConfig.sol";
-
 /**
  * @title Internal States Orchestrator
  * @notice Contract that orchestrates internal state management
@@ -385,7 +384,11 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                 // Get and cache prices if not already cached
                 if (!_currentEpoch.tokenExists[token]) {
                     if (token == underlyingAsset) {
-                        _currentEpoch.priceArray[token] = 10 ** underlyingDecimals;
+                        _currentEpoch.priceArray[token] = UtilitiesLib.convertDecimals(
+                            10 ** underlyingDecimals,
+                            underlyingDecimals,
+                            config.priceAdapterDecimals()
+                        );
                     } else {
                         _currentEpoch.priceArray[token] = registry.getPrice(token);
                     }
@@ -479,7 +482,11 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                 // Get and cache prices if not already cached
                 if (!_currentEpoch.tokenExists[token]) {
                     if (token == underlyingAsset) {
-                        _currentEpoch.priceArray[token] = 10 ** underlyingDecimals;
+                        _currentEpoch.priceArray[token] = UtilitiesLib.convertDecimals(
+                            10 ** underlyingDecimals,
+                            underlyingDecimals,
+                            config.priceAdapterDecimals()
+                        );
                     } else {
                         _currentEpoch.priceArray[token] = registry.getPrice(token);
                     }
@@ -707,7 +714,11 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
                 if (!_currentEpoch.tokenExists[token]) {
                     if (token == underlyingAsset) {
-                        _currentEpoch.priceArray[token] = 10 ** underlyingDecimals;
+                        _currentEpoch.priceArray[token] = UtilitiesLib.convertDecimals(
+                            10 ** underlyingDecimals,
+                            underlyingDecimals,
+                            config.priceAdapterDecimals()
+                        );
                     } else {
                         _currentEpoch.priceArray[token] = registry.getPrice(token);
                     }
