@@ -21,6 +21,7 @@ typechain-types/
 scripts/
 protocol-costs/
 reports/
+docs/
 # files
 *.env
 *.log

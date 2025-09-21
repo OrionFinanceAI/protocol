@@ -2,6 +2,7 @@ import "@fhevm/hardhat-plugin";
 import "@nomicfoundation/hardhat-ethers";
 import "@nomicfoundation/hardhat-toolbox";
 import "@openzeppelin/hardhat-upgrades";
+import "solidity-docgen";
 import * as dotenv from "dotenv";
 import { HardhatUserConfig } from "hardhat/config";
 
@@ -9,6 +10,9 @@ dotenv.config();
 
 const config: HardhatUserConfig = {
   defaultNetwork: "hardhat",
+  docgen: {
+    exclude: ["mocks"],
+  },
   solidity: {
     compilers: [
       {
