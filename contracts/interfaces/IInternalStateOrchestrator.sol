@@ -101,4 +101,9 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     /// @param vault The vault address
     /// @return totalAssets The total assets for fulfill redeem
     function getVaultTotalAssetsForFulfillRedeem(address vault) external view returns (uint256 totalAssets);
+
+    /// @notice Get the list of tokens for the current epoch
+    /// @return tokens The array of token addresses used in the current epoch
+    /// @dev This function blocks if the internal state orchestrator is not idle
+    function getEpochTokens() external view returns (address[] memory tokens);
 }

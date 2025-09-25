@@ -91,6 +91,19 @@
     },
     {
       "inputs": [],
+      "name": "getEpochTokens",
+      "outputs": [
+        {
+          "internalType": "address[]",
+          "name": "tokens",
+          "type": "address[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
       "name": "getOrders",
       "outputs": [
         {
