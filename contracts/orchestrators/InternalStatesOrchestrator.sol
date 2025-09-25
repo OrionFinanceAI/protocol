@@ -490,8 +490,10 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                 uint256 price = _currentEpoch.priceArray[token];
 
                 // Calculate estimated value of the asset in underlying asset decimals
-                // TODO(fhevm): implement FHEVM mulDiv: upcast from euintX to euint256, perform operations, downcast to euintX.
-                // No way to support more than 256 for intermediate operation, so still less powerful than regular mulDiv.
+                // TODO(fhevm): implement FHEVM mulDiv: upcast from euintX to euint256,
+                // perform operations, downcast to euintX.
+                // No trivial to support more than 256 for intermediate operation,
+                // so still less powerful than regular mulDiv.
                 // Measure gas impact on euint128 to euint64/32 at intent level and consider using different types.
                 euint128 unscaledValue = FHE.div(
                     FHE.mul(FHE.asEuint128(uint128(price)), shares),
@@ -816,6 +818,8 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             uint256[] memory buyingEstimatedUnderlyingAmounts
         )
     {
+        if (currentPhase != InternalUpkeepPhase.Idle) revert ErrorsLib.SystemNotIdle();
+
         address[] memory allTokens = _currentEpoch.tokens;
         (uint16 sellingCount, uint16 buyingCount) = _countOrders(allTokens);
 

@@ -542,6 +542,10 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     /// @inheritdoc IOrionVault
     function fulfillDeposit(uint256 depositTotalAssets) external onlyInternalStatesOrchestrator nonReentrant {
         uint32 length = uint32(_depositRequests.length());
+        if (length == 0) {
+            return;
+        }
+
         // Collect all requests first to avoid index shifting issues when removing during iteration
         address[] memory users = new address[](length);
         uint256[] memory amounts = new uint256[](length);
@@ -553,6 +557,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         }
 
         _pendingDeposit = 0;
+        uint16 currentEpoch = internalStatesOrchestrator.epochCounter();
 
         // Process all requests
         for (uint32 i = 0; i < length; ++i) {
@@ -565,13 +570,17 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
             uint256 shares = convertToSharesWithPITTotalAssets(amount, depositTotalAssets, Math.Rounding.Floor);
             _mint(user, shares);
 
-            emit Deposit(user, amount, shares);
+            emit Deposit(address(this), user, currentEpoch, amount, shares);
         }
     }
 
     /// @inheritdoc IOrionVault
     function fulfillRedeem(uint256 redeemTotalAssets) external onlyLiquidityOrchestrator nonReentrant {
         uint32 length = uint32(_redeemRequests.length());
+        if (length == 0) {
+            return;
+        }
+
         // Collect all requests first to avoid index shifting issues when removing during iteration
         address[] memory users = new address[](length);
         uint256[] memory sharesArray = new uint256[](length);
@@ -583,6 +592,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         }
 
         _pendingRedeem = 0;
+        uint16 currentEpoch = internalStatesOrchestrator.epochCounter();
 
         // Process all requests
         for (uint32 i = 0; i < length; ++i) {
@@ -604,7 +614,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
             // Transfer underlying assets from liquidity orchestrator to the user
             liquidityOrchestrator.transferRedemptionFunds(user, underlyingAmount);
 
-            emit Withdraw(user, underlyingAmount, shares);
+            emit Redeem(address(this), user, currentEpoch, underlyingAmount, shares);
         }
     }
 }

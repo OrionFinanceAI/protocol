@@ -46,17 +46,32 @@ interface IOrionVault is IERC4626 {
     /// @param managementFee The new management fee in basis points.
     event FeeModelUpdated(uint8 indexed mode, uint16 indexed performanceFee, uint16 indexed managementFee);
 
-    /// @notice A deposit request has been processed and completed.
-    /// @param user The address of the user whose deposit was processed.
-    /// @param amount The amount of assets that were deposited.
-    /// @param shares The number of shares that were minted.
-    event Deposit(address indexed user, uint256 indexed amount, uint256 indexed shares);
-
-    /// @notice A redemption request has been processed and completed.
-    /// @param user The address of the user whose redemption was processed.
-    /// @param assets The amount of assets that were withdrawn.
-    /// @param shares The number of shares that were redeemed.
-    event Withdraw(address indexed user, uint256 indexed assets, uint256 indexed shares);
+    /// @notice A deposit request has been fulfilled.
+    /// @param vault The address of the vault where the deposit was fulfilled.
+    /// @param user The address of the user whose deposit was fulfilled.
+    /// @param epoch The epoch when the deposit was fulfilled.
+    /// @param depositAmount The amount of assets deposited by the user.
+    /// @param sharesMinted The number of shares minted for the user.
+    event Deposit(
+        address indexed vault,
+        address indexed user,
+        uint256 indexed epoch,
+        uint256 depositAmount,
+        uint256 sharesMinted
+    );
+    /// @notice A redemption request has been fulfilled.
+    /// @param vault The address of the vault where the redemption was fulfilled.
+    /// @param user The address of the user whose redemption was fulfilled.
+    /// @param epoch The epoch when the redemption was fulfilled.
+    /// @param redeemAmount The amount of assets redeemed by the user.
+    /// @param sharesBurned The number of shares burned for the user.
+    event Redeem(
+        address indexed vault,
+        address indexed user,
+        uint256 indexed epoch,
+        uint256 redeemAmount,
+        uint256 sharesBurned
+    );
 
     /// @notice Curator fees have been accrued for a specific epoch.
     /// @param epoch The epoch for which fees were accrued.
