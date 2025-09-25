@@ -149,9 +149,11 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     /// @notice Decrypted values from the FHEVM callback
     uint256[] internal _decryptedValues;
 
-    /// @dev Restricts function to only Chainlink Automation registry
-    modifier onlyAutomationRegistry() {
-        if (msg.sender != automationRegistry) revert ErrorsLib.NotAuthorized();
+    /// @dev Restricts function to only owner or automation registry
+    modifier onlyAuthorizedTrigger() {
+        if (msg.sender != owner() && msg.sender != automationRegistry) {
+            revert ErrorsLib.NotAuthorized();
+        }
         _;
     }
 
@@ -277,7 +279,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
     /// @notice Performs state reading and estimation operations
     /// @param performData Encoded data containing the action type and minibatch index
-    function performUpkeep(bytes calldata performData) external override onlyAutomationRegistry nonReentrant {
+    function performUpkeep(bytes calldata performData) external override onlyAuthorizedTrigger nonReentrant {
         if (performData.length < 5) revert ErrorsLib.InvalidArguments();
 
         (bytes4 action, uint8 minibatchIndex) = abi.decode(performData, (bytes4, uint8));

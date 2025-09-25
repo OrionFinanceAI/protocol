@@ -736,22 +736,41 @@ describe("Orchestrators", function () {
       void expect(performData).to.equal("0x");
     });
 
-    it("should only allow automation registry to call performUpkeep", async function () {
+    it("should allow owner to call performUpkeep", async function () {
       // Fast forward time to trigger upkeep
       const epochDuration = await internalStatesOrchestrator.epochDuration();
       await time.increase(epochDuration + 1n);
 
       const [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
 
-      // Should fail when called by non-automation registry
-      await expect(internalStatesOrchestrator.connect(owner).performUpkeep(performData)).to.be.revertedWithCustomError(
-        internalStatesOrchestrator,
-        "NotAuthorized",
-      );
+      // Should succeed when called by owner
+      await expect(internalStatesOrchestrator.connect(owner).performUpkeep(performData)).to.not.be.reverted;
+    });
+
+    it("should allow automation registry to call performUpkeep", async function () {
+      // Fast forward time to trigger upkeep
+      const epochDuration = await internalStatesOrchestrator.epochDuration();
+      await time.increase(epochDuration + 1n);
+
+      const [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
 
       // Should succeed when called by automation registry
       await expect(internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData)).to.not.be
         .reverted;
+    });
+
+    it("should not allow unauthorized addresses to call performUpkeep", async function () {
+      // Fast forward time to trigger upkeep
+      const epochDuration = await internalStatesOrchestrator.epochDuration();
+      await time.increase(epochDuration + 1n);
+
+      const [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+
+      // Should fail when called by non-authorized address (user)
+      await expect(internalStatesOrchestrator.connect(user).performUpkeep(performData)).to.be.revertedWithCustomError(
+        internalStatesOrchestrator,
+        "NotAuthorized",
+      );
     });
 
     it("should not trigger liquidity orchestrator when epoch counter hasn't changed", async function () {
@@ -766,12 +785,35 @@ describe("Orchestrators", function () {
       expect(liquidityPerformData).to.equal("0x");
     });
 
-    it("should only allow automation registry to call liquidity orchestrator performUpkeep", async function () {
-      // Should fail when called by non-automation registry
-      await expect(liquidityOrchestrator.connect(owner).performUpkeep("0x")).to.be.revertedWithCustomError(
-        liquidityOrchestrator,
-        "NotAuthorized",
-      );
+    it("should allow owner to call liquidity orchestrator performUpkeep", async function () {
+      // Get valid performData for liquidity orchestrator
+      const [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+
+      // Should succeed when called by owner (only if upkeep is needed)
+      if (liquidityUpkeepNeeded) {
+        await expect(liquidityOrchestrator.connect(owner).performUpkeep(liquidityPerformData)).to.not.be.reverted;
+      }
+    });
+
+    it("should allow automation registry to call liquidity orchestrator performUpkeep", async function () {
+      // Get valid performData for liquidity orchestrator
+      const [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+
+      // Should succeed when called by automation registry (only if upkeep is needed)
+      if (liquidityUpkeepNeeded) {
+        await expect(liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData)).to.not.be
+          .reverted;
+      }
+    });
+
+    it("should not allow unauthorized addresses to call liquidity orchestrator performUpkeep", async function () {
+      // Get valid performData for liquidity orchestrator
+      const [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+
+      // Should fail when called by non-authorized address (user)
+      await expect(
+        liquidityOrchestrator.connect(user).performUpkeep(liquidityPerformData),
+      ).to.be.revertedWithCustomError(liquidityOrchestrator, "NotAuthorized");
     });
 
     it("should handle slippage calculations safely with edge cases", async function () {

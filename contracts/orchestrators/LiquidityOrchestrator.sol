@@ -103,6 +103,13 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         _;
     }
 
+    /// @dev Restricts function to only owner or Chainlink Automation Registry
+    modifier onlyAuthorizedTrigger() {
+        if (msg.sender != owner() && msg.sender != automationRegistry) {
+            revert ErrorsLib.NotAuthorized();
+        }
+        _;
+    }
     /// @dev Restricts function to only Orion Config contract
     modifier onlyConfig() {
         if (msg.sender != address(config)) revert ErrorsLib.NotAuthorized();
@@ -258,7 +265,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
 
     /// @notice Performs the upkeep
     /// @param performData The encoded data containing the action and minibatch index
-    function performUpkeep(bytes calldata performData) external override onlyAutomationRegistry nonReentrant {
+    function performUpkeep(bytes calldata performData) external override onlyAuthorizedTrigger nonReentrant {
         if (performData.length < 5) revert ErrorsLib.InvalidArguments();
 
         (bytes4 action, uint8 minibatchIndex) = abi.decode(performData, (bytes4, uint8));
