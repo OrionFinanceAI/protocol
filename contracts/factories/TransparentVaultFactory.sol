@@ -42,7 +42,7 @@ contract TransparentVaultFactory {
     ) external returns (address vault) {
         address vaultOwner = msg.sender;
 
-        if (vaultOwner == address(0)) revert ErrorsLib.ZeroAddress();
+        if (!config.isWhitelistedVaultOwner(vaultOwner)) revert ErrorsLib.UnauthorizedAccess();
         if (curator == address(0)) revert ErrorsLib.ZeroAddress();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
