@@ -540,7 +540,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     }
 
     /// @inheritdoc IOrionVault
-    function fulfillDeposit(uint256 depositTotalAssets) external onlyInternalStatesOrchestrator nonReentrant {
+    function fulfillDeposit(uint256 depositTotalAssets) external onlyLiquidityOrchestrator nonReentrant {
         uint32 length = uint32(_depositRequests.length());
         if (length == 0) {
             return;
@@ -608,8 +608,6 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
                 Math.Rounding.Floor
             );
             _burn(address(this), shares);
-            // TODO: Opportunity to net actual transactions (not just intents),
-            // performing minting and burning operation in sequence at the same time.
 
             // Transfer underlying assets from liquidity orchestrator to the user
             liquidityOrchestrator.transferRedemptionFunds(user, underlyingAmount);

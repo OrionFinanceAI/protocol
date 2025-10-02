@@ -23,7 +23,6 @@ import { SepoliaConfig } from "@fhevm/solidity/config/ZamaConfig.sol";
  * @author Orion Finance
  * @dev This contract is responsible for:
  *      - Reading current vault states and market data;
- *      - Processing deposit requests from LPs;
  *      - Processing curator fees and high water mark;
  *      - Updating vault states;
  *      - Computing state estimations for Liquidity Orchestrator;
@@ -98,6 +97,8 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         mapping(address => euint128) encryptedFinalBatchPortfolio;
         /// @notice Total assets for fulfill redeem - vault address to total assets for fulfillRedeem [assets]
         mapping(address => uint256) vaultsTotalAssetsForFulfillRedeem;
+        /// @notice Total assets for fulfill deposit - vault address to total assets for fulfillDeposit [assets]
+        mapping(address => uint256) vaultsTotalAssetsForFulfillDeposit;
         /// @notice Selling orders - token address to number of shares that needs to be sold [shares]
         mapping(address => uint256) sellingOrders;
         /// @notice Buying orders - token address to number of shares that needs to be bought [shares]
@@ -328,6 +329,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             delete _currentEpoch.initialBatchPortfolio[token];
             delete _currentEpoch.vaultsTotalAssets[token];
             delete _currentEpoch.vaultsTotalAssetsForFulfillRedeem[token];
+            delete _currentEpoch.vaultsTotalAssetsForFulfillDeposit[token];
             delete _currentEpoch.finalBatchPortfolio[token];
             delete _currentEpoch.sellingOrders[token];
             delete _currentEpoch.buyingOrders[token];
@@ -427,7 +429,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             // STEP 6: DEPOSIT PROCESSING (add deposits, subtract withdrawals)
             totalAssets -= pendingRedeem;
             uint256 pendingDeposit = vault.pendingDeposit();
-            vault.fulfillDeposit(totalAssets);
+            _currentEpoch.vaultsTotalAssetsForFulfillDeposit[address(vault)] = totalAssets;
             totalAssets += pendingDeposit;
             _currentEpoch.vaultsTotalAssets[address(vault)] = totalAssets;
         }
@@ -605,7 +607,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             // STEP 6: DEPOSIT PROCESSING (add deposits, subtract withdrawals)
             totalAssets -= pendingRedeem;
             uint256 pendingDeposit = vault.pendingDeposit();
-            vault.fulfillDeposit(totalAssets);
+            _currentEpoch.vaultsTotalAssetsForFulfillDeposit[address(vault)] = totalAssets;
             totalAssets += pendingDeposit;
             _currentEpoch.vaultsTotalAssets[address(vault)] = totalAssets;
         }
@@ -940,5 +942,12 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     /// @return totalAssets The total assets for fulfill redeem
     function getVaultTotalAssetsForFulfillRedeem(address vault) external view returns (uint256 totalAssets) {
         return _currentEpoch.vaultsTotalAssetsForFulfillRedeem[vault];
+    }
+
+    /// @notice Get total assets for fulfill deposit for a specific vault
+    /// @param vault The vault address
+    /// @return totalAssets The total assets for fulfill deposit
+    function getVaultTotalAssetsForFulfillDeposit(address vault) external view returns (uint256 totalAssets) {
+        return _currentEpoch.vaultsTotalAssetsForFulfillDeposit[vault];
     }
 }

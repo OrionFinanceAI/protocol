@@ -72,7 +72,8 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     bytes4 private constant ACTION_START = bytes4(keccak256("start()"));
     bytes4 private constant ACTION_PROCESS_SELL = bytes4(keccak256("processSell(uint8)"));
     bytes4 private constant ACTION_PROCESS_BUY = bytes4(keccak256("processBuy(uint8)"));
-    bytes4 private constant ACTION_PROCESS_FULFILL_REDEEM = bytes4(keccak256("processFulfillRedeem()"));
+    bytes4 private constant ACTION_PROCESS_FULFILL_DEPOSIT_AND_REDEEM =
+        bytes4(keccak256("processFulfillDepositAndRedeem()"));
 
     /* -------------------------------------------------------------------------- */
     /*                                 EPOCH STATE                                */
@@ -254,9 +255,9 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
             upkeepNeeded = true;
             performData = abi.encode(ACTION_PROCESS_BUY, currentMinibatchIndex);
-        } else if (currentPhase == LiquidityUpkeepPhase.FulfillRedeem) {
+        } else if (currentPhase == LiquidityUpkeepPhase.FulfillDepositAndRedeem) {
             upkeepNeeded = true;
-            performData = abi.encode(ACTION_PROCESS_FULFILL_REDEEM, uint8(0));
+            performData = abi.encode(ACTION_PROCESS_FULFILL_DEPOSIT_AND_REDEEM, uint8(0));
         } else {
             upkeepNeeded = false;
             performData = "";
@@ -276,8 +277,8 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
             _processMinibatchSell(minibatchIndex);
         } else if (action == ACTION_PROCESS_BUY) {
             _processMinibatchBuy(minibatchIndex);
-        } else if (action == ACTION_PROCESS_FULFILL_REDEEM) {
-            _processFulfillRedeem();
+        } else if (action == ACTION_PROCESS_FULFILL_DEPOSIT_AND_REDEEM) {
+            _processFulfillDepositAndRedeem();
         }
         emit EventsLib.PortfolioRebalanced();
     }
@@ -359,7 +360,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
 
         if (i1 > buyingTokens.length || i1 == buyingTokens.length) {
             i1 = uint16(buyingTokens.length);
-            currentPhase = LiquidityUpkeepPhase.FulfillRedeem;
+            currentPhase = LiquidityUpkeepPhase.FulfillDepositAndRedeem;
             currentMinibatchIndex = 0;
         }
 
@@ -419,9 +420,9 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         deltaBufferAmount += int256(estimatedUnderlyingAmount) - int256(executionUnderlyingAmount);
     }
 
-    /// @notice Handles the fulfill redeem action
-    function _processFulfillRedeem() internal {
-        if (currentPhase != LiquidityUpkeepPhase.FulfillRedeem) {
+    /// @notice Handles the fulfill deposit and redeem actions
+    function _processFulfillDepositAndRedeem() internal {
+        if (currentPhase != LiquidityUpkeepPhase.FulfillDepositAndRedeem) {
             revert ErrorsLib.InvalidState();
         }
 
@@ -431,24 +432,45 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
         for (uint16 i = 0; i < transparentVaults.length; ++i) {
             address vault = transparentVaults[i];
+            uint256 totalAssetsForDeposit = internalStatesOrchestrator.getVaultTotalAssetsForFulfillDeposit(vault);
             uint256 totalAssetsForRedeem = internalStatesOrchestrator.getVaultTotalAssetsForFulfillRedeem(vault);
 
-            if (totalAssetsForRedeem > 0) {
-                // Call fulfillRedeem on the vault with the stored totalAssets
-                IOrionVault(vault).fulfillRedeem(totalAssetsForRedeem);
-            }
+            _processVaultDepositAndRedeem(vault, totalAssetsForDeposit, totalAssetsForRedeem);
         }
 
         // Process encrypted vaults
         address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
         for (uint16 i = 0; i < encryptedVaults.length; ++i) {
             address vault = encryptedVaults[i];
+            uint256 totalAssetsForDeposit = internalStatesOrchestrator.getVaultTotalAssetsForFulfillDeposit(vault);
             uint256 totalAssetsForRedeem = internalStatesOrchestrator.getVaultTotalAssetsForFulfillRedeem(vault);
 
-            if (totalAssetsForRedeem > 0) {
-                // Call fulfillRedeem on the vault with the stored totalAssets
-                IOrionVault(vault).fulfillRedeem(totalAssetsForRedeem);
-            }
+            _processVaultDepositAndRedeem(vault, totalAssetsForDeposit, totalAssetsForRedeem);
         }
+    }
+
+    /// @notice Processes deposit and redeem operations for a single vault
+    /// @param vault The vault address
+    /// @param totalAssetsForDeposit The total assets for deposit operations
+    /// @param totalAssetsForRedeem The total assets for redeem operations
+    function _processVaultDepositAndRedeem(
+        address vault,
+        uint256 totalAssetsForDeposit,
+        uint256 totalAssetsForRedeem
+    ) internal {
+        IOrionVault vaultContract = IOrionVault(vault);
+
+        // Check if vault has pending deposits and redemptions
+        uint256 pendingDeposit = vaultContract.pendingDeposit();
+        uint256 pendingRedeem = vaultContract.pendingRedeem();
+
+        if (pendingDeposit > 0) {
+            // Only deposits exist
+            vaultContract.fulfillDeposit(totalAssetsForDeposit);
+        } else if (pendingRedeem > 0) {
+            // Only redemptions exist
+            vaultContract.fulfillRedeem(totalAssetsForRedeem);
+        }
+        // If neither exists, do nothing
     }
 }

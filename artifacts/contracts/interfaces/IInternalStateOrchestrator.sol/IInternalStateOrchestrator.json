@@ -167,6 +167,25 @@
           "type": "address"
         }
       ],
+      "name": "getVaultTotalAssetsForFulfillDeposit",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "totalAssets",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "vault",
+          "type": "address"
+        }
+      ],
       "name": "getVaultTotalAssetsForFulfillRedeem",
       "outputs": [
         {
