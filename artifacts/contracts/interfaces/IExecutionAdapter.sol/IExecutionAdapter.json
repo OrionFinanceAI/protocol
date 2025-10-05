@@ -14,11 +14,6 @@
           "internalType": "uint256",
           "name": "sharesAmount",
           "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "maxUnderlyingAmount",
-          "type": "uint256"
         }
       ],
       "name": "buy",
@@ -42,11 +37,6 @@
         {
           "internalType": "uint256",
           "name": "sharesAmount",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "minUnderlyingAmount",
           "type": "uint256"
         }
       ],

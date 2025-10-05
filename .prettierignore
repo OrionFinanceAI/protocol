@@ -11,6 +11,7 @@ node_modules
 types
 .venv
 protocol-costs
+orion-strategies
 
 # files
 *.env

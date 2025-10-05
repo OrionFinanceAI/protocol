@@ -56,6 +56,19 @@
     {
       "inputs": [
         {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "depositLiquidity",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
           "internalType": "bytes",
           "name": "performData",
           "type": "bytes"
@@ -119,11 +132,11 @@
       "inputs": [
         {
           "internalType": "uint256",
-          "name": "_slippageBound",
+          "name": "_targetBufferRatio",
           "type": "uint256"
         }
       ],
-      "name": "setSlippageBound",
+      "name": "setTargetBufferRatio",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
@@ -207,6 +220,19 @@
         }
       ],
       "name": "updateExecutionMinibatchSize",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "withdrawLiquidity",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

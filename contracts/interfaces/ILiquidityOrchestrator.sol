@@ -13,7 +13,7 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
         Idle,
         SellingLeg,
         BuyingLeg,
-        FulfillRedeem
+        FulfillDepositAndRedeem
     }
 
     /// @notice Returns the current upkeep phase
@@ -37,9 +37,9 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @param _internalStatesOrchestrator The address of the internal states orchestrator
     function setInternalStatesOrchestrator(address _internalStatesOrchestrator) external;
 
-    /// @notice Sets the slippage bound
-    /// @param _slippageBound The new slippage bound
-    function setSlippageBound(uint256 _slippageBound) external;
+    /// @notice Sets the target buffer ratio
+    /// @param _targetBufferRatio The new target buffer ratio
+    function setTargetBufferRatio(uint256 _targetBufferRatio) external;
 
     /// @notice Claim protocol fees with specified amount
     /// @dev Called by the Owner to claim a specific amount of protocol fees
@@ -73,4 +73,15 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @param user The user to transfer funds to
     /// @param amount The amount of underlying assets to transfer
     function transferRedemptionFunds(address user, uint256 amount) external;
+
+    /// @notice Deposits underlying assets to the liquidity orchestrator buffer
+    /// @dev Can only be called by the owner. Increases the buffer amount by the deposited amount.
+    /// @param amount The amount of underlying assets to deposit
+    function depositLiquidity(uint256 amount) external;
+
+    /// @notice Withdraws underlying assets from the liquidity orchestrator buffer
+    /// @dev Can only be called by the owner. Decreases the buffer amount by the withdrawn amount.
+    ///      Includes safety checks to prevent predatory withdrawals that could break protocol operations.
+    /// @param amount The amount of underlying assets to withdraw
+    function withdrawLiquidity(uint256 amount) external;
 }

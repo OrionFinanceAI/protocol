@@ -54,6 +54,10 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     /// @return The pending protocol fees
     function pendingProtocolFees() external view returns (uint256);
 
+    /// @notice Returns the current buffer amount
+    /// @return The current buffer amount
+    function bufferAmount() external view returns (uint256);
+
     /// @notice Subtracts a specified amount from the pending protocol fees
     /// @param amount The amount to subtract from pending protocol fees
     function subtractPendingProtocolFees(uint256 amount) external;
@@ -101,4 +105,14 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     /// @param vault The vault address
     /// @return totalAssets The total assets for fulfill redeem
     function getVaultTotalAssetsForFulfillRedeem(address vault) external view returns (uint256 totalAssets);
+
+    /// @notice Get total assets for fulfill deposit for a specific vault
+    /// @param vault The vault address
+    /// @return totalAssets The total assets for fulfill deposit
+    function getVaultTotalAssetsForFulfillDeposit(address vault) external view returns (uint256 totalAssets);
+
+    /// @notice Get the list of tokens for the current epoch
+    /// @return tokens The array of token addresses used in the current epoch
+    /// @dev This function blocks if the internal state orchestrator is not idle
+    function getEpochTokens() external view returns (address[] memory tokens);
 }

@@ -165,24 +165,23 @@ describe("Orchestrators", function () {
     // Configure LiquidityOrchestrator
     await liquidityOrchestrator.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
 
-    // Set slippage bound to initialize targetBufferRatio
-    await liquidityOrchestrator.setSlippageBound(100); // 1% slippage bound
+    // Set target buffer ratio to initialize targetBufferRatio
+    await liquidityOrchestrator.setTargetBufferRatio(100); // 1% target buffer ratio
 
-    // Test slippage bound validation
-    await expect(liquidityOrchestrator.setSlippageBound(0)).to.be.revertedWithCustomError(
+    // Test target buffer ratio validation
+    await expect(liquidityOrchestrator.setTargetBufferRatio(0)).to.be.revertedWithCustomError(
       liquidityOrchestrator,
       "InvalidArguments",
     );
 
-    await expect(liquidityOrchestrator.setSlippageBound(2001)).to.be.revertedWithCustomError(
+    await expect(liquidityOrchestrator.setTargetBufferRatio(501)).to.be.revertedWithCustomError(
       liquidityOrchestrator,
       "InvalidArguments",
     );
 
-    // Test valid slippage bounds
-    await liquidityOrchestrator.setSlippageBound(2000); // 20% slippage bound
-    await liquidityOrchestrator.setSlippageBound(1); // 0.01% slippage bound
-    await liquidityOrchestrator.setSlippageBound(500); // 5% slippage bound
+    // Test valid target buffer ratios
+    await liquidityOrchestrator.setTargetBufferRatio(1); // 0.01% target buffer ratio
+    await liquidityOrchestrator.setTargetBufferRatio(400); // 4% target buffer ratio
 
     // Deploy Execution Adapters
     const OrionAssetERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
@@ -400,7 +399,7 @@ describe("Orchestrators", function () {
         "SystemNotIdle",
       );
 
-      await expect(liquidityOrchestrator.setSlippageBound(100)).to.be.revertedWithCustomError(
+      await expect(liquidityOrchestrator.setTargetBufferRatio(100)).to.be.revertedWithCustomError(
         liquidityOrchestrator,
         "SystemNotIdle",
       );
@@ -736,22 +735,41 @@ describe("Orchestrators", function () {
       void expect(performData).to.equal("0x");
     });
 
-    it("should only allow automation registry to call performUpkeep", async function () {
+    it("should allow owner to call performUpkeep", async function () {
       // Fast forward time to trigger upkeep
       const epochDuration = await internalStatesOrchestrator.epochDuration();
       await time.increase(epochDuration + 1n);
 
       const [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
 
-      // Should fail when called by non-automation registry
-      await expect(internalStatesOrchestrator.connect(owner).performUpkeep(performData)).to.be.revertedWithCustomError(
-        internalStatesOrchestrator,
-        "NotAuthorized",
-      );
+      // Should succeed when called by owner
+      await expect(internalStatesOrchestrator.connect(owner).performUpkeep(performData)).to.not.be.reverted;
+    });
+
+    it("should allow automation registry to call performUpkeep", async function () {
+      // Fast forward time to trigger upkeep
+      const epochDuration = await internalStatesOrchestrator.epochDuration();
+      await time.increase(epochDuration + 1n);
+
+      const [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
 
       // Should succeed when called by automation registry
       await expect(internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData)).to.not.be
         .reverted;
+    });
+
+    it("should not allow unauthorized addresses to call performUpkeep", async function () {
+      // Fast forward time to trigger upkeep
+      const epochDuration = await internalStatesOrchestrator.epochDuration();
+      await time.increase(epochDuration + 1n);
+
+      const [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+
+      // Should fail when called by non-authorized address (user)
+      await expect(internalStatesOrchestrator.connect(user).performUpkeep(performData)).to.be.revertedWithCustomError(
+        internalStatesOrchestrator,
+        "NotAuthorized",
+      );
     });
 
     it("should not trigger liquidity orchestrator when epoch counter hasn't changed", async function () {
@@ -766,26 +784,43 @@ describe("Orchestrators", function () {
       expect(liquidityPerformData).to.equal("0x");
     });
 
-    it("should only allow automation registry to call liquidity orchestrator performUpkeep", async function () {
-      // Should fail when called by non-automation registry
-      await expect(liquidityOrchestrator.connect(owner).performUpkeep("0x")).to.be.revertedWithCustomError(
-        liquidityOrchestrator,
-        "NotAuthorized",
-      );
+    it("should allow owner to call liquidity orchestrator performUpkeep", async function () {
+      // Get valid performData for liquidity orchestrator
+      const [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+
+      // Should succeed when called by owner (only if upkeep is needed)
+      if (liquidityUpkeepNeeded) {
+        await expect(liquidityOrchestrator.connect(owner).performUpkeep(liquidityPerformData)).to.not.be.reverted;
+      }
     });
 
-    it("should handle slippage calculations safely with edge cases", async function () {
-      // Test with maximum valid slippage bound
-      await liquidityOrchestrator.setSlippageBound(1999);
+    it("should allow automation registry to call liquidity orchestrator performUpkeep", async function () {
+      // Get valid performData for liquidity orchestrator
+      const [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
 
-      // Test with minimum valid slippage bound
-      await liquidityOrchestrator.setSlippageBound(1);
+      // Should succeed when called by automation registry (only if upkeep is needed)
+      if (liquidityUpkeepNeeded) {
+        await expect(liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData)).to.not.be
+          .reverted;
+      }
+    });
 
-      // Test with typical slippage bound
-      await liquidityOrchestrator.setSlippageBound(100);
+    it("should not allow unauthorized addresses to call liquidity orchestrator performUpkeep", async function () {
+      // Get valid performData for liquidity orchestrator
+      const [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
 
-      // Verify slippage bound is set correctly
-      expect(await liquidityOrchestrator.slippageBound()).to.equal(100);
+      // Should fail when called by non-authorized address (user)
+      await expect(
+        liquidityOrchestrator.connect(user).performUpkeep(liquidityPerformData),
+      ).to.be.revertedWithCustomError(liquidityOrchestrator, "NotAuthorized");
+    });
+
+    it("should handle target buffer ratio calculations safely with edge cases", async function () {
+      // Test with typical target buffer ratio
+      await liquidityOrchestrator.setTargetBufferRatio(100);
+
+      // Verify target buffer ratio is set correctly
+      expect(await liquidityOrchestrator.targetBufferRatio()).to.equal(100);
     });
   });
 

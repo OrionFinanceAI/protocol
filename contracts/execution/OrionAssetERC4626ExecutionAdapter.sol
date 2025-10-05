@@ -46,18 +46,10 @@ contract OrionAssetERC4626ExecutionAdapter is IExecutionAdapter {
         liquidityOrchestrator = config.liquidityOrchestrator();
     }
 
-    // TODO: true for both buy and sell: We need a solution to gracefully handle failing transactions.
-    // As improbable as it is, it could happen and can block the system.
-    // A mask of the failed asset transactions leads to a partial update of the vault states.
-    // To compute the resulting amount to be added to the underlying asset (in the whitelisted assets)
-    // necessary to compute the mismatch between the previously computed total assets (iso) and the one
-    // associated with the partial_portfolio * oracle_prices. For encrypted vaults this implies a decryption.
-
     /// @inheritdoc IExecutionAdapter
     function sell(
         address vaultAsset,
-        uint256 sharesAmount,
-        uint256 minUnderlyingAmount
+        uint256 sharesAmount
     ) external override onlyLiquidityOrchestrator returns (uint256 receivedUnderlyingAmount) {
         try IERC4626(vaultAsset).asset() returns (address vaultUnderlyingAsset) {
             if (vaultUnderlyingAsset != underlyingAsset) revert ErrorsLib.InvalidAddress();
@@ -68,12 +60,6 @@ contract OrionAssetERC4626ExecutionAdapter is IExecutionAdapter {
 
         IERC4626 vault = IERC4626(vaultAsset);
 
-        receivedUnderlyingAmount = vault.previewMint(sharesAmount);
-
-        if (receivedUnderlyingAmount < minUnderlyingAmount) {
-            revert ErrorsLib.SlippageExceeded();
-        }
-
         // Redeem shares to get underlying assets
         // slither-disable-next-line unused-return
         receivedUnderlyingAmount = vault.redeem(sharesAmount, msg.sender, msg.sender);
@@ -82,8 +68,7 @@ contract OrionAssetERC4626ExecutionAdapter is IExecutionAdapter {
     /// @inheritdoc IExecutionAdapter
     function buy(
         address vaultAsset,
-        uint256 sharesAmount,
-        uint256 maxUnderlyingAmount
+        uint256 sharesAmount
     ) external override onlyLiquidityOrchestrator returns (uint256 spentUnderlyingAmount) {
         try IERC4626(vaultAsset).asset() returns (address vaultUnderlyingAsset) {
             if (vaultUnderlyingAsset != underlyingAsset) revert ErrorsLib.InvalidAddress();
@@ -95,10 +80,6 @@ contract OrionAssetERC4626ExecutionAdapter is IExecutionAdapter {
         IERC4626 vault = IERC4626(vaultAsset);
 
         spentUnderlyingAmount = vault.previewMint(sharesAmount);
-
-        if (spentUnderlyingAmount > maxUnderlyingAmount) {
-            revert ErrorsLib.SlippageExceeded();
-        }
 
         // Pull underlying assets from the caller
         underlyingAssetToken.safeTransferFrom(msg.sender, address(this), spentUnderlyingAmount);

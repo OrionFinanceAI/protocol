@@ -51,6 +51,7 @@ contract OrionConfig is Ownable, IOrionConfig {
     // Vault-specific configuration
     using EnumerableSet for EnumerableSet.AddressSet;
     EnumerableSet.AddressSet private whitelistedAssets;
+    EnumerableSet.AddressSet private whitelistedVaultOwners;
 
     /// @notice Mapping of token address to its decimals
     mapping(address => uint8) public tokenDecimals;
@@ -70,7 +71,6 @@ contract OrionConfig is Ownable, IOrionConfig {
     /// @param underlyingAsset_ The address of the underlying asset contract
     /// @dev The underlying asset is automatically added to the investment universe whitelist because:
     /// @dev - Curators may decide to be underleveraged in their active positions;
-    /// @dev - High slippage transactions may revert and force liquidations from whitelisted assets;
     /// @dev - removeWhitelistedAsset could trigger forced liquidations.
     constructor(address initialOwner, address underlyingAsset_) Ownable(initialOwner) {
         if (underlyingAsset_ == address(0)) revert ErrorsLib.ZeroAddress();
@@ -85,7 +85,8 @@ contract OrionConfig is Ownable, IOrionConfig {
         // slither-disable-next-line unused-return
         whitelistedAssets.add(underlyingAsset_);
 
-        emit EventsLib.WhitelistedAssetAdded(underlyingAsset_);
+        // slither-disable-next-line unused-return
+        whitelistedVaultOwners.add(initialOwner);
     }
 
     // === Protocol Configuration ===
@@ -185,6 +186,17 @@ contract OrionConfig is Ownable, IOrionConfig {
     /// @inheritdoc IOrionConfig
     function isWhitelisted(address asset) external view returns (bool) {
         return whitelistedAssets.contains(asset);
+    }
+
+    /// @inheritdoc IOrionConfig
+    function addWhitelistedVaultOwner(address vaultOwner) external onlyOwner {
+        bool inserted = whitelistedVaultOwners.add(vaultOwner);
+        if (!inserted) revert ErrorsLib.AlreadyRegistered();
+    }
+
+    /// @inheritdoc IOrionConfig
+    function isWhitelistedVaultOwner(address vaultOwner) external view returns (bool) {
+        return whitelistedVaultOwners.contains(vaultOwner);
     }
 
     // === Orion Vaults ===

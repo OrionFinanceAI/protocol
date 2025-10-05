@@ -23,7 +23,6 @@ import { SepoliaConfig } from "@fhevm/solidity/config/ZamaConfig.sol";
  * @author Orion Finance
  * @dev This contract is responsible for:
  *      - Reading current vault states and market data;
- *      - Processing deposit requests from LPs;
  *      - Processing curator fees and high water mark;
  *      - Updating vault states;
  *      - Computing state estimations for Liquidity Orchestrator;
@@ -98,6 +97,8 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         mapping(address => euint128) encryptedFinalBatchPortfolio;
         /// @notice Total assets for fulfill redeem - vault address to total assets for fulfillRedeem [assets]
         mapping(address => uint256) vaultsTotalAssetsForFulfillRedeem;
+        /// @notice Total assets for fulfill deposit - vault address to total assets for fulfillDeposit [assets]
+        mapping(address => uint256) vaultsTotalAssetsForFulfillDeposit;
         /// @notice Selling orders - token address to number of shares that needs to be sold [shares]
         mapping(address => uint256) sellingOrders;
         /// @notice Buying orders - token address to number of shares that needs to be bought [shares]
@@ -149,9 +150,11 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     /// @notice Decrypted values from the FHEVM callback
     uint256[] internal _decryptedValues;
 
-    /// @dev Restricts function to only Chainlink Automation registry
-    modifier onlyAutomationRegistry() {
-        if (msg.sender != automationRegistry) revert ErrorsLib.NotAuthorized();
+    /// @dev Restricts function to only owner or automation registry
+    modifier onlyAuthorizedTrigger() {
+        if (msg.sender != owner() && msg.sender != automationRegistry) {
+            revert ErrorsLib.NotAuthorized();
+        }
         _;
     }
 
@@ -230,9 +233,9 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
     /// @inheritdoc IInternalStateOrchestrator
     function updateProtocolFees(uint16 _vFeeCoefficient, uint16 _rsFeeCoefficient) external onlyOwner {
-        /// Maximum volume fee: 1%
+        /// Maximum volume fee: 0.5%
         /// Maximum revenue share fee: 20%
-        if (_vFeeCoefficient > 100 || _rsFeeCoefficient > 2_000) revert ErrorsLib.InvalidArguments();
+        if (_vFeeCoefficient > 50 || _rsFeeCoefficient > 2_000) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         vFeeCoefficient = _vFeeCoefficient;
@@ -277,7 +280,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
     /// @notice Performs state reading and estimation operations
     /// @param performData Encoded data containing the action type and minibatch index
-    function performUpkeep(bytes calldata performData) external override onlyAutomationRegistry nonReentrant {
+    function performUpkeep(bytes calldata performData) external override onlyAuthorizedTrigger nonReentrant {
         if (performData.length < 5) revert ErrorsLib.InvalidArguments();
 
         (bytes4 action, uint8 minibatchIndex) = abi.decode(performData, (bytes4, uint8));
@@ -326,6 +329,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             delete _currentEpoch.initialBatchPortfolio[token];
             delete _currentEpoch.vaultsTotalAssets[token];
             delete _currentEpoch.vaultsTotalAssetsForFulfillRedeem[token];
+            delete _currentEpoch.vaultsTotalAssetsForFulfillDeposit[token];
             delete _currentEpoch.finalBatchPortfolio[token];
             delete _currentEpoch.sellingOrders[token];
             delete _currentEpoch.buyingOrders[token];
@@ -425,7 +429,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             // STEP 6: DEPOSIT PROCESSING (add deposits, subtract withdrawals)
             totalAssets -= pendingRedeem;
             uint256 pendingDeposit = vault.pendingDeposit();
-            vault.fulfillDeposit(totalAssets);
+            _currentEpoch.vaultsTotalAssetsForFulfillDeposit[address(vault)] = totalAssets;
             totalAssets += pendingDeposit;
             _currentEpoch.vaultsTotalAssets[address(vault)] = totalAssets;
         }
@@ -488,7 +492,11 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                 uint256 price = _currentEpoch.priceArray[token];
 
                 // Calculate estimated value of the asset in underlying asset decimals
-                // TODO(fhevm): https://github.com/OpenZeppelin/openzeppelin-confidential-contracts/issues/200
+                // TODO(fhevm): implement FHEVM mulDiv: upcast from euintX to euint256,
+                // perform operations, downcast to euintX.
+                // No trivial to support more than 256 for intermediate operation,
+                // so still less powerful than regular mulDiv.
+                // Measure gas impact on euint128 to euint64/32 at intent level and consider using different types.
                 euint128 unscaledValue = FHE.div(
                     FHE.mul(FHE.asEuint128(uint128(price)), shares),
                     uint128(priceAdapterPrecision)
@@ -599,7 +607,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             // STEP 6: DEPOSIT PROCESSING (add deposits, subtract withdrawals)
             totalAssets -= pendingRedeem;
             uint256 pendingDeposit = vault.pendingDeposit();
-            vault.fulfillDeposit(totalAssets);
+            _currentEpoch.vaultsTotalAssetsForFulfillDeposit[address(vault)] = totalAssets;
             totalAssets += pendingDeposit;
             _currentEpoch.vaultsTotalAssets[address(vault)] = totalAssets;
         }
@@ -812,6 +820,8 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             uint256[] memory buyingEstimatedUnderlyingAmounts
         )
     {
+        if (currentPhase != InternalUpkeepPhase.Idle) revert ErrorsLib.SystemNotIdle();
+
         address[] memory allTokens = _currentEpoch.tokens;
         (uint16 sellingCount, uint16 buyingCount) = _countOrders(allTokens);
 
@@ -901,7 +911,14 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     }
 
     /// @inheritdoc IInternalStateOrchestrator
+    function getEpochTokens() external view returns (address[] memory tokens) {
+        if (currentPhase != InternalUpkeepPhase.Idle) revert ErrorsLib.SystemNotIdle();
+        return _currentEpoch.tokens;
+    }
+
+    /// @inheritdoc IInternalStateOrchestrator
     function getPriceOf(address token) external view returns (uint256 price) {
+        if (currentPhase != InternalUpkeepPhase.Idle) revert ErrorsLib.SystemNotIdle();
         return _currentEpoch.priceArray[token];
     }
 
@@ -925,5 +942,12 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     /// @return totalAssets The total assets for fulfill redeem
     function getVaultTotalAssetsForFulfillRedeem(address vault) external view returns (uint256 totalAssets) {
         return _currentEpoch.vaultsTotalAssetsForFulfillRedeem[vault];
+    }
+
+    /// @notice Get total assets for fulfill deposit for a specific vault
+    /// @param vault The vault address
+    /// @return totalAssets The total assets for fulfill deposit
+    function getVaultTotalAssetsForFulfillDeposit(address vault) external view returns (uint256 totalAssets) {
+        return _currentEpoch.vaultsTotalAssetsForFulfillDeposit[vault];
     }
 }
