@@ -165,24 +165,23 @@ describe("Orchestrators", function () {
     // Configure LiquidityOrchestrator
     await liquidityOrchestrator.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
 
-    // Set slippage bound to initialize targetBufferRatio
-    await liquidityOrchestrator.setSlippageBound(100); // 1% slippage bound
+    // Set target buffer ratio to initialize targetBufferRatio
+    await liquidityOrchestrator.setTargetBufferRatio(100); // 1% target buffer ratio
 
-    // Test slippage bound validation
-    await expect(liquidityOrchestrator.setSlippageBound(0)).to.be.revertedWithCustomError(
+    // Test target buffer ratio validation
+    await expect(liquidityOrchestrator.setTargetBufferRatio(0)).to.be.revertedWithCustomError(
       liquidityOrchestrator,
       "InvalidArguments",
     );
 
-    await expect(liquidityOrchestrator.setSlippageBound(2001)).to.be.revertedWithCustomError(
+    await expect(liquidityOrchestrator.setTargetBufferRatio(501)).to.be.revertedWithCustomError(
       liquidityOrchestrator,
       "InvalidArguments",
     );
 
-    // Test valid slippage bounds
-    await liquidityOrchestrator.setSlippageBound(2000); // 20% slippage bound
-    await liquidityOrchestrator.setSlippageBound(1); // 0.01% slippage bound
-    await liquidityOrchestrator.setSlippageBound(500); // 5% slippage bound
+    // Test valid target buffer ratios
+    await liquidityOrchestrator.setTargetBufferRatio(1); // 0.01% target buffer ratio
+    await liquidityOrchestrator.setTargetBufferRatio(400); // 4% target buffer ratio
 
     // Deploy Execution Adapters
     const OrionAssetERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
@@ -400,7 +399,7 @@ describe("Orchestrators", function () {
         "SystemNotIdle",
       );
 
-      await expect(liquidityOrchestrator.setSlippageBound(100)).to.be.revertedWithCustomError(
+      await expect(liquidityOrchestrator.setTargetBufferRatio(100)).to.be.revertedWithCustomError(
         liquidityOrchestrator,
         "SystemNotIdle",
       );
@@ -816,18 +815,12 @@ describe("Orchestrators", function () {
       ).to.be.revertedWithCustomError(liquidityOrchestrator, "NotAuthorized");
     });
 
-    it("should handle slippage calculations safely with edge cases", async function () {
-      // Test with maximum valid slippage bound
-      await liquidityOrchestrator.setSlippageBound(1999);
+    it("should handle target buffer ratio calculations safely with edge cases", async function () {
+      // Test with typical target buffer ratio
+      await liquidityOrchestrator.setTargetBufferRatio(100);
 
-      // Test with minimum valid slippage bound
-      await liquidityOrchestrator.setSlippageBound(1);
-
-      // Test with typical slippage bound
-      await liquidityOrchestrator.setSlippageBound(100);
-
-      // Verify slippage bound is set correctly
-      expect(await liquidityOrchestrator.slippageBound()).to.equal(100);
+      // Verify target buffer ratio is set correctly
+      expect(await liquidityOrchestrator.targetBufferRatio()).to.equal(100);
     });
   });
 

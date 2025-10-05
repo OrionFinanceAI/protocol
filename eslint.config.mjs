@@ -32,6 +32,7 @@ export default defineConfig([
     "**/.venv",
     "**/fhevmTemp",
     "**/protocol-costs",
+    "**/orion-strategies",
     // files
     "**/*.env",
     "**/*.log",

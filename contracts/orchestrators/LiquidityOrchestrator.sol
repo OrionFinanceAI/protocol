@@ -62,9 +62,6 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     /// @notice Current minibatch index
     uint8 public currentMinibatchIndex;
 
-    /// @notice Slippage bound in basis points
-    uint256 public slippageBound;
-
     /// @notice Target buffer ratio
     uint256 public targetBufferRatio;
 
@@ -163,12 +160,44 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function setSlippageBound(uint256 _slippageBound) external onlyOwner {
-        if (_slippageBound == 0) revert ErrorsLib.InvalidArguments();
-        if (_slippageBound > 2000) revert ErrorsLib.InvalidArguments();
+    function setTargetBufferRatio(uint256 _targetBufferRatio) external onlyOwner {
+        if (_targetBufferRatio == 0) revert ErrorsLib.InvalidArguments();
+        // 5%
+        if (_targetBufferRatio > 500) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
-        slippageBound = _slippageBound;
-        targetBufferRatio = slippageBound.mulDiv(1100, 1000);
+        targetBufferRatio = _targetBufferRatio;
+    }
+
+    /// @inheritdoc ILiquidityOrchestrator
+    function depositLiquidity(uint256 amount) external onlyOwner {
+        if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+
+        // Transfer underlying assets from the owner to this contract
+        bool success = IERC20(underlyingAsset).transferFrom(msg.sender, address(this), amount);
+        if (!success) revert ErrorsLib.TransferFailed();
+
+        // Update buffer amount in the internal states orchestrator
+        internalStatesOrchestrator.updateBufferAmount(int256(amount));
+    }
+
+    /// @inheritdoc ILiquidityOrchestrator
+    function withdrawLiquidity(uint256 amount) external onlyOwner {
+        if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+
+        // Get current buffer amount from internal states orchestrator
+        uint256 currentBufferAmount = internalStatesOrchestrator.bufferAmount();
+
+        // Safety check: ensure withdrawal doesn't make buffer negative
+        if (amount > currentBufferAmount) revert ErrorsLib.InsufficientAmount();
+
+        // Update buffer amount in the internal states orchestrator
+        internalStatesOrchestrator.updateBufferAmount(-int256(amount));
+
+        // Transfer underlying assets to the owner
+        bool success = IERC20(underlyingAsset).transfer(msg.sender, amount);
+        if (!success) revert ErrorsLib.TransferFailed();
     }
 
     /// @inheritdoc ILiquidityOrchestrator
@@ -384,8 +413,6 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         IExecutionAdapter adapter = executionAdapterOf[asset];
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
 
-        uint256 minUnderlyingAmount = estimatedUnderlyingAmount.mulDiv(10000 - slippageBound, 10000);
-
         // Approve adapter to spend shares
         // slither-disable-next-line unused-return
         IERC20(asset).approve(address(adapter), 0);
@@ -393,7 +420,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         IERC20(asset).approve(address(adapter), sharesAmount);
 
         // Execute sell through adapter, pull shares from this contract and push underlying assets to it.
-        uint256 executionUnderlyingAmount = adapter.sell(asset, sharesAmount, minUnderlyingAmount);
+        uint256 executionUnderlyingAmount = adapter.sell(asset, sharesAmount);
 
         deltaBufferAmount += int256(executionUnderlyingAmount) - int256(estimatedUnderlyingAmount);
     }
@@ -406,16 +433,15 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         IExecutionAdapter adapter = executionAdapterOf[asset];
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
 
-        uint256 maxUnderlyingAmount = estimatedUnderlyingAmount.mulDiv(10000 + slippageBound, 10000);
-
-        // Approve adapter to spend underlying assets with slippage tolerance
+        // Approve adapter to spend underlying assets
         // slither-disable-next-line unused-return
         IERC20(underlyingAsset).approve(address(adapter), 0);
+
         // slither-disable-next-line unused-return
-        IERC20(underlyingAsset).approve(address(adapter), maxUnderlyingAmount);
+        IERC20(underlyingAsset).approve(address(adapter), estimatedUnderlyingAmount * 2);
 
         // Execute buy through adapter, pull underlying assets from this contract and push shares to it.
-        uint256 executionUnderlyingAmount = adapter.buy(asset, sharesAmount, maxUnderlyingAmount);
+        uint256 executionUnderlyingAmount = adapter.buy(asset, sharesAmount);
 
         deltaBufferAmount += int256(estimatedUnderlyingAmount) - int256(executionUnderlyingAmount);
     }

@@ -233,9 +233,9 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
     /// @inheritdoc IInternalStateOrchestrator
     function updateProtocolFees(uint16 _vFeeCoefficient, uint16 _rsFeeCoefficient) external onlyOwner {
-        /// Maximum volume fee: 1%
+        /// Maximum volume fee: 0.5%
         /// Maximum revenue share fee: 20%
-        if (_vFeeCoefficient > 100 || _rsFeeCoefficient > 2_000) revert ErrorsLib.InvalidArguments();
+        if (_vFeeCoefficient > 50 || _rsFeeCoefficient > 2_000) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         vFeeCoefficient = _vFeeCoefficient;

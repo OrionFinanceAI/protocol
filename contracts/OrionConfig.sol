@@ -71,7 +71,6 @@ contract OrionConfig is Ownable, IOrionConfig {
     /// @param underlyingAsset_ The address of the underlying asset contract
     /// @dev The underlying asset is automatically added to the investment universe whitelist because:
     /// @dev - Curators may decide to be underleveraged in their active positions;
-    /// @dev - High slippage transactions may revert and force liquidations from whitelisted assets;
     /// @dev - removeWhitelistedAsset could trigger forced liquidations.
     constructor(address initialOwner, address underlyingAsset_) Ownable(initialOwner) {
         if (underlyingAsset_ == address(0)) revert ErrorsLib.ZeroAddress();
