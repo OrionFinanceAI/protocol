@@ -574,7 +574,6 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         uint16 nVaults = uint16(encryptedVaultsEpoch.length);
         uint16 mTokens = uint16(_currentEpoch.tokens.length);
 
-        // Process each encrypted vault with decrypted total assets
         for (uint16 i = 0; i < nVaults; ++i) {
             IOrionEncryptedVault vault = IOrionEncryptedVault(encryptedVaultsEpoch[i]);
             if (!vault.isIntentValid()) {
@@ -612,7 +611,6 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             _currentEpoch.vaultsTotalAssets[address(vault)] = totalAssets;
         }
 
-        // Process decrypted initial batch portfolio values
         for (uint16 i = 0; i < mTokens; ++i) {
             address token = _currentEpoch.tokens[i];
             uint256 decryptedValue = _decryptedValues[nVaults + i];
@@ -704,6 +702,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
             IOrionTransparentVault vault = IOrionTransparentVault(transparentVaultsEpoch[i]);
 
             (address[] memory intentTokens, uint32[] memory intentWeights) = vault.getIntent();
+
             uint256 finalTotalAssets = _currentEpoch.vaultsTotalAssets[address(vault)];
 
             IOrionTransparentVault.Position[] memory portfolio = new IOrionTransparentVault.Position[](
@@ -749,7 +748,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         }
         // TODO(fhevm): Populate function body.
         ++currentMinibatchIndex;
-
+        // TODO(fhevm): ensure skipping vaults with invalid intents in postprocessing as well.
         uint16 nVaults = uint16(encryptedVaultsEpoch.length);
         uint16 i0 = minibatchIndex * encryptedMinibatchSize;
         uint16 i1 = i0 + encryptedMinibatchSize;
