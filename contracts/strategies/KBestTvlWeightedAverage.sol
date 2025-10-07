@@ -6,6 +6,7 @@ import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
 import { IOrionStrategy } from "../interfaces/IOrionStrategy.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
@@ -14,7 +15,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
  * @notice This strategy selects the top K assets based on their TVL and allocates them proportionally.
  * @author Orion Finance
  */
-contract KBestTvlWeightedAverage is IOrionStrategy, Ownable {
+contract KBestTvlWeightedAverage is IOrionStrategy, Ownable, ERC165 {
     /// @notice The Orion configuration contract
     IOrionConfig public config;
 
@@ -120,7 +121,7 @@ contract KBestTvlWeightedAverage is IOrionStrategy, Ownable {
         uint32 sumWeights = 0;
         for (uint8 i = 0; i < kActual; ++i) {
             uint32 weight = uint32((topTvls[i] * intentScale) / totalTVL);
-            intent[i] = IOrionTransparentVault.Position({ token: tokens[i], value: uint32(topTvls[i]) });
+            intent[i] = IOrionTransparentVault.Position({ token: tokens[i], value: weight });
             sumWeights += weight;
         }
 
@@ -134,5 +135,10 @@ contract KBestTvlWeightedAverage is IOrionStrategy, Ownable {
     /// @param kNew The new number of assets to pick
     function updateParameters(uint8 kNew) external onlyOwner {
         k = kNew;
+    }
+
+    /// @inheritdoc ERC165
+    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165) returns (bool) {
+        return interfaceId == type(IOrionStrategy).interfaceId || super.supportsInterface(interfaceId);
     }
 }

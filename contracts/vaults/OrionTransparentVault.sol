@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
+import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import "./OrionVault.sol";
 import "../interfaces/IOrionConfig.sol";
 import "../interfaces/IOrionTransparentVault.sol";
@@ -159,14 +160,19 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
     /// --------- INTERNAL FUNCTIONS ---------
 
-    /// @notice Update the curator type flag based on whether the curator is a wallet or a smart contract
+    /// @notice Update the curator type flag based on ERC-165 interface detection
     function _updateCuratorType() internal {
         if (curator.code.length == 0) {
             // EOA (wallet) - active curator
             _isPassiveCurator = false;
         } else {
-            // Smart contract - passive curator
-            _isPassiveCurator = true;
+            // Smart contract - check if it supports IOrionStrategy interface
+            try IERC165(curator).supportsInterface(type(IOrionStrategy).interfaceId) returns (bool supported) {
+                _isPassiveCurator = supported;
+            } catch {
+                // If supportsInterface fails, treat as active curator (push-based)
+                _isPassiveCurator = false;
+            }
         }
     }
 
