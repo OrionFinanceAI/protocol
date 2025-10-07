@@ -701,19 +701,8 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         for (uint16 i = i0; i < i1; ++i) {
             IOrionTransparentVault vault = IOrionTransparentVault(transparentVaultsEpoch[i]);
 
-            address[] memory intentTokens = new address[](0);
-            uint32[] memory intentWeights = new uint32[](0);
+            (address[] memory intentTokens, uint32[] memory intentWeights) = vault.getIntent();
 
-            try vault.getIntent() returns (address[] memory tokens, uint32[] memory weights) {
-                intentTokens = tokens;
-                intentWeights = weights;
-            } catch {
-                // For passive strategies, portfolio computation happens in getIntent().
-                // Gracefully handle failures that can occur when the curator strategy is passive.
-                // Skip processing this vault if intent computation fails
-                // This can happen when passive curator strategies fail or return invalid intents
-                continue;
-            }
             uint256 finalTotalAssets = _currentEpoch.vaultsTotalAssets[address(vault)];
 
             IOrionTransparentVault.Position[] memory portfolio = new IOrionTransparentVault.Position[](

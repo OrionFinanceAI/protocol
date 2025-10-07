@@ -177,8 +177,6 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
         address[] memory vaultWhitelistedAssets = this.vaultWhitelist();
         // Call the passive curator to compute intent
         Position[] memory intent = IOrionStrategy(curator).computeIntent(vaultWhitelistedAssets);
-        // Validate the computed intent
-        _validateComputedIntent(intent);
 
         // Convert to return format
         tokens = new address[](intent.length);
@@ -187,28 +185,6 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
             tokens[i] = intent[i].token;
             weights[i] = intent[i].value;
         }
-    }
-
-    /// @notice Validate a computed intent from a passive curator
-    /// @param intent The intent to validate
-    function _validateComputedIntent(Position[] memory intent) internal view {
-        if (intent.length == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
-
-        // Extract asset addresses for validation
-        address[] memory assets = new address[](intent.length);
-        uint256 totalWeight = 0;
-
-        for (uint16 i = 0; i < intent.length; ++i) {
-            address token = intent[i].token;
-            uint32 weight = intent[i].value;
-            assets[i] = token;
-            totalWeight += weight;
-        }
-
-        // Validate that all assets in the intent are whitelisted for this vault
-        _validateIntentAssets(assets);
-        // Validate that the total weight is 100%
-        if (totalWeight != 10 ** curatorIntentDecimals) revert ErrorsLib.InvalidTotalWeight();
     }
 
     /// @notice Get the curator type
