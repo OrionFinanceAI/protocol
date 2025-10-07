@@ -5,17 +5,21 @@ import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import "./OrionVault.sol";
 import "../interfaces/IOrionConfig.sol";
 import "../interfaces/IOrionTransparentVault.sol";
+import "../interfaces/IOrionStrategy.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { EventsLib } from "../libraries/EventsLib.sol";
 
 /**
  * @title OrionTransparentVault
- * @notice A transparent implementation of OrionVault where curator intents are submitted in plaintext
+ * @notice A transparent implementation of OrionVault supporting both active and passive management strategies
  * @author Orion Finance
  * @dev
- * This implementation stores curator intents as a mapping of token addresses to allocation percentages.
- * The intents are submitted and readable in plaintext, making this suitable for use cases not requiring
- * privacy of the portfolio allocation strategy, while maintaining capital efficiency.
+ * This implementation supports two curator types:
+ * 1. Active Management: Wallet curators submit intents via submitIntent() (push-based)
+ * 2. Passive Management: Smart contract curators implement IOrionStrategy for on-demand intent computation (pull-based)
+ *
+ * The vault automatically detects curator type and handles intent retrieval accordingly.
+ * Vault owners can switch between active and passive management by updating the curator.
  */
 contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
@@ -24,7 +28,12 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     EnumerableMap.AddressToUintMap internal _portfolio;
 
     /// @notice Curator intent (w_1) - mapping of token address to target allocation
+    /// @dev Only used for active management (wallet curators). Passive curators compute intents on-demand.
     EnumerableMap.AddressToUintMap internal _portfolioIntent;
+
+    /// @notice Flag indicating if the current curator is a passive curator (smart contract)
+    /// @dev This is cached to avoid repeated interface checks during intent retrieval
+    bool private _isPassiveCurator;
 
     /// @notice Constructor
     /// @param vaultOwner The address of the vault owner
@@ -44,12 +53,15 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
         uint8 feeType,
         uint16 performanceFee,
         uint16 managementFee
-    ) OrionVault(vaultOwner, curator, configAddress, name, symbol, feeType, performanceFee, managementFee) {}
+    ) OrionVault(vaultOwner, curator, configAddress, name, symbol, feeType, performanceFee, managementFee) {
+        _updateCuratorType();
+    }
 
     /// --------- CURATOR FUNCTIONS ---------
 
     /// @inheritdoc IOrionTransparentVault
     function submitIntent(Position[] calldata intent) external onlyCurator {
+        if (_isPassiveCurator) revert ErrorsLib.InvalidArguments();
         if (intent.length == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
 
         _portfolioIntent.clear();
@@ -92,13 +104,19 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
     /// @inheritdoc IOrionTransparentVault
     function getIntent() external view returns (address[] memory tokens, uint32[] memory weights) {
-        uint16 length = uint16(_portfolioIntent.length());
-        tokens = new address[](length);
-        weights = new uint32[](length);
-        for (uint16 i = 0; i < length; ++i) {
-            (address token, uint256 weight) = _portfolioIntent.at(i);
-            tokens[i] = token;
-            weights[i] = uint32(weight);
+        if (_isPassiveCurator) {
+            // For passive curators, compute pull intent from strategy
+            return _computePassiveIntent();
+        } else {
+            // For active curators, return stored pushed intent
+            uint16 length = uint16(_portfolioIntent.length());
+            tokens = new address[](length);
+            weights = new uint32[](length);
+            for (uint16 i = 0; i < length; ++i) {
+                (address token, uint256 weight) = _portfolioIntent.at(i);
+                tokens[i] = token;
+                weights[i] = uint32(weight);
+            }
         }
     }
 
@@ -126,5 +144,76 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
         // Emit event for tracking state updates
         emit EventsLib.VaultStateUpdated(newTotalAssets);
+    }
+
+    /// --------- VAULT OWNER FUNCTIONS ---------
+
+    /// @notice Override updateCurator to handle curator type detection
+    /// @param newCurator The new curator address
+    function updateCurator(address newCurator) external override(OrionVault, IOrionVault) onlyVaultOwner {
+        if (newCurator == address(0)) revert ErrorsLib.InvalidAddress();
+        curator = newCurator;
+        _updateCuratorType();
+        emit CuratorUpdated(newCurator);
+    }
+
+    /// --------- INTERNAL FUNCTIONS ---------
+
+    /// @notice Update the curator type flag based on whether the curator is a wallet or a smart contract
+    function _updateCuratorType() internal {
+        if (curator.code.length == 0) {
+            // EOA (wallet) - active curator
+            _isPassiveCurator = false;
+        } else {
+            // Smart contract - passive curator
+            _isPassiveCurator = true;
+        }
+    }
+
+    /// @notice Compute intent for passive curators
+    /// @return tokens Array of token addresses
+    /// @return weights Array of weights
+    function _computePassiveIntent() internal view returns (address[] memory tokens, uint32[] memory weights) {
+        address[] memory vaultWhitelistedAssets = this.vaultWhitelist();
+        // Call the passive curator to compute intent
+        Position[] memory intent = IOrionStrategy(curator).computeIntent(vaultWhitelistedAssets);
+        // Validate the computed intent
+        _validateComputedIntent(intent);
+
+        // Convert to return format
+        tokens = new address[](intent.length);
+        weights = new uint32[](intent.length);
+        for (uint16 i = 0; i < intent.length; ++i) {
+            tokens[i] = intent[i].token;
+            weights[i] = intent[i].value;
+        }
+    }
+
+    /// @notice Validate a computed intent from a passive curator
+    /// @param intent The intent to validate
+    function _validateComputedIntent(Position[] memory intent) internal view {
+        if (intent.length == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
+
+        // Extract asset addresses for validation
+        address[] memory assets = new address[](intent.length);
+        uint256 totalWeight = 0;
+
+        for (uint16 i = 0; i < intent.length; ++i) {
+            address token = intent[i].token;
+            uint32 weight = intent[i].value;
+            assets[i] = token;
+            totalWeight += weight;
+        }
+
+        // Validate that all assets in the intent are whitelisted for this vault
+        _validateIntentAssets(assets);
+        // Validate that the total weight is 100%
+        if (totalWeight != 10 ** curatorIntentDecimals) revert ErrorsLib.InvalidTotalWeight();
+    }
+
+    /// @notice Get the curator type
+    /// @return isPassive True if the curator is passive (smart contract), false if active (wallet)
+    function isPassiveCurator() external view returns (bool isPassive) {
+        return _isPassiveCurator;
     }
 }
