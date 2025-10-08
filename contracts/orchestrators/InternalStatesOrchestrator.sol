@@ -316,12 +316,38 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         return block.timestamp > _nextUpdateTime;
     }
 
+    /// @notice Build filtered transparent vaults list for the epoch
+    /// @dev Include only vaults with pending LP activity (deposit or redeem)
+    function _buildTransparentVaultsEpoch() internal {
+        address[] memory allTransparent = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
+        delete transparentVaultsEpoch;
+        for (uint16 i = 0; i < allTransparent.length; ++i) {
+            address v = allTransparent[i];
+            if (IOrionVault(v).pendingDeposit() == 0 && IOrionVault(v).pendingRedeem() == 0) continue;
+            // slither-disable-next-line unused-return
+            (address[] memory tTokens, ) = IOrionTransparentVault(v).getIntent();
+            if (tTokens.length == 0) continue;
+            transparentVaultsEpoch.push(v);
+        }
+    }
+
+    /// @notice Build filtered encrypted vaults list for the epoch
+    /// @dev Include only vaults with pending LP activity and valid intents
+    function _buildEncryptedVaultsEpoch() internal {
+        address[] memory allEncrypted = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
+        delete encryptedVaultsEpoch;
+        for (uint16 i = 0; i < allEncrypted.length; ++i) {
+            address v = allEncrypted[i];
+            if (IOrionVault(v).pendingDeposit() == 0 && IOrionVault(v).pendingRedeem() == 0) continue;
+            if (!IOrionEncryptedVault(v).isIntentValid()) continue;
+            encryptedVaultsEpoch.push(v);
+        }
+    }
+
     /// @notice Updates the next update time and resets the previous epoch state variables
     function _handleStart() internal {
         // Validate current phase
         if (!_shouldTriggerUpkeep() || !config.isSystemIdle()) revert ErrorsLib.TooEarly();
-
-        _nextUpdateTime = block.timestamp + epochDuration;
 
         for (uint16 i = 0; i < _currentEpoch.tokens.length; ++i) {
             address token = _currentEpoch.tokens[i];
@@ -341,11 +367,15 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         delete _currentEpoch.tokens;
         delete _decryptedValues;
 
-        transparentVaultsEpoch = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
-        encryptedVaultsEpoch = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
-        validEncryptedVaultsCount = 0;
+        // Build filtered vault lists for this epoch
+        _buildTransparentVaultsEpoch();
+        _buildEncryptedVaultsEpoch();
+        validEncryptedVaultsCount = uint16(encryptedVaultsEpoch.length);
 
-        currentPhase = InternalUpkeepPhase.PreprocessingTransparentVaults;
+        if (encryptedVaultsEpoch.length + transparentVaultsEpoch.length > 0) {
+            _nextUpdateTime = block.timestamp + epochDuration;
+            currentPhase = InternalUpkeepPhase.PreprocessingTransparentVaults;
+        }
     }
 
     // slither-disable-start reentrancy-no-eth
@@ -454,16 +484,6 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         for (uint16 i = i0; i < i1; ++i) {
             IOrionEncryptedVault vault = IOrionEncryptedVault(encryptedVaultsEpoch[i]);
 
-            // Due to the asynchronous nature of the FHEVM backend, intent submission validation happens in a callback.
-            // The decrypted validation result is stored in isIntentValid.
-            // The orchestrator checks this flag and skips processing if the intent is invalid.
-            if (!vault.isIntentValid()) {
-                // Skip processing this vault if intent is invalid
-                continue;
-            }
-
-            ++validEncryptedVaultsCount;
-
             (address[] memory portfolioTokens, euint128[] memory sharesPerAsset) = vault.getPortfolio();
 
             // STEP 1: LIVE PORTFOLIO
@@ -514,7 +534,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         }
 
         if (i1 == nVaults) {
-            if (i1 == 0 || validEncryptedVaultsCount == 0) {
+            if (nVaults == 0) {
                 // No encryptedVaults in current Epoch or no valid encrypted intents, go directly to Buffering.
                 currentPhase = InternalUpkeepPhase.Buffering;
                 currentMinibatchIndex = 0;
@@ -748,7 +768,6 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
         }
         // TODO(fhevm): Populate function body.
         ++currentMinibatchIndex;
-        // TODO(fhevm): ensure skipping vaults with invalid intents in postprocessing as well.
         uint16 nVaults = uint16(encryptedVaultsEpoch.length);
         uint16 i0 = minibatchIndex * encryptedMinibatchSize;
         uint16 i1 = i0 + encryptedMinibatchSize;
