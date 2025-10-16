@@ -9,7 +9,6 @@ import "../interfaces/IOrionConfig.sol";
 import "../interfaces/IInternalStateOrchestrator.sol";
 import "../libraries/EventsLib.sol";
 import "../interfaces/IOrionTransparentVault.sol";
-import "../interfaces/IOrionEncryptedVault.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../interfaces/IOrionVault.sol";
