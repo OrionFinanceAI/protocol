@@ -12,11 +12,8 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     enum InternalUpkeepPhase {
         Idle,
         PreprocessingTransparentVaults,
-        PreprocessingEncryptedVaults,
-        ProcessingDecryptedValues,
         Buffering,
         PostprocessingTransparentVaults,
-        PostprocessingEncryptedVaults,
         BuildingOrders
     }
 
@@ -42,8 +39,7 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
 
     /// @notice Updates the minibatch sizes
     /// @param _transparentMinibatchSize The new transparent minibatch size
-    /// @param _encryptedMinibatchSize The new encrypted minibatch size
-    function updateMinibatchSizes(uint8 _transparentMinibatchSize, uint8 _encryptedMinibatchSize) external;
+    function updateMinibatchSize(uint8 _transparentMinibatchSize) external;
 
     /// @notice Updates the protocol fees
     /// @param _vFeeCoefficient The new volume fee coefficient
@@ -61,16 +57,6 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     /// @notice Subtracts a specified amount from the pending protocol fees
     /// @param amount The amount to subtract from pending protocol fees
     function subtractPendingProtocolFees(uint256 amount) external;
-
-    /// @notice Callback function to decrypt the encrypted values
-    /// @param requestID The request ID
-    /// @param cleartexts The cleartexts
-    /// @param decryptionProof The decryption proof
-    function callbackPreProcessDecrypt(
-        uint256 requestID,
-        bytes calldata cleartexts,
-        bytes calldata decryptionProof
-    ) external;
 
     /// @notice Get selling and buying orders
     /// @return sellingTokens The tokens to sell

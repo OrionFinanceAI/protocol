@@ -11,7 +11,6 @@ import {
   InternalStatesOrchestrator,
   LiquidityOrchestrator,
   TransparentVaultFactory,
-  EncryptedVaultFactory,
   OrionTransparentVault,
   PriceAdapterRegistry,
   OrionAssetERC4626PriceAdapter,
@@ -20,7 +19,6 @@ import {
 
 describe("Passive Curator Strategy", function () {
   let transparentVaultFactory: TransparentVaultFactory;
-  let encryptedVaultFactory: EncryptedVaultFactory;
   let orionConfig: OrionConfig;
   let underlyingAsset: MockUnderlyingAsset;
   let mockAsset1: MockERC4626Asset;
@@ -134,11 +132,6 @@ describe("Passive Curator Strategy", function () {
     await transparentVaultFactoryDeployed.waitForDeployment();
     transparentVaultFactory = transparentVaultFactoryDeployed as unknown as TransparentVaultFactory;
 
-    const EncryptedVaultFactoryFactory = await ethers.getContractFactory("EncryptedVaultFactory");
-    const encryptedVaultFactoryDeployed = await EncryptedVaultFactoryFactory.deploy(await orionConfig.getAddress());
-    await encryptedVaultFactoryDeployed.waitForDeployment();
-    encryptedVaultFactory = encryptedVaultFactoryDeployed as unknown as EncryptedVaultFactory;
-
     const LiquidityOrchestratorFactory = await ethers.getContractFactory("LiquidityOrchestrator");
     const liquidityOrchestratorDeployed = await LiquidityOrchestratorFactory.deploy(
       owner.address,
@@ -161,10 +154,7 @@ describe("Passive Curator Strategy", function () {
     internalStatesOrchestrator = internalStatesOrchestratorDeployed as unknown as InternalStatesOrchestrator;
 
     await orionConfig.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
-    await orionConfig.setVaultFactories(
-      await transparentVaultFactory.getAddress(),
-      await encryptedVaultFactory.getAddress(),
-    );
+    await orionConfig.setVaultFactory(await transparentVaultFactory.getAddress());
 
     await internalStatesOrchestrator.connect(owner).updateProtocolFees(10, 1000);
 
@@ -377,31 +367,22 @@ describe("Passive Curator Strategy", function () {
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
 
-      // Continue with preprocessing
+      // Continue with buffering
       [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // PreprocessingEncryptedVaults
-
-      // Skip encrypted vaults (no encrypted vaults in this test)
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // Buffering
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // Buffering
 
       // Continue with postprocessing
       [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(5); // PostprocessingTransparentVaults
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
 
       // This is where the vault's getIntent() is called, which should call the strategy
       [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(6); // PostprocessingEncryptedVaults
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
 
       // Complete the cycle
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(7); // BuildingOrders
-
       [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Back to Idle

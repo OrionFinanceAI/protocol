@@ -36,8 +36,6 @@ contract OrionConfig is Ownable, IOrionConfig {
     address public liquidityOrchestrator;
     /// @notice Address of the transparent vault factory
     address public transparentVaultFactory;
-    /// @notice Address of the encrypted vault factory
-    address public encryptedVaultFactory;
     /// @notice Address of the price adapter registry
     address public priceAdapterRegistry;
 
@@ -61,8 +59,7 @@ contract OrionConfig is Ownable, IOrionConfig {
     EnumerableSet.AddressSet private encryptedVaults;
 
     modifier onlyFactories() {
-        if (msg.sender != transparentVaultFactory && msg.sender != encryptedVaultFactory)
-            revert ErrorsLib.UnauthorizedAccess();
+        if (msg.sender != transparentVaultFactory) revert ErrorsLib.UnauthorizedAccess();
         _;
     }
 
@@ -106,14 +103,11 @@ contract OrionConfig is Ownable, IOrionConfig {
     }
 
     /// @inheritdoc IOrionConfig
-    function setVaultFactories(address transparentFactory, address encryptedFactory) external onlyOwner {
+    function setVaultFactory(address transparentFactory) external onlyOwner {
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         if (transparentFactory == address(0)) revert ErrorsLib.ZeroAddress();
-        if (encryptedFactory == address(0)) revert ErrorsLib.ZeroAddress();
-        if (transparentVaultFactory != address(0) || encryptedVaultFactory != address(0))
-            revert ErrorsLib.AlreadyRegistered();
+        if (transparentVaultFactory != address(0)) revert ErrorsLib.AlreadyRegistered();
         transparentVaultFactory = transparentFactory;
-        encryptedVaultFactory = encryptedFactory;
     }
 
     /// @inheritdoc IOrionConfig

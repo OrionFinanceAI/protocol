@@ -19,29 +19,6 @@
     {
       "inputs": [
         {
-          "internalType": "uint256",
-          "name": "requestID",
-          "type": "uint256"
-        },
-        {
-          "internalType": "bytes",
-          "name": "cleartexts",
-          "type": "bytes"
-        },
-        {
-          "internalType": "bytes",
-          "name": "decryptionProof",
-          "type": "bytes"
-        }
-      ],
-      "name": "callbackPreProcessDecrypt",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
           "internalType": "bytes",
           "name": "checkData",
           "type": "bytes"
@@ -294,14 +271,9 @@
           "internalType": "uint8",
           "name": "_transparentMinibatchSize",
           "type": "uint8"
-        },
-        {
-          "internalType": "uint8",
-          "name": "_encryptedMinibatchSize",
-          "type": "uint8"
         }
       ],
-      "name": "updateMinibatchSizes",
+      "name": "updateMinibatchSize",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

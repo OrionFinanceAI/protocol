@@ -8,9 +8,7 @@ import {
   InternalStatesOrchestrator,
   LiquidityOrchestrator,
   TransparentVaultFactory,
-  EncryptedVaultFactory,
   OrionTransparentVault,
-  OrionEncryptedVault,
   MockUnderlyingAsset,
 } from "../typechain-types";
 
@@ -19,9 +17,7 @@ describe("Orchestrators - zero deposits and zero intents", function () {
   let internalStatesOrchestrator: InternalStatesOrchestrator;
   let liquidityOrchestrator: LiquidityOrchestrator;
   let transparentVaultFactory: TransparentVaultFactory;
-  let encryptedVaultFactory: EncryptedVaultFactory;
   let transparentVault: OrionTransparentVault;
-  let encryptedVault: OrionEncryptedVault;
   let underlyingAsset: MockUnderlyingAsset;
 
   let owner: SignerWithAddress;
@@ -68,15 +64,7 @@ describe("Orchestrators - zero deposits and zero intents", function () {
     await transparentVaultFactoryDeployed.waitForDeployment();
     transparentVaultFactory = transparentVaultFactoryDeployed as unknown as TransparentVaultFactory;
 
-    const EncryptedVaultFactoryFactory = await ethers.getContractFactory("EncryptedVaultFactory");
-    const encryptedVaultFactoryDeployed = await EncryptedVaultFactoryFactory.deploy(await orionConfig.getAddress());
-    await encryptedVaultFactoryDeployed.waitForDeployment();
-    encryptedVaultFactory = encryptedVaultFactoryDeployed as unknown as EncryptedVaultFactory;
-
-    await orionConfig.setVaultFactories(
-      await transparentVaultFactory.getAddress(),
-      await encryptedVaultFactory.getAddress(),
-    );
+    await orionConfig.setVaultFactory(await transparentVaultFactory.getAddress());
 
     await liquidityOrchestrator.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
     await liquidityOrchestrator.setTargetBufferRatio(100); // 1%
@@ -101,26 +89,9 @@ describe("Orchestrators - zero deposits and zero intents", function () {
       tvAddress,
     )) as unknown as OrionTransparentVault;
 
-    // Create encrypted vault (no intent submitted => invalid by default)
-    const tx2 = await encryptedVaultFactory.connect(owner).createVault(curator.address, "ZeroState EV", "ZEV", 0, 0, 0);
-    const rcpt2 = await tx2.wait();
-    const ev2 = rcpt2?.logs.find((log) => {
-      try {
-        const parsed = encryptedVaultFactory.interface.parseLog(log);
-        return parsed?.name === "OrionVaultCreated";
-      } catch {
-        return false;
-      }
-    });
-    const parsedEvent2 = encryptedVaultFactory.interface.parseLog(ev2!);
-    const evAddress = parsedEvent2?.args[0];
-    encryptedVault = (await ethers.getContractAt("OrionEncryptedVault", evAddress)) as unknown as OrionEncryptedVault;
-
     // Ensure no deposits or intents present
     expect(await transparentVault.pendingDeposit()).to.equal(0);
     expect(await transparentVault.pendingRedeem()).to.equal(0);
-    expect(await encryptedVault.pendingDeposit()).to.equal(0);
-    expect(await encryptedVault.pendingRedeem()).to.equal(0);
   });
 
   it("completes upkeep with zero TVL and zero intents without errors", async function () {

@@ -52,11 +52,10 @@ interface IOrionConfig {
     /// @param orchestrator The address of the liquidity orchestrator
     function setLiquidityOrchestrator(address orchestrator) external;
 
-    /// @notice Sets the vault factories for the protocol
+    /// @notice Sets the vault factory for the protocol
     /// @dev Can only be called by the contract owner
     /// @param transparentFactory The address of the transparent vault factory
-    /// @param encryptedFactory The address of the encrypted vault factory
-    function setVaultFactories(address transparentFactory, address encryptedFactory) external;
+    function setVaultFactory(address transparentFactory) external;
 
     /// @notice Sets the price adapter registry for the protocol
     /// @dev Can only be called by the contract owner

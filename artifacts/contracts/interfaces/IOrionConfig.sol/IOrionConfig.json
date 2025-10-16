@@ -345,14 +345,9 @@
           "internalType": "address",
           "name": "transparentFactory",
           "type": "address"
-        },
-        {
-          "internalType": "address",
-          "name": "encryptedFactory",
-          "type": "address"
         }
       ],
-      "name": "setVaultFactories",
+      "name": "setVaultFactory",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
