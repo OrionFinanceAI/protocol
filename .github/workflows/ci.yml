@@ -2,9 +2,9 @@ name: "CI"
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, fhevm]
   push:
-    branches: [main]
+    branches: [main, fhevm]
 
 jobs:
   ci:
