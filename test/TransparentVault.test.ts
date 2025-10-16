@@ -109,7 +109,7 @@ beforeEach(async function () {
 
   await orionConfig.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
   await orionConfig.setLiquidityOrchestrator(await liquidityOrchestrator.getAddress());
-  await orionConfig.setVaultFactories(await transparentVaultFactory.getAddress(), other.address);
+  await orionConfig.setVaultFactory(await transparentVaultFactory.getAddress());
   await orionConfig.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
   await orionConfig.setProtocolRiskFreeRate(0.0423 * 10_000);
 

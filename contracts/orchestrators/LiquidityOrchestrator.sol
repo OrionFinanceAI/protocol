@@ -9,7 +9,6 @@ import "../interfaces/IOrionConfig.sol";
 import "../interfaces/IInternalStateOrchestrator.sol";
 import "../libraries/EventsLib.sol";
 import "../interfaces/IOrionTransparentVault.sol";
-import "../interfaces/IOrionEncryptedVault.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../interfaces/IOrionVault.sol";
@@ -458,16 +457,6 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
         for (uint16 i = 0; i < transparentVaults.length; ++i) {
             address vault = transparentVaults[i];
-            uint256 totalAssetsForDeposit = internalStatesOrchestrator.getVaultTotalAssetsForFulfillDeposit(vault);
-            uint256 totalAssetsForRedeem = internalStatesOrchestrator.getVaultTotalAssetsForFulfillRedeem(vault);
-
-            _processVaultDepositAndRedeem(vault, totalAssetsForDeposit, totalAssetsForRedeem);
-        }
-
-        // Process encrypted vaults
-        address[] memory encryptedVaults = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
-        for (uint16 i = 0; i < encryptedVaults.length; ++i) {
-            address vault = encryptedVaults[i];
             uint256 totalAssetsForDeposit = internalStatesOrchestrator.getVaultTotalAssetsForFulfillDeposit(vault);
             uint256 totalAssetsForRedeem = internalStatesOrchestrator.getVaultTotalAssetsForFulfillRedeem(vault);
 

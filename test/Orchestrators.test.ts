@@ -1,6 +1,6 @@
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
-import { ethers, fhevm } from "hardhat";
+import { ethers } from "hardhat";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
 
 import {
@@ -11,16 +11,13 @@ import {
   InternalStatesOrchestrator,
   LiquidityOrchestrator,
   TransparentVaultFactory,
-  EncryptedVaultFactory,
   OrionTransparentVault,
-  OrionEncryptedVault,
   PriceAdapterRegistry,
   OrionAssetERC4626PriceAdapter,
 } from "../typechain-types";
 
 describe("Orchestrators", function () {
   let transparentVaultFactory: TransparentVaultFactory;
-  let encryptedVaultFactory: EncryptedVaultFactory;
   let orionConfig: OrionConfig;
   let underlyingAsset: MockUnderlyingAsset;
   let mockAsset1: MockERC4626Asset;
@@ -32,7 +29,6 @@ describe("Orchestrators", function () {
   let internalStatesOrchestrator: InternalStatesOrchestrator;
   let liquidityOrchestrator: LiquidityOrchestrator;
   let transparentVault: OrionTransparentVault;
-  let encryptedVault: OrionEncryptedVault;
 
   let owner: SignerWithAddress;
   let curator: SignerWithAddress;
@@ -123,12 +119,6 @@ describe("Orchestrators", function () {
     await transparentVaultFactoryDeployed.waitForDeployment();
     transparentVaultFactory = transparentVaultFactoryDeployed as unknown as TransparentVaultFactory;
 
-    // Deploy EncryptedVaultFactory
-    const EncryptedVaultFactoryFactory = await ethers.getContractFactory("EncryptedVaultFactory");
-    const encryptedVaultFactoryDeployed = await EncryptedVaultFactoryFactory.deploy(await orionConfig.getAddress());
-    await encryptedVaultFactoryDeployed.waitForDeployment();
-    encryptedVaultFactory = encryptedVaultFactoryDeployed as unknown as EncryptedVaultFactory;
-
     // Deploy LiquidityOrchestrator first
     const LiquidityOrchestratorFactory = await ethers.getContractFactory("LiquidityOrchestrator");
     const liquidityOrchestratorDeployed = await LiquidityOrchestratorFactory.deploy(
@@ -155,10 +145,7 @@ describe("Orchestrators", function () {
 
     // Configure OrionConfig
     await orionConfig.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
-    await orionConfig.setVaultFactories(
-      await transparentVaultFactory.getAddress(),
-      await encryptedVaultFactory.getAddress(),
-    );
+    await orionConfig.setVaultFactory(await transparentVaultFactory.getAddress());
 
     await internalStatesOrchestrator.connect(owner).updateProtocolFees(10, 1000);
 
@@ -264,65 +251,6 @@ describe("Orchestrators", function () {
     await underlyingAsset.connect(user).approve(await transparentVault.getAddress(), ethers.parseUnits("10000", 12));
     const depositAmount = ethers.parseUnits("100", 12);
     await transparentVault.connect(user).requestDeposit(depositAmount);
-
-    // Create an encrypted vault
-    const tx2 = await encryptedVaultFactory
-      .connect(owner)
-      .createVault(curator.address, "Test Encrypted Vault", "TEV", 0, 0, 0);
-    const receipt2 = await tx2.wait();
-
-    // Find the vault creation event
-    const event2 = receipt2?.logs.find((log) => {
-      try {
-        const parsed = encryptedVaultFactory.interface.parseLog(log);
-        return parsed?.name === "OrionVaultCreated";
-      } catch {
-        return false;
-      }
-    });
-
-    void expect(event2).to.not.be.undefined;
-    const parsedEvent2 = encryptedVaultFactory.interface.parseLog(event2!);
-    const vaultAddress2 = parsedEvent2?.args[0];
-
-    // Get the vault contract
-    encryptedVault = (await ethers.getContractAt(
-      "OrionEncryptedVault",
-      vaultAddress2,
-    )) as unknown as OrionEncryptedVault;
-
-    const encryptedIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), curator.address);
-
-    encryptedIntentBuffer.add128(400000000); // 40% * 10^9
-    encryptedIntentBuffer.add128(350000000); // 35% * 10^9
-    encryptedIntentBuffer.add128(240000000); // 24% * 10^9
-    encryptedIntentBuffer.add128(10000000); // 1% * 10^9
-
-    const encryptedIntentCiphertexts = await encryptedIntentBuffer.encrypt();
-
-    const encryptedIntent = [
-      {
-        token: await mockAsset1.getAddress(),
-        weight: encryptedIntentCiphertexts.handles[0],
-      },
-      {
-        token: await mockAsset2.getAddress(),
-        weight: encryptedIntentCiphertexts.handles[1],
-      },
-      {
-        token: await mockAsset3.getAddress(),
-        weight: encryptedIntentCiphertexts.handles[2],
-      },
-      {
-        token: await underlyingAsset.getAddress(),
-        weight: encryptedIntentCiphertexts.handles[3],
-      },
-    ];
-
-    await encryptedVault.connect(curator).submitIntent(encryptedIntent, encryptedIntentCiphertexts.inputProof);
-
-    await underlyingAsset.connect(user).approve(await encryptedVault.getAddress(), ethers.parseUnits("100", 12));
-    await encryptedVault.connect(user).requestDeposit(depositAmount);
   });
 
   describe("Idle-only functionality", function () {
@@ -336,17 +264,14 @@ describe("Orchestrators", function () {
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // Not idle anymore
 
-      const vaultAddress = await encryptedVault.getAddress();
+      const vaultAddress = await transparentVault.getAddress();
       await expect(orionConfig.removeOrionVault(vaultAddress, 1)).to.be.revertedWithCustomError(
         orionConfig,
         "SystemNotIdle",
       );
 
       await expect(
-        orionConfig.setVaultFactories(
-          await transparentVaultFactory.getAddress(),
-          await encryptedVaultFactory.getAddress(),
-        ),
+        orionConfig.setVaultFactory(await transparentVaultFactory.getAddress()),
       ).to.be.revertedWithCustomError(orionConfig, "SystemNotIdle");
 
       await expect(orionConfig.setProtocolRiskFreeRate(1000)).to.be.revertedWithCustomError(
@@ -367,7 +292,7 @@ describe("Orchestrators", function () {
         "SystemNotIdle",
       );
 
-      await expect(orionConfig.removeOrionVault(await encryptedVault.getAddress(), 1)).to.be.revertedWithCustomError(
+      await expect(orionConfig.removeOrionVault(await transparentVault.getAddress(), 0)).to.be.revertedWithCustomError(
         orionConfig,
         "SystemNotIdle",
       );
@@ -378,7 +303,7 @@ describe("Orchestrators", function () {
         "SystemNotIdle",
       );
 
-      await expect(internalStatesOrchestrator.updateMinibatchSizes(5, 3)).to.be.revertedWithCustomError(
+      await expect(internalStatesOrchestrator.updateMinibatchSize(5)).to.be.revertedWithCustomError(
         internalStatesOrchestrator,
         "SystemNotIdle",
       );
@@ -406,37 +331,33 @@ describe("Orchestrators", function () {
 
       // Test vault functions
       const depositAmount = ethers.parseUnits("100", 12);
-      await expect(encryptedVault.connect(user).requestDeposit(depositAmount)).to.be.revertedWithCustomError(
-        encryptedVault,
+      await expect(transparentVault.connect(user).requestDeposit(depositAmount)).to.be.revertedWithCustomError(
+        transparentVault,
         "SystemNotIdle",
       );
 
-      await expect(encryptedVault.connect(user).cancelDepositRequest(depositAmount)).to.be.revertedWithCustomError(
-        encryptedVault,
+      await expect(transparentVault.connect(user).cancelDepositRequest(depositAmount)).to.be.revertedWithCustomError(
+        transparentVault,
         "SystemNotIdle",
       );
 
       const redeemAmount = ethers.parseUnits("50", 18);
-      await expect(encryptedVault.connect(user).requestRedeem(redeemAmount)).to.be.revertedWithCustomError(
-        encryptedVault,
+      await expect(transparentVault.connect(user).requestRedeem(redeemAmount)).to.be.revertedWithCustomError(
+        transparentVault,
         "SystemNotIdle",
       );
 
-      await expect(encryptedVault.connect(user).cancelRedeemRequest(redeemAmount)).to.be.revertedWithCustomError(
-        encryptedVault,
+      await expect(transparentVault.connect(user).cancelRedeemRequest(redeemAmount)).to.be.revertedWithCustomError(
+        transparentVault,
         "SystemNotIdle",
       );
 
-      await expect(encryptedVault.connect(owner).updateFeeModel(0, 1000, 200)).to.be.revertedWithCustomError(
-        encryptedVault,
+      await expect(transparentVault.connect(owner).updateFeeModel(0, 1000, 200)).to.be.revertedWithCustomError(
+        transparentVault,
         "SystemNotIdle",
       );
 
-      // Test factory functions
-      await expect(
-        encryptedVaultFactory.createVault(curator.address, "Test Encrypted Vault", "TEV", 0, 0, 0),
-      ).to.be.revertedWithCustomError(encryptedVaultFactory, "SystemNotIdle");
-
+      // Test factory function
       await expect(
         transparentVaultFactory.createVault(curator.address, "Test Transparent Vault", "TTV", 0, 0, 0),
       ).to.be.revertedWithCustomError(transparentVaultFactory, "SystemNotIdle");
@@ -444,58 +365,6 @@ describe("Orchestrators", function () {
   });
 
   describe("performUpkeep", function () {
-    it("should complete full upkeep cycle with intent decryption", async function () {
-      // Await decryption oracle and verify intent is valid
-      await fhevm.awaitDecryptionOracle();
-      const isIntentValid = await encryptedVault.isIntentValid();
-      void expect(isIntentValid).to.be.true;
-
-      // Fast forward time to trigger upkeep
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Idle
-
-      const epochDuration = await internalStatesOrchestrator.epochDuration();
-      await time.increase(epochDuration + 1n);
-
-      let [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
-
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // PreprocessingEncryptedVaults
-
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      await fhevm.awaitDecryptionOracle();
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // Buffering
-
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(5); // PostprocessingTransparentVaults
-
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(6); // PostprocessingEncryptedVaults
-
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(7); // BuildingOrders
-
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Back to Idle
-      expect(await internalStatesOrchestrator.epochCounter()).to.equal(1); // Epoch incremented
-
-      // Check that orders were built
-      const [sellingTokens, _sellingAmounts, buyingTokens, _buyingAmounts] =
-        await internalStatesOrchestrator.getOrders();
-
-      // Should have all three assets in the orders arrays
-      expect(sellingTokens.length).to.equal(0);
-      expect(buyingTokens.length).to.equal(4);
-    });
-
     it("should complete full upkeep cycles without intent decryption", async function () {
       // Skip intent decryption - don't await decryption oracle
       // Encrypted Vault intents is invalid, so they are not processed
@@ -512,24 +381,15 @@ describe("Orchestrators", function () {
 
       [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // PreprocessingEncryptedVaults
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // Buffering
 
       [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // Buffering
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
 
       [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(5); // PostprocessingTransparentVaults
-
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(6); // PostprocessingEncryptedVaults
-
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(7); // BuildingOrders
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
 
       [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
@@ -629,24 +489,15 @@ describe("Orchestrators", function () {
 
       [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // PreprocessingEncryptedVaults
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // Buffering
 
       [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // Buffering
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
 
       [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(5); // PostprocessingTransparentVaults
-
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(6); // PostprocessingEncryptedVaults
-
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(7); // BuildingOrders
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
 
       [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
@@ -832,7 +683,7 @@ describe("Orchestrators", function () {
     });
 
     it("should allow owner to update minibatch sizes", async function () {
-      await expect(internalStatesOrchestrator.updateMinibatchSizes(2, 2)).to.not.be.reverted;
+      await expect(internalStatesOrchestrator.updateMinibatchSize(2)).to.not.be.reverted;
     });
 
     it("should allow owner to update protocol fees", async function () {
@@ -916,26 +767,6 @@ describe("Orchestrators", function () {
       ).to.be.revertedWithCustomError(internalStatesOrchestrator, "InvalidState");
     });
 
-    it("should revert with InvalidState when calling preprocessEV in wrong phase", async function () {
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Idle
-
-      const maliciousData = createMaliciousPerformData("preprocessEV(uint8)", 0);
-
-      await expect(
-        internalStatesOrchestrator.connect(automationRegistry).performUpkeep(maliciousData),
-      ).to.be.revertedWithCustomError(internalStatesOrchestrator, "InvalidState");
-    });
-
-    it("should revert with InvalidState when calling processDecryptedValues in wrong phase", async function () {
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Idle
-
-      const maliciousData = createMaliciousPerformData("processDecryptedValues()", 0);
-
-      await expect(
-        internalStatesOrchestrator.connect(automationRegistry).performUpkeep(maliciousData),
-      ).to.be.revertedWithCustomError(internalStatesOrchestrator, "InvalidState");
-    });
-
     it("should revert with InvalidState when calling buffer in wrong phase", async function () {
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Idle
 
@@ -950,16 +781,6 @@ describe("Orchestrators", function () {
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Idle
 
       const maliciousData = createMaliciousPerformData("postprocessTV(uint8)", 0);
-
-      await expect(
-        internalStatesOrchestrator.connect(automationRegistry).performUpkeep(maliciousData),
-      ).to.be.revertedWithCustomError(internalStatesOrchestrator, "InvalidState");
-    });
-
-    it("should revert with InvalidState when calling postprocessEV in wrong phase", async function () {
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Idle
-
-      const maliciousData = createMaliciousPerformData("postprocessEV(uint8)", 0);
 
       await expect(
         internalStatesOrchestrator.connect(automationRegistry).performUpkeep(maliciousData),
@@ -1001,24 +822,15 @@ describe("Orchestrators", function () {
 
       [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // PreprocessingEncryptedVaults
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // Buffering
 
       [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      await fhevm.awaitDecryptionOracle();
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // Buffering
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
 
       [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(5); // PostprocessingTransparentVaults
-
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(6); // PostprocessingEncryptedVaults
-
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(7); // BuildingOrders
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
 
       [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
@@ -1039,7 +851,7 @@ describe("Orchestrators", function () {
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
 
-      const maliciousData = createMaliciousPerformData("preprocessEV(uint8)", 0);
+      const maliciousData = createMaliciousPerformData("buffer()", 0);
 
       await expect(
         internalStatesOrchestrator.connect(automationRegistry).performUpkeep(maliciousData),

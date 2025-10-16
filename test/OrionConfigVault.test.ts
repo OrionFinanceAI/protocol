@@ -10,15 +10,13 @@ import {
   OrionConfig,
   InternalStatesOrchestrator,
   LiquidityOrchestrator,
-  EncryptedVaultFactory,
-  OrionEncryptedVault,
   TransparentVaultFactory,
   PriceAdapterRegistry,
+  OrionTransparentVault,
 } from "../typechain-types";
 import { Log } from "ethers";
 
 let transparentVaultFactory: TransparentVaultFactory;
-let encryptedVaultFactory: EncryptedVaultFactory;
 let orionConfig: OrionConfig;
 let underlyingAsset: MockUnderlyingAsset;
 let mockAsset1: MockERC4626Asset;
@@ -30,7 +28,7 @@ let mockExecutionAdapter2: MockExecutionAdapter;
 let priceAdapterRegistry: PriceAdapterRegistry;
 let internalStatesOrchestrator: InternalStatesOrchestrator;
 let liquidityOrchestrator: LiquidityOrchestrator;
-let vault: OrionEncryptedVault; // Using encrypted vault as the test subject
+let vault: OrionTransparentVault; // Using transparent vault as the test subject
 
 let owner: SignerWithAddress, curator: SignerWithAddress, other: SignerWithAddress, user: SignerWithAddress;
 
@@ -69,11 +67,6 @@ beforeEach(async function () {
   const transparentVaultFactoryDeployed = await TransparentVaultFactoryFactory.deploy(await orionConfig.getAddress());
   await transparentVaultFactoryDeployed.waitForDeployment();
   transparentVaultFactory = transparentVaultFactoryDeployed as unknown as TransparentVaultFactory;
-
-  const EncryptedVaultFactoryFactory = await ethers.getContractFactory("EncryptedVaultFactory");
-  const encryptedVaultFactoryDeployed = await EncryptedVaultFactoryFactory.deploy(await orionConfig.getAddress());
-  await encryptedVaultFactoryDeployed.waitForDeployment();
-  encryptedVaultFactory = encryptedVaultFactoryDeployed as unknown as EncryptedVaultFactory;
 
   const InternalStatesOrchestratorFactory = await ethers.getContractFactory("InternalStatesOrchestrator");
   const internalStatesOrchestratorDeployed = await InternalStatesOrchestratorFactory.deploy(
@@ -117,10 +110,7 @@ beforeEach(async function () {
 
   await orionConfig.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
   await orionConfig.setLiquidityOrchestrator(await liquidityOrchestrator.getAddress());
-  await orionConfig.setVaultFactories(
-    await transparentVaultFactory.getAddress(),
-    await encryptedVaultFactory.getAddress(),
-  );
+  await orionConfig.setVaultFactory(await transparentVaultFactory.getAddress());
   await orionConfig.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
   await orionConfig.setProtocolRiskFreeRate(0.0423 * 10_000);
 
@@ -136,19 +126,19 @@ beforeEach(async function () {
   );
 
   // Create a vault for testing
-  const tx = await encryptedVaultFactory.connect(owner).createVault(curator.address, "Test Vault", "TV", 0, 0, 0);
+  const tx = await transparentVaultFactory.connect(owner).createVault(curator.address, "Test Vault", "TV", 0, 0, 0);
   const receipt = await tx.wait();
   const event = receipt?.logs.find((log) => {
     try {
-      const parsed = encryptedVaultFactory.interface.parseLog(log);
+      const parsed = transparentVaultFactory.interface.parseLog(log);
       return parsed?.name === "OrionVaultCreated";
     } catch {
       return false;
     }
   });
-  const parsedEvent = encryptedVaultFactory.interface.parseLog(event!);
+  const parsedEvent = transparentVaultFactory.interface.parseLog(event!);
   const vaultAddress = parsedEvent?.args[0];
-  vault = (await ethers.getContractAt("OrionEncryptedVault", vaultAddress)) as unknown as OrionEncryptedVault;
+  vault = (await ethers.getContractAt("OrionTransparentVault", vaultAddress)) as unknown as OrionTransparentVault;
 
   // Give user some underlying assets for testing
   await underlyingAsset.mint(user.address, ethers.parseUnits("10000", 6));
@@ -156,14 +146,14 @@ beforeEach(async function () {
 });
 
 describe("Config", function () {
-  describe("setVaultFactories", function () {
-    it("Should revert as factories are immutable for the owner as well", async function () {
+  describe("setVaultFactory", function () {
+    it("Should revert as factory is immutable for the owner as well", async function () {
       const maliciousTransparentVault = other.address;
-      const maliciousEncryptedVault = other.address;
 
-      await expect(
-        orionConfig.connect(owner).setVaultFactories(maliciousTransparentVault, maliciousEncryptedVault),
-      ).to.be.revertedWithCustomError(orionConfig, "AlreadyRegistered");
+      await expect(orionConfig.connect(owner).setVaultFactory(maliciousTransparentVault)).to.be.revertedWithCustomError(
+        orionConfig,
+        "AlreadyRegistered",
+      );
     });
   });
   describe("removeWhitelistedAsset", function () {
@@ -265,14 +255,14 @@ describe("Config", function () {
   });
 
   describe("removeOrionVault", function () {
-    it("Should successfully remove an encrypted vault", async function () {
+    it("Should successfully remove a transparent vault", async function () {
       const vaultAddress = await vault.getAddress();
 
       // Verify vault is initially registered
       expect(await orionConfig.isOrionVault(vaultAddress)).to.equal(true);
 
       // Remove the vault
-      await expect(orionConfig.removeOrionVault(vaultAddress, 1)).to.not.be.reverted; // 1 = EventsLib.VaultType.Encrypted
+      await expect(orionConfig.removeOrionVault(vaultAddress, 0)).to.not.be.reverted; // 0 = EventsLib.VaultType.Transparent
 
       // Verify vault is no longer registered
       expect(await orionConfig.isOrionVault(vaultAddress)).to.equal(false);
@@ -308,7 +298,7 @@ describe("Config", function () {
     it("Should emit OrionVaultRemoved event when removing vault", async function () {
       const vaultAddress = await vault.getAddress();
 
-      await expect(orionConfig.removeOrionVault(vaultAddress, 1)) // 1 = EventsLib.VaultType.Encrypted
+      await expect(orionConfig.removeOrionVault(vaultAddress, 0)) // 0 = EventsLib.VaultType.Transparent
         .to.emit(orionConfig, "OrionVaultRemoved")
         .withArgs(vaultAddress);
     });
@@ -316,7 +306,7 @@ describe("Config", function () {
     it("Should revert when called by non-owner", async function () {
       const vaultAddress = await vault.getAddress();
 
-      await expect(orionConfig.connect(user).removeOrionVault(vaultAddress, 1))
+      await expect(orionConfig.connect(user).removeOrionVault(vaultAddress, 0))
         .to.be.revertedWithCustomError(orionConfig, "OwnableUnauthorizedAccount")
         .withArgs(user.address);
     });
@@ -324,14 +314,14 @@ describe("Config", function () {
     it("Should revert when trying to remove non-registered vault", async function () {
       const nonRegisteredVault = other.address;
 
-      await expect(orionConfig.removeOrionVault(nonRegisteredVault, 1)).to.be.revertedWithCustomError(
+      await expect(orionConfig.removeOrionVault(nonRegisteredVault, 0)).to.be.revertedWithCustomError(
         orionConfig,
         "UnauthorizedAccess",
       );
     });
 
     it("Should revert when trying to remove vault with zero address", async function () {
-      await expect(orionConfig.removeOrionVault(ethers.ZeroAddress, 1)).to.be.revertedWithCustomError(
+      await expect(orionConfig.removeOrionVault(ethers.ZeroAddress, 0)).to.be.revertedWithCustomError(
         orionConfig,
         "UnauthorizedAccess",
       );
@@ -340,16 +330,16 @@ describe("Config", function () {
     it("Should update vault count after removal", async function () {
       const vaultAddress = await vault.getAddress();
 
-      // Get initial count of encrypted vaults
-      const initialVaults = await orionConfig.getAllOrionVaults(1); // 1 = EventsLib.VaultType.Encrypted
+      // Get initial count of transparent vaults
+      const initialVaults = await orionConfig.getAllOrionVaults(0); // 0 = EventsLib.VaultType.Transparent
       const initialCount = initialVaults.length;
       expect(initialCount).to.be.greaterThan(0);
 
       // Remove the vault
-      await orionConfig.removeOrionVault(vaultAddress, 1);
+      await orionConfig.removeOrionVault(vaultAddress, 0);
 
-      // Get final count of encrypted vaults
-      const finalVaults = await orionConfig.getAllOrionVaults(1);
+      // Get final count of transparent vaults
+      const finalVaults = await orionConfig.getAllOrionVaults(0);
       const finalCount = finalVaults.length;
       expect(finalCount).to.equal(initialCount - 1);
     });
@@ -358,14 +348,14 @@ describe("Config", function () {
       const vaultAddress = await vault.getAddress();
 
       // Verify vault is in the array initially
-      const initialVaults = await orionConfig.getAllOrionVaults(1); // 1 = EventsLib.VaultType.Encrypted
+      const initialVaults = await orionConfig.getAllOrionVaults(0); // 0 = EventsLib.VaultType.Transparent
       expect(initialVaults).to.include(vaultAddress);
 
       // Remove the vault
-      await orionConfig.removeOrionVault(vaultAddress, 1);
+      await orionConfig.removeOrionVault(vaultAddress, 0);
 
       // Verify vault is no longer in the array
-      const finalVaults = await orionConfig.getAllOrionVaults(1);
+      const finalVaults = await orionConfig.getAllOrionVaults(0);
       expect(finalVaults).to.not.include(vaultAddress);
     });
 
@@ -376,7 +366,7 @@ describe("Config", function () {
       expect(await orionConfig.isOrionVault(vaultAddress)).to.equal(true);
 
       // Remove the vault
-      await orionConfig.removeOrionVault(vaultAddress, 1);
+      await orionConfig.removeOrionVault(vaultAddress, 0);
 
       // Verify vault is no longer registered
       expect(await orionConfig.isOrionVault(vaultAddress)).to.equal(false);
@@ -385,8 +375,8 @@ describe("Config", function () {
     it("Should handle removal of vault with wrong vault type", async function () {
       const vaultAddress = await vault.getAddress();
 
-      // Try to remove encrypted vault as transparent vault (wrong type)
-      await expect(orionConfig.removeOrionVault(vaultAddress, 0)) // 0 = EventsLib.VaultType.Transparent
+      // Try to remove transparent vault as encrypted vault (wrong type)
+      await expect(orionConfig.removeOrionVault(vaultAddress, 1)) // 1 = EventsLib.VaultType.Encrypted
         .to.be.revertedWithCustomError(orionConfig, "UnauthorizedAccess");
 
       // Verify vault is still registered
@@ -394,18 +384,20 @@ describe("Config", function () {
     });
 
     it("Should allow removal of multiple vaults", async function () {
-      // Create another encrypted vault
-      const tx = await encryptedVaultFactory.connect(owner).createVault(other.address, "Test Vault 2", "TV2", 0, 0, 0);
+      // Create another transparent vault
+      const tx = await transparentVaultFactory
+        .connect(owner)
+        .createVault(other.address, "Test Vault 2", "TV2", 0, 0, 0);
       const receipt = await tx.wait();
       const event = receipt?.logs.find((log: Log) => {
         try {
-          const parsed = encryptedVaultFactory.interface.parseLog(log);
+          const parsed = transparentVaultFactory.interface.parseLog(log);
           return parsed?.name === "OrionVaultCreated";
         } catch {
           return false;
         }
       });
-      const parsedEvent = encryptedVaultFactory.interface.parseLog(event!);
+      const parsedEvent = transparentVaultFactory.interface.parseLog(event!);
       const vault2Address = parsedEvent?.args[0];
 
       // Verify both vaults are registered
@@ -413,12 +405,12 @@ describe("Config", function () {
       expect(await orionConfig.isOrionVault(vault2Address)).to.equal(true);
 
       // Remove first vault
-      await orionConfig.removeOrionVault(await vault.getAddress(), 1);
+      await orionConfig.removeOrionVault(await vault.getAddress(), 0); // 0 = EventsLib.VaultType.Transparent
       expect(await orionConfig.isOrionVault(await vault.getAddress())).to.equal(false);
       expect(await orionConfig.isOrionVault(vault2Address)).to.equal(true);
 
       // Remove second vault
-      await orionConfig.removeOrionVault(vault2Address, 1);
+      await orionConfig.removeOrionVault(vault2Address, 0); // 0 = EventsLib.VaultType.Transparent
       expect(await orionConfig.isOrionVault(vault2Address)).to.equal(false);
     });
   });
