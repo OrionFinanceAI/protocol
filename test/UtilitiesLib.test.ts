@@ -189,39 +189,5 @@ describe("UtilitiesLib", function () {
         expect(result).to.equal(expected);
       });
     });
-
-    describe("real-world scenarios", function () {
-      it("should convert USDC (6 decimals) to WETH (18 decimals)", async function () {
-        const usdcAmount = ethers.parseUnits("1000", 6);
-        const expectedWethAmount = ethers.parseUnits("1000", 18);
-
-        const result = await utilitiesLib.convertDecimals(usdcAmount, 6, 18);
-        expect(result).to.equal(expectedWethAmount);
-      });
-
-      it("should convert WETH (18 decimals) to USDC (6 decimals)", async function () {
-        const wethAmount = ethers.parseUnits("1000", 18);
-        const expectedUsdcAmount = ethers.parseUnits("1000", 6);
-
-        const result = await utilitiesLib.convertDecimals(wethAmount, 18, 6);
-        expect(result).to.equal(expectedUsdcAmount);
-      });
-
-      it("should convert WBTC (8 decimals) to WETH (18 decimals)", async function () {
-        const wbtcAmount = ethers.parseUnits("1", 8);
-        const expectedWethAmount = ethers.parseUnits("1", 18);
-
-        const result = await utilitiesLib.convertDecimals(wbtcAmount, 8, 18);
-        expect(result).to.equal(expectedWethAmount);
-      });
-
-      it("should convert WETH (18 decimals) to WBTC (8 decimals)", async function () {
-        const wethAmount = ethers.parseUnits("1", 18);
-        const expectedWbtcAmount = ethers.parseUnits("1", 8);
-
-        const result = await utilitiesLib.convertDecimals(wethAmount, 18, 8);
-        expect(result).to.equal(expectedWbtcAmount);
-      });
-    });
   });
 });

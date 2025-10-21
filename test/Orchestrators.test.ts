@@ -563,6 +563,33 @@ describe("Orchestrators", function () {
       if (pendingTransparentCuratorFees > 0) {
         await transparentVault.connect(owner).claimCuratorFees(pendingTransparentCuratorFees);
       }
+
+      const epochTokens = await internalStatesOrchestrator.getEpochTokens();
+      expect(epochTokens.length).to.be.gt(0);
+
+      const expectedTokens = [
+        await mockAsset1.getAddress(),
+        await mockAsset2.getAddress(),
+        await mockAsset3.getAddress(),
+        await underlyingAsset.getAddress(),
+      ];
+
+      for (const expectedToken of expectedTokens) {
+        expect(epochTokens).to.include(expectedToken);
+      }
+
+      for (const token of epochTokens) {
+        const price = await internalStatesOrchestrator.getPriceOf(token);
+        expect(price).to.be.gt(0);
+
+        if (token === (await underlyingAsset.getAddress())) {
+          // Underlying asset price should be 1
+          expect(price).to.equal(ethers.parseUnits("1", 14));
+        } else {
+          // Mock asset prices should be strictly positive
+          expect(price).to.be.gt(0);
+        }
+      }
     });
 
     it("should not trigger upkeep when system is idle and time hasn't passed", async function () {
@@ -669,6 +696,105 @@ describe("Orchestrators", function () {
 
       // Verify target buffer ratio is set correctly
       expect(await liquidityOrchestrator.targetBufferRatio()).to.equal(100);
+    });
+
+    it("should test internal states orchestrator with positive deltaAmount scenario", async function () {
+      const epochDuration = await internalStatesOrchestrator.epochDuration();
+      await time.increase(epochDuration + 1n);
+
+      let [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(1);
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(2);
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(3);
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(4);
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0);
+      expect(await internalStatesOrchestrator.epochCounter()).to.equal(1);
+
+      const initialBufferAmount = await internalStatesOrchestrator.bufferAmount();
+
+      // Create price mismatch by simulating gains AFTER the oracle price call but BEFORE liquidity orchestrator execution
+      // This will cause the execution price to be higher than the oracle price, leading to positive deltaAmount
+
+      let [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      void expect(liquidityUpkeepNeeded).to.be.true;
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(2); // From Idle to BuyingLeg (no selling in this scenario)
+
+      // Simulate losses in mock assets to decrease their share prices
+      const lossAmount1 = ethers.parseUnits("5", 12);
+      await mockAsset1.connect(owner).simulateLosses(lossAmount1, owner.address);
+
+      const lossAmount2 = ethers.parseUnits("7", 12);
+      await mockAsset2.connect(owner).simulateLosses(lossAmount2, owner.address);
+
+      const lossAmount3 = ethers.parseUnits("10", 12);
+      await mockAsset3.connect(owner).simulateLosses(lossAmount3, owner.address);
+
+      // Continue liquidity orchestrator execution phases
+      [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      void expect(liquidityUpkeepNeeded).to.be.true;
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+
+      [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      void expect(liquidityUpkeepNeeded).to.be.true;
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+
+      [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      void expect(liquidityUpkeepNeeded).to.be.true;
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+
+      [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      void expect(liquidityUpkeepNeeded).to.be.true;
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(3); // FulfillDepositAndRedeem
+
+      [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      void expect(liquidityUpkeepNeeded).to.be.true;
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
+
+      // Check that buffer amount has changed due to market impact
+      const finalBufferAmount = await internalStatesOrchestrator.bufferAmount();
+      // The buffer amount should have changed due to market impact.
+      expect(finalBufferAmount).to.be.gt(initialBufferAmount);
+
+      // Start a new epoch to test the complete cycle with the updated buffer
+      await time.increase(epochDuration + 1n);
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(1);
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(2);
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(3);
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(4);
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0);
+      expect(await internalStatesOrchestrator.epochCounter()).to.equal(2);
     });
   });
 
