@@ -151,9 +151,8 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
     /// --------- VAULT OWNER FUNCTIONS ---------
 
-    /// @notice Override updateCurator to handle curator type detection
-    /// @param newCurator The new curator address
-    function updateCurator(address newCurator) external override(OrionVault, IOrionVault) onlyVaultOwner {
+    /// @inheritdoc IOrionVault
+    function updateCurator(address newCurator) external onlyVaultOwner {
         if (newCurator == address(0)) revert ErrorsLib.InvalidAddress();
         curator = newCurator;
         _updateCuratorType(this.vaultWhitelist());

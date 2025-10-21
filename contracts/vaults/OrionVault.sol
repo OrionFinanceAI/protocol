@@ -377,13 +377,6 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     /// --------- VAULT OWNER AND CURATOR FUNCTIONS ---------
 
     /// @inheritdoc IOrionVault
-    function updateCurator(address newCurator) external virtual onlyVaultOwner {
-        if (newCurator == address(0)) revert ErrorsLib.InvalidAddress();
-        curator = newCurator;
-        emit CuratorUpdated(newCurator);
-    }
-
-    /// @inheritdoc IOrionVault
     function vaultWhitelist() external view returns (address[] memory) {
         return _vaultWhitelistedAssets.values();
     }
