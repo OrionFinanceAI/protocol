@@ -273,13 +273,12 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
     }
 
     /// @notice Build filtered transparent vaults list for the epoch
-    /// @dev Include only vaults with pending LP activity (deposit or redeem)
     function _buildTransparentVaultsEpoch() internal {
         address[] memory allTransparent = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
         delete transparentVaultsEpoch;
         for (uint16 i = 0; i < allTransparent.length; ++i) {
             address v = allTransparent[i];
-            if (IOrionVault(v).pendingDeposit() == 0 && IOrionVault(v).pendingRedeem() == 0) continue;
+            if (IOrionVault(v).pendingDeposit() + IOrionVault(v).totalAssets() == 0) continue;
             // slither-disable-next-line unused-return
             (address[] memory tTokens, ) = IOrionTransparentVault(v).getIntent();
             if (tTokens.length == 0) continue;

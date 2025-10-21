@@ -72,22 +72,19 @@ describe("Orchestrators", function () {
 
     // Initialize mock assets with different amounts of underlying assets
     // This creates initial liquidity in each vault for realistic price testing
-    const initialDeposit1 = ethers.parseUnits("1000", 12); // 1000 underlying assets for mockAsset1
-    const initialDeposit2 = ethers.parseUnits("2000", 12); // 2000 underlying assets for mockAsset2
-    const initialDeposit3 = ethers.parseUnits("1500", 12); // 1500 underlying assets for mockAsset3
+    const initialDeposit1 = ethers.parseUnits("1000", 12);
+    const initialDeposit2 = ethers.parseUnits("2000", 12);
+    const initialDeposit3 = ethers.parseUnits("1500", 12);
 
     // Mint underlying assets to user for deposits
     await underlyingAsset.mint(user.address, ethers.parseUnits("10000", 12));
 
-    // Deposit to mockAsset1
     await underlyingAsset.connect(user).approve(await mockAsset1.getAddress(), initialDeposit1);
     await mockAsset1.connect(user).deposit(initialDeposit1, user.address);
 
-    // Deposit to mockAsset2
     await underlyingAsset.connect(user).approve(await mockAsset2.getAddress(), initialDeposit2);
     await mockAsset2.connect(user).deposit(initialDeposit2, user.address);
 
-    // Deposit to mockAsset3
     await underlyingAsset.connect(user).approve(await mockAsset3.getAddress(), initialDeposit3);
     await mockAsset3.connect(user).deposit(initialDeposit3, user.address);
 

@@ -56,6 +56,9 @@ library ErrorsLib {
     /// @notice System is in an invalid or unexpected state.
     error InvalidState();
 
+    /// @notice The adapter is not compatible with the asset.
+    error InvalidAdapter();
+
     /// @notice Operation cannot be performed because the system is not idle.
     error SystemNotIdle();
 

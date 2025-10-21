@@ -18,4 +18,10 @@ contract MockExecutionAdapter is IExecutionAdapter {
     function sell(address asset, uint256 sharesAmount) external returns (uint256 executionUnderlyingAmount) {
         executionUnderlyingAmount = 1e12;
     }
+
+    /// @inheritdoc IExecutionAdapter
+    function validateExecutionAdapter(address asset) external view override returns (bool) {
+        // Mock always returns true for validation
+        return true;
+    }
 }

@@ -46,16 +46,24 @@ contract OrionAssetERC4626ExecutionAdapter is IExecutionAdapter {
         liquidityOrchestrator = config.liquidityOrchestrator();
     }
 
+    /// @notice Validates that the given asset is compatible with this adapter
+    /// @param asset The address of the asset to validate
+    /// @return true if the vault is compatible, reverts otherwise
+    function validateExecutionAdapter(address asset) external view override returns (bool) {
+        try IERC4626(asset).asset() returns (address vaultUnderlyingAsset) {
+            if (vaultUnderlyingAsset != underlyingAsset) revert ErrorsLib.InvalidAddress();
+        } catch {
+            revert ErrorsLib.InvalidAddress(); // Adapter not valid for this vault
+        }
+
+        return true;
+    }
+
     /// @inheritdoc IExecutionAdapter
     function sell(
         address vaultAsset,
         uint256 sharesAmount
     ) external override onlyLiquidityOrchestrator returns (uint256 receivedUnderlyingAmount) {
-        try IERC4626(vaultAsset).asset() returns (address vaultUnderlyingAsset) {
-            if (vaultUnderlyingAsset != underlyingAsset) revert ErrorsLib.InvalidAddress();
-        } catch {
-            revert ErrorsLib.InvalidAddress(); // Adapter not valid for this vault
-        }
         if (sharesAmount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(vaultAsset);
 
         IERC4626 vault = IERC4626(vaultAsset);
@@ -70,11 +78,6 @@ contract OrionAssetERC4626ExecutionAdapter is IExecutionAdapter {
         address vaultAsset,
         uint256 sharesAmount
     ) external override onlyLiquidityOrchestrator returns (uint256 spentUnderlyingAmount) {
-        try IERC4626(vaultAsset).asset() returns (address vaultUnderlyingAsset) {
-            if (vaultUnderlyingAsset != underlyingAsset) revert ErrorsLib.InvalidAddress();
-        } catch {
-            revert ErrorsLib.InvalidAddress(); // Adapter not valid for this vault
-        }
         if (sharesAmount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(vaultAsset);
 
         IERC4626 vault = IERC4626(vaultAsset);

@@ -22,4 +22,9 @@ interface IExecutionAdapter {
     /// @param sharesAmount The amount of shares to buy
     /// @return executionUnderlyingAmount The actual execution underlying amount spent
     function buy(address asset, uint256 sharesAmount) external returns (uint256 executionUnderlyingAmount);
+
+    /// @notice Validates that the given asset is compatible with this adapter
+    /// @param asset The address of the asset to validate
+    /// @return true if the asset is compatible, reverts otherwise
+    function validateExecutionAdapter(address asset) external view returns (bool);
 }
