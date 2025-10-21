@@ -162,7 +162,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
     /// @notice Override updateVaultWhitelist to validate strategy compatibility
     /// @param assets The new whitelisted assets for the vault
-    function updateVaultWhitelist(address[] calldata assets) external override(OrionVault, IOrionVault) onlyVaultOwner {
+    function updateVaultWhitelist(address[] calldata assets) external onlyVaultOwner {
         // Clear existing whitelist
         _vaultWhitelistedAssets.clear();
 
@@ -178,6 +178,8 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
         if (_isPassiveCurator) {
             IOrionStrategy(curator).validateStrategy(assets);
         }
+
+        emit VaultWhitelistUpdated(assets);
     }
 
     /// --------- INTERNAL FUNCTIONS ---------

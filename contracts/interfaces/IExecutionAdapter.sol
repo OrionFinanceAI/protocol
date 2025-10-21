@@ -25,6 +25,5 @@ interface IExecutionAdapter {
 
     /// @notice Validates that the given asset is compatible with this adapter
     /// @param asset The address of the asset to validate
-    /// @return true if the asset is compatible, reverts otherwise
-    function validateExecutionAdapter(address asset) external view returns (bool);
+    function validateExecutionAdapter(address asset) external view;
 }

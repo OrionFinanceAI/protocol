@@ -20,7 +20,7 @@ contract MockExecutionAdapter is IExecutionAdapter {
     }
 
     /// @inheritdoc IExecutionAdapter
-    function validateExecutionAdapter(address) external pure returns (bool) {
-        return true;
+    function validateExecutionAdapter(address) external pure {
+        // pass
     }
 }

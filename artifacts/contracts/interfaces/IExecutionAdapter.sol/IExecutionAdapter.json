@@ -60,13 +60,7 @@
         }
       ],
       "name": "validateExecutionAdapter",
-      "outputs": [
-        {
-          "internalType": "bool",
-          "name": "",
-          "type": "bool"
-        }
-      ],
+      "outputs": [],
       "stateMutability": "view",
       "type": "function"
     }

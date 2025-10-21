@@ -48,15 +48,12 @@ contract OrionAssetERC4626ExecutionAdapter is IExecutionAdapter {
 
     /// @notice Validates that the given asset is compatible with this adapter
     /// @param asset The address of the asset to validate
-    /// @return true if the vault is compatible, reverts otherwise
-    function validateExecutionAdapter(address asset) external view override returns (bool) {
+    function validateExecutionAdapter(address asset) external view override {
         try IERC4626(asset).asset() returns (address vaultUnderlyingAsset) {
             if (vaultUnderlyingAsset != underlyingAsset) revert ErrorsLib.InvalidAdapter();
         } catch {
             revert ErrorsLib.InvalidAdapter(); // Adapter not valid for this vault
         }
-
-        return true;
     }
 
     /// @inheritdoc IExecutionAdapter

@@ -726,8 +726,8 @@ describe("Orchestrators", function () {
 
       const initialBufferAmount = await internalStatesOrchestrator.bufferAmount();
 
-      // Create price mismatch by simulating gains AFTER the oracle price call but BEFORE liquidity orchestrator execution
-      // This will cause the execution price to be higher than the oracle price, leading to positive deltaAmount
+      // Create price mismatch by simulating losses AFTER the oracle price call but BEFORE liquidity orchestrator execution
+      // This will cause the execution price to be lower than the oracle price, leading to decreasing buffer amount.
 
       let [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
       void expect(liquidityUpkeepNeeded).to.be.true;

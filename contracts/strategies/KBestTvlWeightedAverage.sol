@@ -21,13 +21,13 @@ contract KBestTvlWeightedAverage is IOrionStrategy, Ownable, ERC165 {
     IOrionConfig public config;
 
     /// @notice The number of assets to pick
-    uint8 public k;
+    uint16 public k;
 
     /// @notice Constructor for KBestTvlWeightedAverage strategy
     /// @param owner The owner of the contract
     /// @param _config The Orion configuration contract address
     /// @param _k The number of assets to pick
-    constructor(address owner, address _config, uint8 _k) Ownable(owner) {
+    constructor(address owner, address _config, uint16 _k) Ownable(owner) {
         if (_config == address(0)) revert ErrorsLib.ZeroAddress();
 
         config = IOrionConfig(_config);
@@ -38,10 +38,10 @@ contract KBestTvlWeightedAverage is IOrionStrategy, Ownable, ERC165 {
     function computeIntent(
         address[] calldata vaultWhitelistedAssets
     ) external view returns (IOrionTransparentVault.Position[] memory intent) {
-        uint8 n = uint8(vaultWhitelistedAssets.length);
+        uint16 n = uint16(vaultWhitelistedAssets.length);
         uint256[] memory tvls = _getAssetTVLs(vaultWhitelistedAssets, n);
 
-        uint8 kActual = uint8(Math.min(k, n));
+        uint16 kActual = uint16(Math.min(k, n));
         (address[] memory tokens, uint256[] memory topTvls) = _selectTopKAssets(
             vaultWhitelistedAssets,
             tvls,
@@ -54,10 +54,10 @@ contract KBestTvlWeightedAverage is IOrionStrategy, Ownable, ERC165 {
 
     /// @inheritdoc IOrionStrategy
     function validateStrategy(address[] calldata vaultWhitelistedAssets) external view {
-        uint8 n = uint8(vaultWhitelistedAssets.length);
+        uint16 n = uint16(vaultWhitelistedAssets.length);
         address referenceUnderlyingAsset = address(0);
 
-        for (uint8 i = 0; i < n; ++i) {
+        for (uint16 i = 0; i < n; ++i) {
             address asset = vaultWhitelistedAssets[i];
 
             // slither-disable-next-line unused-return
@@ -86,11 +86,11 @@ contract KBestTvlWeightedAverage is IOrionStrategy, Ownable, ERC165 {
     /// @return tvls Array of TVL values
     function _getAssetTVLs(
         address[] calldata vaultWhitelistedAssets,
-        uint8 n
+        uint16 n
     ) internal view returns (uint256[] memory tvls) {
         tvls = new uint256[](n);
 
-        for (uint8 i = 0; i < n; ++i) {
+        for (uint16 i = 0; i < n; ++i) {
             tvls[i] = IERC4626(vaultWhitelistedAssets[i]).totalAssets();
         }
     }
@@ -105,17 +105,17 @@ contract KBestTvlWeightedAverage is IOrionStrategy, Ownable, ERC165 {
     function _selectTopKAssets(
         address[] calldata vaultWhitelistedAssets,
         uint256[] memory tvls,
-        uint8 n,
-        uint8 kActual
+        uint16 n,
+        uint16 kActual
     ) internal pure returns (address[] memory tokens, uint256[] memory topTvls) {
         tokens = new address[](kActual);
         topTvls = new uint256[](kActual);
 
         bool[] memory used = new bool[](n);
-        for (uint8 idx = 0; idx < kActual; ++idx) {
+        for (uint16 idx = 0; idx < kActual; ++idx) {
             uint256 maxTVL = 0;
             uint256 maxIndex = 0;
-            for (uint8 j = 0; j < n; ++j) {
+            for (uint16 j = 0; j < n; ++j) {
                 if (!used[j] && tvls[j] > maxTVL) {
                     maxTVL = tvls[j];
                     maxIndex = j;
@@ -135,10 +135,10 @@ contract KBestTvlWeightedAverage is IOrionStrategy, Ownable, ERC165 {
     function _calculatePositions(
         address[] memory tokens,
         uint256[] memory topTvls,
-        uint8 kActual
+        uint16 kActual
     ) internal view returns (IOrionTransparentVault.Position[] memory intent) {
         uint256 totalTVL = 0;
-        for (uint8 i = 0; i < kActual; ++i) {
+        for (uint16 i = 0; i < kActual; ++i) {
             totalTVL += topTvls[i];
         }
 
@@ -146,7 +146,7 @@ contract KBestTvlWeightedAverage is IOrionStrategy, Ownable, ERC165 {
         intent = new IOrionTransparentVault.Position[](kActual);
 
         uint32 sumWeights = 0;
-        for (uint8 i = 0; i < kActual; ++i) {
+        for (uint16 i = 0; i < kActual; ++i) {
             uint32 weight = uint32((topTvls[i] * intentScale) / totalTVL);
             intent[i] = IOrionTransparentVault.Position({ token: tokens[i], value: weight });
             sumWeights += weight;
@@ -161,7 +161,7 @@ contract KBestTvlWeightedAverage is IOrionStrategy, Ownable, ERC165 {
 
     /// @notice Owner can update k
     /// @param kNew The new number of assets to pick
-    function updateParameters(uint8 kNew) external onlyOwner {
+    function updateParameters(uint16 kNew) external onlyOwner {
         k = kNew;
     }
 

@@ -384,20 +384,6 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     }
 
     /// @inheritdoc IOrionVault
-    function updateVaultWhitelist(address[] calldata assets) external virtual onlyVaultOwner {
-        _vaultWhitelistedAssets.clear();
-        for (uint256 i = 0; i < assets.length; ++i) {
-            address token = assets[i];
-
-            // Protocol whitelist validation
-            if (!config.isWhitelisted(token)) revert ErrorsLib.TokenNotWhitelisted(token);
-
-            bool inserted = _vaultWhitelistedAssets.add(token);
-            if (!inserted) revert ErrorsLib.AlreadyRegistered();
-        }
-    }
-
-    /// @inheritdoc IOrionVault
     function vaultWhitelist() external view returns (address[] memory) {
         return _vaultWhitelistedAssets.values();
     }

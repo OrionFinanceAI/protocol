@@ -86,7 +86,7 @@ describe("Price Adapter", function () {
   });
 
   describe("addWhitelistedAsset", function () {
-    it("should revert with InvalidAddress when trying to whitelist a regular ERC20 token with ERC4626 price adapter", async function () {
+    it("should revert with InvalidAdapter when trying to whitelist a regular ERC20 token with ERC4626 price adapter", async function () {
       const MockExecutionAdapterFactory = await ethers.getContractFactory("MockExecutionAdapter");
       const mockExecutionAdapter = await MockExecutionAdapterFactory.deploy();
       await mockExecutionAdapter.waitForDeployment();
