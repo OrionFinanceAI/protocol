@@ -593,6 +593,10 @@ describe("Orchestrators", function () {
       await hurdleHwmVault.connect(user).requestRedeem(redeemAmount);
       await hurdleHwmVault.connect(user).cancelRedeemRequest(redeemAmount / 2n);
 
+      // Assert that the user's pending redeem amount is updated correctly after cancellation
+      const pendingRedeemAfterCancel = await hurdleHwmVault.pendingRedeem();
+      expect(pendingRedeemAfterCancel).to.equal(redeemAmount - redeemAmount / 2n);
+
       // Get the updated balance after cancellation
       const updatedRedeemAmount = await hurdleHwmVault.balanceOf(user.address);
       await hurdleHwmVault.connect(user).approve(await hurdleHwmVault.getAddress(), updatedRedeemAmount);
