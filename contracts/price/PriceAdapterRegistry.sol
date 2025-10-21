@@ -44,6 +44,8 @@ contract PriceAdapterRegistry is IPriceAdapterRegistry, Ownable {
     /// @inheritdoc IPriceAdapterRegistry
     function setPriceAdapter(address asset, IPriceAdapter adapter) external onlyConfig {
         if (asset == address(0) || address(adapter) == address(0)) revert ErrorsLib.ZeroAddress();
+        if (!adapter.validatePriceAdapter(asset)) revert ErrorsLib.InvalidAdapter();
+
         adapterOf[asset] = adapter;
         emit EventsLib.PriceAdapterSet(asset, address(adapter));
     }

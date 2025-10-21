@@ -254,6 +254,34 @@ describe("Config", function () {
     });
   });
 
+  describe("addWhitelistedVaultOwner", function () {
+    it("Should successfully add a whitelisted vault owner", async function () {
+      const newVaultOwner = other.address;
+
+      expect(await orionConfig.isWhitelistedVaultOwner(newVaultOwner)).to.equal(false);
+      await expect(orionConfig.addWhitelistedVaultOwner(newVaultOwner)).to.not.be.reverted;
+      expect(await orionConfig.isWhitelistedVaultOwner(newVaultOwner)).to.equal(true);
+    });
+
+    it("Should revert when trying to add already whitelisted vault owner", async function () {
+      const existingVaultOwner = owner.address;
+
+      expect(await orionConfig.isWhitelistedVaultOwner(existingVaultOwner)).to.equal(true);
+      await expect(orionConfig.addWhitelistedVaultOwner(existingVaultOwner)).to.be.revertedWithCustomError(
+        orionConfig,
+        "AlreadyRegistered",
+      );
+    });
+
+    it("Should revert when called by non-owner", async function () {
+      const newVaultOwner = other.address;
+
+      await expect(orionConfig.connect(user).addWhitelistedVaultOwner(newVaultOwner))
+        .to.be.revertedWithCustomError(orionConfig, "OwnableUnauthorizedAccount")
+        .withArgs(user.address);
+    });
+  });
+
   describe("removeOrionVault", function () {
     it("Should successfully remove a transparent vault", async function () {
       const vaultAddress = await vault.getAddress();

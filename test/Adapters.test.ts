@@ -2,18 +2,29 @@ import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 
-import { MockUnderlyingAsset, OrionAssetERC4626PriceAdapter, OrionConfig } from "../typechain-types";
+import {
+  InternalStatesOrchestrator,
+  LiquidityOrchestrator,
+  MockUnderlyingAsset,
+  OrionAssetERC4626PriceAdapter,
+  OrionConfig,
+  PriceAdapterRegistry,
+} from "../typechain-types";
 
 describe("Price Adapter", function () {
   let orionConfig: OrionConfig;
   let underlyingAsset: MockUnderlyingAsset;
   let mockAsset1: MockUnderlyingAsset;
   let priceAdapter: OrionAssetERC4626PriceAdapter;
+  let priceAdapterRegistry: PriceAdapterRegistry;
+  let liquidityOrchestrator: LiquidityOrchestrator;
+  let internalStatesOrchestrator: InternalStatesOrchestrator;
 
   let owner: SignerWithAddress;
+  let automationRegistry: SignerWithAddress;
 
   beforeEach(async function () {
-    [owner] = await ethers.getSigners();
+    [owner, automationRegistry] = await ethers.getSigners();
 
     // Deploy Mock Underlying Asset
     const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
@@ -39,15 +50,54 @@ describe("Price Adapter", function () {
       await orionConfig.getAddress(),
     )) as unknown as OrionAssetERC4626PriceAdapter;
     await priceAdapter.waitForDeployment();
+
+    // Deploy Price Adapter Registry
+    const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistry");
+    priceAdapterRegistry = (await PriceAdapterRegistryFactory.deploy(
+      owner.address,
+      await orionConfig.getAddress(),
+    )) as unknown as PriceAdapterRegistry;
+    await priceAdapterRegistry.waitForDeployment();
+
+    // Deploy LiquidityOrchestrator
+    const LiquidityOrchestratorFactory = await ethers.getContractFactory("LiquidityOrchestrator");
+    const liquidityOrchestratorDeployed = await LiquidityOrchestratorFactory.deploy(
+      owner.address,
+      await orionConfig.getAddress(),
+      automationRegistry.address,
+    );
+    await liquidityOrchestratorDeployed.waitForDeployment();
+    liquidityOrchestrator = liquidityOrchestratorDeployed as unknown as LiquidityOrchestrator;
+
+    // Deploy InternalStatesOrchestrator
+    const InternalStatesOrchestratorFactory = await ethers.getContractFactory("InternalStatesOrchestrator");
+    const internalStatesOrchestratorDeployed = await InternalStatesOrchestratorFactory.deploy(
+      owner.address,
+      await orionConfig.getAddress(),
+      automationRegistry.address,
+    );
+    await internalStatesOrchestratorDeployed.waitForDeployment();
+    internalStatesOrchestrator = internalStatesOrchestratorDeployed as unknown as InternalStatesOrchestrator;
+
+    // Set up OrionConfig
+    await orionConfig.setLiquidityOrchestrator(await liquidityOrchestrator.getAddress());
+    await orionConfig.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
+    await orionConfig.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
   });
 
-  describe("getPriceData", function () {
-    it("should revert with InvalidAddress when called with a non-ERC4626 contract", async function () {
-      // Call getPriceData with a regular ERC20 token (not ERC4626)
-      await expect(priceAdapter.getPriceData(await mockAsset1.getAddress())).to.be.revertedWithCustomError(
-        priceAdapter,
-        "InvalidAddress",
-      );
+  describe("addWhitelistedAsset", function () {
+    it("should revert with InvalidAddress when trying to whitelist a regular ERC20 token with ERC4626 price adapter", async function () {
+      const MockExecutionAdapterFactory = await ethers.getContractFactory("MockExecutionAdapter");
+      const mockExecutionAdapter = await MockExecutionAdapterFactory.deploy();
+      await mockExecutionAdapter.waitForDeployment();
+
+      await expect(
+        orionConfig.addWhitelistedAsset(
+          await mockAsset1.getAddress(),
+          await priceAdapter.getAddress(),
+          await mockExecutionAdapter.getAddress(),
+        ),
+      ).to.be.revertedWithCustomError(priceAdapter, "InvalidAdapter");
     });
   });
 });

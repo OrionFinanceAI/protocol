@@ -34,17 +34,21 @@ contract OrionAssetERC4626PriceAdapter is IPriceAdapter {
     }
 
     /// @inheritdoc IPriceAdapter
+    function validatePriceAdapter(address asset) external view returns (bool) {
+        try IERC4626(asset).asset() returns (address vaultUnderlyingAsset) {
+            if (vaultUnderlyingAsset != underlyingAsset) revert ErrorsLib.InvalidAdapter();
+        } catch {
+            revert ErrorsLib.InvalidAdapter();
+        }
+
+        return true;
+    }
+
     /// @notice Returns the raw price of one share of the given ERC4626 vault in underlying asset decimals.
     /// @param vaultAsset The address of the ERC4626-compliant vault.
     /// @return price The raw price of one share in underlying asset decimals
     /// @return decimals The number of decimals for the returned price (underlying asset decimals)
     function getPriceData(address vaultAsset) external view returns (uint256 price, uint8 decimals) {
-        try IERC4626(vaultAsset).asset() returns (address vaultUnderlyingAsset) {
-            if (vaultUnderlyingAsset != underlyingAsset) revert ErrorsLib.InvalidAddress();
-        } catch {
-            revert ErrorsLib.InvalidAddress(); // Adapter not valid for this vault
-        }
-
         uint8 vaultAssetDecimals = IERC20Metadata(vaultAsset).decimals();
         uint256 oneShare = 10 ** vaultAssetDecimals;
         uint256 underlyingAssetAmount = IERC4626(vaultAsset).convertToAssets(oneShare);

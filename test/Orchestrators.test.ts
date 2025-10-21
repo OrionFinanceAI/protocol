@@ -464,9 +464,10 @@ describe("Orchestrators", function () {
       // Have LPs request redemption (test also cancel it)
       const redeemAmount = await transparentVault.balanceOf(user.address);
       expect(redeemAmount).to.be.gt(0);
-      await transparentVault.connect(user).approve(await transparentVault.getAddress(), redeemAmount);
-      await transparentVault.connect(user).requestRedeem(redeemAmount);
-      await transparentVault.connect(user).cancelRedeemRequest(redeemAmount);
+      await transparentVault.connect(user).approve(await transparentVault.getAddress(), redeemAmount / 2n);
+      await transparentVault.connect(user).requestRedeem(redeemAmount / 2n);
+      await transparentVault.connect(user).cancelRedeemRequest(redeemAmount / 2n);
+
       await transparentVault.connect(user).approve(await transparentVault.getAddress(), redeemAmount);
       await transparentVault.connect(user).requestRedeem(redeemAmount);
 

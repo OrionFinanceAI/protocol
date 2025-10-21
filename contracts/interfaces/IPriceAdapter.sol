@@ -12,4 +12,9 @@ interface IPriceAdapter {
     /// @dev The asset shall be whitelisted in the OrionConfig contract.
     /// @dev The registry will handle normalization to priceAdapterDecimals.
     function getPriceData(address asset) external view returns (uint256 price, uint8 decimals);
+
+    /// @notice Validates that the given asset is compatible with this adapter
+    /// @param asset The address of the asset to validate
+    /// @return true if the asset is compatible, reverts otherwise
+    function validatePriceAdapter(address asset) external view returns (bool);
 }
