@@ -55,7 +55,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
         uint16 performanceFee,
         uint16 managementFee
     ) OrionVault(vaultOwner, curator, configAddress, name, symbol, feeType, performanceFee, managementFee) {
-        _updateCuratorType();
+        _updateCuratorType(config.getAllWhitelistedAssets());
     }
 
     /// --------- CURATOR FUNCTIONS ---------
@@ -154,14 +154,14 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     function updateCurator(address newCurator) external override(OrionVault, IOrionVault) onlyVaultOwner {
         if (newCurator == address(0)) revert ErrorsLib.InvalidAddress();
         curator = newCurator;
-        _updateCuratorType();
+        _updateCuratorType(this.vaultWhitelist());
         emit CuratorUpdated(newCurator);
     }
 
     /// --------- INTERNAL FUNCTIONS ---------
 
     /// @notice Update the curator type flag based on ERC-165 interface detection
-    function _updateCuratorType() internal {
+    function _updateCuratorType(address[] memory whitelistedAssets) internal {
         if (curator.code.length == 0) {
             // EOA (wallet) - active curator
             _isPassiveCurator = false;
@@ -170,6 +170,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
             try IERC165(curator).supportsInterface(type(IOrionStrategy).interfaceId) returns (bool supported) {
                 if (supported) {
                     _isPassiveCurator = true;
+                    IOrionStrategy(curator).validateStrategy(whitelistedAssets);
                 } else {
                     // Contract exists but doesn't support IOrionStrategy - invalid curator
                     revert ErrorsLib.InvalidCuratorContract();
@@ -185,9 +186,9 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     /// @return tokens Array of token addresses
     /// @return weights Array of weights
     function _computePassiveIntent() internal view returns (address[] memory tokens, uint32[] memory weights) {
-        address[] memory vaultWhitelistedAssets = this.vaultWhitelist();
+        address[] memory whitelistedAssets = this.vaultWhitelist();
         // Call the passive curator to compute intent
-        Position[] memory intent = IOrionStrategy(curator).computeIntent(vaultWhitelistedAssets);
+        Position[] memory intent = IOrionStrategy(curator).computeIntent(whitelistedAssets);
 
         // Convert to return format
         tokens = new address[](intent.length);

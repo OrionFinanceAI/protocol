@@ -67,4 +67,7 @@ library ErrorsLib {
 
     /// @notice The curator contract does not properly implement the required interface.
     error InvalidCuratorContract();
+
+    /// @notice The strategy is not compatible with the provided whitelisted assets.
+    error InvalidStrategy();
 }

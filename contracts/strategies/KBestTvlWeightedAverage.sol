@@ -8,6 +8,7 @@ import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
@@ -49,6 +50,34 @@ contract KBestTvlWeightedAverage is IOrionStrategy, Ownable, ERC165 {
         );
 
         intent = _calculatePositions(tokens, topTvls, kActual);
+    }
+
+    /// @inheritdoc IOrionStrategy
+    function validateStrategy(address[] calldata vaultWhitelistedAssets) external view {
+        uint8 n = uint8(vaultWhitelistedAssets.length);
+        address referenceUnderlyingAsset = address(0);
+
+        for (uint8 i = 0; i < n; ++i) {
+            address asset = vaultWhitelistedAssets[i];
+
+            // slither-disable-next-line unused-return
+            try IERC4626(asset).totalAssets() returns (uint256) {
+                // Asset is ERC4626 compliant, good.
+            } catch {
+                revert ErrorsLib.InvalidStrategy();
+            }
+
+            // Check that the underlying asset is the same across all assets in vaultWhitelistedAssets
+            try IERC4626(asset).asset() returns (address vaultUnderlyingAsset) {
+                if (referenceUnderlyingAsset == address(0)) {
+                    referenceUnderlyingAsset = vaultUnderlyingAsset;
+                } else if (vaultUnderlyingAsset != referenceUnderlyingAsset) {
+                    revert ErrorsLib.InvalidStrategy();
+                }
+            } catch {
+                revert ErrorsLib.InvalidStrategy();
+            }
+        }
     }
 
     /// @notice Gets TVL for all whitelisted assets

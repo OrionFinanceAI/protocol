@@ -33,6 +33,19 @@
       ],
       "stateMutability": "view",
       "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address[]",
+          "name": "vaultWhitelistedAssets",
+          "type": "address[]"
+        }
+      ],
+      "name": "validateStrategy",
+      "outputs": [],
+      "stateMutability": "view",
+      "type": "function"
     }
   ],
   "bytecode": "0x",

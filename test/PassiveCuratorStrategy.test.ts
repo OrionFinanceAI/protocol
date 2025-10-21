@@ -199,10 +199,10 @@ describe("Passive Curator Strategy", function () {
     await strategyDeployed.waitForDeployment();
     strategy = strategyDeployed as unknown as KBestTvlWeightedAverage;
 
-    // Create a transparent vault with the strategy as curator
+    // Step 1: Create a transparent vault with an address (not contract) as curator
     const tx = await transparentVaultFactory
       .connect(owner)
-      .createVault(await strategy.getAddress(), "Test Strategy Vault", "TSV", 0, 0, 0);
+      .createVault(curator.address, "Test Strategy Vault", "TSV", 0, 0, 0);
     const receipt = await tx.wait();
 
     // Find the vault creation event
@@ -228,6 +228,7 @@ describe("Passive Curator Strategy", function () {
 
     await transparentVault.connect(owner).updateFeeModel(3, 1000, 100);
 
+    // Step 2: Update vault investment universe to exclude underlying asset
     await transparentVault
       .connect(owner)
       .updateVaultWhitelist([
@@ -236,6 +237,9 @@ describe("Passive Curator Strategy", function () {
         await mockAsset3.getAddress(),
         await mockAsset4.getAddress(),
       ]);
+
+    // Step 3: Update curator to the strategy contract
+    await transparentVault.connect(owner).updateCurator(await strategy.getAddress());
 
     await underlyingAsset.connect(user).approve(await transparentVault.getAddress(), ethers.parseUnits("10000", 12));
     const depositAmount = ethers.parseUnits("100", 12);
@@ -250,8 +254,15 @@ describe("Passive Curator Strategy", function () {
 
     it("should support IOrionStrategy interface", async function () {
       // Check that the strategy supports the IOrionStrategy interface
-      const interfaceId = ethers.id("computeIntent(address[])").slice(0, 10);
-      await expect(await strategy.supportsInterface(interfaceId)).to.be.true;
+      // The interface ID is calculated from XOR of all function selectors in the interface
+      const computeIntentSelector = ethers.id("computeIntent(address[])").slice(0, 10);
+      const validateStrategySelector = ethers.id("validateStrategy(address[])").slice(0, 10);
+
+      // XOR the two selectors to get the interface ID
+      const interfaceId = (BigInt(computeIntentSelector) ^ BigInt(validateStrategySelector))
+        .toString(16)
+        .padStart(8, "0");
+      await expect(await strategy.supportsInterface("0x" + interfaceId)).to.be.true;
     });
 
     it("should support ERC165 interface", async function () {
