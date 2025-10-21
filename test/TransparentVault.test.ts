@@ -197,10 +197,6 @@ describe("TransparentVault - Curator Pipeline", function () {
     });
 
     it("Should allow vault owner to claim curator fees", async function () {
-      // Note: In a real scenario, fees would be accrued by the liquidity orchestrator
-      // For testing purposes, we'll skip the fee accrual step and just test the claim function
-      // The claim function requires pendingCuratorFees > 0, so we'll test the revert case
-
       const claimAmount = ethers.parseUnits("50", 6); // Try to claim 50 USDC
 
       await expect(transparentVault.connect(owner).claimCuratorFees(claimAmount)).to.be.revertedWithCustomError(
@@ -210,7 +206,6 @@ describe("TransparentVault - Curator Pipeline", function () {
     });
 
     it("Should allow curator to submit intent", async function () {
-      // First update the whitelist to include the assets we want to use
       const whitelist = [await mockAsset1.getAddress(), await mockAsset2.getAddress()];
       await transparentVault.connect(owner).updateVaultWhitelist(whitelist);
 

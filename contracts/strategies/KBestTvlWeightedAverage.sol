@@ -62,8 +62,6 @@ contract KBestTvlWeightedAverage is IOrionStrategy, Ownable, ERC165 {
         tvls = new uint256[](n);
 
         for (uint8 i = 0; i < n; ++i) {
-            // This tvl measurement is limited to assets which are ERC4626 compliant and
-            // whose underlying has the same decimals.
             tvls[i] = IERC4626(vaultWhitelistedAssets[i]).totalAssets();
         }
     }

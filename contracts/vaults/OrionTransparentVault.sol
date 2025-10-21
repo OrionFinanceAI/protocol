@@ -168,10 +168,15 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
         } else {
             // Smart contract - check if it supports IOrionStrategy interface
             try IERC165(curator).supportsInterface(type(IOrionStrategy).interfaceId) returns (bool supported) {
-                _isPassiveCurator = supported;
+                if (supported) {
+                    _isPassiveCurator = true;
+                } else {
+                    // Contract exists but doesn't support IOrionStrategy - invalid curator
+                    revert ErrorsLib.InvalidCuratorContract();
+                }
             } catch {
-                // If supportsInterface fails, treat as active curator (push-based)
-                _isPassiveCurator = false;
+                // If supportsInterface fails, the curator contract is invalid
+                revert ErrorsLib.InvalidCuratorContract();
             }
         }
     }

@@ -64,4 +64,7 @@ library ErrorsLib {
 
     /// @notice Transfer of tokens failed.
     error TransferFailed();
+
+    /// @notice The curator contract does not properly implement the required interface.
+    error InvalidCuratorContract();
 }
