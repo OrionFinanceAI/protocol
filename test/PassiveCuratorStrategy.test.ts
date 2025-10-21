@@ -438,6 +438,39 @@ describe("Passive Curator Strategy", function () {
     });
   });
 
+  describe("Vault Whitelist Updates with Strategy Validation", function () {
+    it("should validate strategy when updating vault whitelist", async function () {
+      await transparentVault
+        .connect(owner)
+        .updateVaultWhitelist([await mockAsset1.getAddress(), await mockAsset2.getAddress()]);
+
+      const whitelist = await transparentVault.vaultWhitelist();
+      expect(whitelist.length).to.equal(2);
+      expect(whitelist).to.include(await mockAsset1.getAddress());
+      expect(whitelist).to.include(await mockAsset2.getAddress());
+    });
+
+    it("should reject invalid whitelist updates that break strategy", async function () {
+      // Try to update whitelist with an invalid asset (non-ERC4626)
+      // This should fail because the strategy validation will reject it
+      await expect(
+        transparentVault
+          .connect(owner)
+          .updateVaultWhitelist([await mockAsset1.getAddress(), await underlyingAsset.getAddress()]),
+      ).to.be.revertedWithCustomError(strategy, "InvalidStrategy");
+    });
+
+    it("should allow whitelist updates when curator is not a strategy", async function () {
+      await transparentVault.connect(owner).updateCurator(owner.address);
+
+      await transparentVault
+        .connect(owner)
+        .updateVaultWhitelist([await mockAsset1.getAddress(), await mockAsset2.getAddress()]);
+
+      await transparentVault.connect(owner).updateCurator(await strategy.getAddress());
+    });
+  });
+
   describe("Error Handling", function () {
     it("should maintain valid intent weights after parameter changes", async function () {
       // Test various k values to ensure weights always sum to 100%

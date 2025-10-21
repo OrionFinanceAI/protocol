@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
+import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import "./OrionVault.sol";
 import "../interfaces/IOrionConfig.sol";
@@ -24,6 +25,7 @@ import { EventsLib } from "../libraries/EventsLib.sol";
  */
 contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
+    using EnumerableSet for EnumerableSet.AddressSet;
 
     /// @notice Current portfolio shares per asset (w_0) - mapping of token address to live allocation
     EnumerableMap.AddressToUintMap internal _portfolio;
@@ -156,6 +158,26 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
         curator = newCurator;
         _updateCuratorType(this.vaultWhitelist());
         emit CuratorUpdated(newCurator);
+    }
+
+    /// @notice Override updateVaultWhitelist to validate strategy compatibility
+    /// @param assets The new whitelisted assets for the vault
+    function updateVaultWhitelist(address[] calldata assets) external override(OrionVault, IOrionVault) onlyVaultOwner {
+        // Clear existing whitelist
+        _vaultWhitelistedAssets.clear();
+
+        for (uint256 i = 0; i < assets.length; ++i) {
+            address token = assets[i];
+
+            if (!config.isWhitelisted(token)) revert ErrorsLib.TokenNotWhitelisted(token);
+
+            bool inserted = _vaultWhitelistedAssets.add(token);
+            if (!inserted) revert ErrorsLib.AlreadyRegistered();
+        }
+
+        if (_isPassiveCurator) {
+            IOrionStrategy(curator).validateStrategy(assets);
+        }
     }
 
     /// --------- INTERNAL FUNCTIONS ---------
