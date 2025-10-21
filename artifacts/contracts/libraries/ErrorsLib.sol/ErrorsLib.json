@@ -1,0 +1,124 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "ErrorsLib",
+  "sourceName": "contracts/libraries/ErrorsLib.sol",
+  "abi": [
+    {
+      "inputs": [],
+      "name": "AdapterNotSet",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "AlreadyRegistered",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "asset",
+          "type": "address"
+        }
+      ],
+      "name": "AmountMustBeGreaterThanZero",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InsufficientAmount",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidAdapter",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidAddress",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidArguments",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidState",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidTotalWeight",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidUnderlyingDecimals",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotAuthorized",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "OrderIntentCannotBeEmpty",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "SystemNotIdle",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "token",
+          "type": "address"
+        }
+      ],
+      "name": "TokenAlreadyInOrder",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "token",
+          "type": "address"
+        }
+      ],
+      "name": "TokenNotWhitelisted",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "TooEarly",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "TransferFailed",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "UnauthorizedAccess",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "ZeroAddress",
+      "type": "error"
+    }
+  ],
+  "bytecode": "0x60556032600b8282823980515f1a607314602657634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f5ffdfea2646970667358221220eb1b860f26e8221e3bed54e63655dc960815d1297f63b4c3426899e8743d29f564736f6c634300081c0033",
+  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f5ffdfea2646970667358221220eb1b860f26e8221e3bed54e63655dc960815d1297f63b4c3426899e8743d29f564736f6c634300081c0033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}
