@@ -50,6 +50,19 @@
       ],
       "stateMutability": "nonpayable",
       "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "asset",
+          "type": "address"
+        }
+      ],
+      "name": "validateExecutionAdapter",
+      "outputs": [],
+      "stateMutability": "view",
+      "type": "function"
     }
   ],
   "bytecode": "0x",

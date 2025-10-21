@@ -72,22 +72,19 @@ describe("Orchestrators", function () {
 
     // Initialize mock assets with different amounts of underlying assets
     // This creates initial liquidity in each vault for realistic price testing
-    const initialDeposit1 = ethers.parseUnits("1000", 12); // 1000 underlying assets for mockAsset1
-    const initialDeposit2 = ethers.parseUnits("2000", 12); // 2000 underlying assets for mockAsset2
-    const initialDeposit3 = ethers.parseUnits("1500", 12); // 1500 underlying assets for mockAsset3
+    const initialDeposit1 = ethers.parseUnits("1000", 12);
+    const initialDeposit2 = ethers.parseUnits("2000", 12);
+    const initialDeposit3 = ethers.parseUnits("1500", 12);
 
     // Mint underlying assets to user for deposits
     await underlyingAsset.mint(user.address, ethers.parseUnits("10000", 12));
 
-    // Deposit to mockAsset1
     await underlyingAsset.connect(user).approve(await mockAsset1.getAddress(), initialDeposit1);
     await mockAsset1.connect(user).deposit(initialDeposit1, user.address);
 
-    // Deposit to mockAsset2
     await underlyingAsset.connect(user).approve(await mockAsset2.getAddress(), initialDeposit2);
     await mockAsset2.connect(user).deposit(initialDeposit2, user.address);
 
-    // Deposit to mockAsset3
     await underlyingAsset.connect(user).approve(await mockAsset3.getAddress(), initialDeposit3);
     await mockAsset3.connect(user).deposit(initialDeposit3, user.address);
 
@@ -467,9 +464,10 @@ describe("Orchestrators", function () {
       // Have LPs request redemption (test also cancel it)
       const redeemAmount = await transparentVault.balanceOf(user.address);
       expect(redeemAmount).to.be.gt(0);
-      await transparentVault.connect(user).approve(await transparentVault.getAddress(), redeemAmount);
-      await transparentVault.connect(user).requestRedeem(redeemAmount);
-      await transparentVault.connect(user).cancelRedeemRequest(redeemAmount);
+      await transparentVault.connect(user).approve(await transparentVault.getAddress(), redeemAmount / 2n);
+      await transparentVault.connect(user).requestRedeem(redeemAmount / 2n);
+      await transparentVault.connect(user).cancelRedeemRequest(redeemAmount / 2n);
+
       await transparentVault.connect(user).approve(await transparentVault.getAddress(), redeemAmount);
       await transparentVault.connect(user).requestRedeem(redeemAmount);
 
@@ -565,6 +563,33 @@ describe("Orchestrators", function () {
       const pendingTransparentCuratorFees = await transparentVault.pendingCuratorFees();
       if (pendingTransparentCuratorFees > 0) {
         await transparentVault.connect(owner).claimCuratorFees(pendingTransparentCuratorFees);
+      }
+
+      const epochTokens = await internalStatesOrchestrator.getEpochTokens();
+      expect(epochTokens.length).to.be.gt(0);
+
+      const expectedTokens = [
+        await mockAsset1.getAddress(),
+        await mockAsset2.getAddress(),
+        await mockAsset3.getAddress(),
+        await underlyingAsset.getAddress(),
+      ];
+
+      for (const expectedToken of expectedTokens) {
+        expect(epochTokens).to.include(expectedToken);
+      }
+
+      for (const token of epochTokens) {
+        const price = await internalStatesOrchestrator.getPriceOf(token);
+        expect(price).to.be.gt(0);
+
+        if (token === (await underlyingAsset.getAddress())) {
+          // Underlying asset price should be 1
+          expect(price).to.equal(ethers.parseUnits("1", 14));
+        } else {
+          // Mock asset prices should be strictly positive
+          expect(price).to.be.gt(0);
+        }
       }
     });
 
@@ -673,6 +698,125 @@ describe("Orchestrators", function () {
       // Verify target buffer ratio is set correctly
       expect(await liquidityOrchestrator.targetBufferRatio()).to.equal(100);
     });
+
+    it("should test internal states orchestrator with positive deltaAmount scenario", async function () {
+      const epochDuration = await internalStatesOrchestrator.epochDuration();
+      await time.increase(epochDuration + 1n);
+
+      let [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(1);
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(2);
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(3);
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(4);
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0);
+      expect(await internalStatesOrchestrator.epochCounter()).to.equal(1);
+
+      const initialBufferAmount = await internalStatesOrchestrator.bufferAmount();
+
+      // Create price mismatch by simulating losses AFTER the oracle price call but BEFORE liquidity orchestrator execution
+      // This will cause the execution price to be lower than the oracle price, leading to decreasing buffer amount.
+
+      let [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      void expect(liquidityUpkeepNeeded).to.be.true;
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(2); // From Idle to BuyingLeg (no selling in this scenario)
+
+      // Simulate losses in mock assets to decrease their share prices
+      const lossAmount1 = ethers.parseUnits("5", 12);
+      await mockAsset1.connect(owner).simulateLosses(lossAmount1, owner.address);
+
+      const lossAmount2 = ethers.parseUnits("7", 12);
+      await mockAsset2.connect(owner).simulateLosses(lossAmount2, owner.address);
+
+      const lossAmount3 = ethers.parseUnits("10", 12);
+      await mockAsset3.connect(owner).simulateLosses(lossAmount3, owner.address);
+
+      // Continue liquidity orchestrator execution phases
+      [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      void expect(liquidityUpkeepNeeded).to.be.true;
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+
+      [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      void expect(liquidityUpkeepNeeded).to.be.true;
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+
+      [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      void expect(liquidityUpkeepNeeded).to.be.true;
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+
+      [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      void expect(liquidityUpkeepNeeded).to.be.true;
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(3); // FulfillDepositAndRedeem
+
+      [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      void expect(liquidityUpkeepNeeded).to.be.true;
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
+
+      // Check that buffer amount has changed due to market impact
+      const finalBufferAmount = await internalStatesOrchestrator.bufferAmount();
+      // The buffer amount should have changed due to market impact.
+      expect(finalBufferAmount).to.be.gt(initialBufferAmount);
+
+      // Start a new epoch to test the complete cycle with the updated buffer
+      await time.increase(epochDuration + 1n);
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(1);
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(2);
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(3);
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(4);
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0);
+      expect(await internalStatesOrchestrator.epochCounter()).to.equal(2);
+
+      const depositAmount = ethers.parseUnits("1000", 12);
+      const bufferAmountBeforeDeposit = await internalStatesOrchestrator.bufferAmount();
+
+      await underlyingAsset.connect(owner).mint(owner.address, depositAmount);
+      await underlyingAsset.connect(owner).approve(await liquidityOrchestrator.getAddress(), depositAmount);
+
+      await liquidityOrchestrator.connect(owner).depositLiquidity(depositAmount);
+
+      // Check that the buffer amount increased by the deposit amount
+      const bufferAmountAfterDeposit = await internalStatesOrchestrator.bufferAmount();
+      expect(bufferAmountAfterDeposit).to.equal(bufferAmountBeforeDeposit + depositAmount);
+
+      const withdrawAmount = ethers.parseUnits("500", 12);
+      const bufferAmountBeforeWithdraw = bufferAmountAfterDeposit;
+
+      await liquidityOrchestrator.connect(owner).withdrawLiquidity(withdrawAmount);
+
+      const bufferAmountAfterWithdraw = await internalStatesOrchestrator.bufferAmount();
+      expect(bufferAmountAfterWithdraw).to.equal(bufferAmountBeforeWithdraw - withdrawAmount);
+    });
   });
 
   describe("configuration", function () {
@@ -747,10 +891,16 @@ describe("Orchestrators", function () {
         .withArgs(newAutomationRegistry);
 
       expect(await internalStatesOrchestrator.automationRegistry()).to.equal(newAutomationRegistry);
+
+      await expect(liquidityOrchestrator.updateAutomationRegistry(newAutomationRegistry))
+        .to.emit(liquidityOrchestrator, "AutomationRegistryUpdated")
+        .withArgs(newAutomationRegistry);
+
+      expect(await liquidityOrchestrator.automationRegistry()).to.equal(newAutomationRegistry);
     });
   });
 
-  describe("Security Tests - InvalidState Protection", function () {
+  describe("Security Tests - InternalStatesOrchestrator InvalidState Protection", function () {
     const createMaliciousPerformData = (action: string, minibatchIndex: number = 0) => {
       const actionHash = ethers.keccak256(ethers.toUtf8Bytes(action));
       const actionBytes4 = actionHash.slice(0, 10);
@@ -856,6 +1006,284 @@ describe("Orchestrators", function () {
       await expect(
         internalStatesOrchestrator.connect(automationRegistry).performUpkeep(maliciousData),
       ).to.be.revertedWithCustomError(internalStatesOrchestrator, "InvalidState");
+    });
+  });
+
+  describe("Security Tests - LiquidityOrchestrator InvalidState Protection", function () {
+    const createMaliciousLiquidityPerformData = (action: string, minibatchIndex: number = 0) => {
+      const actionHash = ethers.keccak256(ethers.toUtf8Bytes(action));
+      const actionBytes4 = actionHash.slice(0, 10);
+      return ethers.AbiCoder.defaultAbiCoder().encode(["bytes4", "uint8"], [actionBytes4, minibatchIndex]);
+    };
+
+    it("should not update phase when calling start() in any phase", async function () {
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
+
+      const epochDuration = await internalStatesOrchestrator.epochDuration();
+      await time.increase(epochDuration + 1n);
+
+      let [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // Buffering
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Back to Idle
+
+      const [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(2); // BuyingLeg (skips SellingLeg since no selling tokens)
+
+      const maliciousData = createMaliciousLiquidityPerformData("start()", 0);
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(maliciousData);
+
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(2); // No phase change.
+    });
+
+    it("should revert with InvalidState when calling processSell(uint8) in wrong phase", async function () {
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
+
+      const maliciousData = createMaliciousLiquidityPerformData("processSell(uint8)", 0);
+      await expect(
+        liquidityOrchestrator.connect(automationRegistry).performUpkeep(maliciousData),
+      ).to.be.revertedWithCustomError(liquidityOrchestrator, "InvalidState");
+    });
+
+    it("should revert with InvalidState when calling processBuy(uint8) in wrong phase", async function () {
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
+
+      const maliciousData = createMaliciousLiquidityPerformData("processBuy(uint8)", 0);
+      await expect(
+        liquidityOrchestrator.connect(automationRegistry).performUpkeep(maliciousData),
+      ).to.be.revertedWithCustomError(liquidityOrchestrator, "InvalidState");
+    });
+
+    it("should revert with InvalidState when calling processFulfillDepositAndRedeem() in wrong phase", async function () {
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
+
+      const maliciousData = createMaliciousLiquidityPerformData("processFulfillDepositAndRedeem()", 0);
+      await expect(
+        liquidityOrchestrator.connect(automationRegistry).performUpkeep(maliciousData),
+      ).to.be.revertedWithCustomError(liquidityOrchestrator, "InvalidState");
+    });
+
+    it("should revert with InvalidState when trying to execute phases out of order", async function () {
+      const epochDuration = await internalStatesOrchestrator.epochDuration();
+      await time.increase(epochDuration + 1n);
+
+      let [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // Buffering
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Back to Idle
+
+      const [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(2); // BuyingLeg (skips SellingLeg since no selling tokens)
+
+      const maliciousData = createMaliciousLiquidityPerformData("processSell(uint8)", 0);
+      await expect(
+        liquidityOrchestrator.connect(automationRegistry).performUpkeep(maliciousData),
+      ).to.be.revertedWithCustomError(liquidityOrchestrator, "InvalidState");
+    });
+
+    it("should revert with InvalidState when trying to replay completed phases", async function () {
+      const epochDuration = await internalStatesOrchestrator.epochDuration();
+      await time.increase(epochDuration + 1n);
+
+      let [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // Buffering
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Back to Idle
+
+      let [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(2); // BuyingLeg (skips SellingLeg since no selling tokens)
+
+      [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(2); // Still BuyingLeg (processing minibatches)
+
+      [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(2); // Still BuyingLeg (processing minibatches)
+
+      [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(2); // Still BuyingLeg (processing minibatches)
+
+      [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(3); // FulfillDepositAndRedeem
+
+      [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Back to Idle
+
+      const maliciousData = createMaliciousLiquidityPerformData("processBuy(uint8)", 0);
+      await expect(
+        liquidityOrchestrator.connect(automationRegistry).performUpkeep(maliciousData),
+      ).to.be.revertedWithCustomError(liquidityOrchestrator, "InvalidState");
+    });
+
+    it("should revert with InvalidState when trying to execute wrong minibatch action in current phase", async function () {
+      const epochDuration = await internalStatesOrchestrator.epochDuration();
+      await time.increase(epochDuration + 1n);
+
+      let [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // Buffering
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Back to Idle
+
+      const [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(2); // BuyingLeg (skips SellingLeg since no selling tokens)
+
+      const maliciousData = createMaliciousLiquidityPerformData("processFulfillDepositAndRedeem()", 0);
+
+      await expect(
+        liquidityOrchestrator.connect(automationRegistry).performUpkeep(maliciousData),
+      ).to.be.revertedWithCustomError(liquidityOrchestrator, "InvalidState");
+    });
+
+    it("should revert with InvalidState when trying to execute processSell in BuyingLeg phase", async function () {
+      const epochDuration = await internalStatesOrchestrator.epochDuration();
+      await time.increase(epochDuration + 1n);
+
+      let [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // Buffering
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Back to Idle
+
+      const [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(2); // BuyingLeg (skips SellingLeg since no selling tokens)
+
+      const maliciousData = createMaliciousLiquidityPerformData("processSell(uint8)", 0);
+      await expect(
+        liquidityOrchestrator.connect(automationRegistry).performUpkeep(maliciousData),
+      ).to.be.revertedWithCustomError(liquidityOrchestrator, "InvalidState");
+    });
+
+    it("should revert with InvalidState when trying to execute processBuy in FulfillDepositAndRedeem phase", async function () {
+      const epochDuration = await internalStatesOrchestrator.epochDuration();
+      await time.increase(epochDuration + 1n);
+
+      let [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // Buffering
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Back to Idle
+
+      let [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(2); // BuyingLeg (skips SellingLeg since no selling tokens)
+
+      [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(2); // Still BuyingLeg (processing minibatches)
+
+      [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(2); // Still BuyingLeg (processing minibatches)
+
+      [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(2); // Still BuyingLeg (processing minibatches)
+
+      [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(3); // FulfillDepositAndRedeem
+
+      const maliciousData = createMaliciousLiquidityPerformData("processBuy(uint8)", 0);
+      await expect(
+        liquidityOrchestrator.connect(automationRegistry).performUpkeep(maliciousData),
+      ).to.be.revertedWithCustomError(liquidityOrchestrator, "InvalidState");
     });
   });
 });

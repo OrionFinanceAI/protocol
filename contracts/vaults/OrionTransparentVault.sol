@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
+import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import "./OrionVault.sol";
 import "../interfaces/IOrionConfig.sol";
@@ -24,6 +25,7 @@ import { EventsLib } from "../libraries/EventsLib.sol";
  */
 contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
+    using EnumerableSet for EnumerableSet.AddressSet;
 
     /// @notice Current portfolio shares per asset (w_0) - mapping of token address to live allocation
     EnumerableMap.AddressToUintMap internal _portfolio;
@@ -55,7 +57,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
         uint16 performanceFee,
         uint16 managementFee
     ) OrionVault(vaultOwner, curator, configAddress, name, symbol, feeType, performanceFee, managementFee) {
-        _updateCuratorType();
+        _updateCuratorType(config.getAllWhitelistedAssets());
     }
 
     /// --------- CURATOR FUNCTIONS ---------
@@ -154,24 +156,52 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     function updateCurator(address newCurator) external override(OrionVault, IOrionVault) onlyVaultOwner {
         if (newCurator == address(0)) revert ErrorsLib.InvalidAddress();
         curator = newCurator;
-        _updateCuratorType();
+        _updateCuratorType(this.vaultWhitelist());
         emit CuratorUpdated(newCurator);
+    }
+
+    /// @notice Override updateVaultWhitelist to validate strategy compatibility
+    /// @param assets The new whitelisted assets for the vault
+    function updateVaultWhitelist(address[] calldata assets) external onlyVaultOwner {
+        // Clear existing whitelist
+        _vaultWhitelistedAssets.clear();
+
+        for (uint256 i = 0; i < assets.length; ++i) {
+            address token = assets[i];
+
+            if (!config.isWhitelisted(token)) revert ErrorsLib.TokenNotWhitelisted(token);
+
+            bool inserted = _vaultWhitelistedAssets.add(token);
+            if (!inserted) revert ErrorsLib.AlreadyRegistered();
+        }
+
+        if (_isPassiveCurator) {
+            IOrionStrategy(curator).validateStrategy(assets);
+        }
+
+        emit VaultWhitelistUpdated(assets);
     }
 
     /// --------- INTERNAL FUNCTIONS ---------
 
     /// @notice Update the curator type flag based on ERC-165 interface detection
-    function _updateCuratorType() internal {
+    function _updateCuratorType(address[] memory whitelistedAssets) internal {
         if (curator.code.length == 0) {
             // EOA (wallet) - active curator
             _isPassiveCurator = false;
         } else {
             // Smart contract - check if it supports IOrionStrategy interface
             try IERC165(curator).supportsInterface(type(IOrionStrategy).interfaceId) returns (bool supported) {
-                _isPassiveCurator = supported;
+                if (supported) {
+                    _isPassiveCurator = true;
+                    IOrionStrategy(curator).validateStrategy(whitelistedAssets);
+                } else {
+                    // Contract exists but doesn't support IOrionStrategy - invalid curator
+                    revert ErrorsLib.InvalidCuratorContract();
+                }
             } catch {
-                // If supportsInterface fails, treat as active curator (push-based)
-                _isPassiveCurator = false;
+                // If supportsInterface fails, the curator contract is invalid
+                revert ErrorsLib.InvalidCuratorContract();
             }
         }
     }
@@ -180,9 +210,9 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     /// @return tokens Array of token addresses
     /// @return weights Array of weights
     function _computePassiveIntent() internal view returns (address[] memory tokens, uint32[] memory weights) {
-        address[] memory vaultWhitelistedAssets = this.vaultWhitelist();
+        address[] memory whitelistedAssets = this.vaultWhitelist();
         // Call the passive curator to compute intent
-        Position[] memory intent = IOrionStrategy(curator).computeIntent(vaultWhitelistedAssets);
+        Position[] memory intent = IOrionStrategy(curator).computeIntent(whitelistedAssets);
 
         // Convert to return format
         tokens = new address[](intent.length);

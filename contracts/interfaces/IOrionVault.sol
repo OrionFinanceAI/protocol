@@ -73,6 +73,10 @@ interface IOrionVault is IERC4626 {
         uint256 sharesBurned
     );
 
+    /// @notice The vault whitelist has been updated.
+    /// @param assets The new whitelist of assets.
+    event VaultWhitelistUpdated(address[] indexed assets);
+
     /// @notice Curator fees have been accrued for a specific epoch.
     /// @param epoch The epoch for which fees were accrued.
     /// @param feeAmount The amount of fees accrued in underlying asset units.

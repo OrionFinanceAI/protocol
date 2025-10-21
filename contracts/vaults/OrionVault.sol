@@ -56,7 +56,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
     /// @notice Vault-specific whitelist of assets for intent validation
     /// @dev This is a subset of the protocol whitelist for higher auditability
-    EnumerableSet.AddressSet private _vaultWhitelistedAssets;
+    EnumerableSet.AddressSet internal _vaultWhitelistedAssets;
 
     /// @notice Total assets under management (t_0) - denominated in underlying asset units
     uint256 internal _totalAssets;
@@ -381,20 +381,6 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         if (newCurator == address(0)) revert ErrorsLib.InvalidAddress();
         curator = newCurator;
         emit CuratorUpdated(newCurator);
-    }
-
-    /// @inheritdoc IOrionVault
-    function updateVaultWhitelist(address[] calldata assets) external onlyVaultOwner {
-        _vaultWhitelistedAssets.clear();
-        for (uint256 i = 0; i < assets.length; ++i) {
-            address token = assets[i];
-
-            // Protocol whitelist validation
-            if (!config.isWhitelisted(token)) revert ErrorsLib.TokenNotWhitelisted(token);
-
-            bool inserted = _vaultWhitelistedAssets.add(token);
-            if (!inserted) revert ErrorsLib.AlreadyRegistered();
-        }
     }
 
     /// @inheritdoc IOrionVault

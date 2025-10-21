@@ -199,10 +199,10 @@ describe("Passive Curator Strategy", function () {
     await strategyDeployed.waitForDeployment();
     strategy = strategyDeployed as unknown as KBestTvlWeightedAverage;
 
-    // Create a transparent vault with the strategy as curator
+    // Step 1: Create a transparent vault with an address (not contract) as curator
     const tx = await transparentVaultFactory
       .connect(owner)
-      .createVault(await strategy.getAddress(), "Test Strategy Vault", "TSV", 0, 0, 0);
+      .createVault(curator.address, "Test Strategy Vault", "TSV", 0, 0, 0);
     const receipt = await tx.wait();
 
     // Find the vault creation event
@@ -228,6 +228,7 @@ describe("Passive Curator Strategy", function () {
 
     await transparentVault.connect(owner).updateFeeModel(3, 1000, 100);
 
+    // Step 2: Update vault investment universe to exclude underlying asset
     await transparentVault
       .connect(owner)
       .updateVaultWhitelist([
@@ -236,6 +237,9 @@ describe("Passive Curator Strategy", function () {
         await mockAsset3.getAddress(),
         await mockAsset4.getAddress(),
       ]);
+
+    // Step 3: Update curator to the strategy contract
+    await transparentVault.connect(owner).updateCurator(await strategy.getAddress());
 
     await underlyingAsset.connect(user).approve(await transparentVault.getAddress(), ethers.parseUnits("10000", 12));
     const depositAmount = ethers.parseUnits("100", 12);
@@ -250,8 +254,15 @@ describe("Passive Curator Strategy", function () {
 
     it("should support IOrionStrategy interface", async function () {
       // Check that the strategy supports the IOrionStrategy interface
-      const interfaceId = ethers.id("computeIntent(address[])").slice(0, 10);
-      await expect(await strategy.supportsInterface(interfaceId)).to.be.true;
+      // The interface ID is calculated from XOR of all function selectors in the interface
+      const computeIntentSelector = ethers.id("computeIntent(address[])").slice(0, 10);
+      const validateStrategySelector = ethers.id("validateStrategy(address[])").slice(0, 10);
+
+      // XOR the two selectors to get the interface ID
+      const interfaceId = (BigInt(computeIntentSelector) ^ BigInt(validateStrategySelector))
+        .toString(16)
+        .padStart(8, "0");
+      await expect(await strategy.supportsInterface("0x" + interfaceId)).to.be.true;
     });
 
     it("should support ERC165 interface", async function () {
@@ -427,6 +438,39 @@ describe("Passive Curator Strategy", function () {
     });
   });
 
+  describe("Vault Whitelist Updates with Strategy Validation", function () {
+    it("should validate strategy when updating vault whitelist", async function () {
+      await transparentVault
+        .connect(owner)
+        .updateVaultWhitelist([await mockAsset1.getAddress(), await mockAsset2.getAddress()]);
+
+      const whitelist = await transparentVault.vaultWhitelist();
+      expect(whitelist.length).to.equal(2);
+      expect(whitelist).to.include(await mockAsset1.getAddress());
+      expect(whitelist).to.include(await mockAsset2.getAddress());
+    });
+
+    it("should reject invalid whitelist updates that break strategy", async function () {
+      // Try to update whitelist with an invalid asset (non-ERC4626)
+      // This should fail because the strategy validation will reject it
+      await expect(
+        transparentVault
+          .connect(owner)
+          .updateVaultWhitelist([await mockAsset1.getAddress(), await underlyingAsset.getAddress()]),
+      ).to.be.revertedWithCustomError(strategy, "InvalidStrategy");
+    });
+
+    it("should allow whitelist updates when curator is not a strategy", async function () {
+      await transparentVault.connect(owner).updateCurator(owner.address);
+
+      await transparentVault
+        .connect(owner)
+        .updateVaultWhitelist([await mockAsset1.getAddress(), await mockAsset2.getAddress()]);
+
+      await transparentVault.connect(owner).updateCurator(await strategy.getAddress());
+    });
+  });
+
   describe("Error Handling", function () {
     it("should maintain valid intent weights after parameter changes", async function () {
       // Test various k values to ensure weights always sum to 100%
@@ -444,6 +488,92 @@ describe("Passive Curator Strategy", function () {
         const expectedTotalWeight = 10 ** Number(curatorIntentDecimals);
         expect(totalWeight).to.equal(expectedTotalWeight); // 100%
       }
+    });
+
+    it("should handle weight overflow scenario (sumWeights > intentScale)", async function () {
+      const MockERC4626AssetFactory = await ethers.getContractFactory("MockERC4626Asset");
+
+      const mockAsset5Deployed = await MockERC4626AssetFactory.deploy(
+        await underlyingAsset.getAddress(),
+        "Mock Asset 5",
+        "MA5",
+      );
+      await mockAsset5Deployed.waitForDeployment();
+      const mockAsset5 = mockAsset5Deployed as unknown as MockERC4626Asset;
+
+      const mockAsset6Deployed = await MockERC4626AssetFactory.deploy(
+        await underlyingAsset.getAddress(),
+        "Mock Asset 6",
+        "MA6",
+      );
+      await mockAsset6Deployed.waitForDeployment();
+      const mockAsset6 = mockAsset6Deployed as unknown as MockERC4626Asset;
+
+      const mockAsset7Deployed = await MockERC4626AssetFactory.deploy(
+        await underlyingAsset.getAddress(),
+        "Mock Asset 7",
+        "MA7",
+      );
+      await mockAsset7Deployed.waitForDeployment();
+      const mockAsset7 = mockAsset7Deployed as unknown as MockERC4626Asset;
+
+      await orionConfig.addWhitelistedAsset(
+        await mockAsset5.getAddress(),
+        await orionPriceAdapter.getAddress(),
+        await orionExecutionAdapter.getAddress(),
+      );
+      await orionConfig.addWhitelistedAsset(
+        await mockAsset6.getAddress(),
+        await orionPriceAdapter.getAddress(),
+        await orionExecutionAdapter.getAddress(),
+      );
+      await orionConfig.addWhitelistedAsset(
+        await mockAsset7.getAddress(),
+        await orionPriceAdapter.getAddress(),
+        await orionExecutionAdapter.getAddress(),
+      );
+
+      // Using values like 1, 1, 1 with total 3 will create weights that round up
+      // Each weight will be (1/3) * 10^6 = 333333.33... which rounds to 333334
+      // Sum will be 333334 * 3 = 1000002 > 1000000 (intentScale)
+      const depositAmount = ethers.parseUnits("1", 12);
+
+      await underlyingAsset.connect(user).approve(await mockAsset5.getAddress(), depositAmount);
+      await mockAsset5.connect(user).deposit(depositAmount, user.address);
+
+      await underlyingAsset.connect(user).approve(await mockAsset6.getAddress(), depositAmount);
+      await mockAsset6.connect(user).deposit(depositAmount, user.address);
+
+      await underlyingAsset.connect(user).approve(await mockAsset7.getAddress(), depositAmount);
+      await mockAsset7.connect(user).deposit(depositAmount, user.address);
+
+      await transparentVault
+        .connect(owner)
+        .updateVaultWhitelist([
+          await mockAsset5.getAddress(),
+          await mockAsset6.getAddress(),
+          await mockAsset7.getAddress(),
+        ]);
+
+      // Set k=3 to select all 3 assets with equal TVL
+      await strategy.connect(curator).updateParameters(3);
+
+      // Get intent - this should trigger the sumWeights > intentScale condition
+      const [tokens, weights] = await transparentVault.getIntent();
+
+      // Verify we have 3 assets selected
+      expect(tokens.length).to.equal(3);
+      expect(weights.length).to.equal(3);
+
+      // Verify that weights still sum to the correct total
+      let totalWeight = 0n;
+      for (const weight of weights) {
+        totalWeight += BigInt(weight);
+      }
+
+      const curatorIntentDecimals = await orionConfig.curatorIntentDecimals();
+      const expectedTotalWeight = 10 ** Number(curatorIntentDecimals);
+      expect(totalWeight).to.equal(expectedTotalWeight);
     });
   });
 });

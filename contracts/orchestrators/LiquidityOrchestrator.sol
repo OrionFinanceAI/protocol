@@ -94,12 +94,6 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     /*                                MODIFIERS                                   */
     /* -------------------------------------------------------------------------- */
 
-    /// @dev Restricts function to only Chainlink Automation Registry
-    modifier onlyAutomationRegistry() {
-        if (msg.sender != automationRegistry) revert ErrorsLib.NotAuthorized();
-        _;
-    }
-
     /// @dev Restricts function to only owner or Chainlink Automation Registry
     modifier onlyAuthorizedTrigger() {
         if (msg.sender != owner() && msg.sender != automationRegistry) {
@@ -216,6 +210,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     /// @inheritdoc ILiquidityOrchestrator
     function setExecutionAdapter(address asset, IExecutionAdapter adapter) external onlyConfig {
         if (asset == address(0) || address(adapter) == address(0)) revert ErrorsLib.ZeroAddress();
+        adapter.validateExecutionAdapter(asset);
 
         executionAdapterOf[asset] = adapter;
         emit EventsLib.ExecutionAdapterSet(asset, address(adapter));

@@ -20,4 +20,10 @@ interface IOrionStrategy {
     function computeIntent(
         address[] calldata vaultWhitelistedAssets
     ) external view returns (IOrionTransparentVault.Position[] memory intent);
+
+    /// @notice Validate that the strategy is compatible with the provided whitelisted assets
+    /// @param vaultWhitelistedAssets The whitelisted assets for the vault
+    /// @dev This function should validate that all assets are compatible with the strategy's requirements
+    ///      Should revert with appropriate error if validation fails
+    function validateStrategy(address[] calldata vaultWhitelistedAssets) external view;
 }
