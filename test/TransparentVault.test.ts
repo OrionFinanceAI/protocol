@@ -213,11 +213,11 @@ describe("TransparentVault - Curator Pipeline", function () {
       const intent = [
         {
           token: await mockAsset1.getAddress(),
-          value: 600000000, // 60% * 10^9 (curator intent decimals)
+          weight: 600000000, // 60% * 10^9 (curator intent decimals)
         },
         {
           token: await mockAsset2.getAddress(),
-          value: 400000000, // 40% * 10^9 (curator intent decimals)
+          weight: 400000000, // 40% * 10^9 (curator intent decimals)
         },
       ];
 
@@ -237,11 +237,11 @@ describe("TransparentVault - Curator Pipeline", function () {
       const intent = [
         {
           token: await mockAsset1.getAddress(),
-          value: 600000000, // 60%
+          weight: 600000000, // 60%
         },
         {
           token: await mockAsset2.getAddress(),
-          value: 300000000, // 30% (total = 90%)
+          weight: 300000000, // 30% (total = 90%)
         },
       ];
 
@@ -264,7 +264,7 @@ describe("TransparentVault - Curator Pipeline", function () {
       const intent = [
         {
           token: await nonWhitelistedAsset.getAddress(),
-          value: 1000000000, // 100%
+          weight: 1000000000, // 100%
         },
       ];
 
@@ -281,7 +281,7 @@ describe("TransparentVault - Curator Pipeline", function () {
       const intent = [
         {
           token: await mockAsset1.getAddress(),
-          value: 1000000000, // 100%
+          weight: 1000000000, // 100%
         },
       ];
 
@@ -325,11 +325,11 @@ describe("TransparentVault - Curator Pipeline", function () {
       const intent = [
         {
           token: await mockAsset1.getAddress(),
-          value: 700000000, // 70%
+          weight: 700000000, // 70%
         },
         {
           token: await mockAsset2.getAddress(),
-          value: 300000000, // 30%
+          weight: 300000000, // 30%
         },
       ];
       await transparentVault.connect(curator).submitIntent(intent);

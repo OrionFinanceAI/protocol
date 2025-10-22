@@ -155,8 +155,6 @@ contract OrionConfig is Ownable, IOrionConfig {
         bool removed = whitelistedAssets.remove(asset);
         if (!removed) revert ErrorsLib.TokenNotWhitelisted(asset);
 
-        delete tokenDecimals[asset];
-
         // Loop over all transparent vaults to update their whitelists and intents
         address[] memory transparentVaultsList = this.getAllOrionVaults(EventsLib.VaultType.Transparent);
         for (uint256 i = 0; i < transparentVaultsList.length; ++i) {

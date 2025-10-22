@@ -1036,11 +1036,11 @@
             },
             {
               "internalType": "uint32",
-              "name": "value",
+              "name": "weight",
               "type": "uint32"
             }
           ],
-          "internalType": "struct IOrionTransparentVault.Position[]",
+          "internalType": "struct IOrionTransparentVault.IntentPosition[]",
           "name": "intent",
           "type": "tuple[]"
         }
@@ -1188,12 +1188,12 @@
               "type": "address"
             },
             {
-              "internalType": "uint32",
-              "name": "value",
-              "type": "uint32"
+              "internalType": "uint256",
+              "name": "shares",
+              "type": "uint256"
             }
           ],
-          "internalType": "struct IOrionTransparentVault.Position[]",
+          "internalType": "struct IOrionTransparentVault.PortfolioPosition[]",
           "name": "portfolio",
           "type": "tuple[]"
         },

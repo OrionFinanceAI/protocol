@@ -282,17 +282,17 @@ describe("Orchestrators", function () {
     const absoluteIntent = [
       {
         token: await mockAsset1.getAddress(),
-        value: 200000000,
+        weight: 200000000,
       },
       {
         token: await mockAsset2.getAddress(),
-        value: 150000000,
+        weight: 150000000,
       },
       {
         token: await mockAsset3.getAddress(),
-        value: 100000000,
+        weight: 100000000,
       },
-      { token: await underlyingAsset.getAddress(), value: 550000000 },
+      { token: await underlyingAsset.getAddress(), weight: 550000000 },
     ];
     await absoluteVault.connect(curator).submitIntent(absoluteIntent);
     await underlyingAsset.connect(user).approve(await absoluteVault.getAddress(), ethers.parseUnits("10000", 12));
@@ -302,17 +302,17 @@ describe("Orchestrators", function () {
     const highWaterMarkIntent = [
       {
         token: await mockAsset1.getAddress(),
-        value: 300000000,
+        weight: 300000000,
       },
       {
         token: await mockAsset2.getAddress(),
-        value: 300000000,
+        weight: 300000000,
       },
       {
         token: await mockAsset3.getAddress(),
-        value: 250000000,
+        weight: 250000000,
       },
-      { token: await underlyingAsset.getAddress(), value: 150000000 },
+      { token: await underlyingAsset.getAddress(), weight: 150000000 },
     ];
     await highWaterMarkVault.connect(curator).submitIntent(highWaterMarkIntent);
     await underlyingAsset.connect(user).approve(await highWaterMarkVault.getAddress(), ethers.parseUnits("10000", 12));
@@ -322,17 +322,17 @@ describe("Orchestrators", function () {
     const softHurdleIntent = [
       {
         token: await mockAsset1.getAddress(),
-        value: 500000000,
+        weight: 500000000,
       },
       {
         token: await mockAsset2.getAddress(),
-        value: 250000000,
+        weight: 250000000,
       },
       {
         token: await mockAsset3.getAddress(),
-        value: 150000000,
+        weight: 150000000,
       },
-      { token: await underlyingAsset.getAddress(), value: 100000000 },
+      { token: await underlyingAsset.getAddress(), weight: 100000000 },
     ];
     await softHurdleVault.connect(curator).submitIntent(softHurdleIntent);
     await underlyingAsset.connect(user).approve(await softHurdleVault.getAddress(), ethers.parseUnits("10000", 12));
@@ -342,17 +342,17 @@ describe("Orchestrators", function () {
     const hardHurdleIntent = [
       {
         token: await mockAsset1.getAddress(),
-        value: 250000000,
+        weight: 250000000,
       },
       {
         token: await mockAsset2.getAddress(),
-        value: 250000000,
+        weight: 250000000,
       },
       {
         token: await mockAsset3.getAddress(),
-        value: 250000000,
+        weight: 250000000,
       },
-      { token: await underlyingAsset.getAddress(), value: 250000000 },
+      { token: await underlyingAsset.getAddress(), weight: 250000000 },
     ];
     await hardHurdleVault.connect(curator).submitIntent(hardHurdleIntent);
     await underlyingAsset.connect(user).approve(await hardHurdleVault.getAddress(), ethers.parseUnits("10000", 12));
@@ -362,17 +362,17 @@ describe("Orchestrators", function () {
     const hurdleHwmIntent = [
       {
         token: await mockAsset1.getAddress(),
-        value: 150000000,
+        weight: 150000000,
       },
       {
         token: await mockAsset2.getAddress(),
-        value: 350000000,
+        weight: 350000000,
       },
       {
         token: await mockAsset3.getAddress(),
-        value: 350000000,
+        weight: 350000000,
       },
-      { token: await underlyingAsset.getAddress(), value: 150000000 },
+      { token: await underlyingAsset.getAddress(), weight: 150000000 },
     ];
     await hurdleHwmVault.connect(curator).submitIntent(hurdleHwmIntent);
     await underlyingAsset.connect(user).approve(await hurdleHwmVault.getAddress(), ethers.parseUnits("10000", 12));

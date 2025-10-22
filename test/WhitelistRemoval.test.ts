@@ -1,0 +1,307 @@
+import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
+import { expect } from "chai";
+import { ethers } from "hardhat";
+import { time } from "@nomicfoundation/hardhat-network-helpers";
+
+import {
+  MockUnderlyingAsset,
+  MockERC4626Asset,
+  OrionAssetERC4626ExecutionAdapter,
+  OrionConfig,
+  InternalStatesOrchestrator,
+  LiquidityOrchestrator,
+  TransparentVaultFactory,
+  OrionTransparentVault,
+  PriceAdapterRegistry,
+  OrionAssetERC4626PriceAdapter,
+} from "../typechain-types";
+
+describe("Whitelist Removal Flow", function () {
+  let transparentVaultFactory: TransparentVaultFactory;
+  let orionConfig: OrionConfig;
+  let underlyingAsset: MockUnderlyingAsset;
+  let mockAsset1: MockERC4626Asset;
+  let mockAsset2: MockERC4626Asset;
+  let orionPriceAdapter: OrionAssetERC4626PriceAdapter;
+  let orionExecutionAdapter: OrionAssetERC4626ExecutionAdapter;
+  let priceAdapterRegistry: PriceAdapterRegistry;
+  let internalStatesOrchestrator: InternalStatesOrchestrator;
+  let liquidityOrchestrator: LiquidityOrchestrator;
+  let testVault: OrionTransparentVault;
+
+  let owner: SignerWithAddress;
+  let curator: SignerWithAddress;
+  let automationRegistry: SignerWithAddress;
+  let user: SignerWithAddress;
+
+  beforeEach(async function () {
+    [owner, curator, automationRegistry, user] = await ethers.getSigners();
+
+    const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
+    const underlyingAssetDeployed = await MockUnderlyingAssetFactory.deploy(12);
+    await underlyingAssetDeployed.waitForDeployment();
+    underlyingAsset = underlyingAssetDeployed as unknown as MockUnderlyingAsset;
+
+    const MockERC4626AssetFactory = await ethers.getContractFactory("MockERC4626Asset");
+
+    const mockAsset1Deployed = await MockERC4626AssetFactory.deploy(
+      await underlyingAsset.getAddress(),
+      "Mock Asset 1",
+      "MA1",
+    );
+    await mockAsset1Deployed.waitForDeployment();
+    mockAsset1 = mockAsset1Deployed as unknown as MockERC4626Asset;
+
+    const mockAsset2Deployed = await MockERC4626AssetFactory.deploy(
+      await underlyingAsset.getAddress(),
+      "Mock Asset 2",
+      "MA2",
+    );
+    await mockAsset2Deployed.waitForDeployment();
+    mockAsset2 = mockAsset2Deployed as unknown as MockERC4626Asset;
+
+    const initialDeposit1 = ethers.parseUnits("1000", 12);
+    const initialDeposit2 = ethers.parseUnits("2000", 12);
+
+    await underlyingAsset.mint(user.address, ethers.parseUnits("10000", 12));
+
+    await underlyingAsset.connect(user).approve(await mockAsset1.getAddress(), initialDeposit1);
+    await mockAsset1.connect(user).deposit(initialDeposit1, user.address);
+
+    await underlyingAsset.connect(user).approve(await mockAsset2.getAddress(), initialDeposit2);
+    await mockAsset2.connect(user).deposit(initialDeposit2, user.address);
+
+    // Deploy OrionConfig
+    const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
+    const orionConfigDeployed = await OrionConfigFactory.deploy(owner.address, await underlyingAsset.getAddress());
+    await orionConfigDeployed.waitForDeployment();
+    orionConfig = orionConfigDeployed as unknown as OrionConfig;
+
+    // Deploy PriceAdapterRegistry
+    const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistry");
+    const priceAdapterRegistryDeployed = await PriceAdapterRegistryFactory.deploy(
+      owner.address,
+      await orionConfig.getAddress(),
+    );
+    await priceAdapterRegistryDeployed.waitForDeployment();
+    priceAdapterRegistry = priceAdapterRegistryDeployed as unknown as PriceAdapterRegistry;
+
+    // Deploy price adapter
+    const OrionAssetERC4626PriceAdapterFactory = await ethers.getContractFactory("OrionAssetERC4626PriceAdapter");
+    orionPriceAdapter = (await OrionAssetERC4626PriceAdapterFactory.deploy(
+      await orionConfig.getAddress(),
+    )) as unknown as OrionAssetERC4626PriceAdapter;
+    await orionPriceAdapter.waitForDeployment();
+
+    // Deploy TransparentVaultFactory
+    const TransparentVaultFactoryFactory = await ethers.getContractFactory("TransparentVaultFactory");
+    const transparentVaultFactoryDeployed = await TransparentVaultFactoryFactory.deploy(await orionConfig.getAddress());
+    await transparentVaultFactoryDeployed.waitForDeployment();
+    transparentVaultFactory = transparentVaultFactoryDeployed as unknown as TransparentVaultFactory;
+
+    // Deploy LiquidityOrchestrator
+    const LiquidityOrchestratorFactory = await ethers.getContractFactory("LiquidityOrchestrator");
+    const liquidityOrchestratorDeployed = await LiquidityOrchestratorFactory.deploy(
+      owner.address,
+      await orionConfig.getAddress(),
+      automationRegistry.address,
+    );
+    await liquidityOrchestratorDeployed.waitForDeployment();
+    liquidityOrchestrator = liquidityOrchestratorDeployed as unknown as LiquidityOrchestrator;
+
+    await orionConfig.setLiquidityOrchestrator(await liquidityOrchestrator.getAddress());
+    await orionConfig.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
+
+    // Deploy InternalStatesOrchestrator
+    const InternalStatesOrchestratorFactory = await ethers.getContractFactory("InternalStatesOrchestrator");
+    const internalStatesOrchestratorDeployed = await InternalStatesOrchestratorFactory.deploy(
+      owner.address,
+      await orionConfig.getAddress(),
+      automationRegistry.address,
+    );
+    await internalStatesOrchestratorDeployed.waitForDeployment();
+    internalStatesOrchestrator = internalStatesOrchestratorDeployed as unknown as InternalStatesOrchestrator;
+
+    // Complete orchestrator configuration
+    await orionConfig.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
+    await orionConfig.setVaultFactory(await transparentVaultFactory.getAddress());
+
+    await internalStatesOrchestrator.connect(owner).updateProtocolFees(10, 1000);
+    await liquidityOrchestrator.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
+    await liquidityOrchestrator.setTargetBufferRatio(100); // 1% target buffer ratio
+
+    const OrionAssetERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
+      "OrionAssetERC4626ExecutionAdapter",
+    );
+    orionExecutionAdapter = (await OrionAssetERC4626ExecutionAdapterFactory.deploy(
+      await orionConfig.getAddress(),
+    )) as unknown as OrionAssetERC4626ExecutionAdapter;
+    await orionExecutionAdapter.waitForDeployment();
+
+    await orionConfig.addWhitelistedAsset(
+      await mockAsset1.getAddress(),
+      await orionPriceAdapter.getAddress(),
+      await orionExecutionAdapter.getAddress(),
+    );
+    await orionConfig.addWhitelistedAsset(
+      await mockAsset2.getAddress(),
+      await orionPriceAdapter.getAddress(),
+      await orionExecutionAdapter.getAddress(),
+    );
+
+    const testVaultTx = await transparentVaultFactory
+      .connect(owner)
+      .createVault(curator.address, "Test Vault", "TV", 0, 500, 50);
+    const testVaultReceipt = await testVaultTx.wait();
+    const testVaultEvent = testVaultReceipt?.logs.find((log) => {
+      try {
+        const parsed = transparentVaultFactory.interface.parseLog(log);
+        return parsed?.name === "OrionVaultCreated";
+      } catch {
+        return false;
+      }
+    });
+    const testVaultParsedEvent = transparentVaultFactory.interface.parseLog(testVaultEvent!);
+    const testVaultAddress = testVaultParsedEvent?.args[0];
+    testVault = (await ethers.getContractAt(
+      "OrionTransparentVault",
+      testVaultAddress,
+    )) as unknown as OrionTransparentVault;
+
+    // Then do the deposit
+    await underlyingAsset.connect(user).approve(await testVault.getAddress(), ethers.parseUnits("100", 12));
+    await testVault.connect(user).requestDeposit(ethers.parseUnits("100", 12));
+  });
+
+  it("should remove whitelisted asset and ensure liquidity orchestrator balance becomes zero", async function () {
+    // Step 1: Give vault exposure to investment universe through intent submission
+    const intent = [
+      {
+        token: await mockAsset1.getAddress(),
+        weight: 400000000, // 40% allocation
+      },
+      {
+        token: await mockAsset2.getAddress(),
+        weight: 300000000, // 30% allocation
+      },
+      {
+        token: await underlyingAsset.getAddress(),
+        weight: 300000000, // 30% allocation
+      },
+    ];
+    await testVault.connect(curator).submitIntent(intent);
+
+    // Step 2: Trigger orchestrators to process the intent and build orders
+    const epochDuration = await internalStatesOrchestrator.epochDuration();
+    await time.increase(epochDuration + 1n);
+
+    // Process InternalStatesOrchestrator phases
+    let [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+    await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
+
+    // Process all vaults in preprocessing phase
+    while ((await internalStatesOrchestrator.currentPhase()) === 1n) {
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    }
+    expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // Buffering
+
+    [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+    await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    expect(await internalStatesOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
+
+    // Process all vaults in postprocessing phase
+    while ((await internalStatesOrchestrator.currentPhase()) === 3n) {
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    }
+    expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
+
+    [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+    await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Back to Idle
+
+    // Step 3: Trigger liquidity orchestrator to execute trades and get assets
+    let [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+    if (liquidityUpkeepNeeded) {
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+
+      // Process liquidity orchestrator phases
+      while ((await liquidityOrchestrator.currentPhase()) !== 0n) {
+        [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+        if (liquidityUpkeepNeeded) {
+          await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+        }
+      }
+    }
+
+    // Verify liquidity orchestrator has positive balance of whitelisted assets
+    const mockAsset1BalanceBefore = await mockAsset1.balanceOf(await liquidityOrchestrator.getAddress());
+    const mockAsset2BalanceBefore = await mockAsset2.balanceOf(await liquidityOrchestrator.getAddress());
+
+    // At least one asset should have positive balance
+    expect(mockAsset1BalanceBefore + mockAsset2BalanceBefore).to.be.gt(0);
+
+    // Step 4: Remove mockAsset1 from whitelist BEFORE processing orchestrators
+    await orionConfig.removeWhitelistedAsset(await mockAsset1.getAddress());
+
+    // Verify the asset is no longer whitelisted
+    await expect(await orionConfig.isWhitelisted(await mockAsset1.getAddress())).to.be.false;
+    await expect(await orionConfig.isWhitelisted(await mockAsset2.getAddress())).to.be.true;
+
+    // Step 5: Wait for new epoch and retrigger orchestrators to process the removal
+    await time.increase(epochDuration + 1n);
+
+    // Process InternalStatesOrchestrator phases again
+    [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+    await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
+
+    // Process all vaults in preprocessing phase
+    while ((await internalStatesOrchestrator.currentPhase()) === 1n) {
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    }
+    expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // Buffering
+
+    [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+    await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    expect(await internalStatesOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
+
+    // Process all vaults in postprocessing phase
+    while ((await internalStatesOrchestrator.currentPhase()) === 3n) {
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    }
+    expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
+
+    [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+    await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Back to Idle
+
+    // Step 5.5: Trigger liquidity orchestrator to execute trades
+    let [liquidityUpkeepNeeded2, liquidityPerformData2] = await liquidityOrchestrator.checkUpkeep("0x");
+    if (liquidityUpkeepNeeded2) {
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData2);
+
+      // Process liquidity orchestrator phases
+      while ((await liquidityOrchestrator.currentPhase()) !== 0n) {
+        [liquidityUpkeepNeeded2, liquidityPerformData2] = await liquidityOrchestrator.checkUpkeep("0x");
+        if (liquidityUpkeepNeeded2) {
+          await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData2);
+        }
+      }
+    }
+
+    // Step 6: Assert liquidity orchestrator balance of blacklisted asset is zero
+    const mockAsset1BalanceAfter = await mockAsset1.balanceOf(await liquidityOrchestrator.getAddress());
+
+    // The blacklisted asset (mockAsset1) should have zero balance
+    expect(mockAsset1BalanceAfter).to.equal(0);
+
+    // Verify that the system is in a consistent state
+    expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Idle
+    expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
+  });
+});

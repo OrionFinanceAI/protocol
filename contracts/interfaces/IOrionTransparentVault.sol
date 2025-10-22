@@ -7,19 +7,25 @@ import "./IOrionVault.sol";
 /// @notice Interface for the Orion transparent vault
 /// @author Orion Finance
 interface IOrionTransparentVault is IOrionVault {
-    /// @dev Struct representing a token and its value in a portfolio.
+    /// @dev Struct representing a token and its weight in an intent.
     /// @param token The address of the ERC20 token.
-    /// @param value The plaintext value associated with the token.
-    ///        When used for portfolio intent, this represents percentage of total supply (weight).
-    ///        When used for current portfolio state, this represents number of shares per asset.
-    struct Position {
+    /// @param weight The weight as percentage of total supply (uint32 for intent percentages).
+    struct IntentPosition {
         address token;
-        uint32 value;
+        uint32 weight;
+    }
+
+    /// @dev Struct representing a token and its shares in a portfolio.
+    /// @param token The address of the ERC20 token.
+    /// @param shares The number of shares per asset (uint256 for portfolio shares).
+    struct PortfolioPosition {
+        address token;
+        uint256 shares;
     }
 
     /// @notice Submit a plaintext portfolio intent.
-    /// @param intent Position structs array containing the tokens and plaintext weights.
-    function submitIntent(Position[] calldata intent) external;
+    /// @param intent IntentPosition structs array containing the tokens and plaintext weights.
+    function submitIntent(IntentPosition[] calldata intent) external;
 
     /// @notice Get the transparent portfolio.
     /// @return tokens The tokens in the portfolio.
@@ -34,10 +40,10 @@ interface IOrionTransparentVault is IOrionVault {
     /// @notice Updates the vault's portfolio state and total assets
     /// @dev Can only be called by the liquidity orchestrator.
     ///      Clears the previous portfolio and replaces it with the new one.
-    /// @param portfolio Array of Position structs
+    /// @param portfolio Array of PortfolioPosition structs
     ///        It contains the new portfolio token addresses and plaintext number of shares per asset.
     /// @param newTotalAssets The new total assets value for the vault
-    function updateVaultState(Position[] calldata portfolio, uint256 newTotalAssets) external;
+    function updateVaultState(PortfolioPosition[] calldata portfolio, uint256 newTotalAssets) external;
 
     /// @notice Remove an asset from the vault whitelist
     /// @param asset The asset to remove from the whitelist

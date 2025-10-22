@@ -37,7 +37,7 @@ contract KBestTvlWeightedAverage is IOrionStrategy, Ownable, ERC165 {
     /// @inheritdoc IOrionStrategy
     function computeIntent(
         address[] calldata vaultWhitelistedAssets
-    ) external view returns (IOrionTransparentVault.Position[] memory intent) {
+    ) external view returns (IOrionTransparentVault.IntentPosition[] memory intent) {
         uint16 n = uint16(vaultWhitelistedAssets.length);
         uint256[] memory tvls = _getAssetTVLs(vaultWhitelistedAssets, n);
 
@@ -136,26 +136,26 @@ contract KBestTvlWeightedAverage is IOrionStrategy, Ownable, ERC165 {
         address[] memory tokens,
         uint256[] memory topTvls,
         uint16 kActual
-    ) internal view returns (IOrionTransparentVault.Position[] memory intent) {
+    ) internal view returns (IOrionTransparentVault.IntentPosition[] memory intent) {
         uint256 totalTVL = 0;
         for (uint16 i = 0; i < kActual; ++i) {
             totalTVL += topTvls[i];
         }
 
         uint32 intentScale = uint32(10 ** config.curatorIntentDecimals());
-        intent = new IOrionTransparentVault.Position[](kActual);
+        intent = new IOrionTransparentVault.IntentPosition[](kActual);
 
         uint32 sumWeights = 0;
         for (uint16 i = 0; i < kActual; ++i) {
             uint32 weight = uint32((topTvls[i] * intentScale) / totalTVL);
-            intent[i] = IOrionTransparentVault.Position({ token: tokens[i], value: weight });
+            intent[i] = IOrionTransparentVault.IntentPosition({ token: tokens[i], weight: weight });
             sumWeights += weight;
         }
 
         if (sumWeights < intentScale) {
-            intent[kActual - 1].value += intentScale - sumWeights;
+            intent[kActual - 1].weight += intentScale - sumWeights;
         } else if (sumWeights > intentScale) {
-            intent[kActual - 1].value -= sumWeights - intentScale;
+            intent[kActual - 1].weight -= sumWeights - intentScale;
         }
     }
 
