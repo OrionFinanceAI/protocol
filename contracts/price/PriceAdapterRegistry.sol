@@ -51,13 +51,6 @@ contract PriceAdapterRegistry is IPriceAdapterRegistry, Ownable {
     }
 
     /// @inheritdoc IPriceAdapterRegistry
-    function unsetPriceAdapter(address asset) external onlyConfig {
-        if (asset == address(0)) revert ErrorsLib.ZeroAddress();
-        delete adapterOf[asset];
-        emit EventsLib.PriceAdapterSet(asset, address(0));
-    }
-
-    /// @inheritdoc IPriceAdapterRegistry
     function getPrice(address asset) external view returns (uint256) {
         IPriceAdapter adapter = adapterOf[asset];
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();

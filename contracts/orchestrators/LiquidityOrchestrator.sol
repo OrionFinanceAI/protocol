@@ -216,14 +216,6 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         emit EventsLib.ExecutionAdapterSet(asset, address(adapter));
     }
 
-    /// @inheritdoc ILiquidityOrchestrator
-    function unsetExecutionAdapter(address asset) external onlyConfig {
-        if (asset == address(0)) revert ErrorsLib.ZeroAddress();
-
-        delete executionAdapterOf[asset];
-        emit EventsLib.ExecutionAdapterSet(asset, address(0));
-    }
-
     /* -------------------------------------------------------------------------- */
     /*                                VAULT FUNCTIONS                             */
     /* -------------------------------------------------------------------------- */
