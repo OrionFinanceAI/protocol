@@ -154,8 +154,6 @@ contract KBestTvlWeightedAverage is IOrionStrategy, Ownable, ERC165 {
 
         if (sumWeights < intentScale) {
             intent[kActual - 1].weight += intentScale - sumWeights;
-        } else if (sumWeights > intentScale) {
-            intent[kActual - 1].weight -= sumWeights - intentScale;
         }
     }
 
