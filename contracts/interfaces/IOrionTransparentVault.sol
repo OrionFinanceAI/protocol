@@ -38,4 +38,8 @@ interface IOrionTransparentVault is IOrionVault {
     ///        It contains the new portfolio token addresses and plaintext number of shares per asset.
     /// @param newTotalAssets The new total assets value for the vault
     function updateVaultState(Position[] calldata portfolio, uint256 newTotalAssets) external;
+
+    /// @notice Remove an asset from the vault whitelist
+    /// @param asset The asset to remove from the whitelist
+    function removeFromVaultWhitelist(address asset) external;
 }

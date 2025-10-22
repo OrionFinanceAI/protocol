@@ -181,6 +181,36 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
         emit VaultWhitelistUpdated(assets);
     }
 
+    /// @notice Remove an asset from the vault whitelist and modify intent accordingly
+    /// @param asset The asset to remove from the whitelist
+    function removeFromVaultWhitelist(address asset) external {
+        if (msg.sender != address(config)) revert ErrorsLib.UnauthorizedAccess();
+
+        // slither-disable-next-line unused-return
+        _vaultWhitelistedAssets.remove(asset);
+
+        // Only modify intent for active curators
+        if (_isPassiveCurator) return;
+
+        (bool exists, uint256 blacklistedWeight) = _portfolioIntent.tryGet(asset);
+        if (!exists) return; // Asset not in intent, nothing to modify
+
+        // slither-disable-next-line unused-return
+        _portfolioIntent.remove(asset);
+
+        address underlyingAsset = this.asset();
+
+        // Add the weight to the underlying asset
+        (bool underlyingExists, uint256 currentUnderlyingWeight) = _portfolioIntent.tryGet(underlyingAsset);
+        if (underlyingExists) {
+            // slither-disable-next-line unused-return
+            _portfolioIntent.set(underlyingAsset, currentUnderlyingWeight + blacklistedWeight);
+        } else {
+            // slither-disable-next-line unused-return
+            _portfolioIntent.set(underlyingAsset, blacklistedWeight);
+        }
+    }
+
     /// --------- INTERNAL FUNCTIONS ---------
 
     /// @notice Update the curator type flag based on ERC-165 interface detection

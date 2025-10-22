@@ -159,7 +159,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         uint8 feeType_,
         uint16 performanceFee_,
         uint16 managementFee_
-    ) ERC20(name_, symbol_) ERC4626(IERC20Metadata(address(config_.underlyingAsset()))) {
+    ) ERC20(name_, symbol_) ERC4626(config_.underlyingAsset()) {
         if (curator_ == address(0)) revert ErrorsLib.InvalidAddress();
         if (address(config_) == address(0)) revert ErrorsLib.InvalidAddress();
 

@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./interfaces/IOrionConfig.sol";
 import "./interfaces/IOrionVault.sol";
+import "./interfaces/IOrionTransparentVault.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import { ErrorsLib } from "./libraries/ErrorsLib.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -136,7 +137,7 @@ contract OrionConfig is Ownable, IOrionConfig {
         if (!inserted) revert ErrorsLib.AlreadyRegistered();
 
         // Store token decimals
-        // ⚠️ WARNING: Assumes ERC20 decimals are immutable (standard-compliant).
+        // Note: Assumes ERC20 decimals are immutable (standard-compliant).
         // Non-standard tokens that allow decimals to change at runtime MUST NOT be whitelisted.
         tokenDecimals[asset] = IERC20Metadata(asset).decimals();
 
@@ -156,9 +157,13 @@ contract OrionConfig is Ownable, IOrionConfig {
 
         delete tokenDecimals[asset];
 
-        IPriceAdapterRegistry(priceAdapterRegistry).unsetPriceAdapter(asset);
-        ILiquidityOrchestrator(liquidityOrchestrator).unsetExecutionAdapter(asset);
+        // Loop over all transparent vaults to update their whitelists and intents
+        address[] memory transparentVaultsList = this.getAllOrionVaults(EventsLib.VaultType.Transparent);
+        for (uint256 i = 0; i < transparentVaultsList.length; ++i) {
+            address vault = transparentVaultsList[i];
 
+            IOrionTransparentVault(vault).removeFromVaultWhitelist(asset);
+        }
         emit EventsLib.WhitelistedAssetRemoved(asset);
     }
 
