@@ -189,19 +189,6 @@
       "inputs": [
         {
           "internalType": "address",
-          "name": "asset",
-          "type": "address"
-        }
-      ],
-      "name": "unsetExecutionAdapter",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
           "name": "newAutomationRegistry",
           "type": "address"
         }

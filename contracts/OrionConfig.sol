@@ -133,8 +133,8 @@ contract OrionConfig is Ownable, IOrionConfig {
     function addWhitelistedAsset(address asset, address priceAdapter, address executionAdapter) external onlyOwner {
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
-        bool inserted = whitelistedAssets.add(asset);
-        if (!inserted) revert ErrorsLib.AlreadyRegistered();
+        // slither-disable-next-line unused-return
+        whitelistedAssets.add(asset);
 
         // Store token decimals
         // Note: Assumes ERC20 decimals are immutable (standard-compliant).
