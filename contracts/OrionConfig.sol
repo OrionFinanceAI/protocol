@@ -152,6 +152,8 @@ contract OrionConfig is Ownable, IOrionConfig {
     function removeWhitelistedAsset(address asset) external onlyOwner {
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
+        if (asset == address(underlyingAsset)) revert ErrorsLib.InvalidArguments();
+
         bool removed = whitelistedAssets.remove(asset);
         if (!removed) revert ErrorsLib.TokenNotWhitelisted(asset);
 
