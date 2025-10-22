@@ -63,7 +63,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     /// --------- CURATOR FUNCTIONS ---------
 
     /// @inheritdoc IOrionTransparentVault
-    function submitIntent(Position[] calldata intent) external onlyCurator {
+    function submitIntent(IntentPosition[] calldata intent) external onlyCurator {
         if (_isPassiveCurator) revert ErrorsLib.InvalidArguments();
         if (intent.length == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
 
@@ -76,7 +76,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
         uint16 intentLength = uint16(intent.length);
         for (uint16 i = 0; i < intentLength; ++i) {
             address token = intent[i].token;
-            uint32 weight = intent[i].value;
+            uint32 weight = intent[i].weight;
             assets[i] = token;
             bool inserted = _portfolioIntent.set(token, weight);
             if (!inserted) revert ErrorsLib.TokenAlreadyInOrder(token);
@@ -125,7 +125,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
     /// @inheritdoc IOrionTransparentVault
     function updateVaultState(
-        Position[] calldata portfolio,
+        PortfolioPosition[] calldata portfolio,
         uint256 newTotalAssets
     ) external onlyInternalStatesOrchestrator {
         _portfolio.clear();
@@ -133,7 +133,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
         uint16 portfolioLength = uint16(portfolio.length);
         for (uint16 i = 0; i < portfolioLength; ++i) {
             // slither-disable-next-line unused-return
-            _portfolio.set(portfolio[i].token, portfolio[i].value);
+            _portfolio.set(portfolio[i].token, portfolio[i].shares);
         }
 
         _totalAssets = newTotalAssets;
@@ -181,6 +181,36 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
         emit VaultWhitelistUpdated(assets);
     }
 
+    /// @notice Remove an asset from the vault whitelist and modify intent accordingly
+    /// @param asset The asset to remove from the whitelist
+    function removeFromVaultWhitelist(address asset) external {
+        if (msg.sender != address(config)) revert ErrorsLib.UnauthorizedAccess();
+
+        // slither-disable-next-line unused-return
+        _vaultWhitelistedAssets.remove(asset);
+
+        // Only modify intent for active curators
+        if (_isPassiveCurator) return;
+
+        (bool exists, uint256 blacklistedWeight) = _portfolioIntent.tryGet(asset);
+        if (!exists) return; // Asset not in intent, nothing to modify
+
+        // slither-disable-next-line unused-return
+        _portfolioIntent.remove(asset);
+
+        address underlyingAsset = this.asset();
+
+        // Add the weight to the underlying asset
+        (bool underlyingExists, uint256 currentUnderlyingWeight) = _portfolioIntent.tryGet(underlyingAsset);
+        if (underlyingExists) {
+            // slither-disable-next-line unused-return
+            _portfolioIntent.set(underlyingAsset, currentUnderlyingWeight + blacklistedWeight);
+        } else {
+            // slither-disable-next-line unused-return
+            _portfolioIntent.set(underlyingAsset, blacklistedWeight);
+        }
+    }
+
     /// --------- INTERNAL FUNCTIONS ---------
 
     /// @notice Update the curator type flag based on ERC-165 interface detection
@@ -211,14 +241,14 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     function _computePassiveIntent() internal view returns (address[] memory tokens, uint32[] memory weights) {
         address[] memory whitelistedAssets = this.vaultWhitelist();
         // Call the passive curator to compute intent
-        Position[] memory intent = IOrionStrategy(curator).computeIntent(whitelistedAssets);
+        IntentPosition[] memory intent = IOrionStrategy(curator).computeIntent(whitelistedAssets);
 
         // Convert to return format
         tokens = new address[](intent.length);
         weights = new uint32[](intent.length);
         for (uint16 i = 0; i < intent.length; ++i) {
             tokens[i] = intent[i].token;
-            weights[i] = intent[i].value;
+            weights[i] = intent[i].weight;
         }
     }
 

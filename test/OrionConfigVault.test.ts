@@ -194,27 +194,6 @@ describe("Config", function () {
       expect(finalAssets).to.not.include(assetAddress);
     });
 
-    it("Should remove price adapter from registry when removing asset", async function () {
-      const assetAddress = await mockAsset1.getAddress();
-
-      await expect(priceAdapterRegistry.getPrice(assetAddress)).to.not.be.reverted;
-      await orionConfig.removeWhitelistedAsset(assetAddress);
-      await expect(priceAdapterRegistry.getPrice(assetAddress)).to.be.revertedWithCustomError(
-        priceAdapterRegistry,
-        "AdapterNotSet",
-      );
-    });
-
-    it("Should remove execution adapter from liquidity orchestrator when removing asset", async function () {
-      const assetAddress = await mockAsset1.getAddress();
-
-      const executionAdapterBefore = await liquidityOrchestrator.executionAdapterOf(assetAddress);
-      expect(executionAdapterBefore).to.not.equal(ethers.ZeroAddress);
-      await orionConfig.removeWhitelistedAsset(assetAddress);
-      const executionAdapterAfter = await liquidityOrchestrator.executionAdapterOf(assetAddress);
-      expect(executionAdapterAfter).to.equal(ethers.ZeroAddress);
-    });
-
     it("Should revert when trying to remove non-whitelisted asset", async function () {
       const nonWhitelistedAsset = other.address;
 

@@ -22,11 +22,11 @@
             },
             {
               "internalType": "uint32",
-              "name": "value",
+              "name": "weight",
               "type": "uint32"
             }
           ],
-          "internalType": "struct IOrionTransparentVault.Position[]",
+          "internalType": "struct IOrionTransparentVault.IntentPosition[]",
           "name": "intent",
           "type": "tuple[]"
         }

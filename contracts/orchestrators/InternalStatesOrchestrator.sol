@@ -378,6 +378,7 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
 
             // STEP 3 & 4: CURATOR FEES (Management + Performance)
             uint256 curatorFee = vault.curatorFee(totalAssets);
+
             totalAssets -= curatorFee;
             uint256 protocolRevenueShareFee = uint256(rsFeeCoefficient).mulDiv(curatorFee, BASIS_POINTS_FACTOR);
             pendingProtocolFees += protocolRevenueShareFee;
@@ -475,9 +476,8 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
 
             uint256 finalTotalAssets = _currentEpoch.vaultsTotalAssets[address(vault)];
 
-            IOrionTransparentVault.Position[] memory portfolio = new IOrionTransparentVault.Position[](
-                intentTokens.length
-            );
+            IOrionTransparentVault.PortfolioPosition[]
+                memory portfolio = new IOrionTransparentVault.PortfolioPosition[](intentTokens.length);
 
             for (uint16 j = 0; j < intentTokens.length; ++j) {
                 address token = intentTokens[j];
@@ -502,10 +502,12 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
                     config.getTokenDecimals(token)
                 );
 
-                portfolio[j] = IOrionTransparentVault.Position({ token: token, value: uint32(value) });
+                portfolio[j] = IOrionTransparentVault.PortfolioPosition({ token: token, shares: value });
+
                 _currentEpoch.finalBatchPortfolio[token] += value;
                 _addTokenIfNotExists(token);
             }
+
             vault.updateVaultState(portfolio, finalTotalAssets);
         }
     }

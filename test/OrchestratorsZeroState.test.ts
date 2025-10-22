@@ -114,7 +114,7 @@ describe("Orchestrators - zero deposits and zero intents", function () {
     const intent = [
       {
         token: await underlyingAsset.getAddress(),
-        value: 1000000000, // 100% (100% of 1e9)
+        weight: 1000000000, // 100% (100% of 1e9)
       },
     ];
     await transparentVault.connect(curator).submitIntent(intent);

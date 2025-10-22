@@ -159,7 +159,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         uint8 feeType_,
         uint16 performanceFee_,
         uint16 managementFee_
-    ) ERC20(name_, symbol_) ERC4626(IERC20Metadata(address(config_.underlyingAsset()))) {
+    ) ERC20(name_, symbol_) ERC4626(config_.underlyingAsset()) {
         if (curator_ == address(0)) revert ErrorsLib.InvalidAddress();
         if (address(config_) == address(0)) revert ErrorsLib.InvalidAddress();
 
@@ -418,7 +418,6 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         uint256 managementFeeAmount = _managementFeeAmount(activeTotalAssets);
         uint256 intermediateTotalAssets = activeTotalAssets - managementFeeAmount;
         uint256 performanceFeeAmount = _performanceFeeAmount(intermediateTotalAssets);
-
         return managementFeeAmount + performanceFeeAmount;
     }
 
@@ -447,7 +446,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
         (uint256 benchmark, uint256 divisor) = _getBenchmark(feeModel.feeType);
 
-        if (activeSharePrice < benchmark) return 0;
+        if (activeSharePrice < benchmark || divisor == 0) return 0;
         uint256 feeRate = uint256(feeModel.performanceFee).mulDiv(activeSharePrice, divisor);
         return feeRate.mulDiv(feeTotalAssets, BASIS_POINTS_FACTOR);
     }
