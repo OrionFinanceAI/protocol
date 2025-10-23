@@ -58,6 +58,7 @@ contract OrionConfig is Ownable, IOrionConfig {
     // Orion-specific configuration
     EnumerableSet.AddressSet private transparentVaults;
     EnumerableSet.AddressSet private encryptedVaults;
+    EnumerableSet.AddressSet private decommissioningInProgressVaults;
     EnumerableSet.AddressSet private decommissionedVaults;
 
     modifier onlyFactories() {
@@ -217,21 +218,17 @@ contract OrionConfig is Ownable, IOrionConfig {
     }
 
     /// @inheritdoc IOrionConfig
-    function removeOrionVault(address vault, EventsLib.VaultType vaultType) external onlyOwner {
+    function removeOrionVault(address vault) external onlyOwner {
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
-        if (vaultType == EventsLib.VaultType.Encrypted) {
-            // slither-disable-next-line unused-return
-            encryptedVaults.remove(vault);
-        } else {
-            // slither-disable-next-line unused-return
-            transparentVaults.remove(vault);
+        if (!this.isOrionVault(vault)) {
+            revert ErrorsLib.InvalidAddress();
         }
 
         // slither-disable-next-line unused-return
-        decommissionedVaults.add(vault);
+        decommissioningInProgressVaults.add(vault);
 
-        emit EventsLib.OrionVaultRemoved(vault);
+        IOrionVault(vault).overrideIntentForDecommissioning();
     }
 
     /// @inheritdoc IOrionConfig
@@ -253,8 +250,41 @@ contract OrionConfig is Ownable, IOrionConfig {
     }
 
     /// @inheritdoc IOrionConfig
+    function isDecommissioningVault(address vault) external view returns (bool) {
+        return decommissioningInProgressVaults.contains(vault);
+    }
+
+    /// @inheritdoc IOrionConfig
     function isDecommissionedVault(address vault) external view returns (bool) {
         return decommissionedVaults.contains(vault);
+    }
+
+    /// @inheritdoc IOrionConfig
+    function completeVaultDecommissioning(address vault) external {
+        if (msg.sender != liquidityOrchestrator) revert ErrorsLib.NotAuthorized();
+        if (!decommissioningInProgressVaults.contains(vault)) revert ErrorsLib.InvalidAddress();
+
+        // Determine vault type and remove from appropriate vault list
+        EventsLib.VaultType vaultType;
+        if (encryptedVaults.contains(vault)) {
+            vaultType = EventsLib.VaultType.Encrypted;
+            // slither-disable-next-line unused-return
+            encryptedVaults.remove(vault);
+        } else if (transparentVaults.contains(vault)) {
+            vaultType = EventsLib.VaultType.Transparent;
+            // slither-disable-next-line unused-return
+            transparentVaults.remove(vault);
+        } else {
+            revert ErrorsLib.InvalidAddress();
+        }
+
+        // Remove from decommissioning in progress list
+        // slither-disable-next-line unused-return
+        decommissioningInProgressVaults.remove(vault);
+
+        // Add to decommissioned vaults list
+        // slither-disable-next-line unused-return
+        decommissionedVaults.add(vault);
     }
 
     /// @inheritdoc IOrionConfig

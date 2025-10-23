@@ -211,6 +211,11 @@
     },
     {
       "inputs": [],
+      "name": "NotAuthorized",
+      "type": "error"
+    },
+    {
+      "inputs": [],
       "name": "ReentrancyGuardReentrantCall",
       "type": "error"
     },
@@ -1040,6 +1045,19 @@
     },
     {
       "inputs": [],
+      "name": "isDecommissioning",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
       "name": "liquidityOrchestrator",
       "outputs": [
         {
@@ -1162,6 +1180,13 @@
         }
       ],
       "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "overrideIntentForDecommissioning",
+      "outputs": [],
+      "stateMutability": "nonpayable",
       "type": "function"
     },
     {

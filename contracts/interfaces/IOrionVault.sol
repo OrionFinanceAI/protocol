@@ -123,6 +123,12 @@ interface IOrionVault is IERC4626 {
         Math.Rounding rounding
     ) external view returns (uint256);
 
+    /// --------- CONFIG FUNCTIONS ---------
+
+    /// @notice Override intent to 100% underlying asset for decommissioning
+    /// @dev Can only be called by the OrionConfig contract
+    function overrideIntentForDecommissioning() external;
+
     /// --------- LP FUNCTIONS ---------
 
     /// @notice Submit an asynchronous deposit request.

@@ -255,10 +255,8 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function withdraw(uint256 assets, address receiver) external {
-        address vault = msg.sender;
-
-        if (!config.isDecommissionedVault(vault)) revert ErrorsLib.NotAuthorized();
+    function withdraw(uint256 assets, address receiver) external nonReentrant {
+        if (!config.isDecommissionedVault(msg.sender)) revert ErrorsLib.NotAuthorized();
 
         SafeERC20.safeTransfer(IERC20(underlyingAsset), receiver, assets);
     }
@@ -458,6 +456,9 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
             uint256 totalAssetsForRedeem = internalStatesOrchestrator.getVaultTotalAssetsForFulfillRedeem(vault);
 
             _processVaultDepositAndRedeem(vault, totalAssetsForDeposit, totalAssetsForRedeem);
+            if (config.isDecommissioningVault(vault)) {
+                config.completeVaultDecommissioning(vault);
+            }
         }
     }
 

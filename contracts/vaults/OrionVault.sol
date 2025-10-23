@@ -117,6 +117,10 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     /// @notice Fee model
     FeeModel public feeModel;
 
+    /// @notice Flag indicating if the vault is in decommissioning mode
+    /// @dev When true, intent is overridden to 100% underlying asset
+    bool public isDecommissioning;
+
     /// @dev Restricts function to only vault owner
     modifier onlyVaultOwner() {
         if (msg.sender != vaultOwner) revert ErrorsLib.UnauthorizedAccess();
@@ -217,7 +221,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         uint256 shares,
         address receiver,
         address owner
-    ) public override(ERC4626, IERC4626) returns (uint256) {
+    ) public override(ERC4626, IERC4626) nonReentrant returns (uint256) {
         // Only allow synchronous redemption for decommissioned vaults
         if (!config.isDecommissionedVault(address(this))) revert SynchronousCallDisabled();
 
@@ -225,6 +229,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         if (shares > maxShares) {
             revert ERC4626ExceededMaxRedeem(owner, shares, maxShares);
         }
+        if (shares == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(address(this));
 
         if (msg.sender != owner) {
             _spendAllowance(owner, msg.sender, shares);
@@ -235,6 +240,8 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         _totalAssets -= assets;
 
         _burn(owner, shares);
+
+        emit Withdraw(msg.sender, receiver, owner, assets, shares);
 
         liquidityOrchestrator.withdraw(assets, receiver);
 
@@ -285,6 +292,14 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         Math.Rounding rounding
     ) public view returns (uint256) {
         return assets.mulDiv(totalSupply() + 10 ** _decimalsOffset(), pointInTimeTotalAssets + 1, rounding);
+    }
+
+    /// --------- CONFIG FUNCTIONS ---------
+
+    /// @inheritdoc IOrionVault
+    function overrideIntentForDecommissioning() external {
+        if (msg.sender != address(config)) revert ErrorsLib.NotAuthorized();
+        isDecommissioning = true;
     }
 
     /// --------- LP FUNCTIONS ---------

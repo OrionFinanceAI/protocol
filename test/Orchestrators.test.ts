@@ -391,7 +391,7 @@ describe("Orchestrators", function () {
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // Not idle anymore
 
       const vaultAddress = await hurdleHwmVault.getAddress();
-      await expect(orionConfig.removeOrionVault(vaultAddress, 1)).to.be.revertedWithCustomError(
+      await expect(orionConfig.removeOrionVault(vaultAddress)).to.be.revertedWithCustomError(
         orionConfig,
         "SystemNotIdle",
       );
@@ -418,7 +418,7 @@ describe("Orchestrators", function () {
         "SystemNotIdle",
       );
 
-      await expect(orionConfig.removeOrionVault(await hurdleHwmVault.getAddress(), 0)).to.be.revertedWithCustomError(
+      await expect(orionConfig.removeOrionVault(await hurdleHwmVault.getAddress())).to.be.revertedWithCustomError(
         orionConfig,
         "SystemNotIdle",
       );

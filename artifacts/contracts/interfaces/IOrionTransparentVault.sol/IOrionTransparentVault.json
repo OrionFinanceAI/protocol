@@ -844,6 +844,13 @@
     },
     {
       "inputs": [],
+      "name": "overrideIntentForDecommissioning",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
       "name": "pendingCuratorFees",
       "outputs": [
         {
