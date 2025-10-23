@@ -16,7 +16,7 @@ import {
   OrionAssetERC4626PriceAdapter,
 } from "../typechain-types";
 
-describe("Whitelist Removal Flow", function () {
+describe("Whitelist and Vault Removal Flows", function () {
   let transparentVaultFactory: TransparentVaultFactory;
   let orionConfig: OrionConfig;
   let underlyingAsset: MockUnderlyingAsset;
@@ -431,5 +431,172 @@ describe("Whitelist Removal Flow", function () {
     // Verify that the system is in a consistent state
     expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Idle
     expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
+  });
+
+  it("Should allow synchronous redemption after vault decommissioning", async function () {
+    // Step 1: Give vault exposure to investment universe through intent submission
+    const intent = [
+      {
+        token: await mockAsset1.getAddress(),
+        weight: 400000000, // 40% allocation
+      },
+      {
+        token: await mockAsset2.getAddress(),
+        weight: 300000000, // 30% allocation
+      },
+      {
+        token: await underlyingAsset.getAddress(),
+        weight: 300000000, // 30% allocation
+      },
+    ];
+    await testVault.connect(curator).submitIntent(intent);
+
+    // Step 2: Trigger orchestrators to process the intent and build orders
+    const epochDuration = await internalStatesOrchestrator.epochDuration();
+    await time.increase(epochDuration + 1n);
+
+    // Process InternalStatesOrchestrator phases
+    let [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+    await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
+
+    // Process all vaults in preprocessing phase
+    while ((await internalStatesOrchestrator.currentPhase()) === 1n) {
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    }
+    expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // Buffering
+
+    [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+    await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    expect(await internalStatesOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
+
+    // Process all vaults in postprocessing phase
+    while ((await internalStatesOrchestrator.currentPhase()) === 3n) {
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    }
+    expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
+
+    [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+    await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Back to Idle
+
+    // Step 3: Trigger liquidity orchestrator to execute trades and get assets
+    let [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+    if (liquidityUpkeepNeeded) {
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+
+      // Process liquidity orchestrator phases
+      while ((await liquidityOrchestrator.currentPhase()) !== 0n) {
+        [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+        if (liquidityUpkeepNeeded) {
+          await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+        }
+      }
+    }
+
+    const userShares = await testVault.balanceOf(user.address);
+    expect(userShares).to.be.gt(0);
+
+    const vaultTotalAssets = await testVault.totalAssets();
+    expect(vaultTotalAssets).to.be.gt(0);
+
+    void expect(await orionConfig.isSystemIdle()).to.be.true;
+
+    await orionConfig.removeOrionVault(await testVault.getAddress());
+
+    void expect(await testVault.isDecommissioning()).to.be.true;
+    void expect(await orionConfig.isDecommissionedVault(await testVault.getAddress())).to.be.false;
+    void expect(await orionConfig.isOrionVault(await testVault.getAddress())).to.be.true;
+
+    await expect(testVault.connect(user).redeem(1n, user.address, user.address)).to.be.revertedWithCustomError(
+      testVault,
+      "SynchronousCallDisabled",
+    );
+
+    await time.increase(epochDuration + 1n);
+
+    // Step 4: Trigger orchestrators again so that liquidity orchestrator completes vault decommissioning
+    // First, trigger internal states orchestrator to process the decommissioning vault
+    [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+    await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
+
+    // Process all vaults in preprocessing phase (including decommissioning vault)
+    while ((await internalStatesOrchestrator.currentPhase()) === 1n) {
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    }
+    expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // Buffering
+
+    [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+    await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    expect(await internalStatesOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
+
+    // Process all vaults in postprocessing phase (including decommissioning vault)
+    while ((await internalStatesOrchestrator.currentPhase()) === 3n) {
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    }
+    expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
+
+    [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+    await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Back to Idle
+
+    // Now trigger liquidity orchestrator to complete vault decommissioning
+    [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+    if (liquidityUpkeepNeeded) {
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+
+      // Process liquidity orchestrator phases until idle
+      while ((await liquidityOrchestrator.currentPhase()) !== 0n) {
+        [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+        if (liquidityUpkeepNeeded) {
+          await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+        }
+      }
+    }
+
+    // Verify that vault decommissioning is now complete
+    void expect(await orionConfig.isDecommissionedVault(await testVault.getAddress())).to.be.true;
+    void expect(await orionConfig.isDecommissioningVault(await testVault.getAddress())).to.be.false;
+    void expect(await orionConfig.isOrionVault(await testVault.getAddress())).to.be.false;
+
+    // Test synchronous redemption
+    const redeemShares = userShares / 2n; // Redeem half of the shares
+    const expectedAssets = await testVault.convertToAssets(redeemShares);
+
+    // Get initial balances
+    const initialUserUnderlyingBalance = await underlyingAsset.balanceOf(user.address);
+    const initialVaultTotalAssets = await testVault.totalAssets();
+
+    await testVault.connect(user).redeem(redeemShares, user.address, user.address);
+
+    // Verify redemption results
+    const finalUserUnderlyingBalance = await underlyingAsset.balanceOf(user.address);
+    const finalVaultTotalAssets = await testVault.totalAssets();
+    const finalUserShares = await testVault.balanceOf(user.address);
+
+    // Check that user received underlying assets
+    expect(finalUserUnderlyingBalance).to.equal(initialUserUnderlyingBalance + expectedAssets);
+
+    // Check that vault total assets decreased
+    expect(finalVaultTotalAssets).to.equal(initialVaultTotalAssets - expectedAssets);
+
+    // Check that user shares decreased
+    expect(finalUserShares).to.equal(userShares - redeemShares);
+
+    const pendingCuratorFees = await testVault.pendingCuratorFees();
+    if (pendingCuratorFees > 0) {
+      const initialOwnerBalance = await underlyingAsset.balanceOf(owner.address);
+
+      // Claim curator fees (this should work also for decommissioned vaults)
+      await testVault.connect(owner).claimCuratorFees(pendingCuratorFees);
+
+      const finalOwnerBalance = await underlyingAsset.balanceOf(owner.address);
+      expect(finalOwnerBalance).to.equal(initialOwnerBalance + pendingCuratorFees);
+    }
   });
 });

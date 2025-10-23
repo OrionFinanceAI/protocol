@@ -14,7 +14,6 @@ import {
   PriceAdapterRegistry,
   OrionTransparentVault,
 } from "../typechain-types";
-import { Log } from "ethers";
 
 let transparentVaultFactory: TransparentVaultFactory;
 let orionConfig: OrionConfig;
@@ -260,167 +259,6 @@ describe("Config", function () {
         .withArgs(user.address);
     });
   });
-
-  describe("removeOrionVault", function () {
-    it("Should successfully remove a transparent vault", async function () {
-      const vaultAddress = await vault.getAddress();
-
-      // Verify vault is initially registered
-      expect(await orionConfig.isOrionVault(vaultAddress)).to.equal(true);
-
-      // Remove the vault
-      await expect(orionConfig.removeOrionVault(vaultAddress, 0)).to.not.be.reverted; // 0 = EventsLib.VaultType.Transparent
-
-      // Verify vault is no longer registered
-      expect(await orionConfig.isOrionVault(vaultAddress)).to.equal(false);
-    });
-
-    it("Should successfully remove a transparent vault", async function () {
-      // Create a transparent vault
-      const tx = await transparentVaultFactory
-        .connect(owner)
-        .createVault(curator.address, "Test Transparent Vault", "TTV", 0, 0, 0);
-      const receipt = await tx.wait();
-      const event = receipt?.logs.find((log: Log) => {
-        try {
-          const parsed = transparentVaultFactory.interface.parseLog(log);
-          return parsed?.name === "OrionVaultCreated";
-        } catch {
-          return false;
-        }
-      });
-      const parsedEvent = transparentVaultFactory.interface.parseLog(event!);
-      const transparentVaultAddress = parsedEvent?.args[0];
-
-      // Verify transparent vault is initially registered
-      expect(await orionConfig.isOrionVault(transparentVaultAddress)).to.equal(true);
-
-      // Remove the transparent vault
-      await expect(orionConfig.removeOrionVault(transparentVaultAddress, 0)).to.not.be.reverted; // 0 = EventsLib.VaultType.Transparent
-
-      // Verify transparent vault is no longer registered
-      expect(await orionConfig.isOrionVault(transparentVaultAddress)).to.equal(false);
-    });
-
-    it("Should emit OrionVaultRemoved event when removing vault", async function () {
-      const vaultAddress = await vault.getAddress();
-
-      await expect(orionConfig.removeOrionVault(vaultAddress, 0)) // 0 = EventsLib.VaultType.Transparent
-        .to.emit(orionConfig, "OrionVaultRemoved")
-        .withArgs(vaultAddress);
-    });
-
-    it("Should revert when called by non-owner", async function () {
-      const vaultAddress = await vault.getAddress();
-
-      await expect(orionConfig.connect(user).removeOrionVault(vaultAddress, 0))
-        .to.be.revertedWithCustomError(orionConfig, "OwnableUnauthorizedAccount")
-        .withArgs(user.address);
-    });
-
-    it("Should revert when trying to remove non-registered vault", async function () {
-      const nonRegisteredVault = other.address;
-
-      await expect(orionConfig.removeOrionVault(nonRegisteredVault, 0)).to.be.revertedWithCustomError(
-        orionConfig,
-        "UnauthorizedAccess",
-      );
-    });
-
-    it("Should revert when trying to remove vault with zero address", async function () {
-      await expect(orionConfig.removeOrionVault(ethers.ZeroAddress, 0)).to.be.revertedWithCustomError(
-        orionConfig,
-        "UnauthorizedAccess",
-      );
-    });
-
-    it("Should update vault count after removal", async function () {
-      const vaultAddress = await vault.getAddress();
-
-      // Get initial count of transparent vaults
-      const initialVaults = await orionConfig.getAllOrionVaults(0); // 0 = EventsLib.VaultType.Transparent
-      const initialCount = initialVaults.length;
-      expect(initialCount).to.be.greaterThan(0);
-
-      // Remove the vault
-      await orionConfig.removeOrionVault(vaultAddress, 0);
-
-      // Get final count of transparent vaults
-      const finalVaults = await orionConfig.getAllOrionVaults(0);
-      const finalCount = finalVaults.length;
-      expect(finalCount).to.equal(initialCount - 1);
-    });
-
-    it("Should remove vault from getAllOrionVaults array", async function () {
-      const vaultAddress = await vault.getAddress();
-
-      // Verify vault is in the array initially
-      const initialVaults = await orionConfig.getAllOrionVaults(0); // 0 = EventsLib.VaultType.Transparent
-      expect(initialVaults).to.include(vaultAddress);
-
-      // Remove the vault
-      await orionConfig.removeOrionVault(vaultAddress, 0);
-
-      // Verify vault is no longer in the array
-      const finalVaults = await orionConfig.getAllOrionVaults(0);
-      expect(finalVaults).to.not.include(vaultAddress);
-    });
-
-    it("Should return false for isOrionVault after removal", async function () {
-      const vaultAddress = await vault.getAddress();
-
-      // Verify vault is initially registered
-      expect(await orionConfig.isOrionVault(vaultAddress)).to.equal(true);
-
-      // Remove the vault
-      await orionConfig.removeOrionVault(vaultAddress, 0);
-
-      // Verify vault is no longer registered
-      expect(await orionConfig.isOrionVault(vaultAddress)).to.equal(false);
-    });
-
-    it("Should handle removal of vault with wrong vault type", async function () {
-      const vaultAddress = await vault.getAddress();
-
-      // Try to remove transparent vault as encrypted vault (wrong type)
-      await expect(orionConfig.removeOrionVault(vaultAddress, 1)) // 1 = EventsLib.VaultType.Encrypted
-        .to.be.revertedWithCustomError(orionConfig, "UnauthorizedAccess");
-
-      // Verify vault is still registered
-      expect(await orionConfig.isOrionVault(vaultAddress)).to.equal(true);
-    });
-
-    it("Should allow removal of multiple vaults", async function () {
-      // Create another transparent vault
-      const tx = await transparentVaultFactory
-        .connect(owner)
-        .createVault(other.address, "Test Vault 2", "TV2", 0, 0, 0);
-      const receipt = await tx.wait();
-      const event = receipt?.logs.find((log: Log) => {
-        try {
-          const parsed = transparentVaultFactory.interface.parseLog(log);
-          return parsed?.name === "OrionVaultCreated";
-        } catch {
-          return false;
-        }
-      });
-      const parsedEvent = transparentVaultFactory.interface.parseLog(event!);
-      const vault2Address = parsedEvent?.args[0];
-
-      // Verify both vaults are registered
-      expect(await orionConfig.isOrionVault(await vault.getAddress())).to.equal(true);
-      expect(await orionConfig.isOrionVault(vault2Address)).to.equal(true);
-
-      // Remove first vault
-      await orionConfig.removeOrionVault(await vault.getAddress(), 0); // 0 = EventsLib.VaultType.Transparent
-      expect(await orionConfig.isOrionVault(await vault.getAddress())).to.equal(false);
-      expect(await orionConfig.isOrionVault(vault2Address)).to.equal(true);
-
-      // Remove second vault
-      await orionConfig.removeOrionVault(vault2Address, 0); // 0 = EventsLib.VaultType.Transparent
-      expect(await orionConfig.isOrionVault(vault2Address)).to.equal(false);
-    });
-  });
 });
 
 describe("OrionVault - Base Functionality", function () {
@@ -428,7 +266,6 @@ describe("OrionVault - Base Functionality", function () {
     it("Should revert deposit function with SynchronousCallDisabled error", async function () {
       const depositAmount = ethers.parseUnits("100", 6);
 
-      await expect(vault.previewDeposit(depositAmount)).to.be.revertedWithCustomError(vault, "SynchronousCallDisabled");
       await expect(vault.deposit(depositAmount, user.address)).to.be.revertedWithCustomError(
         vault,
         "SynchronousCallDisabled",
@@ -438,7 +275,6 @@ describe("OrionVault - Base Functionality", function () {
     it("Should revert mint function with SynchronousCallDisabled error", async function () {
       const mintAmount = ethers.parseUnits("100", 18);
 
-      await expect(vault.previewMint(mintAmount)).to.be.revertedWithCustomError(vault, "SynchronousCallDisabled");
       await expect(vault.mint(mintAmount, user.address)).to.be.revertedWithCustomError(
         vault,
         "SynchronousCallDisabled",
@@ -448,10 +284,6 @@ describe("OrionVault - Base Functionality", function () {
     it("Should revert withdraw function with SynchronousCallDisabled error", async function () {
       const withdrawAmount = ethers.parseUnits("100", 6);
 
-      await expect(vault.previewWithdraw(withdrawAmount)).to.be.revertedWithCustomError(
-        vault,
-        "SynchronousCallDisabled",
-      );
       await expect(vault.withdraw(withdrawAmount, user.address, user.address)).to.be.revertedWithCustomError(
         vault,
         "SynchronousCallDisabled",
@@ -461,7 +293,6 @@ describe("OrionVault - Base Functionality", function () {
     it("Should revert redeem function with SynchronousCallDisabled error", async function () {
       const redeemAmount = ethers.parseUnits("100", 18);
 
-      await expect(vault.previewRedeem(redeemAmount)).to.be.revertedWithCustomError(vault, "SynchronousCallDisabled");
       await expect(vault.redeem(redeemAmount, user.address, user.address)).to.be.revertedWithCustomError(
         vault,
         "SynchronousCallDisabled",

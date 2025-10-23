@@ -79,4 +79,10 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     ///      Includes safety checks to prevent predatory withdrawals that could break protocol operations.
     /// @param amount The amount of underlying assets to withdraw
     function withdrawLiquidity(uint256 amount) external;
+
+    /// @notice Synchronous redemption for decommissioned vaults
+    /// @dev Called by vault contracts to process synchronous redemptions for LPs with share tokens
+    /// @param assets The amount of underlying assets to withdraw
+    /// @param receiver The address to receive the underlying assets
+    function withdraw(uint256 assets, address receiver) external;
 }

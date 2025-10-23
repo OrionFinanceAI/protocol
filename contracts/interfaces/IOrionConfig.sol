@@ -113,8 +113,7 @@ interface IOrionConfig {
     /// @dev it merely disconnects the vault from the protocol, which causes the share price to stale
     /// @dev and renders curator intents inactive.
     /// @param vault The address of the vault to be removed from the registry
-    /// @param vaultType The type of the vault—either encrypted or transparent
-    function removeOrionVault(address vault, EventsLib.VaultType vaultType) external;
+    function removeOrionVault(address vault) external;
 
     /// @notice Returns all Orion vault addresses
     /// @param vaultType Whether to return encrypted or transparent vaults
@@ -126,6 +125,22 @@ interface IOrionConfig {
     /// @param vault The address of the vault to check
     /// @return True if the address is a registered Orion vault, false otherwise
     function isOrionVault(address vault) external view returns (bool);
+
+    /// @notice Checks if an address is a decommissioning Orion vault
+    /// @param vault The address of the vault to check
+    /// @return True if the address is a decommissioning Orion vault, false otherwise
+    function isDecommissioningVault(address vault) external view returns (bool);
+
+    /// @notice Checks if an address is a decommissioned Orion vault
+    /// @param vault The address of the vault to check
+    /// @return True if the address is a decommissioned Orion vault, false otherwise
+    function isDecommissionedVault(address vault) external view returns (bool);
+
+    /// @notice Completes the decommissioning process for a vault
+    /// @dev This function removes the vault from the active vault lists and moves it to decommissioned vaults
+    /// @dev Only callable by the liquidity orchestrator after vault liquidation is complete
+    /// @param vault The address of the vault to complete decommissioning for
+    function completeVaultDecommissioning(address vault) external;
 
     /// @notice Checks if the system is idle
     /// @dev This function checks if both the liquidity orchestrator and the internal states orchestrator are idle

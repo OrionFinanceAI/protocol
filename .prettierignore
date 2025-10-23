@@ -12,6 +12,7 @@ types
 .venv
 protocol-costs
 orion-strategies
+contracts/test
 
 # files
 *.env

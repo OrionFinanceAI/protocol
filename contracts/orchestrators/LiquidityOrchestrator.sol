@@ -14,6 +14,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../interfaces/IOrionVault.sol";
 import "../interfaces/IExecutionAdapter.sol";
 import "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
  * @title Liquidity Orchestrator
@@ -233,7 +234,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     function transferCuratorFees(uint256 amount) external {
         address vault = msg.sender;
 
-        if (!config.isOrionVault(vault)) revert ErrorsLib.NotAuthorized();
+        if (!config.isOrionVault(vault) && !config.isDecommissionedVault(vault)) revert ErrorsLib.NotAuthorized();
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
 
         // Transfer underlying assets to the vault owner
@@ -251,6 +252,13 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         // Transfer underlying assets to the user
         bool success = IERC20(underlyingAsset).transfer(user, amount);
         if (!success) revert ErrorsLib.TransferFailed();
+    }
+
+    /// @inheritdoc ILiquidityOrchestrator
+    function withdraw(uint256 assets, address receiver) external nonReentrant {
+        if (!config.isDecommissionedVault(msg.sender)) revert ErrorsLib.NotAuthorized();
+
+        SafeERC20.safeTransfer(IERC20(underlyingAsset), receiver, assets);
     }
 
     /* -------------------------------------------------------------------------- */
@@ -448,6 +456,9 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
             uint256 totalAssetsForRedeem = internalStatesOrchestrator.getVaultTotalAssetsForFulfillRedeem(vault);
 
             _processVaultDepositAndRedeem(vault, totalAssetsForDeposit, totalAssetsForRedeem);
+            if (config.isDecommissioningVault(vault)) {
+                config.completeVaultDecommissioning(vault);
+            }
         }
     }
 

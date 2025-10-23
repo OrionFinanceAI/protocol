@@ -107,7 +107,12 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
     /// @inheritdoc IOrionTransparentVault
     function getIntent() external view returns (address[] memory tokens, uint32[] memory weights) {
-        if (_isPassiveCurator) {
+        if (isDecommissioning) {
+            tokens = new address[](1);
+            weights = new uint32[](1);
+            tokens[0] = address(config.underlyingAsset());
+            weights[0] = uint32(10 ** config.curatorIntentDecimals()); // 100%
+        } else if (_isPassiveCurator) {
             // For passive curators, compute pull intent from strategy
             return _computePassiveIntent();
         } else {
@@ -214,6 +219,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     /// --------- INTERNAL FUNCTIONS ---------
 
     /// @notice Update the curator type flag based on ERC-165 interface detection
+    /// @param whitelistedAssets List of assets currently whitelisted in the vault
     function _updateCuratorType(address[] memory whitelistedAssets) internal {
         if (curator.code.length == 0) {
             // EOA (wallet) - active curator

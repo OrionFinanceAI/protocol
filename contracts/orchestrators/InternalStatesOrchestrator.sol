@@ -458,13 +458,11 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
             revert ErrorsLib.InvalidState();
         }
         ++currentMinibatchIndex;
-
         uint16 i0 = minibatchIndex * transparentMinibatchSize;
         uint16 i1 = i0 + transparentMinibatchSize;
 
         if (i1 > transparentVaultsEpoch.length || i1 == transparentVaultsEpoch.length) {
-            i1 = uint16(transparentVaultsEpoch.length);
-            // Last minibatch, go to next phase.
+            i1 = uint16(transparentVaultsEpoch.length); // Last minibatch, go to next phase.
             currentPhase = InternalUpkeepPhase.BuildingOrders;
             currentMinibatchIndex = 0;
         }
@@ -473,7 +471,6 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
             IOrionTransparentVault vault = IOrionTransparentVault(transparentVaultsEpoch[i]);
 
             (address[] memory intentTokens, uint32[] memory intentWeights) = vault.getIntent();
-
             uint256 finalTotalAssets = _currentEpoch.vaultsTotalAssets[address(vault)];
 
             IOrionTransparentVault.PortfolioPosition[]
@@ -482,7 +479,6 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
             for (uint16 j = 0; j < intentTokens.length; ++j) {
                 address token = intentTokens[j];
                 uint32 weight = intentWeights[j];
-
                 if (!_currentEpoch.tokenExists[token]) {
                     if (token == underlyingAsset) {
                         _currentEpoch.priceArray[token] = UtilitiesLib.convertDecimals(
@@ -495,7 +491,6 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
                     }
                 }
                 uint256 price = _currentEpoch.priceArray[token];
-
                 uint256 value = UtilitiesLib.convertDecimals(
                     finalTotalAssets.mulDiv(weight, intentFactor).mulDiv(priceAdapterPrecision, price),
                     underlyingDecimals,
@@ -507,7 +502,6 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
                 _currentEpoch.finalBatchPortfolio[token] += value;
                 _addTokenIfNotExists(token);
             }
-
             vault.updateVaultState(portfolio, finalTotalAssets);
         }
     }

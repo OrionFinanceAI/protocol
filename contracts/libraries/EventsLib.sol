@@ -21,10 +21,6 @@ library EventsLib {
     /// @param vault The address of the added vault.
     event OrionVaultAdded(address indexed vault);
 
-    /// @notice An Orion Vault has been removed from the protocol registry.
-    /// @param vault The address of the removed vault.
-    event OrionVaultRemoved(address indexed vault);
-
     /// @notice The risk-free rate has been updated.
     /// @param riskFreeRate The new risk-free rate in basis points.
     event RiskFreeRateUpdated(uint16 indexed riskFreeRate);
@@ -69,6 +65,12 @@ library EventsLib {
     /// @param asset The address of the asset.
     /// @param adapter The address of the execution adapter.
     event ExecutionAdapterSet(address indexed asset, address indexed adapter);
+
+    /// @notice A vault removal has been processed with accounting updates.
+    /// @param vault The address of the removed vault.
+    /// @param totalAssets The total assets of the vault at removal.
+    /// @param curatorFee The curator fee calculated for the final state.
+    event VaultRemovalProcessed(address indexed vault, uint256 indexed totalAssets, uint256 indexed curatorFee);
 
     /// @notice Enumeration of available vault types.
     enum VaultType {

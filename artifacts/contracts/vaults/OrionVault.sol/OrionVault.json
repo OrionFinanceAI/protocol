@@ -211,6 +211,11 @@
     },
     {
       "inputs": [],
+      "name": "NotAuthorized",
+      "type": "error"
+    },
+    {
+      "inputs": [],
       "name": "ReentrancyGuardReentrantCall",
       "type": "error"
     },
@@ -1040,6 +1045,19 @@
     },
     {
       "inputs": [],
+      "name": "isDecommissioning",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
       "name": "liquidityOrchestrator",
       "outputs": [
         {
@@ -1166,6 +1184,13 @@
     },
     {
       "inputs": [],
+      "name": "overrideIntentForDecommissioning",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
       "name": "pendingCuratorFees",
       "outputs": [
         {
@@ -1207,7 +1232,7 @@
       "inputs": [
         {
           "internalType": "uint256",
-          "name": "",
+          "name": "assets",
           "type": "uint256"
         }
       ],
@@ -1219,14 +1244,14 @@
           "type": "uint256"
         }
       ],
-      "stateMutability": "pure",
+      "stateMutability": "view",
       "type": "function"
     },
     {
       "inputs": [
         {
           "internalType": "uint256",
-          "name": "",
+          "name": "shares",
           "type": "uint256"
         }
       ],
@@ -1238,14 +1263,14 @@
           "type": "uint256"
         }
       ],
-      "stateMutability": "pure",
+      "stateMutability": "view",
       "type": "function"
     },
     {
       "inputs": [
         {
           "internalType": "uint256",
-          "name": "",
+          "name": "shares",
           "type": "uint256"
         }
       ],
@@ -1257,14 +1282,14 @@
           "type": "uint256"
         }
       ],
-      "stateMutability": "pure",
+      "stateMutability": "view",
       "type": "function"
     },
     {
       "inputs": [
         {
           "internalType": "uint256",
-          "name": "",
+          "name": "assets",
           "type": "uint256"
         }
       ],
@@ -1276,24 +1301,24 @@
           "type": "uint256"
         }
       ],
-      "stateMutability": "pure",
+      "stateMutability": "view",
       "type": "function"
     },
     {
       "inputs": [
         {
           "internalType": "uint256",
-          "name": "",
+          "name": "shares",
           "type": "uint256"
         },
         {
           "internalType": "address",
-          "name": "",
+          "name": "receiver",
           "type": "address"
         },
         {
           "internalType": "address",
-          "name": "",
+          "name": "owner",
           "type": "address"
         }
       ],
@@ -1305,7 +1330,7 @@
           "type": "uint256"
         }
       ],
-      "stateMutability": "pure",
+      "stateMutability": "nonpayable",
       "type": "function"
     },
     {
