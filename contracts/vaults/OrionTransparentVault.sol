@@ -214,6 +214,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     /// --------- INTERNAL FUNCTIONS ---------
 
     /// @notice Update the curator type flag based on ERC-165 interface detection
+    /// @param whitelistedAssets List of assets currently whitelisted in the vault
     function _updateCuratorType(address[] memory whitelistedAssets) internal {
         if (curator.code.length == 0) {
             // EOA (wallet) - active curator

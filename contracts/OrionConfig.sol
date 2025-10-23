@@ -58,6 +58,7 @@ contract OrionConfig is Ownable, IOrionConfig {
     // Orion-specific configuration
     EnumerableSet.AddressSet private transparentVaults;
     EnumerableSet.AddressSet private encryptedVaults;
+    EnumerableSet.AddressSet private decommissionedVaults;
 
     modifier onlyFactories() {
         if (msg.sender != transparentVaultFactory) revert ErrorsLib.UnauthorizedAccess();
@@ -219,14 +220,17 @@ contract OrionConfig is Ownable, IOrionConfig {
     function removeOrionVault(address vault, EventsLib.VaultType vaultType) external onlyOwner {
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
-        bool removed;
         if (vaultType == EventsLib.VaultType.Encrypted) {
-            removed = encryptedVaults.remove(vault);
+            // slither-disable-next-line unused-return
+            encryptedVaults.remove(vault);
         } else {
-            removed = transparentVaults.remove(vault);
+            // slither-disable-next-line unused-return
+            transparentVaults.remove(vault);
         }
 
-        if (!removed) revert ErrorsLib.UnauthorizedAccess();
+        // slither-disable-next-line unused-return
+        decommissionedVaults.add(vault);
+
         emit EventsLib.OrionVaultRemoved(vault);
     }
 
@@ -246,6 +250,11 @@ contract OrionConfig is Ownable, IOrionConfig {
     /// @inheritdoc IOrionConfig
     function isOrionVault(address vault) external view returns (bool) {
         return encryptedVaults.contains(vault) || transparentVaults.contains(vault);
+    }
+
+    /// @inheritdoc IOrionConfig
+    function isDecommissionedVault(address vault) external view returns (bool) {
+        return decommissionedVaults.contains(vault);
     }
 
     /// @inheritdoc IOrionConfig

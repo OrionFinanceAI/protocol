@@ -2,3 +2,4 @@
 **/artifacts
 **/node_modules
 contracts/mocks
+contracts/test

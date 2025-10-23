@@ -318,20 +318,21 @@ describe("Config", function () {
         .withArgs(user.address);
     });
 
-    it("Should revert when trying to remove non-registered vault", async function () {
+    it("Should have no effect when trying to remove non-registered vault", async function () {
+      // Get initial vault list
+      const initialVaults = await orionConfig.getAllOrionVaults(0); // 0 = EventsLib.VaultType.Transparent
+      const initialCount = initialVaults.length;
+
       const nonRegisteredVault = other.address;
+      await orionConfig.removeOrionVault(nonRegisteredVault, 0);
+      await orionConfig.removeOrionVault(ethers.ZeroAddress, 0);
 
-      await expect(orionConfig.removeOrionVault(nonRegisteredVault, 0)).to.be.revertedWithCustomError(
-        orionConfig,
-        "UnauthorizedAccess",
-      );
-    });
+      // Verify vault list is unchanged
+      const finalVaults = await orionConfig.getAllOrionVaults(0);
+      const finalCount = finalVaults.length;
 
-    it("Should revert when trying to remove vault with zero address", async function () {
-      await expect(orionConfig.removeOrionVault(ethers.ZeroAddress, 0)).to.be.revertedWithCustomError(
-        orionConfig,
-        "UnauthorizedAccess",
-      );
+      expect(finalCount).to.equal(initialCount);
+      expect(finalVaults).to.deep.equal(initialVaults);
     });
 
     it("Should update vault count after removal", async function () {
@@ -382,9 +383,8 @@ describe("Config", function () {
     it("Should handle removal of vault with wrong vault type", async function () {
       const vaultAddress = await vault.getAddress();
 
-      // Try to remove transparent vault as encrypted vault (wrong type)
-      await expect(orionConfig.removeOrionVault(vaultAddress, 1)) // 1 = EventsLib.VaultType.Encrypted
-        .to.be.revertedWithCustomError(orionConfig, "UnauthorizedAccess");
+      // Remove transparent vault as encrypted vault (wrong type)
+      await orionConfig.removeOrionVault(vaultAddress, 1); // 1 = EventsLib.VaultType.Encrypted
 
       // Verify vault is still registered
       expect(await orionConfig.isOrionVault(vaultAddress)).to.equal(true);
@@ -428,7 +428,6 @@ describe("OrionVault - Base Functionality", function () {
     it("Should revert deposit function with SynchronousCallDisabled error", async function () {
       const depositAmount = ethers.parseUnits("100", 6);
 
-      await expect(vault.previewDeposit(depositAmount)).to.be.revertedWithCustomError(vault, "SynchronousCallDisabled");
       await expect(vault.deposit(depositAmount, user.address)).to.be.revertedWithCustomError(
         vault,
         "SynchronousCallDisabled",
@@ -438,7 +437,6 @@ describe("OrionVault - Base Functionality", function () {
     it("Should revert mint function with SynchronousCallDisabled error", async function () {
       const mintAmount = ethers.parseUnits("100", 18);
 
-      await expect(vault.previewMint(mintAmount)).to.be.revertedWithCustomError(vault, "SynchronousCallDisabled");
       await expect(vault.mint(mintAmount, user.address)).to.be.revertedWithCustomError(
         vault,
         "SynchronousCallDisabled",
@@ -448,10 +446,6 @@ describe("OrionVault - Base Functionality", function () {
     it("Should revert withdraw function with SynchronousCallDisabled error", async function () {
       const withdrawAmount = ethers.parseUnits("100", 6);
 
-      await expect(vault.previewWithdraw(withdrawAmount)).to.be.revertedWithCustomError(
-        vault,
-        "SynchronousCallDisabled",
-      );
       await expect(vault.withdraw(withdrawAmount, user.address, user.address)).to.be.revertedWithCustomError(
         vault,
         "SynchronousCallDisabled",
@@ -461,7 +455,6 @@ describe("OrionVault - Base Functionality", function () {
     it("Should revert redeem function with SynchronousCallDisabled error", async function () {
       const redeemAmount = ethers.parseUnits("100", 18);
 
-      await expect(vault.previewRedeem(redeemAmount)).to.be.revertedWithCustomError(vault, "SynchronousCallDisabled");
       await expect(vault.redeem(redeemAmount, user.address, user.address)).to.be.revertedWithCustomError(
         vault,
         "SynchronousCallDisabled",

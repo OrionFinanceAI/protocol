@@ -70,6 +70,12 @@ library EventsLib {
     /// @param adapter The address of the execution adapter.
     event ExecutionAdapterSet(address indexed asset, address indexed adapter);
 
+    /// @notice A vault removal has been processed with accounting updates.
+    /// @param vault The address of the removed vault.
+    /// @param totalAssets The total assets of the vault at removal.
+    /// @param curatorFee The curator fee calculated for the final state.
+    event VaultRemovalProcessed(address indexed vault, uint256 indexed totalAssets, uint256 indexed curatorFee);
+
     /// @notice Enumeration of available vault types.
     enum VaultType {
         Transparent,

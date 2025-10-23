@@ -203,36 +203,44 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     }
 
     /// @inheritdoc IERC4626
-    function previewDeposit(uint256) public pure override(ERC4626, IERC4626) returns (uint256) {
-        revert SynchronousCallDisabled();
-    }
-    /// @inheritdoc IERC4626
     function deposit(uint256, address) public pure override(ERC4626, IERC4626) returns (uint256) {
         revert SynchronousCallDisabled();
     }
 
-    /// @inheritdoc IERC4626
-    function previewMint(uint256) public pure override(ERC4626, IERC4626) returns (uint256) {
-        revert SynchronousCallDisabled();
-    }
     /// @inheritdoc IERC4626
     function mint(uint256, address) public pure override(ERC4626, IERC4626) returns (uint256) {
         revert SynchronousCallDisabled();
     }
 
     /// @inheritdoc IERC4626
-    function previewRedeem(uint256) public pure override(ERC4626, IERC4626) returns (uint256) {
-        revert SynchronousCallDisabled();
-    }
-    /// @inheritdoc IERC4626
-    function redeem(uint256, address, address) public pure override(ERC4626, IERC4626) returns (uint256) {
-        revert SynchronousCallDisabled();
+    function redeem(
+        uint256 shares,
+        address receiver,
+        address owner
+    ) public override(ERC4626, IERC4626) returns (uint256) {
+        // Only allow synchronous redemption for decommissioned vaults
+        if (!config.isDecommissionedVault(address(this))) revert SynchronousCallDisabled();
+
+        uint256 maxShares = maxRedeem(owner);
+        if (shares > maxShares) {
+            revert ERC4626ExceededMaxRedeem(owner, shares, maxShares);
+        }
+
+        if (msg.sender != owner) {
+            _spendAllowance(owner, msg.sender, shares);
+        }
+
+        uint256 assets = previewRedeem(shares);
+        // Update total assets accounting
+        _totalAssets -= assets;
+
+        _burn(owner, shares);
+
+        liquidityOrchestrator.withdraw(assets, receiver);
+
+        return assets;
     }
 
-    /// @inheritdoc IERC4626
-    function previewWithdraw(uint256) public pure override(ERC4626, IERC4626) returns (uint256) {
-        revert SynchronousCallDisabled();
-    }
     /// @inheritdoc IERC4626
     function withdraw(uint256, address, address) public pure override(ERC4626, IERC4626) returns (uint256) {
         revert SynchronousCallDisabled();
