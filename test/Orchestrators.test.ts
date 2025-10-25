@@ -72,20 +72,18 @@ describe("Orchestrators", function () {
     await mockAsset3Deployed.waitForDeployment();
     mockAsset3 = mockAsset3Deployed as unknown as MockERC4626Asset;
 
-    const initialDeposit1 = ethers.parseUnits("1000", 12);
-    const initialDeposit2 = ethers.parseUnits("2000", 12);
-    const initialDeposit3 = ethers.parseUnits("1500", 12);
+    // Deposit in investment universe vault to be able to simulate losses later on.
+    const initialDeposit = ethers.parseUnits("10000", 12);
+    await underlyingAsset.mint(user.address, ethers.parseUnits("100000", 12));
 
-    await underlyingAsset.mint(user.address, ethers.parseUnits("10000", 12));
+    await underlyingAsset.connect(user).approve(await mockAsset1.getAddress(), initialDeposit);
+    await mockAsset1.connect(user).deposit(initialDeposit, user.address);
 
-    await underlyingAsset.connect(user).approve(await mockAsset1.getAddress(), initialDeposit1);
-    await mockAsset1.connect(user).deposit(initialDeposit1, user.address);
+    await underlyingAsset.connect(user).approve(await mockAsset2.getAddress(), initialDeposit);
+    await mockAsset2.connect(user).deposit(initialDeposit, user.address);
 
-    await underlyingAsset.connect(user).approve(await mockAsset2.getAddress(), initialDeposit2);
-    await mockAsset2.connect(user).deposit(initialDeposit2, user.address);
-
-    await underlyingAsset.connect(user).approve(await mockAsset3.getAddress(), initialDeposit3);
-    await mockAsset3.connect(user).deposit(initialDeposit3, user.address);
+    await underlyingAsset.connect(user).approve(await mockAsset3.getAddress(), initialDeposit);
+    await mockAsset3.connect(user).deposit(initialDeposit, user.address);
 
     const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
     const orionConfigDeployed = await OrionConfigFactory.deploy(owner.address, await underlyingAsset.getAddress());
@@ -530,12 +528,10 @@ describe("Orchestrators", function () {
         await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
       }
 
-      //       protocolVolumeFee to be stored in ISO epoch state and assert that values are as expected based on portfolio state.
-      // Same for protocolRevenueShareFee
-      // Same for curatorFee (from vault states)
-
-      // TODO: assert protocol volume fee vector, protocol revenue share fee and curator fee vector
-      // all zeros.
+      let pendingProtocolFees = await internalStatesOrchestrator.pendingProtocolFees();
+      let pendingCuratorFees = await hurdleHwmVault.pendingCuratorFees();
+      expect(pendingProtocolFees).to.equal(0);
+      expect(pendingCuratorFees).to.equal(0);
 
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // Buffering
 
@@ -571,8 +567,7 @@ describe("Orchestrators", function () {
       // Should have all three assets in the orders arrays
       expect(sellingTokens.length).to.equal(0);
       expect(buyingTokens.length).to.equal(4);
-
-      // TODO: assert get orders values.
+      // TODO: assert get orders values, not just length.
 
       // Interact with investment universe assets here, leading to mismatch between measured and execution prices.
       // Simulate different gains for each mock asset to create price mismatches
@@ -612,7 +607,7 @@ describe("Orchestrators", function () {
       expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
 
       // Have curators request fees redemption
-      const pendingFees = await hurdleHwmVault.pendingCuratorFees();
+      let pendingFees = await hurdleHwmVault.pendingCuratorFees();
       if (pendingFees > 0) {
         await hurdleHwmVault.connect(owner).claimCuratorFees(pendingFees);
       }
@@ -636,7 +631,7 @@ describe("Orchestrators", function () {
       const updatedRedeemAmount = await hurdleHwmVault.balanceOf(user.address);
       await hurdleHwmVault.connect(user).approve(await hurdleHwmVault.getAddress(), updatedRedeemAmount);
       await hurdleHwmVault.connect(user).requestRedeem(updatedRedeemAmount);
-      // TODO: Track balance of vault token
+      // TODO: Track balance of vault token for user before and after  around request redeem
 
       // TODO: this is wrong, deposits do not change share price, gains do.
       //  Inject a lot of capital in asset tokens to increase their share price so in the next epoch there is a non-zero performance fee
@@ -664,7 +659,7 @@ describe("Orchestrators", function () {
       }
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // Buffering
 
-      const pendingCuratorFees = await hurdleHwmVault.pendingCuratorFees();
+      pendingCuratorFees = await hurdleHwmVault.pendingCuratorFees();
       console.log("pendingCuratorFees:", pendingCuratorFees); // TODO: ensure this is correct for all vaults here.
 
       console.log("pendingProtocolFees:", await internalStatesOrchestrator.pendingProtocolFees());
@@ -730,13 +725,13 @@ describe("Orchestrators", function () {
       await expect(liquidityOrchestrator.updateExecutionMinibatchSize(1)).to.not.be.reverted;
 
       // Check and claim protocol fees
-      const pendingProtocolFees = await internalStatesOrchestrator.pendingProtocolFees();
+      pendingProtocolFees = await internalStatesOrchestrator.pendingProtocolFees();
       if (pendingProtocolFees > 0) {
         await liquidityOrchestrator.connect(owner).claimProtocolFees(pendingProtocolFees);
       }
 
       // Check and claim curator fees for transparent vault
-      const pendingTransparentCuratorFees = await hurdleHwmVault.pendingCuratorFees();
+      let pendingTransparentCuratorFees = await hurdleHwmVault.pendingCuratorFees();
       if (pendingTransparentCuratorFees > 0) {
         await hurdleHwmVault.connect(owner).claimCuratorFees(pendingTransparentCuratorFees);
       }
