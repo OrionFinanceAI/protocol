@@ -165,7 +165,8 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     /// @inheritdoc ILiquidityOrchestrator
     function depositLiquidity(uint256 amount) external onlyOwner {
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
-        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+        if (internalStatesOrchestrator.currentPhase() != IInternalStateOrchestrator.InternalUpkeepPhase.Idle)
+            revert ErrorsLib.SystemNotIdle();
 
         // Transfer underlying assets from the owner to this contract
         bool success = IERC20(underlyingAsset).transferFrom(msg.sender, address(this), amount);
@@ -178,7 +179,8 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     /// @inheritdoc ILiquidityOrchestrator
     function withdrawLiquidity(uint256 amount) external onlyOwner {
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
-        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+        if (internalStatesOrchestrator.currentPhase() != IInternalStateOrchestrator.InternalUpkeepPhase.Idle)
+            revert ErrorsLib.SystemNotIdle();
 
         // Get current buffer amount from internal states orchestrator
         uint256 currentBufferAmount = internalStatesOrchestrator.bufferAmount();

@@ -380,6 +380,8 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
             uint256 curatorFee = vault.curatorFee(totalAssets);
 
             totalAssets -= curatorFee;
+            _currentEpoch.vaultsTotalAssetsForFulfillRedeem[address(vault)] = totalAssets;
+
             uint256 protocolRevenueShareFee = uint256(rsFeeCoefficient).mulDiv(curatorFee, BASIS_POINTS_FACTOR);
             pendingProtocolFees += protocolRevenueShareFee;
             curatorFee -= protocolRevenueShareFee;
@@ -391,7 +393,6 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
                 totalAssets,
                 Math.Rounding.Floor
             );
-            _currentEpoch.vaultsTotalAssetsForFulfillRedeem[address(vault)] = totalAssets;
 
             // STEP 6: DEPOSIT PROCESSING (add deposits, subtract withdrawals)
             totalAssets -= pendingRedeem;
@@ -653,13 +654,11 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
 
     /// @inheritdoc IInternalStateOrchestrator
     function getEpochTokens() external view returns (address[] memory tokens) {
-        if (currentPhase != InternalUpkeepPhase.Idle) revert ErrorsLib.SystemNotIdle();
         return _currentEpoch.tokens;
     }
 
     /// @inheritdoc IInternalStateOrchestrator
     function getPriceOf(address token) external view returns (uint256 price) {
-        if (currentPhase != InternalUpkeepPhase.Idle) revert ErrorsLib.SystemNotIdle();
         return _currentEpoch.priceArray[token];
     }
 
@@ -678,17 +677,18 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
         }
     }
 
-    /// @notice Get total assets for fulfill redeem for a specific vault
-    /// @param vault The vault address
-    /// @return totalAssets The total assets for fulfill redeem
+    /// @inheritdoc IInternalStateOrchestrator
     function getVaultTotalAssetsForFulfillRedeem(address vault) external view returns (uint256 totalAssets) {
         return _currentEpoch.vaultsTotalAssetsForFulfillRedeem[vault];
     }
 
-    /// @notice Get total assets for fulfill deposit for a specific vault
-    /// @param vault The vault address
-    /// @return totalAssets The total assets for fulfill deposit
+    /// @inheritdoc IInternalStateOrchestrator
     function getVaultTotalAssetsForFulfillDeposit(address vault) external view returns (uint256 totalAssets) {
         return _currentEpoch.vaultsTotalAssetsForFulfillDeposit[vault];
+    }
+
+    /// @inheritdoc IInternalStateOrchestrator
+    function getTransparentVaultsEpoch() external view returns (address[] memory vaults) {
+        return transparentVaultsEpoch;
     }
 }
