@@ -678,17 +678,18 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
         }
     }
 
-    /// @notice Get total assets for fulfill redeem for a specific vault
-    /// @param vault The vault address
-    /// @return totalAssets The total assets for fulfill redeem
+    /// @inheritdoc IInternalStateOrchestrator
     function getVaultTotalAssetsForFulfillRedeem(address vault) external view returns (uint256 totalAssets) {
         return _currentEpoch.vaultsTotalAssetsForFulfillRedeem[vault];
     }
 
-    /// @notice Get total assets for fulfill deposit for a specific vault
-    /// @param vault The vault address
-    /// @return totalAssets The total assets for fulfill deposit
+    /// @inheritdoc IInternalStateOrchestrator
     function getVaultTotalAssetsForFulfillDeposit(address vault) external view returns (uint256 totalAssets) {
         return _currentEpoch.vaultsTotalAssetsForFulfillDeposit[vault];
+    }
+
+    /// @inheritdoc IInternalStateOrchestrator
+    function getTransparentVaultsEpoch() external view returns (address[] memory vaults) {
+        return transparentVaultsEpoch;
     }
 }

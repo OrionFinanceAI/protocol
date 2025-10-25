@@ -521,7 +521,8 @@ describe("Orchestrators", function () {
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
 
-      // TODO: assert transparentVaultsEpoch.length is 5 meaning all vaults are valid here.
+      const transparentVaultsEpoch = await internalStatesOrchestrator.getTransparentVaultsEpoch();
+      expect(transparentVaultsEpoch.length).to.equal(5);
 
       // Process all vaults in preprocessing phase - continue until we reach buffering phase
       while ((await internalStatesOrchestrator.currentPhase()) === 1n) {

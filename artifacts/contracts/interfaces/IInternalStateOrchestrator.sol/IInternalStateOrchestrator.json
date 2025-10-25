@@ -150,6 +150,19 @@
       "type": "function"
     },
     {
+      "inputs": [],
+      "name": "getTransparentVaultsEpoch",
+      "outputs": [
+        {
+          "internalType": "address[]",
+          "name": "vaults",
+          "type": "address[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
       "inputs": [
         {
           "internalType": "address",
