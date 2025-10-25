@@ -141,14 +141,14 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
             _portfolio.set(portfolio[i].token, portfolio[i].shares);
         }
 
-        _totalAssets = newTotalAssets;
-
         // Update high watermark if current price is higher
         uint256 currentSharePrice = convertToAssets(10 ** decimals());
 
         if (currentSharePrice > feeModel.highWaterMark) {
             feeModel.highWaterMark = currentSharePrice;
         }
+
+        _totalAssets = newTotalAssets;
 
         // Emit event for tracking state updates
         emit EventsLib.VaultStateUpdated(newTotalAssets);
