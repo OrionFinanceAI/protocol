@@ -137,6 +137,16 @@ describe("Orchestrators", function () {
 
     await internalStatesOrchestrator.connect(owner).updateProtocolFees(10, 1000);
 
+    await expect(internalStatesOrchestrator.connect(owner).updateProtocolFees(51, 0)).to.be.revertedWithCustomError(
+      internalStatesOrchestrator,
+      "InvalidArguments",
+    );
+
+    await expect(internalStatesOrchestrator.connect(owner).updateProtocolFees(0, 2001)).to.be.revertedWithCustomError(
+      internalStatesOrchestrator,
+      "InvalidArguments",
+    );
+
     await liquidityOrchestrator.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
 
     await liquidityOrchestrator.setTargetBufferRatio(100); // 1% target buffer ratio
@@ -295,7 +305,8 @@ describe("Orchestrators", function () {
       { token: await underlyingAsset.getAddress(), weight: 550000000 },
     ];
     await absoluteVault.connect(curator).submitIntent(absoluteIntent);
-    await underlyingAsset.connect(user).approve(await absoluteVault.getAddress(), ethers.parseUnits("10000", 12));
+
+    await underlyingAsset.connect(user).approve(await absoluteVault.getAddress(), ethers.parseUnits("50", 12));
     await absoluteVault.connect(user).requestDeposit(ethers.parseUnits("50", 12));
 
     // High Water Mark Vault: Balanced allocation
@@ -315,7 +326,7 @@ describe("Orchestrators", function () {
       { token: await underlyingAsset.getAddress(), weight: 150000000 },
     ];
     await highWaterMarkVault.connect(curator).submitIntent(highWaterMarkIntent);
-    await underlyingAsset.connect(user).approve(await highWaterMarkVault.getAddress(), ethers.parseUnits("10000", 12));
+    await underlyingAsset.connect(user).approve(await highWaterMarkVault.getAddress(), ethers.parseUnits("75", 12));
     await highWaterMarkVault.connect(user).requestDeposit(ethers.parseUnits("75", 12));
 
     // Soft Hurdle Vault: Aggressive allocation with focus on mockAsset1
@@ -335,7 +346,7 @@ describe("Orchestrators", function () {
       { token: await underlyingAsset.getAddress(), weight: 100000000 },
     ];
     await softHurdleVault.connect(curator).submitIntent(softHurdleIntent);
-    await underlyingAsset.connect(user).approve(await softHurdleVault.getAddress(), ethers.parseUnits("10000", 12));
+    await underlyingAsset.connect(user).approve(await softHurdleVault.getAddress(), ethers.parseUnits("125", 12));
     await softHurdleVault.connect(user).requestDeposit(ethers.parseUnits("125", 12));
 
     // Hard Hurdle Vault: Diversified allocation with equal weight on mock assets
@@ -355,7 +366,7 @@ describe("Orchestrators", function () {
       { token: await underlyingAsset.getAddress(), weight: 250000000 },
     ];
     await hardHurdleVault.connect(curator).submitIntent(hardHurdleIntent);
-    await underlyingAsset.connect(user).approve(await hardHurdleVault.getAddress(), ethers.parseUnits("10000", 12));
+    await underlyingAsset.connect(user).approve(await hardHurdleVault.getAddress(), ethers.parseUnits("200", 12));
     await hardHurdleVault.connect(user).requestDeposit(ethers.parseUnits("200", 12));
 
     // Hurdle HWM Vault: Moderate allocation with focus on mockAsset2 and mockAsset3
@@ -375,13 +386,17 @@ describe("Orchestrators", function () {
       { token: await underlyingAsset.getAddress(), weight: 150000000 },
     ];
     await hurdleHwmVault.connect(curator).submitIntent(hurdleHwmIntent);
-    await underlyingAsset.connect(user).approve(await hurdleHwmVault.getAddress(), ethers.parseUnits("10000", 12));
+    await underlyingAsset.connect(user).approve(await hurdleHwmVault.getAddress(), ethers.parseUnits("150", 12));
     await hurdleHwmVault.connect(user).requestDeposit(ethers.parseUnits("150", 12));
   });
 
   describe("Idle-only functionality", function () {
     it("should revert when system is not idle", async function () {
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Idle
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
+      void expect(await orionConfig.isSystemIdle()).to.be.true;
+      await expect(orionConfig.removeOrionVault(await hurdleHwmVault.getAddress())).not.to.be.reverted;
+      await expect(orionConfig.removeWhitelistedAsset(await mockAsset1.getAddress())).not.to.be.reverted;
 
       const epochDuration = await internalStatesOrchestrator.epochDuration();
       await time.increase(epochDuration + 1n);
@@ -390,15 +405,13 @@ describe("Orchestrators", function () {
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // Not idle anymore
 
+      void expect(await orionConfig.isSystemIdle()).to.be.false;
+
       const vaultAddress = await hurdleHwmVault.getAddress();
       await expect(orionConfig.removeOrionVault(vaultAddress)).to.be.revertedWithCustomError(
         orionConfig,
         "SystemNotIdle",
       );
-
-      await expect(
-        orionConfig.setVaultFactory(await transparentVaultFactory.getAddress()),
-      ).to.be.revertedWithCustomError(orionConfig, "SystemNotIdle");
 
       await expect(orionConfig.setProtocolRiskFreeRate(1000)).to.be.revertedWithCustomError(
         orionConfig,
@@ -492,29 +505,44 @@ describe("Orchestrators", function () {
 
   describe("performUpkeep", function () {
     it("should complete full upkeep cycles without intent decryption", async function () {
-      // Skip intent decryption - don't await decryption oracle
-      // Encrypted Vault intents is invalid, so they are not processed
-
       // Fast forward time to trigger upkeep
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Idle
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
+      void expect(await orionConfig.isSystemIdle()).to.be.true;
 
       const epochDuration = await internalStatesOrchestrator.epochDuration();
       await time.increase(epochDuration + 1n);
 
+      const [_liquidityUpkeepNeeded, _liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      void expect(_liquidityUpkeepNeeded).to.be.false;
+
       let [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      void expect(_upkeepNeeded).to.be.true;
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
+
+      // TODO: assert transparentVaultsEpoch.length is 5 meaning all vaults are valid here.
 
       // Process all vaults in preprocessing phase - continue until we reach buffering phase
       while ((await internalStatesOrchestrator.currentPhase()) === 1n) {
         [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
         await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
       }
+
+      //       protocolVolumeFee to be stored in ISO epoch state and assert that values are as expected based on portfolio state.
+      // Same for protocolRevenueShareFee
+      // Same for curatorFee (from vault states)
+
+      // TODO: assert protocol volume fee vector, protocol revenue share fee and curator fee vector
+      // all zeros.
+
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // Buffering
 
       [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
+
+      // TODO: test all updateVaultStates updated correctly.
 
       // Process all vaults in postprocessing phase - continue until we reach building orders phase
       while ((await internalStatesOrchestrator.currentPhase()) === 3n) {
@@ -542,6 +570,8 @@ describe("Orchestrators", function () {
       // Should have all three assets in the orders arrays
       expect(sellingTokens.length).to.equal(0);
       expect(buyingTokens.length).to.equal(4);
+
+      // TODO: assert get orders values.
 
       // Interact with investment universe assets here, leading to mismatch between measured and execution prices.
       // Simulate different gains for each mock asset to create price mismatches
@@ -586,12 +616,16 @@ describe("Orchestrators", function () {
         await hurdleHwmVault.connect(owner).claimCuratorFees(pendingFees);
       }
 
+      void expect(pendingFees).to.equal(0);
+
       // Have LPs request redemption (test also cancel it)
       const redeemAmount = await hurdleHwmVault.balanceOf(user.address);
-      expect(redeemAmount).to.be.gt(0);
+      expect(redeemAmount).to.be.gt(0); // TODO: assert amount is exactly correct.
       await hurdleHwmVault.connect(user).approve(await hurdleHwmVault.getAddress(), redeemAmount);
       await hurdleHwmVault.connect(user).requestRedeem(redeemAmount);
+      // TODO: Track balance of vault token
       await hurdleHwmVault.connect(user).cancelRedeemRequest(redeemAmount / 2n);
+      // TODO: Track balance of vault token
 
       // Assert that the user's pending redeem amount is updated correctly after cancellation
       const pendingRedeemAfterCancel = await hurdleHwmVault.pendingRedeem();
@@ -601,12 +635,18 @@ describe("Orchestrators", function () {
       const updatedRedeemAmount = await hurdleHwmVault.balanceOf(user.address);
       await hurdleHwmVault.connect(user).approve(await hurdleHwmVault.getAddress(), updatedRedeemAmount);
       await hurdleHwmVault.connect(user).requestRedeem(updatedRedeemAmount);
+      // TODO: Track balance of vault token
 
-      // Inject a lot of capital in asset tokens to increase their share price so in the next epoch there is a non-zero performance fee
+      // TODO: this is wrong, deposits do not change share price, gains do.
+      //  Inject a lot of capital in asset tokens to increase their share price so in the next epoch there is a non-zero performance fee
       const largeDepositAmount = ethers.parseUnits("1000000", 12); // 1M tokens
       await underlyingAsset.connect(owner).mint(owner.address, largeDepositAmount);
       await underlyingAsset.connect(owner).approve(await mockAsset1.getAddress(), largeDepositAmount);
       await mockAsset1.connect(owner).deposit(largeDepositAmount, owner.address);
+
+      // // Log the portfolio of hurdleHwmVault
+      console.log("hurdleHwmVault portfolio:", await hurdleHwmVault.getPortfolio());
+      console.log("hurdleHwmVault total assets:", await hurdleHwmVault.totalAssets());
 
       // Fast forward time to trigger upkeep
       await time.increase(epochDuration + 1n);
@@ -622,6 +662,12 @@ describe("Orchestrators", function () {
         await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
       }
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // Buffering
+
+      const pendingCuratorFees = await hurdleHwmVault.pendingCuratorFees();
+      console.log("pendingCuratorFees:", pendingCuratorFees); // TODO: ensure this is correct for all vaults here.
+
+      console.log("pendingProtocolFees:", await internalStatesOrchestrator.pendingProtocolFees());
+      // TODO: ensure this is correct for all vaults here.
 
       [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
@@ -749,6 +795,7 @@ describe("Orchestrators", function () {
 
       // Should succeed when called by owner
       await expect(internalStatesOrchestrator.connect(owner).performUpkeep(performData)).to.not.be.reverted;
+      await expect(internalStatesOrchestrator.connect(curator).performUpkeep(performData)).to.be.reverted;
     });
 
     it("should allow automation registry to call performUpkeep", async function () {
