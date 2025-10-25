@@ -27,7 +27,7 @@ let mockExecutionAdapter2: MockExecutionAdapter;
 let priceAdapterRegistry: PriceAdapterRegistry;
 let internalStatesOrchestrator: InternalStatesOrchestrator;
 let liquidityOrchestrator: LiquidityOrchestrator;
-let vault: OrionTransparentVault; // Using transparent vault as the test subject
+let vault: OrionTransparentVault;
 
 let owner: SignerWithAddress, curator: SignerWithAddress, other: SignerWithAddress, user: SignerWithAddress;
 
