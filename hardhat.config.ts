@@ -13,7 +13,7 @@ const config: HardhatUserConfig = {
   docgen: {
     outputDir: "../docs/docs/developer/api",
     pages: "files",
-    exclude: ["mocks"],
+    exclude: ["mocks", "test"],
   },
   solidity: {
     compilers: [
