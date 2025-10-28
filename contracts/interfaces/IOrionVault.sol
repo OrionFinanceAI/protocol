@@ -75,7 +75,7 @@ interface IOrionVault is IERC4626 {
 
     /// @notice The vault whitelist has been updated.
     /// @param assets The new whitelist of assets.
-    event VaultWhitelistUpdated(address[] indexed assets);
+    event VaultWhitelistUpdated(address[] assets);
 
     /// @notice Curator fees have been accrued for a specific epoch.
     /// @param epoch The epoch for which fees were accrued.
@@ -124,6 +124,10 @@ interface IOrionVault is IERC4626 {
     ) external view returns (uint256);
 
     /// --------- CONFIG FUNCTIONS ---------
+
+    /// @notice Remove an asset from the vault whitelist
+    /// @param asset The asset to remove from the whitelist
+    function removeFromVaultWhitelist(address asset) external;
 
     /// @notice Override intent to 100% underlying asset for decommissioning
     /// @dev Can only be called by the OrionConfig contract

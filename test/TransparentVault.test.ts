@@ -158,6 +158,86 @@ describe("TransparentVault - Curator Pipeline", function () {
       void expect(await transparentVault.curator()).to.equal(curator.address);
       void expect(await transparentVault.config()).to.equal(await orionConfig.getAddress());
     });
+
+    it("Should reject fee update with management fee above limit", async function () {
+      // Create vault with valid fees first
+      const tx = await transparentVaultFactory.connect(owner).createVault(
+        curator.address,
+        "Test Vault",
+        "TV",
+        0, // feeType
+        0, // performanceFee
+        100, // managementFee (1% - valid)
+      );
+      const receipt = await tx.wait();
+
+      // Find the vault creation event
+      const event = receipt?.logs.find((log) => {
+        try {
+          const parsed = transparentVaultFactory.interface.parseLog(log);
+          return parsed?.name === "OrionVaultCreated";
+        } catch {
+          return false;
+        }
+      });
+
+      const parsedEvent = transparentVaultFactory.interface.parseLog(event!);
+      const vaultAddress = parsedEvent?.args[0];
+      const testVault = (await ethers.getContractAt(
+        "OrionTransparentVault",
+        vaultAddress,
+      )) as unknown as OrionTransparentVault;
+
+      // Try to update with management fee above limit (100% = 10,000 basis points)
+      // Maximum allowed is 3% (300 basis points)
+      await expect(
+        testVault.connect(owner).updateFeeModel(
+          0, // feeType
+          0, // performanceFee
+          10000, // managementFee (100% - should fail)
+        ),
+      ).to.be.revertedWithCustomError(testVault, "InvalidArguments");
+    });
+
+    it("Should reject fee update with performance fee above limit", async function () {
+      // Create vault with valid fees first
+      const tx = await transparentVaultFactory.connect(owner).createVault(
+        curator.address,
+        "Test Vault",
+        "TV",
+        0, // feeType
+        1000, // performanceFee (10% - valid)
+        100, // managementFee (1% - valid)
+      );
+      const receipt = await tx.wait();
+
+      // Find the vault creation event
+      const event = receipt?.logs.find((log) => {
+        try {
+          const parsed = transparentVaultFactory.interface.parseLog(log);
+          return parsed?.name === "OrionVaultCreated";
+        } catch {
+          return false;
+        }
+      });
+
+      const parsedEvent = transparentVaultFactory.interface.parseLog(event!);
+      const vaultAddress = parsedEvent?.args[0];
+      const testVault = (await ethers.getContractAt(
+        "OrionTransparentVault",
+        vaultAddress,
+      )) as unknown as OrionTransparentVault;
+
+      // Try to update with performance fee above limit (100% = 10,000 basis points)
+      // Maximum allowed is 30% (3,000 basis points)
+      await expect(
+        testVault.connect(owner).updateFeeModel(
+          0, // feeType
+          10000, // performanceFee (100% - should fail)
+          100, // managementFee (1% - valid)
+        ),
+      ).to.be.revertedWithCustomError(testVault, "InvalidArguments");
+    });
   });
 
   describe("Curator Operations", function () {
@@ -288,6 +368,53 @@ describe("TransparentVault - Curator Pipeline", function () {
       await expect(transparentVault.connect(other).submitIntent(intent)).to.be.revertedWithCustomError(
         transparentVault,
         "UnauthorizedAccess",
+      );
+    });
+
+    it("Should reject absoluteIntent to include blacklisted asset", async function () {
+      const whitelist = [await mockAsset1.getAddress(), await mockAsset2.getAddress()];
+      await transparentVault.connect(owner).updateVaultWhitelist(whitelist);
+
+      // First, blacklist mockAsset1 by removing it from the protocol whitelist
+      await orionConfig.connect(owner).removeWhitelistedAsset(await mockAsset1.getAddress());
+
+      // Try to submit intent with the blacklisted asset
+      const absoluteIntent = [
+        {
+          token: await mockAsset1.getAddress(), // This asset is now blacklisted
+          weight: 500000000, // 50%
+        },
+        {
+          token: await mockAsset2.getAddress(),
+          weight: 500000000, // 50%
+        },
+      ];
+
+      await expect(transparentVault.connect(curator).submitIntent(absoluteIntent)).to.be.revertedWithCustomError(
+        transparentVault,
+        "TokenNotWhitelisted",
+      );
+    });
+
+    it("Should reject absoluteIntent not summing up to 100", async function () {
+      const whitelist = [await mockAsset1.getAddress(), await mockAsset2.getAddress()];
+      await transparentVault.connect(owner).updateVaultWhitelist(whitelist);
+
+      // Submit intent with total weight != 100%
+      const absoluteIntent = [
+        {
+          token: await mockAsset1.getAddress(),
+          weight: 600000000, // 60%
+        },
+        {
+          token: await mockAsset2.getAddress(),
+          weight: 300000000, // 30% (total = 90%)
+        },
+      ];
+
+      await expect(transparentVault.connect(curator).submitIntent(absoluteIntent)).to.be.revertedWithCustomError(
+        transparentVault,
+        "InvalidTotalWeight",
       );
     });
   });

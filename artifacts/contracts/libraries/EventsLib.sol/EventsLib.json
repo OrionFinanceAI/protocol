@@ -178,31 +178,6 @@
       "inputs": [
         {
           "indexed": true,
-          "internalType": "address",
-          "name": "vault",
-          "type": "address"
-        },
-        {
-          "indexed": true,
-          "internalType": "uint256",
-          "name": "totalAssets",
-          "type": "uint256"
-        },
-        {
-          "indexed": true,
-          "internalType": "uint256",
-          "name": "curatorFee",
-          "type": "uint256"
-        }
-      ],
-      "name": "VaultRemovalProcessed",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
           "internalType": "uint256",
           "name": "newTotalAssets",
           "type": "uint256"
@@ -238,8 +213,8 @@
       "type": "event"
     }
   ],
-  "bytecode": "0x60556032600b8282823980515f1a607314602657634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f5ffdfea2646970667358221220ad232a7a217ba61f2115d047afffb82462342aab1e5967f7df84c8f2d543820e64736f6c634300081c0033",
-  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f5ffdfea2646970667358221220ad232a7a217ba61f2115d047afffb82462342aab1e5967f7df84c8f2d543820e64736f6c634300081c0033",
+  "bytecode": "0x60556032600b8282823980515f1a607314602657634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f5ffdfea2646970667358221220b675837409c98157b5de8cf27bda1c3ea4a18879aae7068cbdbee25a3ae292bd64736f6c634300081c0033",
+  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f5ffdfea2646970667358221220b675837409c98157b5de8cf27bda1c3ea4a18879aae7068cbdbee25a3ae292bd64736f6c634300081c0033",
   "linkReferences": {},
   "deployedLinkReferences": {}
 }

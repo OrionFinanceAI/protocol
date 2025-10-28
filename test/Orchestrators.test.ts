@@ -14,9 +14,23 @@ import {
   OrionTransparentVault,
   PriceAdapterRegistry,
   OrionAssetERC4626PriceAdapter,
+  KBestTvlWeightedAverage,
 } from "../typechain-types";
 
 describe("Orchestrators", function () {
+  // Vault deposit amounts (in underlying asset units)
+  const ABSOLUTE_VAULT_DEPOSIT = 50;
+  const SOFT_HURDLE_VAULT_DEPOSIT = 125;
+  const HARD_HURDLE_VAULT_DEPOSIT = 200;
+  const HIGH_WATER_MARK_VAULT_DEPOSIT = 75;
+  const HURDLE_HWM_VAULT_DEPOSIT = 150;
+  const PASSIVE_VAULT_DEPOSIT = 100;
+
+  // Expected price factors for mock assets after gains/losses (logged)
+  const MOCK_ASSET1_P0 = 1.55;
+  const MOCK_ASSET2_P0 = 1.5;
+  const MOCK_ASSET3_P0 = 1.055;
+
   let transparentVaultFactory: TransparentVaultFactory;
   let orionConfig: OrionConfig;
   let underlyingAsset: MockUnderlyingAsset;
@@ -33,6 +47,8 @@ describe("Orchestrators", function () {
   let softHurdleVault: OrionTransparentVault;
   let hardHurdleVault: OrionTransparentVault;
   let hurdleHwmVault: OrionTransparentVault;
+  let kbestTvlStrategy: KBestTvlWeightedAverage;
+  let passiveVault: OrionTransparentVault;
 
   let underlyingDecimals: number;
 
@@ -77,7 +93,7 @@ describe("Orchestrators", function () {
     mockAsset3 = mockAsset3Deployed as unknown as MockERC4626Asset;
 
     // Deposit in investment universe vault to be able to simulate losses.
-    await underlyingAsset.mint(user.address, ethers.parseUnits("100000", underlyingDecimals));
+    await underlyingAsset.mint(user.address, ethers.parseUnits("50000", underlyingDecimals));
 
     const initialDeposit = ethers.parseUnits("1000", underlyingDecimals);
 
@@ -87,8 +103,8 @@ describe("Orchestrators", function () {
     await underlyingAsset.connect(user).approve(await mockAsset2.getAddress(), initialDeposit);
     await mockAsset2.connect(user).deposit(initialDeposit, user.address);
 
-    await underlyingAsset.connect(user).approve(await mockAsset3.getAddress(), initialDeposit);
-    await mockAsset3.connect(user).deposit(initialDeposit, user.address);
+    await underlyingAsset.connect(user).approve(await mockAsset3.getAddress(), initialDeposit * BigInt(2));
+    await mockAsset3.connect(user).deposit(initialDeposit * BigInt(2), user.address);
 
     await underlyingAsset
       .connect(user)
@@ -104,23 +120,31 @@ describe("Orchestrators", function () {
     await mockAsset2.connect(user).simulateLosses(ethers.parseUnits("30", underlyingDecimals), user.address);
     await mockAsset3.connect(user).simulateGains(ethers.parseUnits("60", underlyingDecimals));
 
-    // const decimals1 = await mockAsset1.decimals();
-    // const decimals2 = await mockAsset2.decimals();
-    // const decimals3 = await mockAsset3.decimals();
-    // const currentSharePrice1 = await mockAsset1.convertToAssets(10n ** BigInt(decimals1));
-    // const currentSharePrice2 = await mockAsset2.convertToAssets(10n ** BigInt(decimals2));
-    // const currentSharePrice3 = await mockAsset3.convertToAssets(10n ** BigInt(decimals3));
+    const decimals1 = await mockAsset1.decimals();
+    const decimals2 = await mockAsset2.decimals();
+    const decimals3 = await mockAsset3.decimals();
+    const currentSharePrice1 = await mockAsset1.convertToAssets(10n ** BigInt(decimals1));
+    const currentSharePrice2 = await mockAsset2.convertToAssets(10n ** BigInt(decimals2));
+    const currentSharePrice3 = await mockAsset3.convertToAssets(10n ** BigInt(decimals3));
 
-    // console.log(currentSharePrice1);
-    // console.log(currentSharePrice2);
-    // console.log(currentSharePrice3);
-
-    // P0 = [1.05, 0.97, 1.06, 1]
+    console.log(currentSharePrice1);
+    console.log(currentSharePrice2);
+    console.log(currentSharePrice3);
 
     const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
     const orionConfigDeployed = await OrionConfigFactory.deploy(owner.address, await underlyingAsset.getAddress());
     await orionConfigDeployed.waitForDeployment();
     orionConfig = orionConfigDeployed as unknown as OrionConfig;
+
+    // Deploy KBestTvlWeightedAverage strategy with k=2
+    const KBestTvlWeightedAverageFactory = await ethers.getContractFactory("KBestTvlWeightedAverage");
+    const kbestTvlStrategyDeployed = await KBestTvlWeightedAverageFactory.deploy(
+      owner.address,
+      await orionConfig.getAddress(),
+      1, // k=1
+    );
+    await kbestTvlStrategyDeployed.waitForDeployment();
+    kbestTvlStrategy = kbestTvlStrategyDeployed as unknown as KBestTvlWeightedAverage;
 
     const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistry");
     const priceAdapterRegistryDeployed = await PriceAdapterRegistryFactory.deploy(
@@ -312,6 +336,36 @@ describe("Orchestrators", function () {
       hurdleHwmVaultAddress,
     )) as unknown as OrionTransparentVault;
 
+    // Create passive vault with kbestTVL strategy (no curator intents)
+    const passiveVaultTx = await transparentVaultFactory
+      .connect(owner)
+      .createVault(owner.address, "Passive KBest TVL Vault", "PKTV", 0, 0, 0);
+    const passiveVaultReceipt = await passiveVaultTx.wait();
+    const passiveVaultEvent = passiveVaultReceipt?.logs.find((log) => {
+      try {
+        const parsed = transparentVaultFactory.interface.parseLog(log);
+        return parsed?.name === "OrionVaultCreated";
+      } catch {
+        return false;
+      }
+    });
+    const passiveVaultParsedEvent = transparentVaultFactory.interface.parseLog(passiveVaultEvent!);
+    const passiveVaultAddress = passiveVaultParsedEvent?.args[0];
+    passiveVault = (await ethers.getContractAt(
+      "OrionTransparentVault",
+      passiveVaultAddress,
+    )) as unknown as OrionTransparentVault;
+
+    await expect(
+      passiveVault.connect(owner).updateCurator(await kbestTvlStrategy.getAddress()),
+    ).to.be.revertedWithCustomError(kbestTvlStrategy, "InvalidStrategy");
+
+    await passiveVault
+      .connect(owner)
+      .updateVaultWhitelist([await mockAsset1.getAddress(), await mockAsset3.getAddress()]);
+
+    await passiveVault.connect(owner).updateCurator(await kbestTvlStrategy.getAddress());
+
     let liquidityOrchestratorBalance = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
     expect(liquidityOrchestratorBalance).to.equal(0);
 
@@ -335,11 +389,26 @@ describe("Orchestrators", function () {
 
     await underlyingAsset
       .connect(user)
-      .approve(await absoluteVault.getAddress(), ethers.parseUnits("50", underlyingDecimals));
-    await absoluteVault.connect(user).requestDeposit(ethers.parseUnits("50", underlyingDecimals));
+      .approve(
+        await absoluteVault.getAddress(),
+        ethers.parseUnits(ABSOLUTE_VAULT_DEPOSIT.toString(), underlyingDecimals),
+      );
+    await absoluteVault
+      .connect(user)
+      .requestDeposit(ethers.parseUnits(ABSOLUTE_VAULT_DEPOSIT.toString(), underlyingDecimals));
+
+    // Assert that after requestDeposit, the vault token supply didn't change
+    const absoluteVaultTotalSupply = await absoluteVault.totalSupply();
+    expect(absoluteVaultTotalSupply).to.equal(0);
+
+    // Assert that after requestDeposit, the user's vault token balance didn't change
+    const userAbsoluteVaultBalance = await absoluteVault.balanceOf(user.address);
+    expect(userAbsoluteVaultBalance).to.equal(0);
 
     liquidityOrchestratorBalance = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
-    expect(liquidityOrchestratorBalance).to.equal(ethers.parseUnits("50", underlyingDecimals));
+    expect(liquidityOrchestratorBalance).to.equal(
+      ethers.parseUnits(ABSOLUTE_VAULT_DEPOSIT.toString(), underlyingDecimals),
+    );
 
     // Soft Hurdle Vault: Aggressive allocation with focus on mockAsset1
     const softHurdleIntent = [
@@ -360,11 +429,18 @@ describe("Orchestrators", function () {
     await softHurdleVault.connect(curator).submitIntent(softHurdleIntent);
     await underlyingAsset
       .connect(user)
-      .approve(await softHurdleVault.getAddress(), ethers.parseUnits("125", underlyingDecimals));
-    await softHurdleVault.connect(user).requestDeposit(ethers.parseUnits("125", underlyingDecimals));
+      .approve(
+        await softHurdleVault.getAddress(),
+        ethers.parseUnits(SOFT_HURDLE_VAULT_DEPOSIT.toString(), underlyingDecimals),
+      );
+    await softHurdleVault
+      .connect(user)
+      .requestDeposit(ethers.parseUnits(SOFT_HURDLE_VAULT_DEPOSIT.toString(), underlyingDecimals));
 
     liquidityOrchestratorBalance = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
-    expect(liquidityOrchestratorBalance).to.equal(ethers.parseUnits("175", underlyingDecimals));
+    expect(liquidityOrchestratorBalance).to.equal(
+      ethers.parseUnits((ABSOLUTE_VAULT_DEPOSIT + SOFT_HURDLE_VAULT_DEPOSIT).toString(), underlyingDecimals),
+    );
 
     // Hard Hurdle Vault: Diversified allocation with equal weight on mock assets
     const hardHurdleIntent = [
@@ -385,11 +461,21 @@ describe("Orchestrators", function () {
     await hardHurdleVault.connect(curator).submitIntent(hardHurdleIntent);
     await underlyingAsset
       .connect(user)
-      .approve(await hardHurdleVault.getAddress(), ethers.parseUnits("200", underlyingDecimals));
-    await hardHurdleVault.connect(user).requestDeposit(ethers.parseUnits("200", underlyingDecimals));
+      .approve(
+        await hardHurdleVault.getAddress(),
+        ethers.parseUnits(HARD_HURDLE_VAULT_DEPOSIT.toString(), underlyingDecimals),
+      );
+    await hardHurdleVault
+      .connect(user)
+      .requestDeposit(ethers.parseUnits(HARD_HURDLE_VAULT_DEPOSIT.toString(), underlyingDecimals));
 
     liquidityOrchestratorBalance = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
-    expect(liquidityOrchestratorBalance).to.equal(ethers.parseUnits("375", underlyingDecimals));
+    expect(liquidityOrchestratorBalance).to.equal(
+      ethers.parseUnits(
+        (ABSOLUTE_VAULT_DEPOSIT + SOFT_HURDLE_VAULT_DEPOSIT + HARD_HURDLE_VAULT_DEPOSIT).toString(),
+        underlyingDecimals,
+      ),
+    );
 
     // High Water Mark Vault: Balanced allocation
     const highWaterMarkIntent = [
@@ -410,11 +496,26 @@ describe("Orchestrators", function () {
     await highWaterMarkVault.connect(curator).submitIntent(highWaterMarkIntent);
     await underlyingAsset
       .connect(user)
-      .approve(await highWaterMarkVault.getAddress(), ethers.parseUnits("75", underlyingDecimals));
-    await highWaterMarkVault.connect(user).requestDeposit(ethers.parseUnits("75", underlyingDecimals));
+      .approve(
+        await highWaterMarkVault.getAddress(),
+        ethers.parseUnits(HIGH_WATER_MARK_VAULT_DEPOSIT.toString(), underlyingDecimals),
+      );
+    await highWaterMarkVault
+      .connect(user)
+      .requestDeposit(ethers.parseUnits(HIGH_WATER_MARK_VAULT_DEPOSIT.toString(), underlyingDecimals));
 
     liquidityOrchestratorBalance = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
-    expect(liquidityOrchestratorBalance).to.equal(ethers.parseUnits("450", underlyingDecimals));
+    expect(liquidityOrchestratorBalance).to.equal(
+      ethers.parseUnits(
+        (
+          ABSOLUTE_VAULT_DEPOSIT +
+          SOFT_HURDLE_VAULT_DEPOSIT +
+          HARD_HURDLE_VAULT_DEPOSIT +
+          HIGH_WATER_MARK_VAULT_DEPOSIT
+        ).toString(),
+        underlyingDecimals,
+      ),
+    );
 
     // Hurdle HWM Vault: Moderate allocation with focus on mockAsset2 and mockAsset3
     const hurdleHwmIntent = [
@@ -435,11 +536,38 @@ describe("Orchestrators", function () {
     await hurdleHwmVault.connect(curator).submitIntent(hurdleHwmIntent);
     await underlyingAsset
       .connect(user)
-      .approve(await hurdleHwmVault.getAddress(), ethers.parseUnits("150", underlyingDecimals));
-    await hurdleHwmVault.connect(user).requestDeposit(ethers.parseUnits("150", underlyingDecimals));
+      .approve(
+        await hurdleHwmVault.getAddress(),
+        ethers.parseUnits(HURDLE_HWM_VAULT_DEPOSIT.toString(), underlyingDecimals),
+      );
+    await hurdleHwmVault
+      .connect(user)
+      .requestDeposit(ethers.parseUnits(HURDLE_HWM_VAULT_DEPOSIT.toString(), underlyingDecimals));
+
+    await underlyingAsset
+      .connect(user)
+      .approve(
+        await passiveVault.getAddress(),
+        ethers.parseUnits(PASSIVE_VAULT_DEPOSIT.toString(), underlyingDecimals),
+      );
+    await passiveVault
+      .connect(user)
+      .requestDeposit(ethers.parseUnits(PASSIVE_VAULT_DEPOSIT.toString(), underlyingDecimals));
 
     liquidityOrchestratorBalance = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
-    expect(liquidityOrchestratorBalance).to.equal(ethers.parseUnits("600", underlyingDecimals));
+    expect(liquidityOrchestratorBalance).to.equal(
+      ethers.parseUnits(
+        (
+          ABSOLUTE_VAULT_DEPOSIT +
+          SOFT_HURDLE_VAULT_DEPOSIT +
+          HARD_HURDLE_VAULT_DEPOSIT +
+          HIGH_WATER_MARK_VAULT_DEPOSIT +
+          HURDLE_HWM_VAULT_DEPOSIT +
+          PASSIVE_VAULT_DEPOSIT
+        ).toString(),
+        underlyingDecimals,
+      ),
+    );
   });
 
   describe("Idle-only functionality", function () {
@@ -573,8 +701,8 @@ describe("Orchestrators", function () {
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
 
-      const transparentVaultsEpoch = await internalStatesOrchestrator.getTransparentVaultsEpoch();
-      expect(transparentVaultsEpoch.length).to.equal(5);
+      let transparentVaultsEpoch = await internalStatesOrchestrator.getTransparentVaultsEpoch();
+      expect(transparentVaultsEpoch.length).to.equal(6);
 
       // Process all vaults in preprocessing phase - continue until we reach buffering phase
       while ((await internalStatesOrchestrator.currentPhase()) === 1n) {
@@ -586,7 +714,14 @@ describe("Orchestrators", function () {
 
       expect(pendingProtocolFees).to.equal(0);
 
-      for (const v of [absoluteVault, highWaterMarkVault, softHurdleVault, hardHurdleVault, hurdleHwmVault]) {
+      for (const v of [
+        absoluteVault,
+        highWaterMarkVault,
+        softHurdleVault,
+        hardHurdleVault,
+        hurdleHwmVault,
+        passiveVault,
+      ]) {
         const pendingCuratorFees = await v.pendingCuratorFees();
         expect(pendingCuratorFees).to.equal(0);
         expect(await internalStatesOrchestrator.getVaultTotalAssetsForFulfillDeposit(await v.getAddress())).to.equal(0);
@@ -603,12 +738,12 @@ describe("Orchestrators", function () {
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
 
-      const bufferAmountAfter = await internalStatesOrchestrator.bufferAmount();
+      let bufferAmountAfter = await internalStatesOrchestrator.bufferAmount();
 
       const targetBufferRatio = await liquidityOrchestrator.targetBufferRatio();
       const BASIS_POINTS_FACTOR = await internalStatesOrchestrator.BASIS_POINTS_FACTOR();
       expect(bufferAmountAfter).to.equal(
-        (BigInt(50 + 125 + 200 + 75 + 150) * 10n ** BigInt(underlyingDecimals) * BigInt(targetBufferRatio)) /
+        (BigInt(50 + 125 + 200 + 75 + 150 + 100) * 10n ** BigInt(underlyingDecimals) * BigInt(targetBufferRatio)) /
           BASIS_POINTS_FACTOR,
       );
 
@@ -620,35 +755,42 @@ describe("Orchestrators", function () {
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
 
       // Expected Total Assets:
-      const sumVA = BigInt(50 + 125 + 200 + 75 + 150);
+      const sumVA = BigInt(
+        ABSOLUTE_VAULT_DEPOSIT +
+          SOFT_HURDLE_VAULT_DEPOSIT +
+          HARD_HURDLE_VAULT_DEPOSIT +
+          HIGH_WATER_MARK_VAULT_DEPOSIT +
+          HURDLE_HWM_VAULT_DEPOSIT +
+          PASSIVE_VAULT_DEPOSIT,
+      );
       const bufferDelta = bufferAmountAfter - bufferAmountBefore;
 
-      const absVA = 50n * BigInt(10 ** underlyingDecimals);
-      const absProportionalFee = (50n * bufferDelta) / sumVA;
+      const absVA = BigInt(ABSOLUTE_VAULT_DEPOSIT) * BigInt(10 ** underlyingDecimals);
+      const absProportionalFee = (BigInt(ABSOLUTE_VAULT_DEPOSIT) * bufferDelta) / sumVA;
       const absExpected = absVA - absProportionalFee;
       const absActual = await absoluteVault.totalAssets();
       expect(absActual).to.equal(absExpected);
 
-      const shVA = 125n * BigInt(10 ** underlyingDecimals);
-      const shProportionalFee = (125n * bufferDelta) / sumVA;
+      const shVA = BigInt(SOFT_HURDLE_VAULT_DEPOSIT) * BigInt(10 ** underlyingDecimals);
+      const shProportionalFee = (BigInt(SOFT_HURDLE_VAULT_DEPOSIT) * bufferDelta) / sumVA;
       const shExpected = shVA - shProportionalFee;
       const shActual = await softHurdleVault.totalAssets();
       expect(shActual).to.equal(shExpected);
 
-      const hhVA = 200n * BigInt(10 ** underlyingDecimals);
-      const hhProportionalFee = (200n * bufferDelta) / sumVA;
+      const hhVA = BigInt(HARD_HURDLE_VAULT_DEPOSIT) * BigInt(10 ** underlyingDecimals);
+      const hhProportionalFee = (BigInt(HARD_HURDLE_VAULT_DEPOSIT) * bufferDelta) / sumVA;
       const hhExpected = hhVA - hhProportionalFee;
       const hhActual = await hardHurdleVault.totalAssets();
       expect(hhActual).to.equal(hhExpected);
 
-      const hwmVA = 75n * BigInt(10 ** underlyingDecimals);
-      const hwmProportionalFee = (75n * bufferDelta) / sumVA;
+      const hwmVA = BigInt(HIGH_WATER_MARK_VAULT_DEPOSIT) * BigInt(10 ** underlyingDecimals);
+      const hwmProportionalFee = (BigInt(HIGH_WATER_MARK_VAULT_DEPOSIT) * bufferDelta) / sumVA;
       const hwmExpected = hwmVA - hwmProportionalFee;
       const hwmActual = await highWaterMarkVault.totalAssets();
       expect(hwmActual).to.equal(hwmExpected);
 
-      const hhwmVA = 150n * BigInt(10 ** underlyingDecimals);
-      const hhwmProportionalFee = (150n * bufferDelta) / sumVA;
+      const hhwmVA = BigInt(HURDLE_HWM_VAULT_DEPOSIT) * BigInt(10 ** underlyingDecimals);
+      const hhwmProportionalFee = (BigInt(HURDLE_HWM_VAULT_DEPOSIT) * bufferDelta) / sumVA;
       const hhwmExpected = hhwmVA - hhwmProportionalFee;
       const hhwmActual = await hurdleHwmVault.totalAssets();
       expect(hhwmActual).to.equal(hhwmExpected);
@@ -685,10 +827,11 @@ describe("Orchestrators", function () {
         const expectedShares = absExpectedShares.get(token);
 
         console.log(
-          `Absolute Vault - Token ${token}: Expected ${expectedShares.toString()}, Actual ${actualShares.toString()}`,
+          `Absolute Vault - Token ${token}: Expected ${expectedShares?.toString()}, Actual ${actualShares.toString()}`,
         );
 
-        expect(actualShares).to.equal(expectedShares);
+        void expect(expectedShares).to.not.be.undefined;
+        expect(actualShares).to.equal(expectedShares!);
       }
 
       // Test for soft hurdle vault
@@ -718,10 +861,11 @@ describe("Orchestrators", function () {
         const expectedShares = shExpectedShares.get(token);
 
         console.log(
-          `Soft Hurdle Vault - Token ${token}: Expected ${expectedShares.toString()}, Actual ${actualShares.toString()}`,
+          `Soft Hurdle Vault - Token ${token}: Expected ${expectedShares?.toString()}, Actual ${actualShares.toString()}`,
         );
 
-        expect(actualShares).to.equal(expectedShares);
+        void expect(expectedShares).to.not.be.undefined;
+        expect(actualShares).to.equal(expectedShares!);
       }
 
       // Test for hard hurdle vault
@@ -751,10 +895,11 @@ describe("Orchestrators", function () {
         const expectedShares = hhExpectedShares.get(token);
 
         console.log(
-          `Hard Hurdle Vault - Token ${token}: Expected ${expectedShares.toString()}, Actual ${actualShares.toString()}`,
+          `Hard Hurdle Vault - Token ${token}: Expected ${expectedShares?.toString()}, Actual ${actualShares.toString()}`,
         );
 
-        expect(actualShares).to.equal(expectedShares);
+        void expect(expectedShares).to.not.be.undefined;
+        expect(actualShares).to.equal(expectedShares!);
       }
 
       // Test for high water mark vault
@@ -784,10 +929,11 @@ describe("Orchestrators", function () {
         const expectedShares = hwmExpectedShares.get(token);
 
         console.log(
-          `High Water Mark Vault - Token ${token}: Expected ${expectedShares.toString()}, Actual ${actualShares.toString()}`,
+          `High Water Mark Vault - Token ${token}: Expected ${expectedShares?.toString()}, Actual ${actualShares.toString()}`,
         );
 
-        expect(actualShares).to.equal(expectedShares);
+        void expect(expectedShares).to.not.be.undefined;
+        expect(actualShares).to.equal(expectedShares!);
       }
 
       // Test for hurdle HWM vault
@@ -817,20 +963,22 @@ describe("Orchestrators", function () {
         const expectedShares = hhwmExpectedShares.get(token);
 
         console.log(
-          `Hurdle HWM Vault - Token ${token}: Expected ${expectedShares.toString()}, Actual ${actualShares.toString()}`,
+          `Hurdle HWM Vault - Token ${token}: Expected ${expectedShares?.toString()}, Actual ${actualShares.toString()}`,
         );
 
-        expect(actualShares).to.equal(expectedShares);
+        void expect(expectedShares).to.not.be.undefined;
+        expect(actualShares).to.equal(expectedShares!);
       }
 
       // Compute the batched portfolio: sum the share amount of each vault for the same token.
-      // We'll batch all portfolios together from: absoluteVault, softHurdleVault, hardHurdleVault, hurdleHwmVault
+      // We'll batch all portfolios together from: absoluteVault, softHurdleVault, hardHurdleVault, hurdleHwmVault, passiveVault
       const vaultPortfolios = [
         await absoluteVault.getPortfolio(),
         await softHurdleVault.getPortfolio(),
         await hardHurdleVault.getPortfolio(),
         await highWaterMarkVault.getPortfolio(),
         await hurdleHwmVault.getPortfolio(),
+        await passiveVault.getPortfolio(),
       ];
 
       // Map<token, summedShares>
@@ -910,15 +1058,14 @@ describe("Orchestrators", function () {
       const decimals1 = await mockAsset1.decimals();
       const decimals2 = await mockAsset2.decimals();
       const decimals3 = await mockAsset3.decimals();
-      // const currentSharePrice1 = await mockAsset1.convertToAssets(10n ** BigInt(decimals1));
-      // const currentSharePrice2 = await mockAsset2.convertToAssets(10n ** BigInt(decimals2));
-      // const currentSharePrice3 = await mockAsset3.convertToAssets(10n ** BigInt(decimals3));
+      const currentSharePrice1 = await mockAsset1.convertToAssets(10n ** BigInt(decimals1));
+      const currentSharePrice2 = await mockAsset2.convertToAssets(10n ** BigInt(decimals2));
+      const currentSharePrice3 = await mockAsset3.convertToAssets(10n ** BigInt(decimals3));
 
-      // console.log(currentSharePrice1);
-      // console.log(currentSharePrice2);
-      // console.log(currentSharePrice3);
+      console.log(currentSharePrice1);
+      console.log(currentSharePrice2);
+      console.log(currentSharePrice3);
 
-      // P1 = [1.55, 1.5, 1.11, 1]
       // Price increase for buying-only order, at least one buying order expected to fail
       // due to high mismatch between measured and execution prices.
 
@@ -945,7 +1092,8 @@ describe("Orchestrators", function () {
 
       console.log("liquidityOrchestratorBalance1:", liquidityOrchestratorBalance1.toString());
 
-      const expectedCost1 = (buyingAmounts[0] * BigInt(1.55 * 10 ** underlyingDecimals)) / 10n ** BigInt(decimals1);
+      const expectedCost1 =
+        (buyingAmounts[0] * BigInt(Math.round(MOCK_ASSET1_P0 * 10 ** underlyingDecimals))) / 10n ** BigInt(decimals1);
       const actualCost1 = liquidityOrchestratorBalanceBeforeBuying - liquidityOrchestratorBalance1;
 
       // Use closeTo for approximate equality with tolerance
@@ -965,7 +1113,8 @@ describe("Orchestrators", function () {
 
       console.log("liquidityOrchestratorBalance2:", liquidityOrchestratorBalance2.toString());
 
-      const expectedCost2 = (buyingAmounts[1] * BigInt(1.5 * 10 ** underlyingDecimals)) / 10n ** BigInt(decimals2);
+      const expectedCost2 =
+        (buyingAmounts[1] * BigInt(MOCK_ASSET2_P0 * 10 ** underlyingDecimals)) / 10n ** BigInt(decimals2);
       const actualCost2 = liquidityOrchestratorBalance1 - liquidityOrchestratorBalance2;
 
       // Use closeTo for approximate equality with tolerance
@@ -1006,7 +1155,8 @@ describe("Orchestrators", function () {
       const liquidityOrchestratorBalance3 = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
       console.log("liquidityOrchestratorBalance3:", liquidityOrchestratorBalance3.toString());
 
-      const expectedCost3 = (buyingAmounts[2] * BigInt(1.11 * 10 ** underlyingDecimals)) / 10n ** BigInt(decimals3);
+      const expectedCost3 =
+        (buyingAmounts[2] * BigInt(Math.round(MOCK_ASSET3_P0 * 10 ** underlyingDecimals))) / 10n ** BigInt(decimals3);
       const actualCost3 = liquidityOrchestratorBalanceAfterInjection - liquidityOrchestratorBalance3;
 
       // Use closeTo for approximate equality with tolerance
@@ -1060,19 +1210,29 @@ describe("Orchestrators", function () {
       expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
 
       const userBalanceOfAbsoluteVault = await absoluteVault.balanceOf(user.address);
-      expect(userBalanceOfAbsoluteVault).to.equal(ethers.parseUnits("50", await absoluteVault.decimals()));
+      expect(userBalanceOfAbsoluteVault).to.equal(
+        ethers.parseUnits(ABSOLUTE_VAULT_DEPOSIT.toString(), await absoluteVault.decimals()),
+      );
 
       const userBalanceOfSoftHurdleVault = await softHurdleVault.balanceOf(user.address);
-      expect(userBalanceOfSoftHurdleVault).to.equal(ethers.parseUnits("125", await softHurdleVault.decimals()));
+      expect(userBalanceOfSoftHurdleVault).to.equal(
+        ethers.parseUnits(SOFT_HURDLE_VAULT_DEPOSIT.toString(), await softHurdleVault.decimals()),
+      );
 
       const userBalanceOfHardHurdleVault = await hardHurdleVault.balanceOf(user.address);
-      expect(userBalanceOfHardHurdleVault).to.equal(ethers.parseUnits("200", await hardHurdleVault.decimals()));
+      expect(userBalanceOfHardHurdleVault).to.equal(
+        ethers.parseUnits(HARD_HURDLE_VAULT_DEPOSIT.toString(), await hardHurdleVault.decimals()),
+      );
 
       const userBalanceOfHighWaterMarkVault = await highWaterMarkVault.balanceOf(user.address);
-      expect(userBalanceOfHighWaterMarkVault).to.equal(ethers.parseUnits("75", await highWaterMarkVault.decimals()));
+      expect(userBalanceOfHighWaterMarkVault).to.equal(
+        ethers.parseUnits(HIGH_WATER_MARK_VAULT_DEPOSIT.toString(), await highWaterMarkVault.decimals()),
+      );
 
       const userBalanceOfHurdleHwmVault = await hurdleHwmVault.balanceOf(user.address);
-      expect(userBalanceOfHurdleHwmVault).to.equal(ethers.parseUnits("150", await hurdleHwmVault.decimals()));
+      expect(userBalanceOfHurdleHwmVault).to.equal(
+        ethers.parseUnits(HURDLE_HWM_VAULT_DEPOSIT.toString(), await hurdleHwmVault.decimals()),
+      );
 
       // Have LP request full redemption from absoluteVault
       await absoluteVault.connect(user).approve(await absoluteVault.getAddress(), userBalanceOfAbsoluteVault);
@@ -1097,7 +1257,7 @@ describe("Orchestrators", function () {
       expect(pendingRedeemAfterCancel).to.equal(userBalanceOfHurdleHwmVault / 2n);
 
       console.log("--------------------------------------------------------------------------------------------------");
-      // Trigger a price mismatch between Epochs 1 and 2 for non-zero fees and non-zero selling.
+      // Trigger a price mismatch between Epochs 1 and 2 for non-zero fees and non-zero selling
       const gainAmount11 = ethers.parseUnits("100", underlyingDecimals);
       await underlyingAsset.connect(user).approve(await mockAsset1.getAddress(), gainAmount11);
       await mockAsset1.connect(user).simulateGains(gainAmount11);
@@ -1145,6 +1305,7 @@ describe("Orchestrators", function () {
         { name: "Soft Hurdle", vault: softHurdleVault, feeType: 2 },
         { name: "Hard Hurdle", vault: hardHurdleVault, feeType: 3 },
         { name: "Hurdle HWM", vault: hurdleHwmVault, feeType: 4 },
+        { name: "Passive", vault: passiveVault, feeType: 0 },
       ];
 
       let totalCalculatedVolumeFee = 0;
@@ -1328,8 +1489,6 @@ describe("Orchestrators", function () {
 
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // Buffering
 
-      // TODO: assess states here.
-
       bufferAmountBefore = await internalStatesOrchestrator.bufferAmount();
       expect(bufferAmountBefore).to.equal(bufferAmountAfterRebalancing);
 
@@ -1337,7 +1496,53 @@ describe("Orchestrators", function () {
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
 
-      // TODO: assess states here.
+      // Calculate expected buffer amount using fulfill redeem/deposit values
+      transparentVaultsEpoch = await internalStatesOrchestrator.getTransparentVaultsEpoch();
+      let protocolTotalAssets = 0n;
+      const vaultsTotalAssetsArray: bigint[] = [];
+
+      // Reconstruct vaultsTotalAssets using the same logic as step 6 in the orchestrator
+      for (const vaultAddress of transparentVaultsEpoch) {
+        const vault = await ethers.getContractAt("OrionTransparentVault", vaultAddress);
+
+        // Get the values that were stored in the orchestrator
+        const vaultsTotalAssetsForFulfillDeposit =
+          await internalStatesOrchestrator.getVaultTotalAssetsForFulfillDeposit(vaultAddress);
+        const pendingDeposit = await vault.pendingDeposit();
+
+        // Reconstruct vaultsTotalAssets: fulfillDeposit + pendingDeposit
+        const vaultsTotalAssets = vaultsTotalAssetsForFulfillDeposit + pendingDeposit;
+
+        vaultsTotalAssetsArray.push(vaultsTotalAssets);
+        protocolTotalAssets += vaultsTotalAssets;
+        console.log(`Vault ${vaultAddress} total assets: ${vaultsTotalAssets.toString()}`);
+      }
+
+      // Calculate expected buffer amount using the same formula as the orchestrator
+      const expectedBufferAmount = (protocolTotalAssets * BigInt(targetBufferRatio)) / BASIS_POINTS_FACTOR;
+
+      bufferAmountAfter = await internalStatesOrchestrator.bufferAmount();
+      console.log(`Protocol Total Assets: ${protocolTotalAssets.toString()}`);
+      console.log(`Expected Buffer Amount: ${expectedBufferAmount.toString()}`);
+      console.log(`Actual Buffer Amount: ${bufferAmountAfter.toString()}`);
+
+      expect(bufferAmountAfter).to.equal(expectedBufferAmount);
+
+      // Calculate post-buffer total assets per vault (after buffer cost is subtracted)
+      const postBufferVaultsTotalAssets: bigint[] = [];
+      const deltaBufferAmount = bufferAmountAfter - bufferAmountBefore;
+
+      for (let i = 0; i < transparentVaultsEpoch.length; i++) {
+        const vaultAddress = transparentVaultsEpoch[i];
+        const vaultTotalAssets = vaultsTotalAssetsArray[i];
+
+        // Calculate vault buffer cost proportionally (same logic as orchestrator)
+        const vaultBufferCost = (deltaBufferAmount * vaultTotalAssets) / protocolTotalAssets;
+        const postBufferTotalAssets = vaultTotalAssets - vaultBufferCost;
+
+        postBufferVaultsTotalAssets.push(postBufferTotalAssets);
+        console.log(`Vault ${vaultAddress} post-buffer total assets: ${postBufferTotalAssets.toString()}`);
+      }
 
       // Process all vaults in postprocessing phase - continue until we reach building orders phase
       while ((await internalStatesOrchestrator.currentPhase()) === 3n) {
@@ -1374,7 +1579,95 @@ describe("Orchestrators", function () {
       console.log("sellingEstimatedUnderlyingAmounts:", sellingEstimatedUnderlyingAmounts);
       console.log("buyingEstimatedUnderlyingAmounts:", buyingEstimatedUnderlyingAmounts);
 
-      // TODO: assess initialBatchPortfolio, tokenExists, priceArray, vaultsTotalAssetsForFulfillRedeem, vaultsTotalAssetsForFulfillDeposit, vaultsTotalAssets
+      // ================================================================================================
+      // ASSESS EPOCH STATE DATA - Addressing TODO
+      // ================================================================================================
+
+      // Get epoch tokens to assess tokenExists mapping
+      const epochTokensForAssessment = await internalStatesOrchestrator.getEpochTokens();
+      console.log("=== EPOCH STATE ASSESSMENT ===");
+      console.log(`Epoch Tokens (tokenExists): ${epochTokensForAssessment.length} tokens`);
+      for (const token of epochTokensForAssessment) {
+        console.log(`  Token: ${token}`);
+      }
+
+      // Assess priceArray by getting prices for all epoch tokens
+      console.log("\n=== PRICE ARRAY ASSESSMENT ===");
+      for (const token of epochTokensForAssessment) {
+        const price = await internalStatesOrchestrator.getPriceOf(token);
+        console.log(`Token ${token}: Price = ${price.toString()}`);
+        expect(price).to.be.gt(0);
+      }
+
+      // Assess vaultsTotalAssetsForFulfillRedeem for all vaults
+      console.log("\n=== VAULTS TOTAL ASSETS FOR FULFILL REDEEM ===");
+      for (const vaultAddress of transparentVaultsEpoch) {
+        const totalAssetsForRedeem = await internalStatesOrchestrator.getVaultTotalAssetsForFulfillRedeem(vaultAddress);
+        console.log(`Vault ${vaultAddress}: Total Assets for Fulfill Redeem = ${totalAssetsForRedeem.toString()}`);
+        expect(totalAssetsForRedeem).to.be.gte(0);
+      }
+
+      // Assess vaultsTotalAssetsForFulfillDeposit for all vaults
+      console.log("\n=== VAULTS TOTAL ASSETS FOR FULFILL DEPOSIT ===");
+      for (const vaultAddress of transparentVaultsEpoch) {
+        const totalAssetsForDeposit =
+          await internalStatesOrchestrator.getVaultTotalAssetsForFulfillDeposit(vaultAddress);
+        console.log(`Vault ${vaultAddress}: Total Assets for Fulfill Deposit = ${totalAssetsForDeposit.toString()}`);
+        expect(totalAssetsForDeposit).to.be.gte(0);
+      }
+
+      // Assess vaultsTotalAssets (reconstructed as fulfillDeposit + pendingDeposit)
+      console.log("\n=== VAULTS TOTAL ASSETS (RECONSTRUCTED) ===");
+      for (let i = 0; i < transparentVaultsEpoch.length; i++) {
+        const vaultAddress = transparentVaultsEpoch[i];
+        const vaultsTotalAssets = vaultsTotalAssetsArray[i];
+        console.log(`Vault ${vaultAddress}: Total Assets = ${vaultsTotalAssets.toString()}`);
+        expect(vaultsTotalAssets).to.be.gt(0);
+      }
+
+      // Assess initialBatchPortfolio by reconstructing it from individual vault portfolios
+      console.log("\n=== INITIAL BATCH PORTFOLIO ASSESSMENT ===");
+      const initialBatchPortfolio = new Map<string, bigint>();
+
+      // Get portfolios from all vaults and sum them up
+      const vaultPortfoliosForAssessment = [
+        await absoluteVault.getPortfolio(),
+        await softHurdleVault.getPortfolio(),
+        await hardHurdleVault.getPortfolio(),
+        await highWaterMarkVault.getPortfolio(),
+        await hurdleHwmVault.getPortfolio(),
+        await passiveVault.getPortfolio(),
+      ];
+
+      for (const [tokens, shares] of vaultPortfoliosForAssessment) {
+        for (let i = 0; i < tokens.length; i++) {
+          const token = tokens[i];
+          const share = shares[i];
+          const prevSum = initialBatchPortfolio.get(token) ?? 0n;
+          initialBatchPortfolio.set(token, prevSum + share);
+        }
+      }
+
+      console.log("Initial Batch Portfolio (sum of all vault portfolios):");
+      for (const [token, totalShares] of initialBatchPortfolio.entries()) {
+        console.log(`  Token ${token}: Total Shares = ${totalShares.toString()}`);
+        expect(totalShares).to.be.gt(0);
+      }
+
+      // Verify that initialBatchPortfolio matches the buying orders
+      console.log("\n=== INITIAL BATCH PORTFOLIO vs BUYING ORDERS VERIFICATION ===");
+      for (let i = 0; i < buyingTokens.length; i++) {
+        const token = buyingTokens[i];
+        const buyingAmount = buyingAmounts[i];
+        const portfolioAmount = initialBatchPortfolio.get(token) ?? 0n;
+
+        console.log(
+          `Token ${token}: Buying Amount = ${buyingAmount.toString()}, Portfolio Amount = ${portfolioAmount.toString()}`,
+        );
+        expect(buyingAmount).to.equal(portfolioAmount);
+      }
+
+      console.log("=== END EPOCH STATE ASSESSMENT ===\n");
 
       expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
 
@@ -1406,6 +1699,283 @@ describe("Orchestrators", function () {
 
       expect(await liquidityOrchestrator.currentPhase()).to.equal(0);
 
+      // Get all vault addresses
+      const allVaults = [
+        { name: "Absolute", vault: absoluteVault },
+        { name: "Soft Hurdle", vault: softHurdleVault },
+        { name: "Hard Hurdle", vault: hardHurdleVault },
+        { name: "High Water Mark", vault: highWaterMarkVault },
+        { name: "Hurdle HWM", vault: hurdleHwmVault },
+        { name: "Passive", vault: passiveVault },
+      ];
+
+      for (const { name, vault } of allVaults) {
+        const userBalance = await vault.balanceOf(user.address);
+        const totalSupply = await vault.totalSupply();
+        const pendingDeposit = await vault.pendingDeposit();
+        const pendingRedeem = await vault.pendingRedeem();
+
+        // Verify that pending deposits and redemptions are cleared after fulfill
+        expect(pendingDeposit).to.equal(0, `${name} vault should have no pending deposits after fulfill`);
+        expect(pendingRedeem).to.equal(0, `${name} vault should have no pending redemptions after fulfill`);
+
+        // Verify total supply matches user balance (since only one user in this test)
+        expect(totalSupply).to.equal(userBalance, `${name} vault total supply should equal user balance`);
+      }
+
+      const investmentUniverseAssets = [mockAsset1, mockAsset2, mockAsset3];
+      const assetNames = ["Mock Asset 1", "Mock Asset 2", "Mock Asset 3"];
+
+      for (let i = 0; i < investmentUniverseAssets.length; i++) {
+        const asset = investmentUniverseAssets[i];
+        const assetName = assetNames[i];
+        const liquidityOrchestratorBalance = await asset.balanceOf(await liquidityOrchestrator.getAddress());
+
+        console.log(`${assetName}: ${liquidityOrchestratorBalance.toString()}`);
+
+        // Verify that liquidity orchestrator has the expected balance after buying operations
+        // This should match the buying amounts from the orders (if any)
+        if (buyingAmounts.length > i) {
+          const expectedBalance = buyingAmounts[i];
+          expect(liquidityOrchestratorBalance).to.equal(
+            expectedBalance,
+            `${assetName} balance in liquidity orchestrator should match buying amount`,
+          );
+        }
+      }
+
+      // 4. Verify buffer management and exchange ratios
+      console.log("\n--- Buffer Management and Exchange Ratios ---");
+
+      const currentBufferAmount = await internalStatesOrchestrator.bufferAmount();
+      const liquidityOrchestratorUnderlyingBalance = await underlyingAsset.balanceOf(
+        await liquidityOrchestrator.getAddress(),
+      );
+
+      console.log(`Current Buffer Amount: ${currentBufferAmount.toString()}`);
+      console.log(`Liquidity Orchestrator Underlying Balance: ${liquidityOrchestratorUnderlyingBalance.toString()}`);
+
+      expect(currentBufferAmount).to.be.gte(0, "Buffer amount should not be negative");
+
+      // Get actual vault assets after second epoch (these have been rebalanced)
+      const absActual_SecondEpoch = await absoluteVault.totalAssets();
+      const shActual_SecondEpoch = await softHurdleVault.totalAssets();
+      const hhActual_SecondEpoch = await hardHurdleVault.totalAssets();
+      const hwmActual_SecondEpoch = await highWaterMarkVault.totalAssets();
+      const hhwmActual_SecondEpoch = await hurdleHwmVault.totalAssets();
+      const passiveActual_SecondEpoch = await passiveVault.totalAssets();
+
+      console.log("Second Epoch Vault Assets:");
+      console.log(`Absolute Vault: ${absActual_SecondEpoch.toString()}`);
+      console.log(`Soft Hurdle Vault: ${shActual_SecondEpoch.toString()}`);
+      console.log(`Hard Hurdle Vault: ${hhActual_SecondEpoch.toString()}`);
+      console.log(`High Water Mark Vault: ${hwmActual_SecondEpoch.toString()}`);
+      console.log(`Hurdle HWM Vault: ${hhwmActual_SecondEpoch.toString()}`);
+      console.log(`Passive Vault: ${passiveActual_SecondEpoch.toString()}`);
+
+      // ------------------------------------------------------------------------------------------------
+      // Assert that portfolio values match intent weights * actual assets for second epoch
+      const curatorIntentDecimals_SecondEpoch = await orionConfig.curatorIntentDecimals();
+      const intentDecimals_SecondEpoch = 10n ** BigInt(curatorIntentDecimals_SecondEpoch);
+
+      const [absIntentTokens_SecondEpoch, absIntentWeights_SecondEpoch] = await absoluteVault.getIntent();
+      const [absPortfolioTokens_SecondEpoch, absPortfolioShares_SecondEpoch] = await absoluteVault.getPortfolio();
+
+      // Create a map of token to expected shares based on intent weights for second epoch
+      const absExpectedShares_SecondEpoch = new Map<string, bigint>();
+      for (let i = 0; i < absIntentTokens_SecondEpoch.length; i++) {
+        const token = absIntentTokens_SecondEpoch[i];
+        const weight = absIntentWeights_SecondEpoch[i];
+
+        // Get the price for this token
+        const price = await internalStatesOrchestrator.getPriceOf(token);
+        const priceAdapterPrecision = 10n ** BigInt(await orionConfig.priceAdapterDecimals());
+
+        const value = (BigInt(weight) * absActual_SecondEpoch) / intentDecimals_SecondEpoch;
+        const expectedShares = (value * priceAdapterPrecision) / price;
+
+        absExpectedShares_SecondEpoch.set(token, expectedShares);
+      }
+
+      // Compare actual portfolio with expected for second epoch
+      console.log("Absolute Vault Portfolio - Second Epoch");
+      for (let i = 0; i < absPortfolioTokens_SecondEpoch.length; i++) {
+        const token = absPortfolioTokens_SecondEpoch[i];
+        const actualShares = absPortfolioShares_SecondEpoch[i];
+        const expectedShares = absExpectedShares_SecondEpoch.get(token);
+
+        console.log(
+          `Absolute Vault - Token ${token}: Expected ${expectedShares?.toString()}, Actual ${actualShares.toString()}`,
+        );
+
+        void expect(expectedShares).to.not.be.undefined;
+        expect(actualShares).to.equal(expectedShares!);
+      }
+
+      // Test for soft hurdle vault - second epoch
+      const [shIntentTokens_SecondEpoch, shIntentWeights_SecondEpoch] = await softHurdleVault.getIntent();
+      const [shPortfolioTokens_SecondEpoch, shPortfolioShares_SecondEpoch] = await softHurdleVault.getPortfolio();
+
+      const shExpectedShares_SecondEpoch = new Map<string, bigint>();
+      for (let i = 0; i < shIntentTokens_SecondEpoch.length; i++) {
+        const token = shIntentTokens_SecondEpoch[i];
+        const weight = shIntentWeights_SecondEpoch[i];
+
+        // Get the price for this token
+        const price = await internalStatesOrchestrator.getPriceOf(token);
+        const priceAdapterPrecision = 10n ** BigInt(await orionConfig.priceAdapterDecimals());
+
+        const value = (BigInt(weight) * shActual_SecondEpoch) / intentDecimals_SecondEpoch;
+        const expectedShares = (value * priceAdapterPrecision) / price;
+
+        shExpectedShares_SecondEpoch.set(token, expectedShares);
+      }
+
+      // Compare actual portfolio with expected for second epoch
+      console.log("Soft Hurdle Vault Portfolio - Second Epoch");
+      for (let i = 0; i < shPortfolioTokens_SecondEpoch.length; i++) {
+        const token = shPortfolioTokens_SecondEpoch[i];
+        const actualShares = shPortfolioShares_SecondEpoch[i];
+        const expectedShares = shExpectedShares_SecondEpoch.get(token);
+
+        console.log(
+          `Soft Hurdle Vault - Token ${token}: Expected ${expectedShares?.toString()}, Actual ${actualShares.toString()}`,
+        );
+
+        void expect(expectedShares).to.not.be.undefined;
+        expect(actualShares).to.equal(expectedShares!);
+      }
+
+      // Test for hard hurdle vault - second epoch
+      const [hhIntentTokens_SecondEpoch, hhIntentWeights_SecondEpoch] = await hardHurdleVault.getIntent();
+      const [hhPortfolioTokens_SecondEpoch, hhPortfolioShares_SecondEpoch] = await hardHurdleVault.getPortfolio();
+
+      const hhExpectedShares_SecondEpoch = new Map<string, bigint>();
+      for (let i = 0; i < hhIntentTokens_SecondEpoch.length; i++) {
+        const token = hhIntentTokens_SecondEpoch[i];
+        const weight = hhIntentWeights_SecondEpoch[i];
+
+        // Get the price for this token
+        const price = await internalStatesOrchestrator.getPriceOf(token);
+        const priceAdapterPrecision = 10n ** BigInt(await orionConfig.priceAdapterDecimals());
+
+        const value = (BigInt(weight) * hhActual_SecondEpoch) / intentDecimals_SecondEpoch;
+        const expectedShares = (value * priceAdapterPrecision) / price;
+
+        hhExpectedShares_SecondEpoch.set(token, expectedShares);
+      }
+
+      // Compare actual portfolio with expected for second epoch
+      console.log("Hard Hurdle Vault Portfolio - Second Epoch");
+      for (let i = 0; i < hhPortfolioTokens_SecondEpoch.length; i++) {
+        const token = hhPortfolioTokens_SecondEpoch[i];
+        const actualShares = hhPortfolioShares_SecondEpoch[i];
+        const expectedShares = hhExpectedShares_SecondEpoch.get(token);
+
+        console.log(
+          `Hard Hurdle Vault - Token ${token}: Expected ${expectedShares?.toString()}, Actual ${actualShares.toString()}`,
+        );
+
+        void expect(expectedShares).to.not.be.undefined;
+        expect(actualShares).to.equal(expectedShares!);
+      }
+
+      // Test for high water mark vault - second epoch
+      const [hwmIntentTokens_SecondEpoch, hwmIntentWeights_SecondEpoch] = await highWaterMarkVault.getIntent();
+      const [hwmPortfolioTokens_SecondEpoch, hwmPortfolioShares_SecondEpoch] = await highWaterMarkVault.getPortfolio();
+
+      const hwmExpectedShares_SecondEpoch = new Map<string, bigint>();
+      for (let i = 0; i < hwmIntentTokens_SecondEpoch.length; i++) {
+        const token = hwmIntentTokens_SecondEpoch[i];
+        const weight = hwmIntentWeights_SecondEpoch[i];
+
+        // Get the price for this token
+        const price = await internalStatesOrchestrator.getPriceOf(token);
+        const priceAdapterPrecision = 10n ** BigInt(await orionConfig.priceAdapterDecimals());
+
+        const value = (BigInt(weight) * hwmActual_SecondEpoch) / intentDecimals_SecondEpoch;
+        const expectedShares = (value * priceAdapterPrecision) / price;
+
+        hwmExpectedShares_SecondEpoch.set(token, expectedShares);
+      }
+
+      // Compare actual portfolio with expected for second epoch
+      console.log("High Water Mark Vault Portfolio - Second Epoch");
+      for (let i = 0; i < hwmPortfolioTokens_SecondEpoch.length; i++) {
+        const token = hwmPortfolioTokens_SecondEpoch[i];
+        const actualShares = hwmPortfolioShares_SecondEpoch[i];
+        const expectedShares = hwmExpectedShares_SecondEpoch.get(token);
+
+        console.log(
+          `High Water Mark Vault - Token ${token}: Expected ${expectedShares?.toString()}, Actual ${actualShares.toString()}`,
+        );
+
+        void expect(expectedShares).to.not.be.undefined;
+        expect(actualShares).to.equal(expectedShares!);
+      }
+
+      // Test for hurdle HWM vault - second epoch
+      const [hhwmIntentTokens_SecondEpoch, hhwmIntentWeights_SecondEpoch] = await hurdleHwmVault.getIntent();
+      const [hhwmPortfolioTokens_SecondEpoch, hhwmPortfolioShares_SecondEpoch] = await hurdleHwmVault.getPortfolio();
+
+      const hhwmExpectedShares_SecondEpoch = new Map<string, bigint>();
+      for (let i = 0; i < hhwmIntentTokens_SecondEpoch.length; i++) {
+        const token = hhwmIntentTokens_SecondEpoch[i];
+        const weight = hhwmIntentWeights_SecondEpoch[i];
+
+        // Get the price for this token
+        const price = await internalStatesOrchestrator.getPriceOf(token);
+        const priceAdapterPrecision = 10n ** BigInt(await orionConfig.priceAdapterDecimals());
+
+        const value = (BigInt(weight) * hhwmActual_SecondEpoch) / intentDecimals_SecondEpoch;
+        const expectedShares = (value * priceAdapterPrecision) / price;
+
+        hhwmExpectedShares_SecondEpoch.set(token, expectedShares);
+      }
+
+      // Compare actual portfolio with expected for second epoch
+      console.log("Hurdle HWM Vault Portfolio - Second Epoch");
+      for (let i = 0; i < hhwmPortfolioTokens_SecondEpoch.length; i++) {
+        const token = hhwmPortfolioTokens_SecondEpoch[i];
+        const actualShares = hhwmPortfolioShares_SecondEpoch[i];
+        const expectedShares = hhwmExpectedShares_SecondEpoch.get(token);
+
+        console.log(
+          `Hurdle HWM Vault - Token ${token}: Expected ${expectedShares?.toString()}, Actual ${actualShares.toString()}`,
+        );
+
+        void expect(expectedShares).to.not.be.undefined;
+        expect(actualShares).to.equal(expectedShares!);
+      }
+
+      // Compute the batched portfolio for second epoch: sum the share amount of each vault for the same token.
+      // We'll batch all portfolios together from: absoluteVault, softHurdleVault, hardHurdleVault, hurdleHwmVault, passiveVault
+      const vaultPortfolios_SecondEpoch = [
+        await absoluteVault.getPortfolio(),
+        await softHurdleVault.getPortfolio(),
+        await hardHurdleVault.getPortfolio(),
+        await highWaterMarkVault.getPortfolio(),
+        await hurdleHwmVault.getPortfolio(),
+        await passiveVault.getPortfolio(),
+      ];
+
+      // Map<token, summedShares>
+      const batchedPortfolio_SecondEpoch = new Map<string, bigint>();
+
+      for (const [tokens, shares] of vaultPortfolios_SecondEpoch) {
+        for (let i = 0; i < tokens.length; i++) {
+          const token = tokens[i];
+          const share = shares[i];
+          const prevSum = batchedPortfolio_SecondEpoch.get(token) ?? 0n;
+          batchedPortfolio_SecondEpoch.set(token, prevSum + share);
+        }
+      }
+
+      // Output batched portfolio for second epoch
+      console.log("Batched Portfolio Across All Vaults - Second Epoch:");
+      for (const [token, summedShares] of batchedPortfolio_SecondEpoch.entries()) {
+        console.log(`Token ${token}: Total Shares Across Vaults = ${summedShares.toString()}`);
+      }
       // Test LiquidityOrchestrator functions
       await expect(liquidityOrchestrator.updateExecutionMinibatchSize(1)).to.not.be.reverted;
 
@@ -1447,6 +2017,135 @@ describe("Orchestrators", function () {
           expect(price).to.be.gt(0);
         }
       }
+    });
+
+    it("should not update buffer after beneficial slippage epoch and no LP interactions", async function () {
+      // Fast forward time to trigger upkeep
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Idle
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
+      void expect(await orionConfig.isSystemIdle()).to.be.true;
+
+      const epochDuration = await internalStatesOrchestrator.epochDuration();
+      await time.increase(epochDuration + 1n);
+
+      let [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      void expect(_liquidityUpkeepNeeded).to.be.false;
+
+      let [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      void expect(_upkeepNeeded).to.be.true;
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
+
+      const transparentVaultsEpoch = await internalStatesOrchestrator.getTransparentVaultsEpoch();
+      expect(transparentVaultsEpoch.length).to.equal(6);
+
+      // Process all vaults in preprocessing phase - continue until we reach buffering phase
+      while ((await internalStatesOrchestrator.currentPhase()) === 1n) {
+        [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+        await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      }
+
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // Buffering
+
+      const bufferAmountBefore = await internalStatesOrchestrator.bufferAmount();
+      console.log(`Buffer Amount Before: ${bufferAmountBefore.toString()}`);
+      expect(bufferAmountBefore).to.equal(0);
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
+
+      // Process all vaults in postprocessing phase - continue until we reach building orders phase
+      while ((await internalStatesOrchestrator.currentPhase()) === 3n) {
+        [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+        await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      }
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Back to Idle
+      expect(await internalStatesOrchestrator.epochCounter()).to.equal(1); // Epoch incremented
+
+      // Trigger a price mismatch between measured and execution in a way that benefits the vaults, leading to buffer amount increase.
+      const lossAmount1 = ethers.parseUnits("500", underlyingDecimals);
+      await underlyingAsset.connect(user).approve(await mockAsset1.getAddress(), lossAmount1);
+      await mockAsset1.connect(user).simulateLosses(lossAmount1, user.address);
+
+      const lossAmount2 = ethers.parseUnits("530", underlyingDecimals);
+      await underlyingAsset.connect(user).approve(await mockAsset2.getAddress(), lossAmount2);
+      await mockAsset2.connect(user).simulateLosses(lossAmount2, user.address);
+
+      const lossAmount3 = ethers.parseUnits("50", underlyingDecimals);
+      await underlyingAsset.connect(user).approve(await mockAsset3.getAddress(), lossAmount3);
+      await mockAsset3.connect(user).simulateLosses(lossAmount3, user.address);
+
+      // Now check if liquidity orchestrator needs to be triggered
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
+
+      while ((await liquidityOrchestrator.currentPhase()) !== 3n) {
+        const [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+        void expect(_liquidityUpkeepNeeded).to.be.true;
+        await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+      }
+
+      expect(await liquidityOrchestrator.deltaBufferAmount()).to.be.gt(0);
+
+      const bufferAmountAfterRebalancing = await internalStatesOrchestrator.bufferAmount();
+
+      console.log("Buffer Amount After Rebalancing:", bufferAmountAfterRebalancing.toString());
+      expect(bufferAmountAfterRebalancing).to.be.gt(bufferAmountBefore);
+
+      [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      void expect(_liquidityUpkeepNeeded).to.be.true;
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
+
+      const userBalanceOfAbsoluteVault = await absoluteVault.balanceOf(user.address);
+      expect(userBalanceOfAbsoluteVault).to.equal(
+        ethers.parseUnits(ABSOLUTE_VAULT_DEPOSIT.toString(), await absoluteVault.decimals()),
+      );
+
+      const userBalanceOfSoftHurdleVault = await softHurdleVault.balanceOf(user.address);
+      expect(userBalanceOfSoftHurdleVault).to.equal(
+        ethers.parseUnits(SOFT_HURDLE_VAULT_DEPOSIT.toString(), await softHurdleVault.decimals()),
+      );
+
+      const userBalanceOfHardHurdleVault = await hardHurdleVault.balanceOf(user.address);
+      expect(userBalanceOfHardHurdleVault).to.equal(
+        ethers.parseUnits(HARD_HURDLE_VAULT_DEPOSIT.toString(), await hardHurdleVault.decimals()),
+      );
+
+      const userBalanceOfHighWaterMarkVault = await highWaterMarkVault.balanceOf(user.address);
+      expect(userBalanceOfHighWaterMarkVault).to.equal(
+        ethers.parseUnits(HIGH_WATER_MARK_VAULT_DEPOSIT.toString(), await highWaterMarkVault.decimals()),
+      );
+
+      const userBalanceOfHurdleHwmVault = await hurdleHwmVault.balanceOf(user.address);
+      expect(userBalanceOfHurdleHwmVault).to.equal(
+        ethers.parseUnits(HURDLE_HWM_VAULT_DEPOSIT.toString(), await hurdleHwmVault.decimals()),
+      );
+
+      // Fast forward time to trigger upkeep
+      await time.increase(epochDuration + 1n);
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+
+      while ((await internalStatesOrchestrator.currentPhase()) !== 2n) {
+        [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+        await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      }
+
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // Buffering
+
+      const bufferAmountEpoch21 = await internalStatesOrchestrator.bufferAmount();
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+
+      const bufferAmountEpoch22 = await internalStatesOrchestrator.bufferAmount();
+      expect(bufferAmountEpoch22).to.be.equal(bufferAmountEpoch21);
     });
 
     it("should not trigger upkeep when system is idle and time hasn't passed", async function () {
