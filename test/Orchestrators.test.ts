@@ -830,7 +830,7 @@ describe("Orchestrators", function () {
           `Absolute Vault - Token ${token}: Expected ${expectedShares?.toString()}, Actual ${actualShares.toString()}`,
         );
 
-        expect(expectedShares).to.not.be.undefined;
+        void expect(expectedShares).to.not.be.undefined;
         expect(actualShares).to.equal(expectedShares!);
       }
 
@@ -864,7 +864,7 @@ describe("Orchestrators", function () {
           `Soft Hurdle Vault - Token ${token}: Expected ${expectedShares?.toString()}, Actual ${actualShares.toString()}`,
         );
 
-        expect(expectedShares).to.not.be.undefined;
+        void expect(expectedShares).to.not.be.undefined;
         expect(actualShares).to.equal(expectedShares!);
       }
 
@@ -898,7 +898,7 @@ describe("Orchestrators", function () {
           `Hard Hurdle Vault - Token ${token}: Expected ${expectedShares?.toString()}, Actual ${actualShares.toString()}`,
         );
 
-        expect(expectedShares).to.not.be.undefined;
+        void expect(expectedShares).to.not.be.undefined;
         expect(actualShares).to.equal(expectedShares!);
       }
 
@@ -932,7 +932,7 @@ describe("Orchestrators", function () {
           `High Water Mark Vault - Token ${token}: Expected ${expectedShares?.toString()}, Actual ${actualShares.toString()}`,
         );
 
-        expect(expectedShares).to.not.be.undefined;
+        void expect(expectedShares).to.not.be.undefined;
         expect(actualShares).to.equal(expectedShares!);
       }
 
@@ -966,7 +966,7 @@ describe("Orchestrators", function () {
           `Hurdle HWM Vault - Token ${token}: Expected ${expectedShares?.toString()}, Actual ${actualShares.toString()}`,
         );
 
-        expect(expectedShares).to.not.be.undefined;
+        void expect(expectedShares).to.not.be.undefined;
         expect(actualShares).to.equal(expectedShares!);
       }
 
@@ -1808,7 +1808,7 @@ describe("Orchestrators", function () {
           `Absolute Vault - Token ${token}: Expected ${expectedShares?.toString()}, Actual ${actualShares.toString()}`,
         );
 
-        expect(expectedShares).to.not.be.undefined;
+        void expect(expectedShares).to.not.be.undefined;
         expect(actualShares).to.equal(expectedShares!);
       }
 
@@ -1842,7 +1842,7 @@ describe("Orchestrators", function () {
           `Soft Hurdle Vault - Token ${token}: Expected ${expectedShares?.toString()}, Actual ${actualShares.toString()}`,
         );
 
-        expect(expectedShares).to.not.be.undefined;
+        void expect(expectedShares).to.not.be.undefined;
         expect(actualShares).to.equal(expectedShares!);
       }
 
@@ -1876,7 +1876,7 @@ describe("Orchestrators", function () {
           `Hard Hurdle Vault - Token ${token}: Expected ${expectedShares?.toString()}, Actual ${actualShares.toString()}`,
         );
 
-        expect(expectedShares).to.not.be.undefined;
+        void expect(expectedShares).to.not.be.undefined;
         expect(actualShares).to.equal(expectedShares!);
       }
 
@@ -1910,7 +1910,7 @@ describe("Orchestrators", function () {
           `High Water Mark Vault - Token ${token}: Expected ${expectedShares?.toString()}, Actual ${actualShares.toString()}`,
         );
 
-        expect(expectedShares).to.not.be.undefined;
+        void expect(expectedShares).to.not.be.undefined;
         expect(actualShares).to.equal(expectedShares!);
       }
 
@@ -1944,7 +1944,7 @@ describe("Orchestrators", function () {
           `Hurdle HWM Vault - Token ${token}: Expected ${expectedShares?.toString()}, Actual ${actualShares.toString()}`,
         );
 
-        expect(expectedShares).to.not.be.undefined;
+        void expect(expectedShares).to.not.be.undefined;
         expect(actualShares).to.equal(expectedShares!);
       }
 
@@ -2036,7 +2036,7 @@ describe("Orchestrators", function () {
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
 
-      let transparentVaultsEpoch = await internalStatesOrchestrator.getTransparentVaultsEpoch();
+      const transparentVaultsEpoch = await internalStatesOrchestrator.getTransparentVaultsEpoch();
       expect(transparentVaultsEpoch.length).to.equal(6);
 
       // Process all vaults in preprocessing phase - continue until we reach buffering phase
@@ -2047,15 +2047,13 @@ describe("Orchestrators", function () {
 
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // Buffering
 
-      let bufferAmountBefore = await internalStatesOrchestrator.bufferAmount();
+      const bufferAmountBefore = await internalStatesOrchestrator.bufferAmount();
       console.log(`Buffer Amount Before: ${bufferAmountBefore.toString()}`);
       expect(bufferAmountBefore).to.equal(0);
 
       [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
-
-      let bufferAmountAfter = await internalStatesOrchestrator.bufferAmount();
 
       // Process all vaults in postprocessing phase - continue until we reach building orders phase
       while ((await internalStatesOrchestrator.currentPhase()) === 3n) {
@@ -2086,7 +2084,7 @@ describe("Orchestrators", function () {
       expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
 
       while ((await liquidityOrchestrator.currentPhase()) !== 3n) {
-        let [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+        const [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
         void expect(_liquidityUpkeepNeeded).to.be.true;
         await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
       }
