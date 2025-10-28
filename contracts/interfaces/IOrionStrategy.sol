@@ -14,10 +14,16 @@ import "./IOrionTransparentVault.sol";
 interface IOrionStrategy {
     /// @notice Compute the current portfolio intent based on market conditions and strategy
     /// @param vaultWhitelistedAssets The whitelisted assets for the vault
-    /// @return intent Array of Position structs containing the target allocation
+    /// @return intent Array of IntentPosition structs containing the target allocation
     /// @dev This function should return a valid intent that sums to 100% (10^curatorIntentDecimals)
     ///      All tokens in the intent must be whitelisted for the vault
     function computeIntent(
         address[] calldata vaultWhitelistedAssets
-    ) external view returns (IOrionTransparentVault.Position[] memory intent);
+    ) external view returns (IOrionTransparentVault.IntentPosition[] memory intent);
+
+    /// @notice Validate that the strategy is compatible with the provided whitelisted assets
+    /// @param vaultWhitelistedAssets The whitelisted assets for the vault
+    /// @dev This function should validate that all assets are compatible with the strategy's requirements
+    ///      Should revert with appropriate error if validation fails
+    function validateStrategy(address[] calldata vaultWhitelistedAssets) external view;
 }

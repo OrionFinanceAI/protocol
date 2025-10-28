@@ -56,9 +56,18 @@ library ErrorsLib {
     /// @notice System is in an invalid or unexpected state.
     error InvalidState();
 
+    /// @notice The adapter is not compatible with the asset.
+    error InvalidAdapter();
+
     /// @notice Operation cannot be performed because the system is not idle.
     error SystemNotIdle();
 
     /// @notice Transfer of tokens failed.
     error TransferFailed();
+
+    /// @notice The curator contract does not properly implement the required interface.
+    error InvalidCuratorContract();
+
+    /// @notice The strategy is not compatible with the provided whitelisted assets.
+    error InvalidStrategy();
 }

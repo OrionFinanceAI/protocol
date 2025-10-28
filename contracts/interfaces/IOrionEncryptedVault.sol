@@ -9,31 +9,36 @@ import "./IOrionVault.sol";
 /// @notice Interface for the Orion encrypted vault
 /// @author Orion Finance
 interface IOrionEncryptedVault is IOrionVault {
+    /// @dev Struct representing a token and its weight in an intent.
+    /// @param token The address of the ERC20 token.
+    /// @param weight The encrypted weight as percentage of total supply.
     struct EncryptedIntent {
         address token;
         externalEuint128 weight;
     }
 
+    /// @dev Struct representing a token and its shares in a portfolio.
+    /// @param token The address of the ERC20 token.
+    /// @param shares The encrypted number of shares per asset.
     struct EncryptedPortfolio {
         address token;
-        euint128 value;
+        euint128 shares;
     }
 
     /// @notice Submit an encrypted portfolio intent.
-    /// @param intent EncryptedIntent struct containing the tokens and encrypted weights.
-    /// @param inputProof contains the ZKPoK to validate the authenticity of the encrypted inputs.
+    /// @param intent EncryptedIntent structs array containing the tokens and encrypted weights.
+    /// @param inputProof ZKPoK to validate the authenticity of the encrypted inputs.
     ///        https://docs.zama.ai/protocol/solidity-guides/smart-contract/inputs#validating-encrypted-inputs
-    /// @dev The weights are interpreted as percentage of total supply.
     function submitIntent(EncryptedIntent[] calldata intent, bytes calldata inputProof) external;
 
-    /// @notice Returns the current encrypted portfolio (w_0)
+    /// @notice Get the encrypted portfolio.
     /// @return tokens The tokens in the portfolio.
-    /// @return sharesPerAsset The shares per asset in the portfolio.
+    /// @return sharesPerAsset The encrypted shares per asset in the portfolio.
     function getPortfolio() external view returns (address[] memory tokens, euint128[] memory sharesPerAsset);
 
     /// @notice Get the encrypted intent.
     /// @return tokens The tokens in the intent.
-    /// @return weights The weights in the intent.
+    /// @return weights The encrypted weights in the intent.
     function getIntent() external view returns (address[] memory tokens, euint128[] memory weights);
 
     /// @notice Get the intent validity.

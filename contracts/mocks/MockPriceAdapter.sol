@@ -16,4 +16,9 @@ contract MockPriceAdapter is IPriceAdapter {
             100) + 1;
         return (mockPrice, 14); // Mock price with 14 decimals (matching priceAdapterDecimals)
     }
+
+    /// @inheritdoc IPriceAdapter
+    function validatePriceAdapter(address) external pure returns (bool) {
+        return true;
+    }
 }

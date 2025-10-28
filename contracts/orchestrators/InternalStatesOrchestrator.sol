@@ -17,6 +17,7 @@ import { EventsLib } from "../libraries/EventsLib.sol";
 import { UtilitiesLib } from "../libraries/UtilitiesLib.sol";
 import { FHE, euint128 } from "@fhevm/solidity/lib/FHE.sol";
 import { SepoliaConfig } from "@fhevm/solidity/config/ZamaConfig.sol";
+
 /**
  * @title Internal States Orchestrator
  * @notice Contract that orchestrates internal state management
@@ -168,11 +169,7 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     /// @param initialOwner The address of the initial owner
     /// @param config_ The address of the OrionConfig contract
     /// @param automationRegistry_ The address of the Chainlink Automation Registry
-    constructor(
-        address initialOwner,
-        address config_,
-        address automationRegistry_
-    ) Ownable(initialOwner) ReentrancyGuard() {
+    constructor(address initialOwner, address config_, address automationRegistry_) Ownable(initialOwner) {
         if (config_ == address(0)) revert ErrorsLib.ZeroAddress();
         if (automationRegistry_ == address(0)) revert ErrorsLib.ZeroAddress();
         config = IOrionConfig(config_);
@@ -317,13 +314,12 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     }
 
     /// @notice Build filtered transparent vaults list for the epoch
-    /// @dev Include only vaults with pending LP activity (deposit or redeem)
     function _buildTransparentVaultsEpoch() internal {
         address[] memory allTransparent = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
         delete transparentVaultsEpoch;
         for (uint16 i = 0; i < allTransparent.length; ++i) {
             address v = allTransparent[i];
-            if (IOrionVault(v).pendingDeposit() == 0 && IOrionVault(v).pendingRedeem() == 0) continue;
+            if (IOrionVault(v).pendingDeposit() + IOrionVault(v).totalAssets() == 0) continue;
             // slither-disable-next-line unused-return
             (address[] memory tTokens, ) = IOrionTransparentVault(v).getIntent();
             if (tTokens.length == 0) continue;
@@ -332,13 +328,12 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
     }
 
     /// @notice Build filtered encrypted vaults list for the epoch
-    /// @dev Include only vaults with pending LP activity and valid intents
     function _buildEncryptedVaultsEpoch() internal {
         address[] memory allEncrypted = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
         delete encryptedVaultsEpoch;
         for (uint16 i = 0; i < allEncrypted.length; ++i) {
             address v = allEncrypted[i];
-            if (IOrionVault(v).pendingDeposit() == 0 && IOrionVault(v).pendingRedeem() == 0) continue;
+            if (IOrionVault(v).pendingDeposit() + IOrionVault(v).totalAssets() == 0) continue;
             if (!IOrionEncryptedVault(v).isIntentValid()) continue;
             encryptedVaultsEpoch.push(v);
         }
@@ -442,7 +437,10 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
 
             // STEP 3 & 4: CURATOR FEES (Management + Performance)
             uint256 curatorFee = vault.curatorFee(totalAssets);
+
             totalAssets -= curatorFee;
+            _currentEpoch.vaultsTotalAssetsForFulfillRedeem[address(vault)] = totalAssets;
+
             uint256 protocolRevenueShareFee = uint256(rsFeeCoefficient).mulDiv(curatorFee, BASIS_POINTS_FACTOR);
             pendingProtocolFees += protocolRevenueShareFee;
             curatorFee -= protocolRevenueShareFee;
@@ -454,7 +452,6 @@ contract InternalStatesOrchestrator is SepoliaConfig, Ownable, ReentrancyGuard, 
                 totalAssets,
                 Math.Rounding.Floor
             );
-            _currentEpoch.vaultsTotalAssetsForFulfillRedeem[address(vault)] = totalAssets;
 
             // STEP 6: DEPOSIT PROCESSING (add deposits, subtract withdrawals)
             totalAssets -= pendingRedeem;
