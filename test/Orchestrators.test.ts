@@ -397,6 +397,14 @@ describe("Orchestrators", function () {
       .connect(user)
       .requestDeposit(ethers.parseUnits(ABSOLUTE_VAULT_DEPOSIT.toString(), underlyingDecimals));
 
+    // Assert that after requestDeposit, the vault token supply didn't change
+    const absoluteVaultTotalSupply = await absoluteVault.totalSupply();
+    expect(absoluteVaultTotalSupply).to.equal(0);
+
+    // Assert that after requestDeposit, the user's vault token balance didn't change
+    const userAbsoluteVaultBalance = await absoluteVault.balanceOf(user.address);
+    expect(userAbsoluteVaultBalance).to.equal(0);
+
     liquidityOrchestratorBalance = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
     expect(liquidityOrchestratorBalance).to.equal(
       ethers.parseUnits(ABSOLUTE_VAULT_DEPOSIT.toString(), underlyingDecimals),
