@@ -537,7 +537,7 @@
       "anonymous": false,
       "inputs": [
         {
-          "indexed": true,
+          "indexed": false,
           "internalType": "address[]",
           "name": "assets",
           "type": "address[]"
@@ -1330,6 +1330,19 @@
           "type": "uint256"
         }
       ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "asset",
+          "type": "address"
+        }
+      ],
+      "name": "removeFromVaultWhitelist",
+      "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
     },

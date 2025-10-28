@@ -145,11 +145,7 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
     /// @param initialOwner The address of the initial owner
     /// @param config_ The address of the OrionConfig contract
     /// @param automationRegistry_ The address of the Chainlink Automation Registry
-    constructor(
-        address initialOwner,
-        address config_,
-        address automationRegistry_
-    ) Ownable(initialOwner) ReentrancyGuard() {
+    constructor(address initialOwner, address config_, address automationRegistry_) Ownable(initialOwner) {
         if (config_ == address(0)) revert ErrorsLib.ZeroAddress();
         if (automationRegistry_ == address(0)) revert ErrorsLib.ZeroAddress();
         config = IOrionConfig(config_);

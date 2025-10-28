@@ -188,9 +188,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
     /// @notice Remove an asset from the vault whitelist and modify intent accordingly
     /// @param asset The asset to remove from the whitelist
-    function removeFromVaultWhitelist(address asset) external {
-        if (msg.sender != address(config)) revert ErrorsLib.UnauthorizedAccess();
-
+    function removeFromVaultWhitelist(address asset) external onlyConfig {
         // slither-disable-next-line unused-return
         _vaultWhitelistedAssets.remove(asset);
 

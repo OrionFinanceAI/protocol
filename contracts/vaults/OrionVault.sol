@@ -145,6 +145,12 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         _;
     }
 
+    /// @dev Restricts function to only Orion Config contract
+    modifier onlyConfig() {
+        if (msg.sender != address(config)) revert ErrorsLib.NotAuthorized();
+        _;
+    }
+
     /// @notice Constructor
     /// @param vaultOwner_ The address of the vault owner
     /// @param curator_ The address of the vault curator
@@ -297,8 +303,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     /// --------- CONFIG FUNCTIONS ---------
 
     /// @inheritdoc IOrionVault
-    function overrideIntentForDecommissioning() external {
-        if (msg.sender != address(config)) revert ErrorsLib.NotAuthorized();
+    function overrideIntentForDecommissioning() external onlyConfig {
         isDecommissioning = true;
     }
 
