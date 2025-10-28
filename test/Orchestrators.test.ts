@@ -1699,6 +1699,64 @@ describe("Orchestrators", function () {
 
       expect(await liquidityOrchestrator.currentPhase()).to.equal(0);
 
+      // Get all vault addresses
+      const allVaults = [
+        { name: "Absolute", vault: absoluteVault },
+        { name: "Soft Hurdle", vault: softHurdleVault },
+        { name: "Hard Hurdle", vault: hardHurdleVault },
+        { name: "High Water Mark", vault: highWaterMarkVault },
+        { name: "Hurdle HWM", vault: hurdleHwmVault },
+        { name: "Passive", vault: passiveVault },
+      ];
+
+      for (const { name, vault } of allVaults) {
+        const userBalance = await vault.balanceOf(user.address);
+        const totalSupply = await vault.totalSupply();
+        const pendingDeposit = await vault.pendingDeposit();
+        const pendingRedeem = await vault.pendingRedeem();
+
+        // Verify that pending deposits and redemptions are cleared after fulfill
+        expect(pendingDeposit).to.equal(0, `${name} vault should have no pending deposits after fulfill`);
+        expect(pendingRedeem).to.equal(0, `${name} vault should have no pending redemptions after fulfill`);
+
+        // Verify total supply matches user balance (since only one user in this test)
+        expect(totalSupply).to.equal(userBalance, `${name} vault total supply should equal user balance`);
+      }
+
+      const investmentUniverseAssets = [mockAsset1, mockAsset2, mockAsset3];
+      const assetNames = ["Mock Asset 1", "Mock Asset 2", "Mock Asset 3"];
+
+      for (let i = 0; i < investmentUniverseAssets.length; i++) {
+        const asset = investmentUniverseAssets[i];
+        const assetName = assetNames[i];
+        const liquidityOrchestratorBalance = await asset.balanceOf(await liquidityOrchestrator.getAddress());
+
+        console.log(`${assetName}: ${liquidityOrchestratorBalance.toString()}`);
+
+        // Verify that liquidity orchestrator has the expected balance after buying operations
+        // This should match the buying amounts from the orders (if any)
+        if (buyingAmounts.length > i) {
+          const expectedBalance = buyingAmounts[i];
+          expect(liquidityOrchestratorBalance).to.equal(
+            expectedBalance,
+            `${assetName} balance in liquidity orchestrator should match buying amount`,
+          );
+        }
+      }
+
+      // 4. Verify buffer management and exchange ratios
+      console.log("\n--- Buffer Management and Exchange Ratios ---");
+
+      const currentBufferAmount = await internalStatesOrchestrator.bufferAmount();
+      const liquidityOrchestratorUnderlyingBalance = await underlyingAsset.balanceOf(
+        await liquidityOrchestrator.getAddress(),
+      );
+
+      console.log(`Current Buffer Amount: ${currentBufferAmount.toString()}`);
+      console.log(`Liquidity Orchestrator Underlying Balance: ${liquidityOrchestratorUnderlyingBalance.toString()}`);
+
+      expect(currentBufferAmount).to.be.gte(0, "Buffer amount should not be negative");
+
       // Get actual vault assets after second epoch (these have been rebalanced)
       const absActual_SecondEpoch = await absoluteVault.totalAssets();
       const shActual_SecondEpoch = await softHurdleVault.totalAssets();
