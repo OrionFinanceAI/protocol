@@ -12,10 +12,6 @@ interface IPriceAdapterRegistry {
     /// @param adapter The price adapter for the asset.
     function setPriceAdapter(address asset, IPriceAdapter adapter) external;
 
-    /// @notice Unregister the price adapter for an asset.
-    /// @param asset The address of the asset.
-    function unsetPriceAdapter(address asset) external;
-
     /// @notice Returns the price of the given asset via its assigned price adapter.
     /// @param asset The address of the asset.
     /// @return The price of the asset, normalized to priceAdapterDecimals decimals.
