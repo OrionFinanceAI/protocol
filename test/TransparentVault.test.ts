@@ -58,7 +58,11 @@ beforeEach(async function () {
 
   // Deploy OrionConfig
   const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
-  const orionConfigDeployed = await OrionConfigFactory.deploy(owner.address, await underlyingAsset.getAddress());
+  const orionConfigDeployed = await OrionConfigFactory.deploy(
+    owner.address,
+    other.address, // admin
+    await underlyingAsset.getAddress(),
+  );
   await orionConfigDeployed.waitForDeployment();
   orionConfig = orionConfigDeployed as unknown as OrionConfig;
 
@@ -376,7 +380,7 @@ describe("TransparentVault - Curator Pipeline", function () {
       await transparentVault.connect(owner).updateVaultWhitelist(whitelist);
 
       // First, blacklist mockAsset1 by removing it from the protocol whitelist
-      await orionConfig.connect(owner).removeWhitelistedAsset(await mockAsset1.getAddress());
+      await orionConfig.connect(other).removeWhitelistedAsset(await mockAsset1.getAddress());
 
       // Try to submit intent with the blacklisted asset
       const absoluteIntent = [

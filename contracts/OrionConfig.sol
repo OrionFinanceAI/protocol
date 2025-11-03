@@ -29,6 +29,9 @@ import "./interfaces/IInternalStateOrchestrator.sol";
  * @author Orion Finance
  */
 contract OrionConfig is Ownable, IOrionConfig {
+    /// @notice Admin address (immutable, set at construction)
+    address public immutable admin;
+
     /// @notice Underlying asset address
     IERC20 public underlyingAsset;
     /// @notice Address of the internal states orchestrator
@@ -61,6 +64,11 @@ contract OrionConfig is Ownable, IOrionConfig {
     EnumerableSet.AddressSet private decommissioningInProgressVaults;
     EnumerableSet.AddressSet private decommissionedVaults;
 
+    modifier onlyAdmin() {
+        if (msg.sender != admin) revert ErrorsLib.UnauthorizedAccess();
+        _;
+    }
+
     modifier onlyFactories() {
         if (msg.sender != transparentVaultFactory) revert ErrorsLib.UnauthorizedAccess();
         _;
@@ -68,12 +76,15 @@ contract OrionConfig is Ownable, IOrionConfig {
 
     /// @notice The constructor sets the underlying asset for the protocol
     /// @param initialOwner The address that will own this contract
+    /// @param admin_ The address that will have admin privileges
     /// @param underlyingAsset_ The address of the underlying asset contract
     /// @dev The underlying asset is automatically added to the investment universe whitelist because:
     /// @dev - Curators may decide to be underleveraged in their active positions;
     /// @dev - removeWhitelistedAsset could trigger forced liquidations.
-    constructor(address initialOwner, address underlyingAsset_) Ownable(initialOwner) {
+    constructor(address initialOwner, address admin_, address underlyingAsset_) Ownable(initialOwner) {
+        if (admin_ == address(0)) revert ErrorsLib.ZeroAddress();
         if (underlyingAsset_ == address(0)) revert ErrorsLib.ZeroAddress();
+        admin = admin_;
         underlyingAsset = IERC20(underlyingAsset_);
 
         curatorIntentDecimals = 9; // 9 for uint32
@@ -151,7 +162,7 @@ contract OrionConfig is Ownable, IOrionConfig {
     }
 
     /// @inheritdoc IOrionConfig
-    function removeWhitelistedAsset(address asset) external onlyOwner {
+    function removeWhitelistedAsset(address asset) external onlyAdmin {
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         if (asset == address(underlyingAsset)) revert ErrorsLib.InvalidArguments();
@@ -218,7 +229,7 @@ contract OrionConfig is Ownable, IOrionConfig {
     }
 
     /// @inheritdoc IOrionConfig
-    function removeOrionVault(address vault) external onlyOwner {
+    function removeOrionVault(address vault) external onlyAdmin {
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         if (!this.isOrionVault(vault)) {

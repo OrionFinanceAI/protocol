@@ -43,6 +43,9 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     /// @notice Underlying asset address
     address public underlyingAsset;
 
+    /// @notice Admin address from config
+    address public admin;
+
     /// @notice Execution adapters mapping for assets
     mapping(address => IExecutionAdapter) public executionAdapterOf;
 
@@ -108,6 +111,12 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         _;
     }
 
+    /// @dev Restricts function to only admin from config
+    modifier onlyAdmin() {
+        if (msg.sender != admin) revert ErrorsLib.UnauthorizedAccess();
+        _;
+    }
+
     /// @notice Constructor
     /// @param initialOwner The address of the initial owner
     /// @param config_ The address of the OrionConfig contract
@@ -118,6 +127,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
 
         config = IOrionConfig(config_);
         underlyingAsset = address(config.underlyingAsset());
+        admin = config.admin();
 
         automationRegistry = automationRegistry_;
         lastProcessedEpoch = 0;
@@ -163,12 +173,12 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function depositLiquidity(uint256 amount) external onlyOwner {
+    function depositLiquidity(uint256 amount) external onlyAdmin {
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
         if (internalStatesOrchestrator.currentPhase() != IInternalStateOrchestrator.InternalUpkeepPhase.Idle)
             revert ErrorsLib.SystemNotIdle();
 
-        // Transfer underlying assets from the owner to this contract
+        // Transfer underlying assets from the admin to this contract
         bool success = IERC20(underlyingAsset).transferFrom(msg.sender, address(this), amount);
         if (!success) revert ErrorsLib.TransferFailed();
 
@@ -177,7 +187,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function withdrawLiquidity(uint256 amount) external onlyOwner {
+    function withdrawLiquidity(uint256 amount) external onlyAdmin {
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
         if (internalStatesOrchestrator.currentPhase() != IInternalStateOrchestrator.InternalUpkeepPhase.Idle)
             revert ErrorsLib.SystemNotIdle();
@@ -197,7 +207,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function claimProtocolFees(uint256 amount) external onlyOwner {
+    function claimProtocolFees(uint256 amount) external onlyAdmin {
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
 
         internalStatesOrchestrator.subtractPendingProtocolFees(amount);

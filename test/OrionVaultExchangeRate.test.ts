@@ -22,7 +22,7 @@ describe("OrionVault Exchange Rate Tests", function () {
 
     // Deploy OrionConfig
     const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
-    const config = await OrionConfigFactory.deploy(owner.address, underlyingAssetAddress);
+    const config = await OrionConfigFactory.deploy(owner.address, attacker.address, underlyingAssetAddress); // admin
     await config.waitForDeployment();
     const configAddress = await config.getAddress();
 
