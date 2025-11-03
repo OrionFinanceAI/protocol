@@ -15,6 +15,6 @@ interface IPriceAdapter {
 
     /// @notice Validates that the given asset is compatible with this adapter
     /// @param asset The address of the asset to validate
-    /// @return true if the asset is compatible, reverts otherwise
-    function validatePriceAdapter(address asset) external view returns (bool);
+    /// @dev Reverts with InvalidAdapter if the asset is not compatible
+    function validatePriceAdapter(address asset) external view;
 }
