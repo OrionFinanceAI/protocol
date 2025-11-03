@@ -21,6 +21,8 @@ contract KBestTvlWeightedAverage is IOrionStrategy, Ownable, ERC165 {
 
     /// @notice The number of assets to pick
     uint16 public k;
+    /// @notice The maximum number of assets to pick
+    uint16 public kMax;
 
     /// @notice Constructor for KBestTvlWeightedAverage strategy
     /// @param owner The owner of the contract
@@ -31,6 +33,7 @@ contract KBestTvlWeightedAverage is IOrionStrategy, Ownable, ERC165 {
 
         config = IOrionConfig(_config);
         k = _k;
+        kMax = 50;
     }
 
     /// @inheritdoc IOrionStrategy
@@ -40,7 +43,7 @@ contract KBestTvlWeightedAverage is IOrionStrategy, Ownable, ERC165 {
         uint16 n = uint16(vaultWhitelistedAssets.length);
         uint256[] memory tvls = _getAssetTVLs(vaultWhitelistedAssets, n);
 
-        uint16 kActual = uint16(Math.min(k, n));
+        uint16 kActual = uint16(Math.min(Math.min(k, n), kMax));
         (address[] memory tokens, uint256[] memory topTvls) = _selectTopKAssets(
             vaultWhitelistedAssets,
             tvls,
