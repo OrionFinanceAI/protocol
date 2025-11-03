@@ -576,6 +576,11 @@ describe("Whitelist and Vault Removal Flows", function () {
     const initialUserUnderlyingBalance = await underlyingAsset.balanceOf(user.address);
     const initialVaultTotalAssets = await testVault.totalAssets();
 
+    // Calculate share price before redeem
+    const shareDecimals = await testVault.decimals();
+    const oneShare = 10n ** BigInt(shareDecimals);
+    const sharePriceBefore = await testVault.convertToAssets(oneShare);
+
     await testVault.connect(user).redeem(redeemShares, user.address, user.address);
 
     // Verify redemption results
@@ -591,6 +596,10 @@ describe("Whitelist and Vault Removal Flows", function () {
 
     // Check that user shares decreased
     expect(finalUserShares).to.equal(userShares - redeemShares);
+
+    // Verify share price invariant is preserved after redeem
+    const sharePriceAfter = await testVault.convertToAssets(oneShare);
+    expect(sharePriceAfter).to.equal(sharePriceBefore, "Share price should remain unchanged after redeem");
 
     const pendingCuratorFees = await testVault.pendingCuratorFees();
     if (pendingCuratorFees > 0) {
