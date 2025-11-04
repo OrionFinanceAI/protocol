@@ -25,5 +25,11 @@ interface IOrionStrategy {
     /// @param vaultWhitelistedAssets The whitelisted assets for the vault
     /// @dev This function should validate that all assets are compatible with the strategy's requirements
     ///      Should revert with appropriate error if validation fails
-    function validateStrategy(address[] calldata vaultWhitelistedAssets) external view;
+    ///      This function should also call computeIntent and store the result for fallback use
+    function validateStrategy(address[] calldata vaultWhitelistedAssets) external;
+
+    /// @notice Get the stateful intent that was computed and stored during validateStrategy
+    /// @return intent Array of IntentPosition structs containing the stored intent
+    /// @dev This intent serves as a fallback when computeIntent() fails
+    function getStatefulIntent() external view returns (IOrionTransparentVault.IntentPosition[] memory intent);
 }

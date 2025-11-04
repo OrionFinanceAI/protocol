@@ -244,8 +244,20 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     /// @return weights Array of weights
     function _computePassiveIntent() internal view returns (address[] memory tokens, uint32[] memory weights) {
         address[] memory whitelistedAssets = this.vaultWhitelist();
-        // Call the passive curator to compute intent
-        IntentPosition[] memory intent = IOrionStrategy(curator).computeIntent(whitelistedAssets);
+        IntentPosition[] memory intent = new IntentPosition[](0);
+
+        // Try to compute intent using pull-based approach (online computation)
+        try IOrionStrategy(curator).computeIntent(whitelistedAssets) returns (IntentPosition[] memory computedIntent) {
+            intent = computedIntent;
+        } catch {
+            // If computeIntent fails, gracefully fallback to stateful intent from validateStrategy
+            try IOrionStrategy(curator).getStatefulIntent() returns (IntentPosition[] memory statefulIntent) {
+                intent = statefulIntent;
+            } catch {
+                // If both fail, revert
+                revert ErrorsLib.InvalidStrategy();
+            }
+        }
 
         // Convert to return format
         tokens = new address[](intent.length);

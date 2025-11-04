@@ -24,6 +24,9 @@ contract KBestTvlWeightedAverage is IOrionStrategy, Ownable, ERC165 {
     /// @notice The maximum number of assets to pick
     uint16 public kMax;
 
+    /// @notice Stored intent from last validateStrategy call (for fallback)
+    IOrionTransparentVault.IntentPosition[] private _statefulIntent;
+
     /// @notice Constructor for KBestTvlWeightedAverage strategy
     /// @param owner The owner of the contract
     /// @param _config The Orion configuration contract address
@@ -55,7 +58,7 @@ contract KBestTvlWeightedAverage is IOrionStrategy, Ownable, ERC165 {
     }
 
     /// @inheritdoc IOrionStrategy
-    function validateStrategy(address[] calldata vaultWhitelistedAssets) external view {
+    function validateStrategy(address[] calldata vaultWhitelistedAssets) external {
         uint16 n = uint16(vaultWhitelistedAssets.length);
         address referenceUnderlyingAsset = address(0);
 
@@ -80,6 +83,24 @@ contract KBestTvlWeightedAverage is IOrionStrategy, Ownable, ERC165 {
                 revert ErrorsLib.InvalidStrategy();
             }
         }
+
+        IOrionTransparentVault.IntentPosition[] memory computedIntent = this.computeIntent(vaultWhitelistedAssets);
+
+        delete _statefulIntent;
+        for (uint256 i = 0; i < computedIntent.length; ++i) {
+            _statefulIntent.push(
+                IOrionTransparentVault.IntentPosition({
+                    token: computedIntent[i].token,
+                    weight: computedIntent[i].weight
+                })
+            );
+        }
+    }
+
+    /// @inheritdoc IOrionStrategy
+    function getStatefulIntent() external view returns (IOrionTransparentVault.IntentPosition[] memory intent) {
+        if (_statefulIntent.length == 0) revert ErrorsLib.InvalidStrategy();
+        return _statefulIntent;
     }
 
     /// @notice Gets TVL for all whitelisted assets
