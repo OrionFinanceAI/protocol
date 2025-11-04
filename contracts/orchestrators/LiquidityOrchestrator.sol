@@ -72,10 +72,15 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     /// @notice Target buffer ratio
     uint256 public targetBufferRatio;
 
+    /// @notice Buy approval multiplier (multiplier for estimated underlying amount when approving adapters)
+    uint8 public buyApprovalMultiplier;
+
     /// @notice Maximum execution minibatch size
     uint8 public constant MAX_EXECUTION_MINIBATCH_SIZE = 8;
     /// @notice Maximum minibatch size
     uint8 public constant MAX_MINIBATCH_SIZE = 8;
+    /// @notice Maximum buy approval multiplier
+    uint8 public constant MAX_BUY_APPROVAL_MULTIPLIER = 5;
 
     /// @notice Action constants for checkUpkeep and performUpkeep
     bytes4 private constant ACTION_START = bytes4(keccak256("start()"));
@@ -144,6 +149,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         executionMinibatchSize = 1;
         minibatchSize = 1;
         currentMinibatchIndex = 0;
+        buyApprovalMultiplier = 2;
     }
 
     /* -------------------------------------------------------------------------- */
@@ -189,6 +195,14 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         if (_targetBufferRatio > 500) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         targetBufferRatio = _targetBufferRatio;
+    }
+
+    /// @inheritdoc ILiquidityOrchestrator
+    function updateBuyApprovalMultiplier(uint8 _buyApprovalMultiplier) external onlyOwner {
+        if (_buyApprovalMultiplier == 0) revert ErrorsLib.InvalidArguments();
+        if (_buyApprovalMultiplier > MAX_BUY_APPROVAL_MULTIPLIER) revert ErrorsLib.InvalidArguments();
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+        buyApprovalMultiplier = _buyApprovalMultiplier;
     }
 
     /// @inheritdoc ILiquidityOrchestrator
@@ -439,8 +453,8 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         IExecutionAdapter adapter = executionAdapterOf[asset];
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
 
-        // Approve adapter to spend underlying assets
-        IERC20(underlyingAsset).forceApprove(address(adapter), estimatedUnderlyingAmount * 2);
+        // Approve adapter to spend underlying assets (with multiplier for slippage tolerance)
+        IERC20(underlyingAsset).forceApprove(address(adapter), estimatedUnderlyingAmount * buyApprovalMultiplier);
 
         // Execute buy through adapter, pull underlying assets from this contract and push shares to it.
         uint256 executionUnderlyingAmount = adapter.buy(asset, sharesAmount);
