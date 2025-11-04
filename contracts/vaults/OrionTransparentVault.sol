@@ -140,7 +140,9 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
             _portfolio.set(portfolio[i].token, portfolio[i].shares);
         }
 
-        // Update high watermark if current price is higher
+        // Update high watermark using exchange ratio from previous epoch.
+        // This is done to avoid propoagating total assets changes to LiquidityOrchestrator.
+        // Where one could alternatively update the high watermark using the current share price post shares mint/burn.
         uint256 currentSharePrice = convertToAssets(10 ** decimals());
 
         if (currentSharePrice > feeModel.highWaterMark) {
