@@ -283,19 +283,31 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
         // Validate current phase
         if (!_shouldTriggerUpkeep() || !config.isSystemIdle()) revert ErrorsLib.TooEarly();
 
+        // Save previous epoch's vault list before clearing to properly reset vault-specific mappings
+        address[] memory previousEpochVaults = new address[](transparentVaultsEpoch.length);
+        for (uint16 i = 0; i < transparentVaultsEpoch.length; ++i) {
+            previousEpochVaults[i] = transparentVaultsEpoch[i];
+        }
+
+        // Clear token-specific mappings
         for (uint16 i = 0; i < _currentEpoch.tokens.length; ++i) {
             address token = _currentEpoch.tokens[i];
             delete _currentEpoch.priceArray[token];
             delete _currentEpoch.initialBatchPortfolio[token];
-            delete _currentEpoch.vaultsTotalAssets[token];
-            delete _currentEpoch.vaultsTotalAssetsForFulfillRedeem[token];
-            delete _currentEpoch.vaultsTotalAssetsForFulfillDeposit[token];
             delete _currentEpoch.finalBatchPortfolio[token];
             delete _currentEpoch.sellingOrders[token];
             delete _currentEpoch.buyingOrders[token];
             delete _currentEpoch.tokenExists[token];
         }
         delete _currentEpoch.tokens;
+
+        // Clear vault-specific mappings
+        for (uint16 i = 0; i < previousEpochVaults.length; ++i) {
+            address vault = previousEpochVaults[i];
+            delete _currentEpoch.vaultsTotalAssets[vault];
+            delete _currentEpoch.vaultsTotalAssetsForFulfillRedeem[vault];
+            delete _currentEpoch.vaultsTotalAssetsForFulfillDeposit[vault];
+        }
 
         // Build filtered vault lists for this epoch
         _buildTransparentVaultsEpoch();
