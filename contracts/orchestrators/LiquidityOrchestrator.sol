@@ -297,42 +297,34 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
 
     /// @notice Checks if the upkeep is needed
     /// @return upkeepNeeded Whether the upkeep is needed
-    /// @return performData The data to perform the upkeep
+    /// @return performData Empty bytes
     function checkUpkeep(bytes calldata) external view override returns (bool upkeepNeeded, bytes memory performData) {
         if (config.isSystemIdle() && internalStatesOrchestrator.epochCounter() > lastProcessedEpoch) {
             upkeepNeeded = true;
-            performData = abi.encode(ACTION_START, uint8(0));
         } else if (currentPhase == LiquidityUpkeepPhase.SellingLeg) {
             upkeepNeeded = true;
-            performData = abi.encode(ACTION_PROCESS_SELL, currentMinibatchIndex);
         } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
             upkeepNeeded = true;
-            performData = abi.encode(ACTION_PROCESS_BUY, currentMinibatchIndex);
         } else if (currentPhase == LiquidityUpkeepPhase.FulfillDepositAndRedeem) {
             upkeepNeeded = true;
-            performData = abi.encode(ACTION_PROCESS_FULFILL_DEPOSIT_AND_REDEEM, currentMinibatchIndex);
         } else {
             upkeepNeeded = false;
-            performData = "";
         }
+        performData = "";
     }
 
     /// @notice Performs the upkeep
-    /// @param performData The encoded data containing the action and minibatch index
-    function performUpkeep(bytes calldata performData) external override onlyAuthorizedTrigger nonReentrant {
-        if (performData.length < 5) revert ErrorsLib.InvalidArguments();
-
-        (bytes4 action, uint8 minibatchIndex) = abi.decode(performData, (bytes4, uint8));
-
-        if (action == ACTION_START) {
+    function performUpkeep(bytes calldata) external override onlyAuthorizedTrigger nonReentrant {
+        if (config.isSystemIdle() && internalStatesOrchestrator.epochCounter() > lastProcessedEpoch) {
             _handleStart();
-        } else if (action == ACTION_PROCESS_SELL) {
-            _processMinibatchSell(minibatchIndex);
-        } else if (action == ACTION_PROCESS_BUY) {
-            _processMinibatchBuy(minibatchIndex);
-        } else if (action == ACTION_PROCESS_FULFILL_DEPOSIT_AND_REDEEM) {
-            _processFulfillDepositAndRedeem(minibatchIndex);
+        } else if (currentPhase == LiquidityUpkeepPhase.SellingLeg) {
+            _processMinibatchSell();
+        } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
+            _processMinibatchBuy();
+        } else if (currentPhase == LiquidityUpkeepPhase.FulfillDepositAndRedeem) {
+            _processFulfillDepositAndRedeem();
         }
+
         emit EventsLib.PortfolioRebalanced();
     }
 
@@ -376,15 +368,14 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     }
 
     /// @notice Handles the sell action
-    /// @param minibatchIndex The index of the minibatch to process
-    function _processMinibatchSell(uint8 minibatchIndex) internal {
+    function _processMinibatchSell() internal {
         if (currentPhase != LiquidityUpkeepPhase.SellingLeg) {
             revert ErrorsLib.InvalidState();
         }
-        ++currentMinibatchIndex;
 
-        uint16 i0 = minibatchIndex * executionMinibatchSize;
+        uint16 i0 = currentMinibatchIndex * executionMinibatchSize;
         uint16 i1 = i0 + executionMinibatchSize;
+        ++currentMinibatchIndex;
 
         if (i1 > sellingTokens.length || i1 == sellingTokens.length) {
             i1 = uint16(sellingTokens.length);
@@ -401,15 +392,14 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     }
 
     /// @notice Handles the buy action
-    /// @param minibatchIndex The index of the minibatch to process
-    function _processMinibatchBuy(uint8 minibatchIndex) internal {
+    function _processMinibatchBuy() internal {
         if (currentPhase != LiquidityUpkeepPhase.BuyingLeg) {
             revert ErrorsLib.InvalidState();
         }
-        ++currentMinibatchIndex;
 
-        uint16 i0 = minibatchIndex * executionMinibatchSize;
+        uint16 i0 = currentMinibatchIndex * executionMinibatchSize;
         uint16 i1 = i0 + executionMinibatchSize;
+        ++currentMinibatchIndex;
 
         if (i1 > buyingTokens.length || i1 == buyingTokens.length) {
             i1 = uint16(buyingTokens.length);
@@ -471,18 +461,17 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     }
 
     /// @notice Handles the fulfill deposit and redeem actions
-    /// @param minibatchIndex The index of the minibatch to process
-    function _processFulfillDepositAndRedeem(uint8 minibatchIndex) internal {
+    function _processFulfillDepositAndRedeem() internal {
         if (currentPhase != LiquidityUpkeepPhase.FulfillDepositAndRedeem) {
             revert ErrorsLib.InvalidState();
         }
-        ++currentMinibatchIndex;
 
         // Process transparent vaults
         address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
 
-        uint16 i0 = minibatchIndex * minibatchSize;
+        uint16 i0 = currentMinibatchIndex * minibatchSize;
         uint16 i1 = i0 + minibatchSize;
+        ++currentMinibatchIndex;
 
         if (i1 > transparentVaults.length || i1 == transparentVaults.length) {
             i1 = uint16(transparentVaults.length);

@@ -219,45 +219,35 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
     /// @notice Checks if upkeep is needed based on time interval
     /// @dev https://docs.chain.link/chainlink-automation/reference/automation-interfaces
     /// @return upkeepNeeded True if upkeep is needed, false otherwise
-    /// @return performData Encoded data needed to perform the upkeep
+    /// @return performData Empty bytes
     function checkUpkeep(bytes calldata) external view override returns (bool upkeepNeeded, bytes memory performData) {
         if (config.isSystemIdle() && _shouldTriggerUpkeep()) {
             upkeepNeeded = true;
-            performData = abi.encode(ACTION_START, uint8(0));
         } else if (currentPhase == InternalUpkeepPhase.PreprocessingTransparentVaults) {
             upkeepNeeded = true;
-            performData = abi.encode(ACTION_PREPROCESS_T_VAULTS, currentMinibatchIndex);
         } else if (currentPhase == InternalUpkeepPhase.Buffering) {
             upkeepNeeded = true;
-            performData = abi.encode(ACTION_BUFFER, uint8(0));
         } else if (currentPhase == InternalUpkeepPhase.PostprocessingTransparentVaults) {
             upkeepNeeded = true;
-            performData = abi.encode(ACTION_POSTPROCESS_T_VAULTS, currentMinibatchIndex);
         } else if (currentPhase == InternalUpkeepPhase.BuildingOrders) {
             upkeepNeeded = true;
-            performData = abi.encode(ACTION_BUILD_ORDERS, uint8(0));
         } else {
             upkeepNeeded = false;
-            performData = "";
         }
+        performData = "";
     }
 
     /// @notice Performs state reading and estimation operations
-    /// @param performData Encoded data containing the action type and minibatch index
-    function performUpkeep(bytes calldata performData) external override onlyAuthorizedTrigger nonReentrant {
-        if (performData.length < 5) revert ErrorsLib.InvalidArguments();
-
-        (bytes4 action, uint8 minibatchIndex) = abi.decode(performData, (bytes4, uint8));
-
-        if (action == ACTION_START) {
+    function performUpkeep(bytes calldata) external override onlyAuthorizedTrigger nonReentrant {
+        if (config.isSystemIdle() && _shouldTriggerUpkeep()) {
             _handleStart();
-        } else if (action == ACTION_PREPROCESS_T_VAULTS) {
-            _preprocessTransparentMinibatch(minibatchIndex);
-        } else if (action == ACTION_BUFFER) {
+        } else if (currentPhase == InternalUpkeepPhase.PreprocessingTransparentVaults) {
+            _preprocessTransparentMinibatch();
+        } else if (currentPhase == InternalUpkeepPhase.Buffering) {
             _buffer();
-        } else if (action == ACTION_POSTPROCESS_T_VAULTS) {
-            _postprocessTransparentMinibatch(minibatchIndex);
-        } else if (action == ACTION_BUILD_ORDERS) {
+        } else if (currentPhase == InternalUpkeepPhase.PostprocessingTransparentVaults) {
+            _postprocessTransparentMinibatch();
+        } else if (currentPhase == InternalUpkeepPhase.BuildingOrders) {
             _buildOrders();
         }
     }
@@ -319,15 +309,14 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
     // slither-disable-start reentrancy-no-eth
 
     /// @notice Preprocesses minibatch of transparent vaults
-    /// @param minibatchIndex The index of the minibatch to process
-    function _preprocessTransparentMinibatch(uint8 minibatchIndex) internal {
+    function _preprocessTransparentMinibatch() internal {
         if (currentPhase != InternalUpkeepPhase.PreprocessingTransparentVaults) {
             revert ErrorsLib.InvalidState();
         }
-        ++currentMinibatchIndex;
 
-        uint16 i0 = minibatchIndex * transparentMinibatchSize;
+        uint16 i0 = currentMinibatchIndex * transparentMinibatchSize;
         uint16 i1 = i0 + transparentMinibatchSize;
+        ++currentMinibatchIndex;
         if (i1 > transparentVaultsEpoch.length || i1 == transparentVaultsEpoch.length) {
             i1 = uint16(transparentVaultsEpoch.length);
             currentPhase = InternalUpkeepPhase.Buffering;
@@ -455,14 +444,14 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
     }
 
     /// @notice Postprocesses minibatch of transparent vaults
-    /// @param minibatchIndex The index of the minibatch to postprocess
-    function _postprocessTransparentMinibatch(uint8 minibatchIndex) internal {
+    function _postprocessTransparentMinibatch() internal {
         if (currentPhase != InternalUpkeepPhase.PostprocessingTransparentVaults) {
             revert ErrorsLib.InvalidState();
         }
-        ++currentMinibatchIndex;
-        uint16 i0 = minibatchIndex * transparentMinibatchSize;
+
+        uint16 i0 = currentMinibatchIndex * transparentMinibatchSize;
         uint16 i1 = i0 + transparentMinibatchSize;
+        ++currentMinibatchIndex;
 
         if (i1 > transparentVaultsEpoch.length || i1 == transparentVaultsEpoch.length) {
             i1 = uint16(transparentVaultsEpoch.length); // Last minibatch, go to next phase.
