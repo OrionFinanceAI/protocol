@@ -338,10 +338,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         (, uint256 currentAmount) = _depositRequests.tryGet(msg.sender);
         if (currentAmount < amount) revert ErrorsLib.InsufficientAmount();
 
-        // Interactions - request funds from liquidity orchestrator
-        liquidityOrchestrator.returnDepositFunds(msg.sender, amount);
-
-        // Effects - update internal state
+        // Update internal state
         uint256 newAmount = currentAmount - amount;
         if (newAmount == 0) {
             // slither-disable-next-line unused-return
@@ -351,6 +348,9 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
             _depositRequests.set(msg.sender, newAmount);
         }
         _pendingDeposit -= amount;
+
+        // Request funds from liquidity orchestrator
+        liquidityOrchestrator.returnDepositFunds(msg.sender, amount);
 
         emit DepositRequestCancelled(msg.sender, amount);
     }
