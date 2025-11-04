@@ -88,14 +88,13 @@ contract OrionAssetERC4626ExecutionAdapter is IExecutionAdapter {
         underlyingAssetToken.forceApprove(vaultAsset, spentUnderlyingAmount);
 
         // Deposit underlying assets to get vault shares
-        // slither-disable-next-line unused-return
-        vault.deposit(spentUnderlyingAmount, address(this));
+        // Capture actual shares minted (may differ from sharesAmount due to rounding)
+        uint256 actualSharesMinted = vault.deposit(spentUnderlyingAmount, address(this));
 
         // Clean up approval
         underlyingAssetToken.forceApprove(vaultAsset, 0);
 
-        // Push the received shares to the caller
-        bool success = vault.transfer(msg.sender, sharesAmount);
-        if (!success) revert ErrorsLib.TransferFailed();
+        // Push all received shares to the caller
+        IERC20(vaultAsset).safeTransfer(msg.sender, actualSharesMinted);
     }
 }
