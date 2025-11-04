@@ -449,13 +449,13 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
 
         // Approve adapter to spend underlying assets
         // slither-disable-next-line unused-return
-        IERC20(underlyingAsset).approve(address(adapter), 0);
-
-        // slither-disable-next-line unused-return
         IERC20(underlyingAsset).approve(address(adapter), estimatedUnderlyingAmount * 2);
 
         // Execute buy through adapter, pull underlying assets from this contract and push shares to it.
         uint256 executionUnderlyingAmount = adapter.buy(asset, sharesAmount);
+
+        // slither-disable-next-line unused-return
+        IERC20(underlyingAsset).approve(address(adapter), 0);
 
         deltaBufferAmount += int256(estimatedUnderlyingAmount) - int256(executionUnderlyingAmount);
     }
