@@ -446,13 +446,16 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
         if (bufferAmount > targetBufferAmount) return;
 
         uint256 deltaBufferAmount = targetBufferAmount - bufferAmount;
+        uint256 actualBufferAllocated = 0;
         for (uint16 i = 0; i < nTransparentVaults; ++i) {
             address vault = transparentVaultsEpoch[i];
             uint256 vaultAssets = _currentEpoch.vaultsTotalAssets[address(vault)];
             uint256 vaultBufferCost = deltaBufferAmount.mulDiv(vaultAssets, protocolTotalAssets);
             _currentEpoch.vaultsTotalAssets[address(vault)] -= vaultBufferCost;
+            actualBufferAllocated += vaultBufferCost;
         }
-        bufferAmount += deltaBufferAmount;
+        // Update bufferAmount with actual allocated amount to avoid rounding drift
+        bufferAmount += actualBufferAllocated;
     }
 
     /// @notice Postprocesses minibatch of transparent vaults

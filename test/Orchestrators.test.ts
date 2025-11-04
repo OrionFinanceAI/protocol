@@ -1525,31 +1525,36 @@ describe("Orchestrators", function () {
         console.log(`Vault ${vaultAddress} total assets: ${vaultsTotalAssets.toString()}`);
       }
 
-      // Calculate expected buffer amount using the same formula as the orchestrator
-      const expectedBufferAmount = (protocolTotalAssets * BigInt(targetBufferRatio)) / BASIS_POINTS_FACTOR;
+      // Calculate target buffer amount using the same formula as the orchestrator
+      const targetBufferAmount = (protocolTotalAssets * BigInt(targetBufferRatio)) / BASIS_POINTS_FACTOR;
+      const deltaBufferAmount = targetBufferAmount - bufferAmountBefore;
 
-      bufferAmountAfter = await internalStatesOrchestrator.bufferAmount();
-      console.log(`Protocol Total Assets: ${protocolTotalAssets.toString()}`);
-      console.log(`Expected Buffer Amount: ${expectedBufferAmount.toString()}`);
-      console.log(`Actual Buffer Amount: ${bufferAmountAfter.toString()}`);
-
-      expect(bufferAmountAfter).to.equal(expectedBufferAmount);
-
-      // Calculate post-buffer total assets per vault (after buffer cost is subtracted)
+      // Calculate actual buffer allocated (sum of floor-divided vault costs, same as orchestrator)
+      let actualBufferAllocated = 0n;
       const postBufferVaultsTotalAssets: bigint[] = [];
-      const deltaBufferAmount = bufferAmountAfter - bufferAmountBefore;
 
       for (let i = 0; i < transparentVaultsEpoch.length; i++) {
         const vaultAddress = transparentVaultsEpoch[i];
         const vaultTotalAssets = vaultsTotalAssetsArray[i];
 
-        // Calculate vault buffer cost proportionally (same logic as orchestrator)
+        // Calculate vault buffer cost proportionally with floor division (same logic as orchestrator)
+        // Using mulDiv equivalent: (deltaBufferAmount * vaultTotalAssets) / protocolTotalAssets
         const vaultBufferCost = (deltaBufferAmount * vaultTotalAssets) / protocolTotalAssets;
         const postBufferTotalAssets = vaultTotalAssets - vaultBufferCost;
 
+        actualBufferAllocated += vaultBufferCost;
         postBufferVaultsTotalAssets.push(postBufferTotalAssets);
         console.log(`Vault ${vaultAddress} post-buffer total assets: ${postBufferTotalAssets.toString()}`);
       }
+
+      bufferAmountAfter = await internalStatesOrchestrator.bufferAmount();
+      console.log(`Protocol Total Assets: ${protocolTotalAssets.toString()}`);
+      console.log(`Target Buffer Amount: ${targetBufferAmount.toString()}`);
+      console.log(`Actual Buffer Allocated: ${actualBufferAllocated.toString()}`);
+      console.log(`Actual Buffer Amount: ${bufferAmountAfter.toString()}`);
+
+      // Buffer amount should equal bufferBefore + actual allocated amount (accounting for rounding)
+      expect(bufferAmountAfter).to.equal(bufferAmountBefore + actualBufferAllocated);
 
       // Process all vaults in postprocessing phase - continue until we reach building orders phase
       while ((await internalStatesOrchestrator.currentPhase()) === 3n) {
