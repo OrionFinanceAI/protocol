@@ -27,6 +27,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
  */
 contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrator {
     using Math for uint256;
+    using SafeERC20 for IERC20;
 
     /* -------------------------------------------------------------------------- */
     /*                                 CONTRACTS                                  */
@@ -197,8 +198,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
             revert ErrorsLib.SystemNotIdle();
 
         // Transfer underlying assets from the admin to this contract
-        bool success = IERC20(underlyingAsset).transferFrom(msg.sender, address(this), amount);
-        if (!success) revert ErrorsLib.TransferFailed();
+        IERC20(underlyingAsset).safeTransferFrom(msg.sender, address(this), amount);
 
         // Update buffer amount in the internal states orchestrator
         internalStatesOrchestrator.updateBufferAmount(int256(amount));
@@ -220,8 +220,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         internalStatesOrchestrator.updateBufferAmount(-int256(amount));
 
         // Transfer underlying assets to the owner
-        bool success = IERC20(underlyingAsset).transfer(msg.sender, amount);
-        if (!success) revert ErrorsLib.TransferFailed();
+        IERC20(underlyingAsset).safeTransfer(msg.sender, amount);
     }
 
     /// @inheritdoc ILiquidityOrchestrator
@@ -230,8 +229,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
 
         internalStatesOrchestrator.subtractPendingProtocolFees(amount);
 
-        bool success = IERC20(underlyingAsset).transfer(msg.sender, amount);
-        if (!success) revert ErrorsLib.TransferFailed();
+        IERC20(underlyingAsset).safeTransfer(msg.sender, amount);
     }
 
     /* -------------------------------------------------------------------------- */
@@ -256,8 +254,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         // Verify the caller is a registered vault
         if (!config.isOrionVault(msg.sender)) revert ErrorsLib.NotAuthorized();
         // Transfer funds back to the user
-        bool success = IERC20(underlyingAsset).transfer(user, amount);
-        if (!success) revert ErrorsLib.TransferFailed();
+        IERC20(underlyingAsset).safeTransfer(user, amount);
     }
 
     /// @inheritdoc ILiquidityOrchestrator
@@ -269,8 +266,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
 
         // Transfer underlying assets to the vault owner
         address vaultOwner = IOrionVault(vault).vaultOwner();
-        bool success = IERC20(underlyingAsset).transfer(vaultOwner, amount);
-        if (!success) revert ErrorsLib.TransferFailed();
+        IERC20(underlyingAsset).safeTransfer(vaultOwner, amount);
     }
 
     /// @inheritdoc ILiquidityOrchestrator
@@ -280,8 +276,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
 
         // Transfer underlying assets to the user
-        bool success = IERC20(underlyingAsset).transfer(user, amount);
-        if (!success) revert ErrorsLib.TransferFailed();
+        IERC20(underlyingAsset).safeTransfer(user, amount);
     }
 
     /// @inheritdoc ILiquidityOrchestrator
@@ -428,10 +423,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
 
         // Approve adapter to spend shares
-        // slither-disable-next-line unused-return
-        IERC20(asset).approve(address(adapter), 0);
-        // slither-disable-next-line unused-return
-        IERC20(asset).approve(address(adapter), sharesAmount);
+        IERC20(asset).forceApprove(address(adapter), sharesAmount);
 
         // Execute sell through adapter, pull shares from this contract and push underlying assets to it.
         uint256 executionUnderlyingAmount = adapter.sell(asset, sharesAmount);
@@ -448,14 +440,13 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
 
         // Approve adapter to spend underlying assets
-        // slither-disable-next-line unused-return
-        IERC20(underlyingAsset).approve(address(adapter), estimatedUnderlyingAmount * 2);
+        IERC20(underlyingAsset).forceApprove(address(adapter), estimatedUnderlyingAmount * 2);
 
         // Execute buy through adapter, pull underlying assets from this contract and push shares to it.
         uint256 executionUnderlyingAmount = adapter.buy(asset, sharesAmount);
 
-        // slither-disable-next-line unused-return
-        IERC20(underlyingAsset).approve(address(adapter), 0);
+        // Clean up approval
+        IERC20(underlyingAsset).forceApprove(address(adapter), 0);
 
         deltaBufferAmount += int256(estimatedUnderlyingAmount) - int256(executionUnderlyingAmount);
     }
