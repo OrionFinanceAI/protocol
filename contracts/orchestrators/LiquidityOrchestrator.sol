@@ -442,6 +442,9 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         // Execute sell through adapter, pull shares from this contract and push underlying assets to it.
         uint256 executionUnderlyingAmount = adapter.sell(asset, sharesAmount);
 
+        // Clean up approval
+        IERC20(asset).forceApprove(address(adapter), 0);
+
         deltaBufferAmount += int256(executionUnderlyingAmount) - int256(estimatedUnderlyingAmount);
     }
 
