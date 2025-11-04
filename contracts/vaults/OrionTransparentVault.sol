@@ -64,7 +64,6 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
     /// @inheritdoc IOrionTransparentVault
     function submitIntent(IntentPosition[] calldata intent) external onlyCurator {
-        if (_isPassiveCurator) revert ErrorsLib.InvalidArguments();
         if (intent.length == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
 
         _portfolioIntent.clear();
