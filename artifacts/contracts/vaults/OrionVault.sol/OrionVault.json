@@ -598,6 +598,19 @@
     },
     {
       "inputs": [],
+      "name": "MAX_FULFILL_BATCH_SIZE",
+      "outputs": [
+        {
+          "internalType": "uint16",
+          "name": "",
+          "type": "uint16"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
       "name": "MAX_MANAGEMENT_FEE",
       "outputs": [
         {
@@ -855,35 +868,6 @@
         }
       ],
       "name": "convertToShares",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "assets",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "pointInTimeTotalAssets",
-          "type": "uint256"
-        },
-        {
-          "internalType": "enum Math.Rounding",
-          "name": "rounding",
-          "type": "uint8"
-        }
-      ],
-      "name": "convertToSharesWithPITTotalAssets",
       "outputs": [
         {
           "internalType": "uint256",

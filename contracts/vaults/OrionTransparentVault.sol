@@ -64,7 +64,6 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
     /// @inheritdoc IOrionTransparentVault
     function submitIntent(IntentPosition[] calldata intent) external onlyCurator {
-        if (_isPassiveCurator) revert ErrorsLib.InvalidArguments();
         if (intent.length == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
 
         _portfolioIntent.clear();
@@ -141,7 +140,9 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
             _portfolio.set(portfolio[i].token, portfolio[i].shares);
         }
 
-        // Update high watermark if current price is higher
+        // Update high watermark using exchange ratio from previous epoch.
+        // This is done to avoid propoagating total assets changes to LiquidityOrchestrator.
+        // Where one could alternatively update the high watermark using the current share price post shares mint/burn.
         uint256 currentSharePrice = convertToAssets(10 ** decimals());
 
         if (currentSharePrice > feeModel.highWaterMark) {
@@ -203,6 +204,12 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
         address underlyingAsset = this.asset();
 
+        // Ensure underlying asset is always whitelisted for this vault
+        if (!_vaultWhitelistedAssets.contains(underlyingAsset)) {
+            // slither-disable-next-line unused-return
+            _vaultWhitelistedAssets.add(underlyingAsset);
+        }
+
         // Add the weight to the underlying asset
         (bool underlyingExists, uint256 currentUnderlyingWeight) = _portfolioIntent.tryGet(underlyingAsset);
         if (underlyingExists) {
@@ -244,8 +251,20 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     /// @return weights Array of weights
     function _computePassiveIntent() internal view returns (address[] memory tokens, uint32[] memory weights) {
         address[] memory whitelistedAssets = this.vaultWhitelist();
-        // Call the passive curator to compute intent
-        IntentPosition[] memory intent = IOrionStrategy(curator).computeIntent(whitelistedAssets);
+        IntentPosition[] memory intent = new IntentPosition[](0);
+
+        // Try to compute intent using pull-based approach (online computation)
+        try IOrionStrategy(curator).computeIntent(whitelistedAssets) returns (IntentPosition[] memory computedIntent) {
+            intent = computedIntent;
+        } catch {
+            // If computeIntent fails, gracefully fallback to stateful intent from validateStrategy
+            try IOrionStrategy(curator).getStatefulIntent() returns (IntentPosition[] memory statefulIntent) {
+                intent = statefulIntent;
+            } catch {
+                // If both fail, revert
+                revert ErrorsLib.InvalidStrategy();
+            }
+        }
 
         // Convert to return format
         tokens = new address[](intent.length);

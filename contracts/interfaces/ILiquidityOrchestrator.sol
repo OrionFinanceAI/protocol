@@ -28,6 +28,10 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @param _executionMinibatchSize The new execution minibatch size
     function updateExecutionMinibatchSize(uint8 _executionMinibatchSize) external;
 
+    /// @notice Updates the minibatch size for fulfill deposit and redeem processing
+    /// @param _minibatchSize The new minibatch size
+    function updateMinibatchSize(uint8 _minibatchSize) external;
+
     /// @notice Updates the Chainlink Automation Registry address
     /// @param newAutomationRegistry The new automation registry address
     function updateAutomationRegistry(address newAutomationRegistry) external;
@@ -40,6 +44,10 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @notice Sets the target buffer ratio
     /// @param _targetBufferRatio The new target buffer ratio
     function setTargetBufferRatio(uint256 _targetBufferRatio) external;
+
+    /// @notice Updates the buy approval multiplier
+    /// @param _buyApprovalMultiplier The new buy approval multiplier
+    function updateBuyApprovalMultiplier(uint8 _buyApprovalMultiplier) external;
 
     /// @notice Claim protocol fees with specified amount
     /// @dev Called by the Owner to claim a specific amount of protocol fees

@@ -39,7 +39,11 @@ describe("Price Adapter", function () {
     mockAsset1 = mockAsset1Deployed as unknown as MockERC4626Asset;
 
     const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
-    const orionConfigDeployed = await OrionConfigFactory.deploy(owner.address, await underlyingAsset.getAddress());
+    const orionConfigDeployed = await OrionConfigFactory.deploy(
+      owner.address,
+      nonOwner.address, // admin
+      await underlyingAsset.getAddress(),
+    );
     await orionConfigDeployed.waitForDeployment();
     orionConfig = orionConfigDeployed as unknown as OrionConfig;
 

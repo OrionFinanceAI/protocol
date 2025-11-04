@@ -63,6 +63,10 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
 
     /// @notice Basis points factor
     uint16 public constant BASIS_POINTS_FACTOR = 10_000;
+    /// @notice Maximum transparent minibatch size
+    uint8 public constant MAX_TRANSPARENT_MINIBATCH_SIZE = 8;
+    /// @notice Maximum epoch duration (2 weeks = 14 days)
+    uint32 public constant MAX_EPOCH_DURATION = 14 days;
 
     /// @notice Action constants for checkUpkeep and performUpkeep
     bytes4 private constant ACTION_START = bytes4(keccak256("start()"));
@@ -184,15 +188,17 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
     /// @inheritdoc IInternalStateOrchestrator
     function updateEpochDuration(uint32 newEpochDuration) external onlyOwner {
         if (newEpochDuration == 0) revert ErrorsLib.InvalidArguments();
+        if (newEpochDuration > MAX_EPOCH_DURATION) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         epochDuration = newEpochDuration;
-        _nextUpdateTime = block.timestamp + epochDuration;
+        _nextUpdateTime = Math.min(block.timestamp + epochDuration, _nextUpdateTime);
     }
 
     /// @inheritdoc IInternalStateOrchestrator
     function updateMinibatchSize(uint8 _transparentMinibatchSize) external onlyOwner {
         if (_transparentMinibatchSize == 0) revert ErrorsLib.InvalidArguments();
+        if (_transparentMinibatchSize > MAX_TRANSPARENT_MINIBATCH_SIZE) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         transparentMinibatchSize = _transparentMinibatchSize;
@@ -213,45 +219,35 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
     /// @notice Checks if upkeep is needed based on time interval
     /// @dev https://docs.chain.link/chainlink-automation/reference/automation-interfaces
     /// @return upkeepNeeded True if upkeep is needed, false otherwise
-    /// @return performData Encoded data needed to perform the upkeep
+    /// @return performData Empty bytes
     function checkUpkeep(bytes calldata) external view override returns (bool upkeepNeeded, bytes memory performData) {
         if (config.isSystemIdle() && _shouldTriggerUpkeep()) {
             upkeepNeeded = true;
-            performData = abi.encode(ACTION_START, uint8(0));
         } else if (currentPhase == InternalUpkeepPhase.PreprocessingTransparentVaults) {
             upkeepNeeded = true;
-            performData = abi.encode(ACTION_PREPROCESS_T_VAULTS, currentMinibatchIndex);
         } else if (currentPhase == InternalUpkeepPhase.Buffering) {
             upkeepNeeded = true;
-            performData = abi.encode(ACTION_BUFFER, uint8(0));
         } else if (currentPhase == InternalUpkeepPhase.PostprocessingTransparentVaults) {
             upkeepNeeded = true;
-            performData = abi.encode(ACTION_POSTPROCESS_T_VAULTS, currentMinibatchIndex);
         } else if (currentPhase == InternalUpkeepPhase.BuildingOrders) {
             upkeepNeeded = true;
-            performData = abi.encode(ACTION_BUILD_ORDERS, uint8(0));
         } else {
             upkeepNeeded = false;
-            performData = "";
         }
+        performData = "";
     }
 
     /// @notice Performs state reading and estimation operations
-    /// @param performData Encoded data containing the action type and minibatch index
-    function performUpkeep(bytes calldata performData) external override onlyAuthorizedTrigger nonReentrant {
-        if (performData.length < 5) revert ErrorsLib.InvalidArguments();
-
-        (bytes4 action, uint8 minibatchIndex) = abi.decode(performData, (bytes4, uint8));
-
-        if (action == ACTION_START) {
+    function performUpkeep(bytes calldata) external override onlyAuthorizedTrigger nonReentrant {
+        if (config.isSystemIdle() && _shouldTriggerUpkeep()) {
             _handleStart();
-        } else if (action == ACTION_PREPROCESS_T_VAULTS) {
-            _preprocessTransparentMinibatch(minibatchIndex);
-        } else if (action == ACTION_BUFFER) {
+        } else if (currentPhase == InternalUpkeepPhase.PreprocessingTransparentVaults) {
+            _preprocessTransparentMinibatch();
+        } else if (currentPhase == InternalUpkeepPhase.Buffering) {
             _buffer();
-        } else if (action == ACTION_POSTPROCESS_T_VAULTS) {
-            _postprocessTransparentMinibatch(minibatchIndex);
-        } else if (action == ACTION_BUILD_ORDERS) {
+        } else if (currentPhase == InternalUpkeepPhase.PostprocessingTransparentVaults) {
+            _postprocessTransparentMinibatch();
+        } else if (currentPhase == InternalUpkeepPhase.BuildingOrders) {
             _buildOrders();
         }
     }
@@ -287,19 +283,31 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
         // Validate current phase
         if (!_shouldTriggerUpkeep() || !config.isSystemIdle()) revert ErrorsLib.TooEarly();
 
+        // Save previous epoch's vault list before clearing to properly reset vault-specific mappings
+        address[] memory previousEpochVaults = new address[](transparentVaultsEpoch.length);
+        for (uint16 i = 0; i < transparentVaultsEpoch.length; ++i) {
+            previousEpochVaults[i] = transparentVaultsEpoch[i];
+        }
+
+        // Clear token-specific mappings
         for (uint16 i = 0; i < _currentEpoch.tokens.length; ++i) {
             address token = _currentEpoch.tokens[i];
             delete _currentEpoch.priceArray[token];
             delete _currentEpoch.initialBatchPortfolio[token];
-            delete _currentEpoch.vaultsTotalAssets[token];
-            delete _currentEpoch.vaultsTotalAssetsForFulfillRedeem[token];
-            delete _currentEpoch.vaultsTotalAssetsForFulfillDeposit[token];
             delete _currentEpoch.finalBatchPortfolio[token];
             delete _currentEpoch.sellingOrders[token];
             delete _currentEpoch.buyingOrders[token];
             delete _currentEpoch.tokenExists[token];
         }
         delete _currentEpoch.tokens;
+
+        // Clear vault-specific mappings
+        for (uint16 i = 0; i < previousEpochVaults.length; ++i) {
+            address vault = previousEpochVaults[i];
+            delete _currentEpoch.vaultsTotalAssets[vault];
+            delete _currentEpoch.vaultsTotalAssetsForFulfillRedeem[vault];
+            delete _currentEpoch.vaultsTotalAssetsForFulfillDeposit[vault];
+        }
 
         // Build filtered vault lists for this epoch
         _buildTransparentVaultsEpoch();
@@ -313,15 +321,14 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
     // slither-disable-start reentrancy-no-eth
 
     /// @notice Preprocesses minibatch of transparent vaults
-    /// @param minibatchIndex The index of the minibatch to process
-    function _preprocessTransparentMinibatch(uint8 minibatchIndex) internal {
+    function _preprocessTransparentMinibatch() internal {
         if (currentPhase != InternalUpkeepPhase.PreprocessingTransparentVaults) {
             revert ErrorsLib.InvalidState();
         }
-        ++currentMinibatchIndex;
 
-        uint16 i0 = minibatchIndex * transparentMinibatchSize;
+        uint16 i0 = currentMinibatchIndex * transparentMinibatchSize;
         uint16 i1 = i0 + transparentMinibatchSize;
+        ++currentMinibatchIndex;
         if (i1 > transparentVaultsEpoch.length || i1 == transparentVaultsEpoch.length) {
             i1 = uint16(transparentVaultsEpoch.length);
             currentPhase = InternalUpkeepPhase.Buffering;
@@ -439,24 +446,27 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
         if (bufferAmount > targetBufferAmount) return;
 
         uint256 deltaBufferAmount = targetBufferAmount - bufferAmount;
+        uint256 actualBufferAllocated = 0;
         for (uint16 i = 0; i < nTransparentVaults; ++i) {
             address vault = transparentVaultsEpoch[i];
             uint256 vaultAssets = _currentEpoch.vaultsTotalAssets[address(vault)];
             uint256 vaultBufferCost = deltaBufferAmount.mulDiv(vaultAssets, protocolTotalAssets);
             _currentEpoch.vaultsTotalAssets[address(vault)] -= vaultBufferCost;
+            actualBufferAllocated += vaultBufferCost;
         }
-        bufferAmount += deltaBufferAmount;
+        // Update bufferAmount with actual allocated amount to avoid rounding drift
+        bufferAmount += actualBufferAllocated;
     }
 
     /// @notice Postprocesses minibatch of transparent vaults
-    /// @param minibatchIndex The index of the minibatch to postprocess
-    function _postprocessTransparentMinibatch(uint8 minibatchIndex) internal {
+    function _postprocessTransparentMinibatch() internal {
         if (currentPhase != InternalUpkeepPhase.PostprocessingTransparentVaults) {
             revert ErrorsLib.InvalidState();
         }
-        ++currentMinibatchIndex;
-        uint16 i0 = minibatchIndex * transparentMinibatchSize;
+
+        uint16 i0 = currentMinibatchIndex * transparentMinibatchSize;
         uint16 i1 = i0 + transparentMinibatchSize;
+        ++currentMinibatchIndex;
 
         if (i1 > transparentVaultsEpoch.length || i1 == transparentVaultsEpoch.length) {
             i1 = uint16(transparentVaultsEpoch.length); // Last minibatch, go to next phase.
@@ -630,18 +640,30 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
             if (sellingAmount > 0) {
                 sellingTokens[sellingIndex] = token;
                 sellingAmounts[sellingIndex] = sellingAmount;
-                sellingEstimatedUnderlyingAmounts[sellingIndex] = sellingAmount.mulDiv(
+                // Convert estimated amount from token decimals to underlying decimals
+                uint256 rawEstimatedAmount = sellingAmount.mulDiv(
                     _currentEpoch.priceArray[token],
                     priceAdapterPrecision
+                );
+                sellingEstimatedUnderlyingAmounts[sellingIndex] = UtilitiesLib.convertDecimals(
+                    rawEstimatedAmount,
+                    config.getTokenDecimals(token),
+                    underlyingDecimals
                 );
                 ++sellingIndex;
             }
             if (buyingAmount > 0) {
                 buyingTokens[buyingIndex] = token;
                 buyingAmounts[buyingIndex] = buyingAmount;
-                buyingEstimatedUnderlyingAmounts[buyingIndex] = buyingAmount.mulDiv(
+                // Convert estimated amount from token decimals to underlying decimals
+                uint256 rawEstimatedAmount = buyingAmount.mulDiv(
                     _currentEpoch.priceArray[token],
                     priceAdapterPrecision
+                );
+                buyingEstimatedUnderlyingAmounts[buyingIndex] = UtilitiesLib.convertDecimals(
+                    rawEstimatedAmount,
+                    config.getTokenDecimals(token),
+                    underlyingDecimals
                 );
                 ++buyingIndex;
             }

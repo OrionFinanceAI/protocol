@@ -106,7 +106,11 @@ describe("Passive Curator Strategy", function () {
 
     // Deploy OrionConfig
     const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
-    const orionConfigDeployed = await OrionConfigFactory.deploy(owner.address, await underlyingAsset.getAddress());
+    const orionConfigDeployed = await OrionConfigFactory.deploy(
+      owner.address,
+      user.address, // admin
+      await underlyingAsset.getAddress(),
+    );
     await orionConfigDeployed.waitForDeployment();
     orionConfig = orionConfigDeployed as unknown as OrionConfig;
 
@@ -257,9 +261,14 @@ describe("Passive Curator Strategy", function () {
       // The interface ID is calculated from XOR of all function selectors in the interface
       const computeIntentSelector = ethers.id("computeIntent(address[])").slice(0, 10);
       const validateStrategySelector = ethers.id("validateStrategy(address[])").slice(0, 10);
+      const getStatefulIntentSelector = ethers.id("getStatefulIntent()").slice(0, 10);
 
-      // XOR the two selectors to get the interface ID
-      const interfaceId = (BigInt(computeIntentSelector) ^ BigInt(validateStrategySelector))
+      // XOR all three selectors to get the interface ID
+      const interfaceId = (
+        BigInt(computeIntentSelector) ^
+        BigInt(validateStrategySelector) ^
+        BigInt(getStatefulIntentSelector)
+      )
         .toString(16)
         .padStart(8, "0");
       await expect(await strategy.supportsInterface("0x" + interfaceId)).to.be.true;

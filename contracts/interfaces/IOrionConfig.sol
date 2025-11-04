@@ -23,6 +23,11 @@ interface IOrionConfig {
     /// @return The address of the underlying asset contract
     function underlyingAsset() external view returns (IERC20);
 
+    /// @notice Returns the admin address
+    /// @dev The admin address is immutable and set at construction
+    /// @return The admin address
+    function admin() external view returns (address);
+
     /// @notice Returns the address of the price adapter registry contract
     /// @dev This registry is responsible for managing asset price adapters
     /// @return The address of the price adapter registry
@@ -97,6 +102,11 @@ interface IOrionConfig {
     /// @param vaultOwner The address of the vault owner to whitelist
     function addWhitelistedVaultOwner(address vaultOwner) external;
 
+    /// @notice Removes a vault owner from the whitelist
+    /// @dev Can only be called by the contract owner
+    /// @param vaultOwner The address of the vault owner to remove from whitelist
+    function removeWhitelistedVaultOwner(address vaultOwner) external;
+
     /// @notice Checks if a vault owner is whitelisted
     /// @param vaultOwner The address of the vault owner to check
     /// @return True if the vault owner is whitelisted, false otherwise
@@ -112,6 +122,8 @@ interface IOrionConfig {
     /// @dev Callable exclusively by the contract owner. This action does not destroy the vault itself;
     /// @dev it merely disconnects the vault from the protocol, which causes the share price to stale
     /// @dev and renders curator intents inactive.
+    /// @dev The vault remains in both active and decommissioning states, allowing orchestrators to process
+    /// @dev it one last time to liquidate all positions before final removal.
     /// @param vault The address of the vault to be removed from the registry
     function removeOrionVault(address vault) external;
 

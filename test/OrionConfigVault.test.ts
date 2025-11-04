@@ -58,7 +58,11 @@ beforeEach(async function () {
 
   // Deploy OrionConfig
   const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
-  const orionConfigDeployed = await OrionConfigFactory.deploy(owner.address, await underlyingAsset.getAddress());
+  const orionConfigDeployed = await OrionConfigFactory.deploy(
+    owner.address,
+    other.address, // admin
+    await underlyingAsset.getAddress(),
+  );
   await orionConfigDeployed.waitForDeployment();
   orionConfig = orionConfigDeployed as unknown as OrionConfig;
 
@@ -160,14 +164,14 @@ describe("Config", function () {
       const assetAddress = await mockAsset1.getAddress();
 
       expect(await orionConfig.isWhitelisted(assetAddress)).to.equal(true);
-      await expect(orionConfig.removeWhitelistedAsset(assetAddress)).to.not.be.reverted;
+      await expect(orionConfig.connect(other).removeWhitelistedAsset(assetAddress)).to.not.be.reverted;
       expect(await orionConfig.isWhitelisted(assetAddress)).to.equal(false);
     });
 
     it("Should emit WhitelistedAssetRemoved event when removing asset", async function () {
       const assetAddress = await mockAsset1.getAddress();
 
-      await expect(orionConfig.removeWhitelistedAsset(assetAddress))
+      await expect(orionConfig.connect(other).removeWhitelistedAsset(assetAddress))
         .to.emit(orionConfig, "WhitelistedAssetRemoved")
         .withArgs(assetAddress);
     });
@@ -176,7 +180,7 @@ describe("Config", function () {
       const initialCount = await orionConfig.whitelistedAssetsLength();
       expect(initialCount).to.equal(3); // underlying asset + 2 test assets
 
-      await orionConfig.removeWhitelistedAsset(await mockAsset1.getAddress());
+      await orionConfig.connect(other).removeWhitelistedAsset(await mockAsset1.getAddress());
       const finalCount = await orionConfig.whitelistedAssetsLength();
       expect(finalCount).to.equal(2); // underlying asset + 1 test asset
     });
@@ -187,26 +191,27 @@ describe("Config", function () {
       const initialAssets = await orionConfig.getAllWhitelistedAssets();
       expect(initialAssets).to.include(assetAddress);
 
-      await orionConfig.removeWhitelistedAsset(assetAddress);
+      await orionConfig.connect(other).removeWhitelistedAsset(assetAddress);
 
       const finalAssets = await orionConfig.getAllWhitelistedAssets();
       expect(finalAssets).to.not.include(assetAddress);
     });
 
     it("Should revert when trying to remove non-whitelisted asset", async function () {
-      const nonWhitelistedAsset = other.address;
+      const nonWhitelistedAsset = user.address;
 
-      await expect(orionConfig.removeWhitelistedAsset(nonWhitelistedAsset))
+      await expect(orionConfig.connect(other).removeWhitelistedAsset(nonWhitelistedAsset))
         .to.be.revertedWithCustomError(orionConfig, "TokenNotWhitelisted")
         .withArgs(nonWhitelistedAsset);
     });
 
-    it("Should revert when called by non-owner", async function () {
+    it("Should revert when called by non-admin", async function () {
       const assetAddress = await mockAsset1.getAddress();
 
-      await expect(orionConfig.connect(user).removeWhitelistedAsset(assetAddress))
-        .to.be.revertedWithCustomError(orionConfig, "OwnableUnauthorizedAccount")
-        .withArgs(user.address);
+      await expect(orionConfig.connect(user).removeWhitelistedAsset(assetAddress)).to.be.revertedWithCustomError(
+        orionConfig,
+        "UnauthorizedAccess",
+      );
     });
   });
 
@@ -255,6 +260,41 @@ describe("Config", function () {
       const newVaultOwner = other.address;
 
       await expect(orionConfig.connect(user).addWhitelistedVaultOwner(newVaultOwner))
+        .to.be.revertedWithCustomError(orionConfig, "OwnableUnauthorizedAccount")
+        .withArgs(user.address);
+    });
+  });
+
+  describe("removeWhitelistedVaultOwner", function () {
+    it("Should successfully remove a whitelisted vault owner", async function () {
+      const vaultOwnerToRemove = other.address;
+
+      // First, add the vault owner to whitelist
+      await orionConfig.addWhitelistedVaultOwner(vaultOwnerToRemove);
+      expect(await orionConfig.isWhitelistedVaultOwner(vaultOwnerToRemove)).to.equal(true);
+
+      // Remove the vault owner
+      await expect(orionConfig.removeWhitelistedVaultOwner(vaultOwnerToRemove)).to.not.be.reverted;
+      expect(await orionConfig.isWhitelistedVaultOwner(vaultOwnerToRemove)).to.equal(false);
+    });
+
+    it("Should revert when trying to remove non-whitelisted vault owner", async function () {
+      const nonWhitelistedVaultOwner = user.address;
+
+      expect(await orionConfig.isWhitelistedVaultOwner(nonWhitelistedVaultOwner)).to.equal(false);
+      await expect(orionConfig.removeWhitelistedVaultOwner(nonWhitelistedVaultOwner)).to.be.revertedWithCustomError(
+        orionConfig,
+        "InvalidAddress",
+      );
+    });
+
+    it("Should revert when called by non-owner", async function () {
+      const vaultOwnerToRemove = other.address;
+
+      // First, add the vault owner to whitelist
+      await orionConfig.addWhitelistedVaultOwner(vaultOwnerToRemove);
+
+      await expect(orionConfig.connect(user).removeWhitelistedVaultOwner(vaultOwnerToRemove))
         .to.be.revertedWithCustomError(orionConfig, "OwnableUnauthorizedAccount")
         .withArgs(user.address);
     });

@@ -112,17 +112,6 @@ interface IOrionVault is IERC4626 {
         Math.Rounding rounding
     ) external view returns (uint256);
 
-    /// @notice Convert assets to shares with point in time total assets.
-    /// @param assets The amount of assets to convert.
-    /// @param pointInTimeTotalAssets The point in time total assets.
-    /// @param rounding The rounding mode.
-    /// @return The amount of shares.
-    function convertToSharesWithPITTotalAssets(
-        uint256 assets,
-        uint256 pointInTimeTotalAssets,
-        Math.Rounding rounding
-    ) external view returns (uint256);
-
     /// --------- CONFIG FUNCTIONS ---------
 
     /// @notice Remove an asset from the vault whitelist

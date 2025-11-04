@@ -132,7 +132,11 @@ describe("Orchestrators", function () {
     console.log(currentSharePrice3);
 
     const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
-    const orionConfigDeployed = await OrionConfigFactory.deploy(owner.address, await underlyingAsset.getAddress());
+    const orionConfigDeployed = await OrionConfigFactory.deploy(
+      owner.address,
+      user.address, // admin
+      await underlyingAsset.getAddress(),
+    );
     await orionConfigDeployed.waitForDeployment();
     orionConfig = orionConfigDeployed as unknown as OrionConfig;
 
@@ -214,6 +218,9 @@ describe("Orchestrators", function () {
     );
 
     await expect(liquidityOrchestrator.setTargetBufferRatio(100)).to.not.be.reverted;
+
+    // Set minibatch size to a large value to process all vaults in one batch for tests
+    await liquidityOrchestrator.connect(owner).updateMinibatchSize(8);
 
     const OrionAssetERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
       "OrionAssetERC4626ExecutionAdapter",
@@ -575,8 +582,8 @@ describe("Orchestrators", function () {
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Idle
       expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
       void expect(await orionConfig.isSystemIdle()).to.be.true;
-      await expect(orionConfig.removeOrionVault(await hurdleHwmVault.getAddress())).not.to.be.reverted;
-      await expect(orionConfig.removeWhitelistedAsset(await mockAsset1.getAddress())).not.to.be.reverted;
+      await expect(orionConfig.connect(user).removeOrionVault(await hurdleHwmVault.getAddress())).not.to.be.reverted;
+      await expect(orionConfig.connect(user).removeWhitelistedAsset(await mockAsset1.getAddress())).not.to.be.reverted;
 
       const epochDuration = await internalStatesOrchestrator.epochDuration();
       await time.increase(epochDuration + 1n);
@@ -588,7 +595,7 @@ describe("Orchestrators", function () {
       void expect(await orionConfig.isSystemIdle()).to.be.false;
 
       const vaultAddress = await hurdleHwmVault.getAddress();
-      await expect(orionConfig.removeOrionVault(vaultAddress)).to.be.revertedWithCustomError(
+      await expect(orionConfig.connect(user).removeOrionVault(vaultAddress)).to.be.revertedWithCustomError(
         orionConfig,
         "SystemNotIdle",
       );
@@ -606,15 +613,13 @@ describe("Orchestrators", function () {
         ),
       ).to.be.revertedWithCustomError(orionConfig, "SystemNotIdle");
 
-      await expect(orionConfig.removeWhitelistedAsset(await mockAsset1.getAddress())).to.be.revertedWithCustomError(
-        orionConfig,
-        "SystemNotIdle",
-      );
+      await expect(
+        orionConfig.connect(user).removeWhitelistedAsset(await mockAsset1.getAddress()),
+      ).to.be.revertedWithCustomError(orionConfig, "SystemNotIdle");
 
-      await expect(orionConfig.removeOrionVault(await hurdleHwmVault.getAddress())).to.be.revertedWithCustomError(
-        orionConfig,
-        "SystemNotIdle",
-      );
+      await expect(
+        orionConfig.connect(user).removeOrionVault(await hurdleHwmVault.getAddress()),
+      ).to.be.revertedWithCustomError(orionConfig, "SystemNotIdle");
 
       // Test InternalStatesOrchestrator functions
       await expect(internalStatesOrchestrator.updateEpochDuration(3600)).to.be.revertedWithCustomError(
@@ -633,7 +638,7 @@ describe("Orchestrators", function () {
       );
 
       // Test LiquidityOrchestrator functions
-      await expect(liquidityOrchestrator.updateExecutionMinibatchSize(10)).to.be.revertedWithCustomError(
+      await expect(liquidityOrchestrator.updateExecutionMinibatchSize(5)).to.be.revertedWithCustomError(
         liquidityOrchestrator,
         "SystemNotIdle",
       );
@@ -1139,11 +1144,11 @@ describe("Orchestrators", function () {
       [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
       void expect(_upkeepNeeded).to.be.false;
 
-      // Protocol owner injects liquidity to stabilize the protocol and terminate epoch successfully.
+      // Protocol admin injects liquidity to stabilize the protocol and terminate epoch successfully.
       const liquidityInjectionAmount = ethers.parseUnits("170", underlyingDecimals);
-      await underlyingAsset.mint(owner.address, liquidityInjectionAmount);
-      await underlyingAsset.connect(owner).approve(await liquidityOrchestrator.getAddress(), liquidityInjectionAmount);
-      await liquidityOrchestrator.connect(owner).depositLiquidity(liquidityInjectionAmount);
+      await underlyingAsset.mint(user.address, liquidityInjectionAmount);
+      await underlyingAsset.connect(user).approve(await liquidityOrchestrator.getAddress(), liquidityInjectionAmount);
+      await liquidityOrchestrator.connect(user).depositLiquidity(liquidityInjectionAmount);
 
       const liquidityOrchestratorBalanceAfterInjection = await underlyingAsset.balanceOf(
         await liquidityOrchestrator.getAddress(),
@@ -1203,9 +1208,11 @@ describe("Orchestrators", function () {
       expect(liquidityOrchestratorBalanceOfMockAsset2).to.equal(buyingAmounts[1]);
       expect(liquidityOrchestratorBalanceOfMockAsset3).to.equal(buyingAmounts[2]);
 
-      [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
-      void expect(liquidityUpkeepNeeded).to.be.true;
-      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+      while ((await liquidityOrchestrator.currentPhase()) === 3n) {
+        [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+        void expect(liquidityUpkeepNeeded).to.be.true;
+        await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+      }
 
       expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
 
@@ -1518,31 +1525,36 @@ describe("Orchestrators", function () {
         console.log(`Vault ${vaultAddress} total assets: ${vaultsTotalAssets.toString()}`);
       }
 
-      // Calculate expected buffer amount using the same formula as the orchestrator
-      const expectedBufferAmount = (protocolTotalAssets * BigInt(targetBufferRatio)) / BASIS_POINTS_FACTOR;
+      // Calculate target buffer amount using the same formula as the orchestrator
+      const targetBufferAmount = (protocolTotalAssets * BigInt(targetBufferRatio)) / BASIS_POINTS_FACTOR;
+      const deltaBufferAmount = targetBufferAmount - bufferAmountBefore;
 
-      bufferAmountAfter = await internalStatesOrchestrator.bufferAmount();
-      console.log(`Protocol Total Assets: ${protocolTotalAssets.toString()}`);
-      console.log(`Expected Buffer Amount: ${expectedBufferAmount.toString()}`);
-      console.log(`Actual Buffer Amount: ${bufferAmountAfter.toString()}`);
-
-      expect(bufferAmountAfter).to.equal(expectedBufferAmount);
-
-      // Calculate post-buffer total assets per vault (after buffer cost is subtracted)
+      // Calculate actual buffer allocated (sum of floor-divided vault costs, same as orchestrator)
+      let actualBufferAllocated = 0n;
       const postBufferVaultsTotalAssets: bigint[] = [];
-      const deltaBufferAmount = bufferAmountAfter - bufferAmountBefore;
 
       for (let i = 0; i < transparentVaultsEpoch.length; i++) {
         const vaultAddress = transparentVaultsEpoch[i];
         const vaultTotalAssets = vaultsTotalAssetsArray[i];
 
-        // Calculate vault buffer cost proportionally (same logic as orchestrator)
+        // Calculate vault buffer cost proportionally with floor division (same logic as orchestrator)
+        // Using mulDiv equivalent: (deltaBufferAmount * vaultTotalAssets) / protocolTotalAssets
         const vaultBufferCost = (deltaBufferAmount * vaultTotalAssets) / protocolTotalAssets;
         const postBufferTotalAssets = vaultTotalAssets - vaultBufferCost;
 
+        actualBufferAllocated += vaultBufferCost;
         postBufferVaultsTotalAssets.push(postBufferTotalAssets);
         console.log(`Vault ${vaultAddress} post-buffer total assets: ${postBufferTotalAssets.toString()}`);
       }
+
+      bufferAmountAfter = await internalStatesOrchestrator.bufferAmount();
+      console.log(`Protocol Total Assets: ${protocolTotalAssets.toString()}`);
+      console.log(`Target Buffer Amount: ${targetBufferAmount.toString()}`);
+      console.log(`Actual Buffer Allocated: ${actualBufferAllocated.toString()}`);
+      console.log(`Actual Buffer Amount: ${bufferAmountAfter.toString()}`);
+
+      // Buffer amount should equal bufferBefore + actual allocated amount (accounting for rounding)
+      expect(bufferAmountAfter).to.equal(bufferAmountBefore + actualBufferAllocated);
 
       // Process all vaults in postprocessing phase - continue until we reach building orders phase
       while ((await internalStatesOrchestrator.currentPhase()) === 3n) {
@@ -1982,7 +1994,7 @@ describe("Orchestrators", function () {
       // Check and claim protocol fees
       pendingProtocolFees = await internalStatesOrchestrator.pendingProtocolFees();
       if (pendingProtocolFees > 0) {
-        await liquidityOrchestrator.connect(owner).claimProtocolFees(pendingProtocolFees);
+        await liquidityOrchestrator.connect(user).claimProtocolFees(pendingProtocolFees);
       }
 
       // Check and claim curator fees for transparent vault
@@ -2096,9 +2108,11 @@ describe("Orchestrators", function () {
       console.log("Buffer Amount After Rebalancing:", bufferAmountAfterRebalancing.toString());
       expect(bufferAmountAfterRebalancing).to.be.gt(bufferAmountBefore);
 
-      [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
-      void expect(_liquidityUpkeepNeeded).to.be.true;
-      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+      while ((await liquidityOrchestrator.currentPhase()) === 3n) {
+        [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+        void expect(_liquidityUpkeepNeeded).to.be.true;
+        await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+      }
 
       expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
 
@@ -2315,9 +2329,11 @@ describe("Orchestrators", function () {
 
       expect(await liquidityOrchestrator.currentPhase()).to.equal(3); // FulfillDepositAndRedeem
 
-      [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
-      void expect(liquidityUpkeepNeeded).to.be.true;
-      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+      while ((await liquidityOrchestrator.currentPhase()) === 3n) {
+        [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+        void expect(liquidityUpkeepNeeded).to.be.true;
+        await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+      }
       expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
 
       // Check that buffer amount has changed due to market impact
@@ -2358,10 +2374,10 @@ describe("Orchestrators", function () {
       const depositAmount = ethers.parseUnits("1000", underlyingDecimals);
       const bufferAmountBeforeDeposit = await internalStatesOrchestrator.bufferAmount();
 
-      await underlyingAsset.connect(owner).mint(owner.address, depositAmount);
-      await underlyingAsset.connect(owner).approve(await liquidityOrchestrator.getAddress(), depositAmount);
+      await underlyingAsset.mint(user.address, depositAmount);
+      await underlyingAsset.connect(user).approve(await liquidityOrchestrator.getAddress(), depositAmount);
 
-      await liquidityOrchestrator.connect(owner).depositLiquidity(depositAmount);
+      await liquidityOrchestrator.connect(user).depositLiquidity(depositAmount);
 
       // Check that the buffer amount increased by the deposit amount
       const bufferAmountAfterDeposit = await internalStatesOrchestrator.bufferAmount();
@@ -2370,10 +2386,84 @@ describe("Orchestrators", function () {
       const withdrawAmount = ethers.parseUnits("500", underlyingDecimals);
       const bufferAmountBeforeWithdraw = bufferAmountAfterDeposit;
 
-      await liquidityOrchestrator.connect(owner).withdrawLiquidity(withdrawAmount);
+      await liquidityOrchestrator.connect(user).withdrawLiquidity(withdrawAmount);
 
       const bufferAmountAfterWithdraw = await internalStatesOrchestrator.bufferAmount();
       expect(bufferAmountAfterWithdraw).to.equal(bufferAmountBeforeWithdraw - withdrawAmount);
+    });
+
+    it("should revert depositLiquidity when system is not idle", async function () {
+      const epochDuration = await internalStatesOrchestrator.epochDuration();
+
+      // Ensure system is idle first
+      const currentPhase = await internalStatesOrchestrator.currentPhase();
+      if (currentPhase !== 0n) {
+        // Wait for epoch to complete if needed
+        await time.increase(epochDuration + 1n);
+        let [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+        while (_upkeepNeeded) {
+          await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+          [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+        }
+      }
+
+      // Start a new epoch to get system out of idle
+      await time.increase(epochDuration + 1n);
+      const [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+
+      // System should now be in a non-idle phase
+      const phase = await internalStatesOrchestrator.currentPhase();
+      expect(phase).to.not.equal(0);
+
+      const depositAmount = ethers.parseUnits("1000", underlyingDecimals);
+      await underlyingAsset.mint(user.address, depositAmount);
+      await underlyingAsset.connect(user).approve(await liquidityOrchestrator.getAddress(), depositAmount);
+
+      // Should revert with SystemNotIdle
+      await expect(liquidityOrchestrator.connect(user).depositLiquidity(depositAmount)).to.be.revertedWithCustomError(
+        liquidityOrchestrator,
+        "SystemNotIdle",
+      );
+    });
+
+    it("should revert withdrawLiquidity when system is not idle", async function () {
+      const epochDuration = await internalStatesOrchestrator.epochDuration();
+
+      // Ensure system is idle first and has some buffer
+      const currentPhase = await internalStatesOrchestrator.currentPhase();
+      if (currentPhase !== 0n) {
+        // Wait for epoch to complete if needed
+        await time.increase(epochDuration + 1n);
+        let [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+        while (_upkeepNeeded) {
+          await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+          [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+        }
+      }
+
+      // Deposit some liquidity first when idle
+      const depositAmount = ethers.parseUnits("1000", underlyingDecimals);
+      await underlyingAsset.mint(user.address, depositAmount);
+      await underlyingAsset.connect(user).approve(await liquidityOrchestrator.getAddress(), depositAmount);
+      await liquidityOrchestrator.connect(user).depositLiquidity(depositAmount);
+
+      // Start a new epoch to get system out of idle
+      await time.increase(epochDuration + 1n);
+      const [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+
+      // System should now be in a non-idle phase
+      const phase = await internalStatesOrchestrator.currentPhase();
+      expect(phase).to.not.equal(0);
+
+      const withdrawAmount = ethers.parseUnits("500", underlyingDecimals);
+
+      // Should revert with SystemNotIdle
+      await expect(liquidityOrchestrator.connect(user).withdrawLiquidity(withdrawAmount)).to.be.revertedWithCustomError(
+        liquidityOrchestrator,
+        "SystemNotIdle",
+      );
     });
   });
 
@@ -2465,47 +2555,7 @@ describe("Orchestrators", function () {
       return ethers.AbiCoder.defaultAbiCoder().encode(["bytes4", "uint8"], [actionBytes4, minibatchIndex]);
     };
 
-    it("should revert with InvalidState when calling preprocessTV in wrong phase", async function () {
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Idle
-
-      const maliciousData = createMaliciousPerformData("preprocessTV(uint8)", 0);
-
-      await expect(
-        internalStatesOrchestrator.connect(automationRegistry).performUpkeep(maliciousData),
-      ).to.be.revertedWithCustomError(internalStatesOrchestrator, "InvalidState");
-    });
-
-    it("should revert with InvalidState when calling buffer in wrong phase", async function () {
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Idle
-
-      const maliciousData = createMaliciousPerformData("buffer()", 0);
-
-      await expect(
-        internalStatesOrchestrator.connect(automationRegistry).performUpkeep(maliciousData),
-      ).to.be.revertedWithCustomError(internalStatesOrchestrator, "InvalidState");
-    });
-
-    it("should revert with InvalidState when calling postprocessTV in wrong phase", async function () {
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Idle
-
-      const maliciousData = createMaliciousPerformData("postprocessTV(uint8)", 0);
-
-      await expect(
-        internalStatesOrchestrator.connect(automationRegistry).performUpkeep(maliciousData),
-      ).to.be.revertedWithCustomError(internalStatesOrchestrator, "InvalidState");
-    });
-
-    it("should revert with InvalidState when calling buildOrders in wrong phase", async function () {
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Idle
-
-      const maliciousData = createMaliciousPerformData("buildOrders()", 0);
-
-      await expect(
-        internalStatesOrchestrator.connect(automationRegistry).performUpkeep(maliciousData),
-      ).to.be.revertedWithCustomError(internalStatesOrchestrator, "InvalidState");
-    });
-
-    it("should revert with InvalidState when trying to execute phases out of order", async function () {
+    it("should ignore malicious payloads and execute correct action for current phase", async function () {
       const epochDuration = await internalStatesOrchestrator.epochDuration();
       await time.increase(epochDuration + 1n);
 
@@ -2513,51 +2563,16 @@ describe("Orchestrators", function () {
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
 
+      // Malicious payload for buffer() should be ignored - correct action for current phase is executed
       const maliciousData = createMaliciousPerformData("buffer()", 0);
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(maliciousData);
 
-      await expect(
-        internalStatesOrchestrator.connect(automationRegistry).performUpkeep(maliciousData),
-      ).to.be.revertedWithCustomError(internalStatesOrchestrator, "InvalidState");
+      // Should still be in PreprocessingTransparentVaults or progressed to next phase, not buffer phase
+      const currentPhase = await internalStatesOrchestrator.currentPhase();
+      expect(currentPhase).to.not.equal(2); // Not Buffering - malicious payload was ignored
     });
 
-    it("should revert with InvalidState when trying to replay completed phases", async function () {
-      const epochDuration = await internalStatesOrchestrator.epochDuration();
-      await time.increase(epochDuration + 1n);
-
-      let [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
-
-      // Process all vaults in preprocessing phase - continue until we reach buffering phase
-      while ((await internalStatesOrchestrator.currentPhase()) === 1n) {
-        [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-        await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      }
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // Buffering
-
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
-
-      // Process all vaults in postprocessing phase - continue until we reach building orders phase
-      while ((await internalStatesOrchestrator.currentPhase()) === 3n) {
-        [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-        await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      }
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
-
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Back to Idle
-
-      const maliciousData = createMaliciousPerformData("preprocessTV(uint8)", 0);
-
-      await expect(
-        internalStatesOrchestrator.connect(automationRegistry).performUpkeep(maliciousData),
-      ).to.be.revertedWithCustomError(internalStatesOrchestrator, "InvalidState");
-    });
-
-    it("should revert with InvalidState when trying to execute wrong minibatch action in current phase", async function () {
+    it("should ignore malicious payloads and execute correct minibatch action for current phase", async function () {
       const epochDuration = await internalStatesOrchestrator.epochDuration();
       await time.increase(epochDuration + 1n);
 
@@ -2565,11 +2580,13 @@ describe("Orchestrators", function () {
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
 
+      // Malicious payload for buffer() should be ignored - correct action for current phase is executed
       const maliciousData = createMaliciousPerformData("buffer()", 0);
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(maliciousData);
 
-      await expect(
-        internalStatesOrchestrator.connect(automationRegistry).performUpkeep(maliciousData),
-      ).to.be.revertedWithCustomError(internalStatesOrchestrator, "InvalidState");
+      // Should still be in PreprocessingTransparentVaults or progressed to next phase, not buffer phase
+      const currentPhase = await internalStatesOrchestrator.currentPhase();
+      expect(currentPhase).to.not.equal(2); // Not Buffering - malicious payload was ignored
     });
   });
 
@@ -2622,33 +2639,6 @@ describe("Orchestrators", function () {
       expect(await liquidityOrchestrator.currentPhase()).to.equal(2); // No phase change.
     });
 
-    it("should revert with InvalidState when calling processSell(uint8) in wrong phase", async function () {
-      expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
-
-      const maliciousData = createMaliciousLiquidityPerformData("processSell(uint8)", 0);
-      await expect(
-        liquidityOrchestrator.connect(automationRegistry).performUpkeep(maliciousData),
-      ).to.be.revertedWithCustomError(liquidityOrchestrator, "InvalidState");
-    });
-
-    it("should revert with InvalidState when calling processBuy(uint8) in wrong phase", async function () {
-      expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
-
-      const maliciousData = createMaliciousLiquidityPerformData("processBuy(uint8)", 0);
-      await expect(
-        liquidityOrchestrator.connect(automationRegistry).performUpkeep(maliciousData),
-      ).to.be.revertedWithCustomError(liquidityOrchestrator, "InvalidState");
-    });
-
-    it("should revert with InvalidState when calling processFulfillDepositAndRedeem() in wrong phase", async function () {
-      expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
-
-      const maliciousData = createMaliciousLiquidityPerformData("processFulfillDepositAndRedeem()", 0);
-      await expect(
-        liquidityOrchestrator.connect(automationRegistry).performUpkeep(maliciousData),
-      ).to.be.revertedWithCustomError(liquidityOrchestrator, "InvalidState");
-    });
-
     it("should revert with InvalidState when trying to execute phases out of order", async function () {
       const epochDuration = await internalStatesOrchestrator.epochDuration();
       await time.increase(epochDuration + 1n);
@@ -2683,64 +2673,16 @@ describe("Orchestrators", function () {
       await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
       expect(await liquidityOrchestrator.currentPhase()).to.equal(2); // BuyingLeg (skips SellingLeg since no selling tokens)
 
+      // Malicious payload for processSell() should be ignored - correct action for current phase is executed
       const maliciousData = createMaliciousLiquidityPerformData("processSell(uint8)", 0);
-      await expect(
-        liquidityOrchestrator.connect(automationRegistry).performUpkeep(maliciousData),
-      ).to.be.revertedWithCustomError(liquidityOrchestrator, "InvalidState");
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(maliciousData);
+
+      // Should still be in BuyingLeg or progressed to next phase, not SellingLeg
+      const currentPhase = await liquidityOrchestrator.currentPhase();
+      expect(currentPhase).to.not.equal(1); // Not SellingLeg - malicious payload was ignored
     });
 
-    it("should revert with InvalidState when trying to replay completed phases", async function () {
-      const epochDuration = await internalStatesOrchestrator.epochDuration();
-      await time.increase(epochDuration + 1n);
-
-      let [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
-
-      // Process all vaults in preprocessing phase - continue until we reach buffering phase
-      while ((await internalStatesOrchestrator.currentPhase()) === 1n) {
-        [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-        await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      }
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // Buffering
-
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
-
-      // Process all vaults in postprocessing phase - continue until we reach building orders phase
-      while ((await internalStatesOrchestrator.currentPhase()) === 3n) {
-        [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-        await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      }
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
-
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Back to Idle
-
-      let [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
-      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
-      expect(await liquidityOrchestrator.currentPhase()).to.equal(2); // BuyingLeg (skips SellingLeg since no selling tokens)
-
-      while ((await liquidityOrchestrator.currentPhase()) === 2n) {
-        [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
-        await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
-      }
-
-      expect(await liquidityOrchestrator.currentPhase()).to.equal(3); // FulfillDepositAndRedeem
-
-      [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
-      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
-      expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Back to Idle
-
-      const maliciousData = createMaliciousLiquidityPerformData("processBuy(uint8)", 0);
-      await expect(
-        liquidityOrchestrator.connect(automationRegistry).performUpkeep(maliciousData),
-      ).to.be.revertedWithCustomError(liquidityOrchestrator, "InvalidState");
-    });
-
-    it("should revert with InvalidState when trying to execute wrong minibatch action in current phase", async function () {
+    it("should ignore malicious payloads and execute correct minibatch action for current phase", async function () {
       const epochDuration = await internalStatesOrchestrator.epochDuration();
       await time.increase(epochDuration + 1n);
 
@@ -2774,14 +2716,16 @@ describe("Orchestrators", function () {
       await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
       expect(await liquidityOrchestrator.currentPhase()).to.equal(2); // BuyingLeg (skips SellingLeg since no selling tokens)
 
+      // Malicious payload for processFulfillDepositAndRedeem() should be ignored - correct action for current phase is executed
       const maliciousData = createMaliciousLiquidityPerformData("processFulfillDepositAndRedeem()", 0);
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(maliciousData);
 
-      await expect(
-        liquidityOrchestrator.connect(automationRegistry).performUpkeep(maliciousData),
-      ).to.be.revertedWithCustomError(liquidityOrchestrator, "InvalidState");
+      // Should still be in BuyingLeg or progressed to next phase, not FulfillDepositAndRedeem
+      const currentPhase = await liquidityOrchestrator.currentPhase();
+      expect(currentPhase).to.not.equal(3); // Not FulfillDepositAndRedeem - malicious payload was ignored
     });
 
-    it("should revert with InvalidState when trying to execute processSell in BuyingLeg phase", async function () {
+    it("should ignore malicious payloads for processSell in BuyingLeg phase", async function () {
       const epochDuration = await internalStatesOrchestrator.epochDuration();
       await time.increase(epochDuration + 1n);
 
@@ -2815,13 +2759,16 @@ describe("Orchestrators", function () {
       await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
       expect(await liquidityOrchestrator.currentPhase()).to.equal(2); // BuyingLeg (skips SellingLeg since no selling tokens)
 
+      // Malicious payload for processSell() should be ignored - correct action for current phase is executed
       const maliciousData = createMaliciousLiquidityPerformData("processSell(uint8)", 0);
-      await expect(
-        liquidityOrchestrator.connect(automationRegistry).performUpkeep(maliciousData),
-      ).to.be.revertedWithCustomError(liquidityOrchestrator, "InvalidState");
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(maliciousData);
+
+      // Should still be in BuyingLeg or progressed to next phase, not SellingLeg
+      const currentPhase = await liquidityOrchestrator.currentPhase();
+      expect(currentPhase).to.not.equal(1); // Not SellingLeg - malicious payload was ignored
     });
 
-    it("should revert with InvalidState when trying to execute processBuy in FulfillDepositAndRedeem phase", async function () {
+    it("should ignore malicious payloads for processBuy in FulfillDepositAndRedeem phase", async function () {
       const epochDuration = await internalStatesOrchestrator.epochDuration();
       await time.increase(epochDuration + 1n);
 
@@ -2871,10 +2818,13 @@ describe("Orchestrators", function () {
       await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
       expect(await liquidityOrchestrator.currentPhase()).to.equal(3); // FulfillDepositAndRedeem
 
+      // Malicious payload for processBuy() should be ignored - correct action for current phase is executed
       const maliciousData = createMaliciousLiquidityPerformData("processBuy(uint8)", 0);
-      await expect(
-        liquidityOrchestrator.connect(automationRegistry).performUpkeep(maliciousData),
-      ).to.be.revertedWithCustomError(liquidityOrchestrator, "InvalidState");
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(maliciousData);
+
+      // Should still be in FulfillDepositAndRedeem or progressed to next phase, not BuyingLeg
+      const currentPhase = await liquidityOrchestrator.currentPhase();
+      expect(currentPhase).to.not.equal(2); // Not BuyingLeg - malicious payload was ignored
     });
   });
 });

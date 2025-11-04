@@ -27,6 +27,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
  */
 contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrator {
     using Math for uint256;
+    using SafeERC20 for IERC20;
 
     /* -------------------------------------------------------------------------- */
     /*                                 CONTRACTS                                  */
@@ -43,6 +44,9 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     /// @notice Underlying asset address
     address public underlyingAsset;
 
+    /// @notice Admin address from config
+    address public admin;
+
     /// @notice Execution adapters mapping for assets
     mapping(address => IExecutionAdapter) public executionAdapterOf;
 
@@ -56,6 +60,9 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     /// @notice Execution minibatch size
     uint8 public executionMinibatchSize;
 
+    /// @notice Minibatch size for fulfill deposit and redeem processing
+    uint8 public minibatchSize;
+
     /// @notice Upkeep phase
     LiquidityUpkeepPhase public currentPhase;
 
@@ -64,6 +71,16 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
 
     /// @notice Target buffer ratio
     uint256 public targetBufferRatio;
+
+    /// @notice Buy approval multiplier (multiplier for estimated underlying amount when approving adapters)
+    uint8 public buyApprovalMultiplier;
+
+    /// @notice Maximum execution minibatch size
+    uint8 public constant MAX_EXECUTION_MINIBATCH_SIZE = 8;
+    /// @notice Maximum minibatch size
+    uint8 public constant MAX_MINIBATCH_SIZE = 8;
+    /// @notice Maximum buy approval multiplier
+    uint8 public constant MAX_BUY_APPROVAL_MULTIPLIER = 5;
 
     /// @notice Action constants for checkUpkeep and performUpkeep
     bytes4 private constant ACTION_START = bytes4(keccak256("start()"));
@@ -108,6 +125,12 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         _;
     }
 
+    /// @dev Restricts function to only admin from config
+    modifier onlyAdmin() {
+        if (msg.sender != admin) revert ErrorsLib.UnauthorizedAccess();
+        _;
+    }
+
     /// @notice Constructor
     /// @param initialOwner The address of the initial owner
     /// @param config_ The address of the OrionConfig contract
@@ -118,12 +141,15 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
 
         config = IOrionConfig(config_);
         underlyingAsset = address(config.underlyingAsset());
+        admin = config.admin();
 
         automationRegistry = automationRegistry_;
         lastProcessedEpoch = 0;
         currentPhase = LiquidityUpkeepPhase.Idle;
         executionMinibatchSize = 1;
+        minibatchSize = 1;
         currentMinibatchIndex = 0;
+        buyApprovalMultiplier = 2;
     }
 
     /* -------------------------------------------------------------------------- */
@@ -133,8 +159,17 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     /// @inheritdoc ILiquidityOrchestrator
     function updateExecutionMinibatchSize(uint8 _executionMinibatchSize) external onlyOwner {
         if (_executionMinibatchSize == 0) revert ErrorsLib.InvalidArguments();
+        if (_executionMinibatchSize > MAX_EXECUTION_MINIBATCH_SIZE) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         executionMinibatchSize = _executionMinibatchSize;
+    }
+
+    /// @inheritdoc ILiquidityOrchestrator
+    function updateMinibatchSize(uint8 _minibatchSize) external onlyOwner {
+        if (_minibatchSize == 0) revert ErrorsLib.InvalidArguments();
+        if (_minibatchSize > MAX_MINIBATCH_SIZE) revert ErrorsLib.InvalidArguments();
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+        minibatchSize = _minibatchSize;
     }
 
     /// @inheritdoc ILiquidityOrchestrator
@@ -163,21 +198,28 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function depositLiquidity(uint256 amount) external onlyOwner {
+    function updateBuyApprovalMultiplier(uint8 _buyApprovalMultiplier) external onlyOwner {
+        if (_buyApprovalMultiplier == 0) revert ErrorsLib.InvalidArguments();
+        if (_buyApprovalMultiplier > MAX_BUY_APPROVAL_MULTIPLIER) revert ErrorsLib.InvalidArguments();
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+        buyApprovalMultiplier = _buyApprovalMultiplier;
+    }
+
+    /// @inheritdoc ILiquidityOrchestrator
+    function depositLiquidity(uint256 amount) external onlyAdmin {
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
         if (internalStatesOrchestrator.currentPhase() != IInternalStateOrchestrator.InternalUpkeepPhase.Idle)
             revert ErrorsLib.SystemNotIdle();
 
-        // Transfer underlying assets from the owner to this contract
-        bool success = IERC20(underlyingAsset).transferFrom(msg.sender, address(this), amount);
-        if (!success) revert ErrorsLib.TransferFailed();
+        // Transfer underlying assets from the admin to this contract
+        IERC20(underlyingAsset).safeTransferFrom(msg.sender, address(this), amount);
 
         // Update buffer amount in the internal states orchestrator
         internalStatesOrchestrator.updateBufferAmount(int256(amount));
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function withdrawLiquidity(uint256 amount) external onlyOwner {
+    function withdrawLiquidity(uint256 amount) external onlyAdmin {
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
         if (internalStatesOrchestrator.currentPhase() != IInternalStateOrchestrator.InternalUpkeepPhase.Idle)
             revert ErrorsLib.SystemNotIdle();
@@ -192,18 +234,16 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         internalStatesOrchestrator.updateBufferAmount(-int256(amount));
 
         // Transfer underlying assets to the owner
-        bool success = IERC20(underlyingAsset).transfer(msg.sender, amount);
-        if (!success) revert ErrorsLib.TransferFailed();
+        IERC20(underlyingAsset).safeTransfer(msg.sender, amount);
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function claimProtocolFees(uint256 amount) external onlyOwner {
+    function claimProtocolFees(uint256 amount) external onlyAdmin {
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
 
         internalStatesOrchestrator.subtractPendingProtocolFees(amount);
 
-        bool success = IERC20(underlyingAsset).transfer(msg.sender, amount);
-        if (!success) revert ErrorsLib.TransferFailed();
+        IERC20(underlyingAsset).safeTransfer(msg.sender, amount);
     }
 
     /* -------------------------------------------------------------------------- */
@@ -228,8 +268,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         // Verify the caller is a registered vault
         if (!config.isOrionVault(msg.sender)) revert ErrorsLib.NotAuthorized();
         // Transfer funds back to the user
-        bool success = IERC20(underlyingAsset).transfer(user, amount);
-        if (!success) revert ErrorsLib.TransferFailed();
+        IERC20(underlyingAsset).safeTransfer(user, amount);
     }
 
     /// @inheritdoc ILiquidityOrchestrator
@@ -241,8 +280,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
 
         // Transfer underlying assets to the vault owner
         address vaultOwner = IOrionVault(vault).vaultOwner();
-        bool success = IERC20(underlyingAsset).transfer(vaultOwner, amount);
-        if (!success) revert ErrorsLib.TransferFailed();
+        IERC20(underlyingAsset).safeTransfer(vaultOwner, amount);
     }
 
     /// @inheritdoc ILiquidityOrchestrator
@@ -252,8 +290,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
 
         // Transfer underlying assets to the user
-        bool success = IERC20(underlyingAsset).transfer(user, amount);
-        if (!success) revert ErrorsLib.TransferFailed();
+        IERC20(underlyingAsset).safeTransfer(user, amount);
     }
 
     /// @inheritdoc ILiquidityOrchestrator
@@ -269,42 +306,34 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
 
     /// @notice Checks if the upkeep is needed
     /// @return upkeepNeeded Whether the upkeep is needed
-    /// @return performData The data to perform the upkeep
+    /// @return performData Empty bytes
     function checkUpkeep(bytes calldata) external view override returns (bool upkeepNeeded, bytes memory performData) {
         if (config.isSystemIdle() && internalStatesOrchestrator.epochCounter() > lastProcessedEpoch) {
             upkeepNeeded = true;
-            performData = abi.encode(ACTION_START, uint8(0));
         } else if (currentPhase == LiquidityUpkeepPhase.SellingLeg) {
             upkeepNeeded = true;
-            performData = abi.encode(ACTION_PROCESS_SELL, currentMinibatchIndex);
         } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
             upkeepNeeded = true;
-            performData = abi.encode(ACTION_PROCESS_BUY, currentMinibatchIndex);
         } else if (currentPhase == LiquidityUpkeepPhase.FulfillDepositAndRedeem) {
             upkeepNeeded = true;
-            performData = abi.encode(ACTION_PROCESS_FULFILL_DEPOSIT_AND_REDEEM, uint8(0));
         } else {
             upkeepNeeded = false;
-            performData = "";
         }
+        performData = "";
     }
 
     /// @notice Performs the upkeep
-    /// @param performData The encoded data containing the action and minibatch index
-    function performUpkeep(bytes calldata performData) external override onlyAuthorizedTrigger nonReentrant {
-        if (performData.length < 5) revert ErrorsLib.InvalidArguments();
-
-        (bytes4 action, uint8 minibatchIndex) = abi.decode(performData, (bytes4, uint8));
-
-        if (action == ACTION_START) {
+    function performUpkeep(bytes calldata) external override onlyAuthorizedTrigger nonReentrant {
+        if (config.isSystemIdle() && internalStatesOrchestrator.epochCounter() > lastProcessedEpoch) {
             _handleStart();
-        } else if (action == ACTION_PROCESS_SELL) {
-            _processMinibatchSell(minibatchIndex);
-        } else if (action == ACTION_PROCESS_BUY) {
-            _processMinibatchBuy(minibatchIndex);
-        } else if (action == ACTION_PROCESS_FULFILL_DEPOSIT_AND_REDEEM) {
+        } else if (currentPhase == LiquidityUpkeepPhase.SellingLeg) {
+            _processMinibatchSell();
+        } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
+            _processMinibatchBuy();
+        } else if (currentPhase == LiquidityUpkeepPhase.FulfillDepositAndRedeem) {
             _processFulfillDepositAndRedeem();
         }
+
         emit EventsLib.PortfolioRebalanced();
     }
 
@@ -348,15 +377,14 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     }
 
     /// @notice Handles the sell action
-    /// @param minibatchIndex The index of the minibatch to process
-    function _processMinibatchSell(uint8 minibatchIndex) internal {
+    function _processMinibatchSell() internal {
         if (currentPhase != LiquidityUpkeepPhase.SellingLeg) {
             revert ErrorsLib.InvalidState();
         }
-        ++currentMinibatchIndex;
 
-        uint16 i0 = minibatchIndex * executionMinibatchSize;
+        uint16 i0 = currentMinibatchIndex * executionMinibatchSize;
         uint16 i1 = i0 + executionMinibatchSize;
+        ++currentMinibatchIndex;
 
         if (i1 > sellingTokens.length || i1 == sellingTokens.length) {
             i1 = uint16(sellingTokens.length);
@@ -373,15 +401,14 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     }
 
     /// @notice Handles the buy action
-    /// @param minibatchIndex The index of the minibatch to process
-    function _processMinibatchBuy(uint8 minibatchIndex) internal {
+    function _processMinibatchBuy() internal {
         if (currentPhase != LiquidityUpkeepPhase.BuyingLeg) {
             revert ErrorsLib.InvalidState();
         }
-        ++currentMinibatchIndex;
 
-        uint16 i0 = minibatchIndex * executionMinibatchSize;
+        uint16 i0 = currentMinibatchIndex * executionMinibatchSize;
         uint16 i1 = i0 + executionMinibatchSize;
+        ++currentMinibatchIndex;
 
         if (i1 > buyingTokens.length || i1 == buyingTokens.length) {
             i1 = uint16(buyingTokens.length);
@@ -410,13 +437,13 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
 
         // Approve adapter to spend shares
-        // slither-disable-next-line unused-return
-        IERC20(asset).approve(address(adapter), 0);
-        // slither-disable-next-line unused-return
-        IERC20(asset).approve(address(adapter), sharesAmount);
+        IERC20(asset).forceApprove(address(adapter), sharesAmount);
 
         // Execute sell through adapter, pull shares from this contract and push underlying assets to it.
         uint256 executionUnderlyingAmount = adapter.sell(asset, sharesAmount);
+
+        // Clean up approval
+        IERC20(asset).forceApprove(address(adapter), 0);
 
         deltaBufferAmount += int256(executionUnderlyingAmount) - int256(estimatedUnderlyingAmount);
     }
@@ -429,15 +456,14 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         IExecutionAdapter adapter = executionAdapterOf[asset];
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
 
-        // Approve adapter to spend underlying assets
-        // slither-disable-next-line unused-return
-        IERC20(underlyingAsset).approve(address(adapter), 0);
-
-        // slither-disable-next-line unused-return
-        IERC20(underlyingAsset).approve(address(adapter), estimatedUnderlyingAmount * 2);
+        // Approve adapter to spend underlying assets (with multiplier for slippage tolerance)
+        IERC20(underlyingAsset).forceApprove(address(adapter), estimatedUnderlyingAmount * buyApprovalMultiplier);
 
         // Execute buy through adapter, pull underlying assets from this contract and push shares to it.
         uint256 executionUnderlyingAmount = adapter.buy(asset, sharesAmount);
+
+        // Clean up approval
+        IERC20(underlyingAsset).forceApprove(address(adapter), 0);
 
         deltaBufferAmount += int256(estimatedUnderlyingAmount) - int256(executionUnderlyingAmount);
     }
@@ -448,11 +474,20 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
             revert ErrorsLib.InvalidState();
         }
 
-        currentPhase = LiquidityUpkeepPhase.Idle;
-
         // Process transparent vaults
         address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
-        for (uint16 i = 0; i < transparentVaults.length; ++i) {
+
+        uint16 i0 = currentMinibatchIndex * minibatchSize;
+        uint16 i1 = i0 + minibatchSize;
+        ++currentMinibatchIndex;
+
+        if (i1 > transparentVaults.length || i1 == transparentVaults.length) {
+            i1 = uint16(transparentVaults.length);
+            currentPhase = LiquidityUpkeepPhase.Idle;
+            currentMinibatchIndex = 0;
+        }
+
+        for (uint16 i = i0; i < i1; ++i) {
             address vault = transparentVaults[i];
             uint256 totalAssetsForDeposit = internalStatesOrchestrator.getVaultTotalAssetsForFulfillDeposit(vault);
             uint256 totalAssetsForRedeem = internalStatesOrchestrator.getVaultTotalAssetsForFulfillRedeem(vault);
@@ -479,12 +514,10 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         uint256 pendingDeposit = vaultContract.pendingDeposit();
         uint256 pendingRedeem = vaultContract.pendingRedeem();
 
-        // Process deposits if pending
         if (pendingDeposit > 0) {
             vaultContract.fulfillDeposit(totalAssetsForDeposit);
         }
 
-        // Process redemptions if pending
         if (pendingRedeem > 0) {
             vaultContract.fulfillRedeem(totalAssetsForRedeem);
         }

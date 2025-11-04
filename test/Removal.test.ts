@@ -73,7 +73,11 @@ describe("Whitelist and Vault Removal Flows", function () {
 
     // Deploy OrionConfig
     const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
-    const orionConfigDeployed = await OrionConfigFactory.deploy(owner.address, await underlyingAsset.getAddress());
+    const orionConfigDeployed = await OrionConfigFactory.deploy(
+      owner.address,
+      user.address, // admin
+      await underlyingAsset.getAddress(),
+    );
     await orionConfigDeployed.waitForDeployment();
     orionConfig = orionConfigDeployed as unknown as OrionConfig;
 
@@ -244,7 +248,7 @@ describe("Whitelist and Vault Removal Flows", function () {
     expect(mockAsset1BalanceBefore + mockAsset2BalanceBefore).to.be.gt(0);
 
     // Step 4: Remove mockAsset1 from whitelist BEFORE processing orchestrators
-    await orionConfig.removeWhitelistedAsset(await mockAsset1.getAddress());
+    await orionConfig.connect(user).removeWhitelistedAsset(await mockAsset1.getAddress());
 
     // Verify the asset is no longer whitelisted
     await expect(await orionConfig.isWhitelisted(await mockAsset1.getAddress())).to.be.false;
@@ -372,7 +376,7 @@ describe("Whitelist and Vault Removal Flows", function () {
     expect(mockAsset1BalanceBefore + mockAsset2BalanceBefore).to.be.gt(0);
 
     // Step 4: Remove mockAsset1 from whitelist BEFORE processing orchestrators
-    await orionConfig.removeWhitelistedAsset(await mockAsset1.getAddress());
+    await orionConfig.connect(user).removeWhitelistedAsset(await mockAsset1.getAddress());
 
     // Verify the asset is no longer whitelisted
     await expect(await orionConfig.isWhitelisted(await mockAsset1.getAddress())).to.be.false;
@@ -504,7 +508,7 @@ describe("Whitelist and Vault Removal Flows", function () {
 
     void expect(await orionConfig.isSystemIdle()).to.be.true;
 
-    await orionConfig.removeOrionVault(await testVault.getAddress());
+    await orionConfig.connect(user).removeOrionVault(await testVault.getAddress());
 
     void expect(await testVault.isDecommissioning()).to.be.true;
     void expect(await orionConfig.isDecommissionedVault(await testVault.getAddress())).to.be.false;
@@ -572,6 +576,11 @@ describe("Whitelist and Vault Removal Flows", function () {
     const initialUserUnderlyingBalance = await underlyingAsset.balanceOf(user.address);
     const initialVaultTotalAssets = await testVault.totalAssets();
 
+    // Calculate share price before redeem
+    const shareDecimals = await testVault.decimals();
+    const oneShare = 10n ** BigInt(shareDecimals);
+    const sharePriceBefore = await testVault.convertToAssets(oneShare);
+
     await testVault.connect(user).redeem(redeemShares, user.address, user.address);
 
     // Verify redemption results
@@ -587,6 +596,10 @@ describe("Whitelist and Vault Removal Flows", function () {
 
     // Check that user shares decreased
     expect(finalUserShares).to.equal(userShares - redeemShares);
+
+    // Verify share price invariant is preserved after redeem
+    const sharePriceAfter = await testVault.convertToAssets(oneShare);
+    expect(sharePriceAfter).to.equal(sharePriceBefore, "Share price should remain unchanged after redeem");
 
     const pendingCuratorFees = await testVault.pendingCuratorFees();
     if (pendingCuratorFees > 0) {

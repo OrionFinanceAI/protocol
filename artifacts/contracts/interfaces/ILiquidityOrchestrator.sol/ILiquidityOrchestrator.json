@@ -202,11 +202,37 @@
       "inputs": [
         {
           "internalType": "uint8",
+          "name": "_buyApprovalMultiplier",
+          "type": "uint8"
+        }
+      ],
+      "name": "updateBuyApprovalMultiplier",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint8",
           "name": "_executionMinibatchSize",
           "type": "uint8"
         }
       ],
       "name": "updateExecutionMinibatchSize",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint8",
+          "name": "_minibatchSize",
+          "type": "uint8"
+        }
+      ],
+      "name": "updateMinibatchSize",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

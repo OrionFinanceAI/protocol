@@ -34,7 +34,11 @@ describe("Orchestrators - zero deposits and zero intents", function () {
     underlyingAsset = underlyingAssetDeployed as unknown as MockUnderlyingAsset;
 
     const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
-    const orionConfigDeployed = await OrionConfigFactory.deploy(owner.address, await underlyingAsset.getAddress());
+    const orionConfigDeployed = await OrionConfigFactory.deploy(
+      owner.address,
+      user.address, // admin
+      await underlyingAsset.getAddress(),
+    );
     await orionConfigDeployed.waitForDeployment();
     orionConfig = orionConfigDeployed as unknown as OrionConfig;
 

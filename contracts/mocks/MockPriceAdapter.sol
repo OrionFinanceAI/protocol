@@ -18,7 +18,7 @@ contract MockPriceAdapter is IPriceAdapter {
     }
 
     /// @inheritdoc IPriceAdapter
-    function validatePriceAdapter(address) external pure returns (bool) {
-        return true;
+    function validatePriceAdapter(address) external pure {
+        // Mock adapter always validates successfully
     }
 }

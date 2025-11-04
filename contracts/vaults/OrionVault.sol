@@ -78,6 +78,8 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
     /// @notice Share token decimals
     uint8 public constant SHARE_DECIMALS = 18;
+    /// @notice Maximum number of requests to process per fulfill call
+    uint16 public constant MAX_FULFILL_BATCH_SIZE = 150;
 
     /* -------------------------------------------------------------------------- */
     /*                               CURATOR FEES                                 */
@@ -291,13 +293,34 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         return shares.mulDiv(pointInTimeTotalAssets + 1, totalSupply() + 10 ** _decimalsOffset(), rounding);
     }
 
-    /// @inheritdoc IOrionVault
-    function convertToSharesWithPITTotalAssets(
+    /// @notice Internal version that uses a snapshot of totalSupply for batch processing
+    /// @param assets The assets to convert
+    /// @param pointInTimeTotalAssets The point-in-time total assets
+    /// @param snapshotTotalSupply The snapshot of totalSupply at batch start
+    /// @param rounding The rounding mode
+    /// @return The shares equivalent to the assets
+    function _convertToSharesWithPITTotalAssets(
         uint256 assets,
         uint256 pointInTimeTotalAssets,
+        uint256 snapshotTotalSupply,
         Math.Rounding rounding
-    ) public view returns (uint256) {
-        return assets.mulDiv(totalSupply() + 10 ** _decimalsOffset(), pointInTimeTotalAssets + 1, rounding);
+    ) internal view returns (uint256) {
+        return assets.mulDiv(snapshotTotalSupply + 10 ** _decimalsOffset(), pointInTimeTotalAssets + 1, rounding);
+    }
+
+    /// @notice Internal version that uses a snapshot of totalSupply for batch processing
+    /// @param shares The shares to convert
+    /// @param pointInTimeTotalAssets The point-in-time total assets
+    /// @param snapshotTotalSupply The snapshot of totalSupply at batch start
+    /// @param rounding The rounding mode
+    /// @return The assets equivalent to the shares
+    function _convertToAssetsWithPITTotalAssets(
+        uint256 shares,
+        uint256 pointInTimeTotalAssets,
+        uint256 snapshotTotalSupply,
+        Math.Rounding rounding
+    ) internal view returns (uint256) {
+        return shares.mulDiv(pointInTimeTotalAssets + 1, snapshotTotalSupply + 10 ** _decimalsOffset(), rounding);
     }
 
     /// --------- CONFIG FUNCTIONS ---------
@@ -338,10 +361,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         (, uint256 currentAmount) = _depositRequests.tryGet(msg.sender);
         if (currentAmount < amount) revert ErrorsLib.InsufficientAmount();
 
-        // Interactions - request funds from liquidity orchestrator
-        liquidityOrchestrator.returnDepositFunds(msg.sender, amount);
-
-        // Effects - update internal state
+        // Update internal state
         uint256 newAmount = currentAmount - amount;
         if (newAmount == 0) {
             // slither-disable-next-line unused-return
@@ -351,6 +371,9 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
             _depositRequests.set(msg.sender, newAmount);
         }
         _pendingDeposit -= amount;
+
+        // Request funds from liquidity orchestrator
+        liquidityOrchestrator.returnDepositFunds(msg.sender, amount);
 
         emit DepositRequestCancelled(msg.sender, amount);
     }
@@ -552,32 +575,35 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
             return;
         }
 
-        // Collect all requests first to avoid index shifting issues when removing during iteration
-        address[] memory users = new address[](length);
-        uint256[] memory amounts = new uint256[](length);
-
-        for (uint32 i = 0; i < length; ++i) {
-            (address user, uint256 amount) = _depositRequests.at(i);
-            users[i] = user;
-            amounts[i] = amount;
-        }
-
-        _pendingDeposit = 0;
+        // Process requests in batches (up to MAX_FULFILL_BATCH_SIZE per epoch)
+        uint16 batchSize = length > MAX_FULFILL_BATCH_SIZE ? MAX_FULFILL_BATCH_SIZE : uint16(length);
         uint16 currentEpoch = internalStatesOrchestrator.epochCounter();
 
-        // Process all requests
-        for (uint32 i = 0; i < length; ++i) {
-            address user = users[i];
-            uint256 amount = amounts[i];
+        // Capture totalSupply snapshot to ensure consistent pricing for all users in this batch
+        uint256 snapshotTotalSupply = totalSupply();
+
+        // Process requests in batch
+        uint256 processedAmount = 0;
+        for (uint16 i = 0; i < batchSize; ++i) {
+            // Get request by index (index 0 since we remove as we go)
+            (address user, uint256 amount) = _depositRequests.at(0);
 
             // slither-disable-next-line unused-return
             _depositRequests.remove(user);
 
-            uint256 shares = convertToSharesWithPITTotalAssets(amount, depositTotalAssets, Math.Rounding.Floor);
+            uint256 shares = _convertToSharesWithPITTotalAssets(
+                amount,
+                depositTotalAssets,
+                snapshotTotalSupply,
+                Math.Rounding.Floor
+            );
             _mint(user, shares);
+            processedAmount += amount;
 
             emit Deposit(address(this), user, currentEpoch, amount, shares);
         }
+
+        _pendingDeposit -= processedAmount;
     }
 
     /// @inheritdoc IOrionVault
@@ -587,38 +613,37 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
             return;
         }
 
-        // Collect all requests first to avoid index shifting issues when removing during iteration
-        address[] memory users = new address[](length);
-        uint256[] memory sharesArray = new uint256[](length);
-
-        for (uint32 i = 0; i < length; ++i) {
-            (address user, uint256 shares) = _redeemRequests.at(i);
-            users[i] = user;
-            sharesArray[i] = shares;
-        }
-
-        _pendingRedeem = 0;
+        // Process requests in batches (up to MAX_FULFILL_BATCH_SIZE per epoch)
+        uint16 batchSize = length > MAX_FULFILL_BATCH_SIZE ? MAX_FULFILL_BATCH_SIZE : uint16(length);
         uint16 currentEpoch = internalStatesOrchestrator.epochCounter();
 
-        // Process all requests
-        for (uint32 i = 0; i < length; ++i) {
-            address user = users[i];
-            uint256 shares = sharesArray[i];
+        // Capture totalSupply snapshot to ensure consistent pricing for all users in this batch
+        uint256 snapshotTotalSupply = totalSupply();
+
+        // Process requests in batch
+        uint256 processedShares = 0;
+        for (uint16 i = 0; i < batchSize; ++i) {
+            // Get request by index (index 0 since we remove as we go)
+            (address user, uint256 shares) = _redeemRequests.at(0);
 
             // slither-disable-next-line unused-return
             _redeemRequests.remove(user);
 
-            uint256 underlyingAmount = convertToAssetsWithPITTotalAssets(
+            uint256 underlyingAmount = _convertToAssetsWithPITTotalAssets(
                 shares,
                 redeemTotalAssets,
+                snapshotTotalSupply,
                 Math.Rounding.Floor
             );
             _burn(address(this), shares);
+            processedShares += shares;
 
             // Transfer underlying assets from liquidity orchestrator to the user
             liquidityOrchestrator.transferRedemptionFunds(user, underlyingAmount);
 
             emit Redeem(address(this), user, currentEpoch, underlyingAmount, shares);
         }
+
+        _pendingRedeem -= processedShares;
     }
 }

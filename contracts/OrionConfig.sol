@@ -29,6 +29,9 @@ import "./interfaces/IInternalStateOrchestrator.sol";
  * @author Orion Finance
  */
 contract OrionConfig is Ownable, IOrionConfig {
+    /// @notice Admin address (immutable, set at construction)
+    address public immutable admin;
+
     /// @notice Underlying asset address
     IERC20 public underlyingAsset;
     /// @notice Address of the internal states orchestrator
@@ -46,6 +49,8 @@ contract OrionConfig is Ownable, IOrionConfig {
     uint8 public priceAdapterDecimals;
     /// @notice Risk-free rate in basis points. Same decimals as BASIS_POINTS_FACTOR
     uint16 public riskFreeRate;
+    /// @notice Maximum risk-free rate (8% = 800)
+    uint16 public constant MAX_RISK_FREE_RATE = 800;
 
     // Vault-specific configuration
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -61,19 +66,32 @@ contract OrionConfig is Ownable, IOrionConfig {
     EnumerableSet.AddressSet private decommissioningInProgressVaults;
     EnumerableSet.AddressSet private decommissionedVaults;
 
+    modifier onlyAdmin() {
+        if (msg.sender != admin) revert ErrorsLib.UnauthorizedAccess();
+        _;
+    }
+
     modifier onlyFactories() {
         if (msg.sender != transparentVaultFactory) revert ErrorsLib.UnauthorizedAccess();
         _;
     }
 
+    modifier onlyLiquidityOrchestrator() {
+        if (msg.sender != liquidityOrchestrator) revert ErrorsLib.NotAuthorized();
+        _;
+    }
+
     /// @notice The constructor sets the underlying asset for the protocol
     /// @param initialOwner The address that will own this contract
+    /// @param admin_ The address that will have admin privileges
     /// @param underlyingAsset_ The address of the underlying asset contract
     /// @dev The underlying asset is automatically added to the investment universe whitelist because:
     /// @dev - Curators may decide to be underleveraged in their active positions;
     /// @dev - removeWhitelistedAsset could trigger forced liquidations.
-    constructor(address initialOwner, address underlyingAsset_) Ownable(initialOwner) {
+    constructor(address initialOwner, address admin_, address underlyingAsset_) Ownable(initialOwner) {
+        if (admin_ == address(0)) revert ErrorsLib.ZeroAddress();
         if (underlyingAsset_ == address(0)) revert ErrorsLib.ZeroAddress();
+        admin = admin_;
         underlyingAsset = IERC20(underlyingAsset_);
 
         curatorIntentDecimals = 9; // 9 for uint32
@@ -123,6 +141,7 @@ contract OrionConfig is Ownable, IOrionConfig {
     /// @inheritdoc IOrionConfig
     function setProtocolRiskFreeRate(uint16 _riskFreeRate) external onlyOwner {
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+        if (_riskFreeRate > MAX_RISK_FREE_RATE) revert ErrorsLib.InvalidArguments();
 
         riskFreeRate = _riskFreeRate;
 
@@ -135,8 +154,9 @@ contract OrionConfig is Ownable, IOrionConfig {
     function addWhitelistedAsset(address asset, address priceAdapter, address executionAdapter) external onlyOwner {
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
-        // slither-disable-next-line unused-return
-        whitelistedAssets.add(asset);
+        // Fail early to avoid owner overwriting adapters of existing asset with malicious ones
+        bool inserted = whitelistedAssets.add(asset);
+        if (!inserted) revert ErrorsLib.AlreadyRegistered();
 
         // Store token decimals
         // Note: Assumes ERC20 decimals are immutable (standard-compliant).
@@ -151,7 +171,7 @@ contract OrionConfig is Ownable, IOrionConfig {
     }
 
     /// @inheritdoc IOrionConfig
-    function removeWhitelistedAsset(address asset) external onlyOwner {
+    function removeWhitelistedAsset(address asset) external onlyAdmin {
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         if (asset == address(underlyingAsset)) revert ErrorsLib.InvalidArguments();
@@ -196,6 +216,14 @@ contract OrionConfig is Ownable, IOrionConfig {
     }
 
     /// @inheritdoc IOrionConfig
+    function removeWhitelistedVaultOwner(address vaultOwner) external onlyOwner {
+        if (!this.isWhitelistedVaultOwner(vaultOwner)) revert ErrorsLib.InvalidAddress();
+
+        bool removed = whitelistedVaultOwners.remove(vaultOwner);
+        if (!removed) revert ErrorsLib.InvalidAddress();
+    }
+
+    /// @inheritdoc IOrionConfig
     function isWhitelistedVaultOwner(address vaultOwner) external view returns (bool) {
         return whitelistedVaultOwners.contains(vaultOwner);
     }
@@ -218,7 +246,7 @@ contract OrionConfig is Ownable, IOrionConfig {
     }
 
     /// @inheritdoc IOrionConfig
-    function removeOrionVault(address vault) external onlyOwner {
+    function removeOrionVault(address vault) external onlyAdmin {
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         if (!this.isOrionVault(vault)) {
@@ -260,8 +288,7 @@ contract OrionConfig is Ownable, IOrionConfig {
     }
 
     /// @inheritdoc IOrionConfig
-    function completeVaultDecommissioning(address vault) external {
-        if (msg.sender != liquidityOrchestrator) revert ErrorsLib.NotAuthorized();
+    function completeVaultDecommissioning(address vault) external onlyLiquidityOrchestrator {
         if (!decommissioningInProgressVaults.contains(vault)) revert ErrorsLib.InvalidAddress();
 
         // Determine vault type and remove from appropriate vault list

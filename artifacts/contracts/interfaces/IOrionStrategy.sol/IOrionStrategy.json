@@ -35,6 +35,31 @@
       "type": "function"
     },
     {
+      "inputs": [],
+      "name": "getStatefulIntent",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "address",
+              "name": "token",
+              "type": "address"
+            },
+            {
+              "internalType": "uint32",
+              "name": "weight",
+              "type": "uint32"
+            }
+          ],
+          "internalType": "struct IOrionTransparentVault.IntentPosition[]",
+          "name": "intent",
+          "type": "tuple[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
       "inputs": [
         {
           "internalType": "address[]",
@@ -44,7 +69,7 @@
       ],
       "name": "validateStrategy",
       "outputs": [],
-      "stateMutability": "view",
+      "stateMutability": "nonpayable",
       "type": "function"
     }
   ],
