@@ -334,6 +334,19 @@
       "type": "function"
     },
     {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "vaultOwner",
+          "type": "address"
+        }
+      ],
+      "name": "removeWhitelistedVaultOwner",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
       "inputs": [],
       "name": "riskFreeRate",
       "outputs": [

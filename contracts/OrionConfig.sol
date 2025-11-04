@@ -211,6 +211,14 @@ contract OrionConfig is Ownable, IOrionConfig {
     }
 
     /// @inheritdoc IOrionConfig
+    function removeWhitelistedVaultOwner(address vaultOwner) external onlyOwner {
+        if (!this.isWhitelistedVaultOwner(vaultOwner)) revert ErrorsLib.InvalidAddress();
+
+        bool removed = whitelistedVaultOwners.remove(vaultOwner);
+        if (!removed) revert ErrorsLib.InvalidAddress();
+    }
+
+    /// @inheritdoc IOrionConfig
     function isWhitelistedVaultOwner(address vaultOwner) external view returns (bool) {
         return whitelistedVaultOwners.contains(vaultOwner);
     }

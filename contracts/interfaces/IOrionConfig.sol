@@ -102,6 +102,11 @@ interface IOrionConfig {
     /// @param vaultOwner The address of the vault owner to whitelist
     function addWhitelistedVaultOwner(address vaultOwner) external;
 
+    /// @notice Removes a vault owner from the whitelist
+    /// @dev Can only be called by the contract owner
+    /// @param vaultOwner The address of the vault owner to remove from whitelist
+    function removeWhitelistedVaultOwner(address vaultOwner) external;
+
     /// @notice Checks if a vault owner is whitelisted
     /// @param vaultOwner The address of the vault owner to check
     /// @return True if the vault owner is whitelisted, false otherwise
