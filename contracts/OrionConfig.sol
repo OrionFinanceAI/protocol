@@ -76,6 +76,11 @@ contract OrionConfig is Ownable, IOrionConfig {
         _;
     }
 
+    modifier onlyLiquidityOrchestrator() {
+        if (msg.sender != liquidityOrchestrator) revert ErrorsLib.NotAuthorized();
+        _;
+    }
+
     /// @notice The constructor sets the underlying asset for the protocol
     /// @param initialOwner The address that will own this contract
     /// @param admin_ The address that will have admin privileges
@@ -283,8 +288,7 @@ contract OrionConfig is Ownable, IOrionConfig {
     }
 
     /// @inheritdoc IOrionConfig
-    function completeVaultDecommissioning(address vault) external {
-        if (msg.sender != liquidityOrchestrator) revert ErrorsLib.NotAuthorized();
+    function completeVaultDecommissioning(address vault) external onlyLiquidityOrchestrator {
         if (!decommissioningInProgressVaults.contains(vault)) revert ErrorsLib.InvalidAddress();
 
         // Determine vault type and remove from appropriate vault list
