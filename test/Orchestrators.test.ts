@@ -219,6 +219,9 @@ describe("Orchestrators", function () {
 
     await expect(liquidityOrchestrator.setTargetBufferRatio(100)).to.not.be.reverted;
 
+    // Set minibatch size to a large value to process all vaults in one batch for tests
+    await liquidityOrchestrator.connect(owner).updateMinibatchSize(8);
+
     const OrionAssetERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
       "OrionAssetERC4626ExecutionAdapter",
     );
@@ -1205,9 +1208,11 @@ describe("Orchestrators", function () {
       expect(liquidityOrchestratorBalanceOfMockAsset2).to.equal(buyingAmounts[1]);
       expect(liquidityOrchestratorBalanceOfMockAsset3).to.equal(buyingAmounts[2]);
 
-      [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
-      void expect(liquidityUpkeepNeeded).to.be.true;
-      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+      while ((await liquidityOrchestrator.currentPhase()) === 3n) {
+        [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+        void expect(liquidityUpkeepNeeded).to.be.true;
+        await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+      }
 
       expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
 
@@ -2098,9 +2103,11 @@ describe("Orchestrators", function () {
       console.log("Buffer Amount After Rebalancing:", bufferAmountAfterRebalancing.toString());
       expect(bufferAmountAfterRebalancing).to.be.gt(bufferAmountBefore);
 
-      [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
-      void expect(_liquidityUpkeepNeeded).to.be.true;
-      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+      while ((await liquidityOrchestrator.currentPhase()) === 3n) {
+        [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+        void expect(_liquidityUpkeepNeeded).to.be.true;
+        await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+      }
 
       expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
 
@@ -2317,9 +2324,11 @@ describe("Orchestrators", function () {
 
       expect(await liquidityOrchestrator.currentPhase()).to.equal(3); // FulfillDepositAndRedeem
 
-      [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
-      void expect(liquidityUpkeepNeeded).to.be.true;
-      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+      while ((await liquidityOrchestrator.currentPhase()) === 3n) {
+        [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+        void expect(liquidityUpkeepNeeded).to.be.true;
+        await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+      }
       expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
 
       // Check that buffer amount has changed due to market impact
@@ -2732,8 +2741,10 @@ describe("Orchestrators", function () {
 
       expect(await liquidityOrchestrator.currentPhase()).to.equal(3); // FulfillDepositAndRedeem
 
-      [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
-      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+      while ((await liquidityOrchestrator.currentPhase()) === 3n) {
+        [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+        await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+      }
       expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Back to Idle
 
       const maliciousData = createMaliciousLiquidityPerformData("processBuy(uint8)", 0);

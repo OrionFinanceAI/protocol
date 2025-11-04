@@ -59,6 +59,9 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     /// @notice Execution minibatch size
     uint8 public executionMinibatchSize;
 
+    /// @notice Minibatch size for fulfill deposit and redeem processing
+    uint8 public minibatchSize;
+
     /// @notice Upkeep phase
     LiquidityUpkeepPhase public currentPhase;
 
@@ -70,6 +73,8 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
 
     /// @notice Maximum execution minibatch size
     uint8 public constant MAX_EXECUTION_MINIBATCH_SIZE = 8;
+    /// @notice Maximum minibatch size
+    uint8 public constant MAX_MINIBATCH_SIZE = 8;
 
     /// @notice Action constants for checkUpkeep and performUpkeep
     bytes4 private constant ACTION_START = bytes4(keccak256("start()"));
@@ -136,6 +141,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         lastProcessedEpoch = 0;
         currentPhase = LiquidityUpkeepPhase.Idle;
         executionMinibatchSize = 1;
+        minibatchSize = 1;
         currentMinibatchIndex = 0;
     }
 
@@ -149,6 +155,14 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         if (_executionMinibatchSize > MAX_EXECUTION_MINIBATCH_SIZE) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         executionMinibatchSize = _executionMinibatchSize;
+    }
+
+    /// @inheritdoc ILiquidityOrchestrator
+    function updateMinibatchSize(uint8 _minibatchSize) external onlyOwner {
+        if (_minibatchSize == 0) revert ErrorsLib.InvalidArguments();
+        if (_minibatchSize > MAX_MINIBATCH_SIZE) revert ErrorsLib.InvalidArguments();
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+        minibatchSize = _minibatchSize;
     }
 
     /// @inheritdoc ILiquidityOrchestrator
@@ -296,7 +310,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
             performData = abi.encode(ACTION_PROCESS_BUY, currentMinibatchIndex);
         } else if (currentPhase == LiquidityUpkeepPhase.FulfillDepositAndRedeem) {
             upkeepNeeded = true;
-            performData = abi.encode(ACTION_PROCESS_FULFILL_DEPOSIT_AND_REDEEM, uint8(0));
+            performData = abi.encode(ACTION_PROCESS_FULFILL_DEPOSIT_AND_REDEEM, currentMinibatchIndex);
         } else {
             upkeepNeeded = false;
             performData = "";
@@ -317,7 +331,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         } else if (action == ACTION_PROCESS_BUY) {
             _processMinibatchBuy(minibatchIndex);
         } else if (action == ACTION_PROCESS_FULFILL_DEPOSIT_AND_REDEEM) {
-            _processFulfillDepositAndRedeem();
+            _processFulfillDepositAndRedeem(minibatchIndex);
         }
         emit EventsLib.PortfolioRebalanced();
     }
@@ -457,16 +471,26 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     }
 
     /// @notice Handles the fulfill deposit and redeem actions
-    function _processFulfillDepositAndRedeem() internal {
+    /// @param minibatchIndex The index of the minibatch to process
+    function _processFulfillDepositAndRedeem(uint8 minibatchIndex) internal {
         if (currentPhase != LiquidityUpkeepPhase.FulfillDepositAndRedeem) {
             revert ErrorsLib.InvalidState();
         }
-
-        currentPhase = LiquidityUpkeepPhase.Idle;
+        ++currentMinibatchIndex;
 
         // Process transparent vaults
         address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
-        for (uint16 i = 0; i < transparentVaults.length; ++i) {
+
+        uint16 i0 = minibatchIndex * minibatchSize;
+        uint16 i1 = i0 + minibatchSize;
+
+        if (i1 > transparentVaults.length || i1 == transparentVaults.length) {
+            i1 = uint16(transparentVaults.length);
+            currentPhase = LiquidityUpkeepPhase.Idle;
+            currentMinibatchIndex = 0;
+        }
+
+        for (uint16 i = i0; i < i1; ++i) {
             address vault = transparentVaults[i];
             uint256 totalAssetsForDeposit = internalStatesOrchestrator.getVaultTotalAssetsForFulfillDeposit(vault);
             uint256 totalAssetsForRedeem = internalStatesOrchestrator.getVaultTotalAssetsForFulfillRedeem(vault);
