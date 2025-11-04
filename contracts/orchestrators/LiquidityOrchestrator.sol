@@ -68,6 +68,9 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     /// @notice Target buffer ratio
     uint256 public targetBufferRatio;
 
+    /// @notice Maximum execution minibatch size
+    uint8 public constant MAX_EXECUTION_MINIBATCH_SIZE = 8;
+
     /// @notice Action constants for checkUpkeep and performUpkeep
     bytes4 private constant ACTION_START = bytes4(keccak256("start()"));
     bytes4 private constant ACTION_PROCESS_SELL = bytes4(keccak256("processSell(uint8)"));
@@ -143,6 +146,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     /// @inheritdoc ILiquidityOrchestrator
     function updateExecutionMinibatchSize(uint8 _executionMinibatchSize) external onlyOwner {
         if (_executionMinibatchSize == 0) revert ErrorsLib.InvalidArguments();
+        if (_executionMinibatchSize > MAX_EXECUTION_MINIBATCH_SIZE) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         executionMinibatchSize = _executionMinibatchSize;
     }

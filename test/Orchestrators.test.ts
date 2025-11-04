@@ -635,7 +635,7 @@ describe("Orchestrators", function () {
       );
 
       // Test LiquidityOrchestrator functions
-      await expect(liquidityOrchestrator.updateExecutionMinibatchSize(10)).to.be.revertedWithCustomError(
+      await expect(liquidityOrchestrator.updateExecutionMinibatchSize(5)).to.be.revertedWithCustomError(
         liquidityOrchestrator,
         "SystemNotIdle",
       );

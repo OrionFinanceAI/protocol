@@ -122,6 +122,8 @@ interface IOrionConfig {
     /// @dev Callable exclusively by the contract owner. This action does not destroy the vault itself;
     /// @dev it merely disconnects the vault from the protocol, which causes the share price to stale
     /// @dev and renders curator intents inactive.
+    /// @dev The vault remains in both active and decommissioning states, allowing orchestrators to process
+    /// @dev it one last time to liquidate all positions before final removal.
     /// @param vault The address of the vault to be removed from the registry
     function removeOrionVault(address vault) external;
 

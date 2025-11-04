@@ -63,6 +63,8 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
 
     /// @notice Basis points factor
     uint16 public constant BASIS_POINTS_FACTOR = 10_000;
+    /// @notice Maximum transparent minibatch size
+    uint8 public constant MAX_TRANSPARENT_MINIBATCH_SIZE = 8;
 
     /// @notice Action constants for checkUpkeep and performUpkeep
     bytes4 private constant ACTION_START = bytes4(keccak256("start()"));
@@ -193,6 +195,7 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
     /// @inheritdoc IInternalStateOrchestrator
     function updateMinibatchSize(uint8 _transparentMinibatchSize) external onlyOwner {
         if (_transparentMinibatchSize == 0) revert ErrorsLib.InvalidArguments();
+        if (_transparentMinibatchSize > MAX_TRANSPARENT_MINIBATCH_SIZE) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         transparentMinibatchSize = _transparentMinibatchSize;
