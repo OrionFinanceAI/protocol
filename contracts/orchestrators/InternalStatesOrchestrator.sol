@@ -65,6 +65,8 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
     uint16 public constant BASIS_POINTS_FACTOR = 10_000;
     /// @notice Maximum transparent minibatch size
     uint8 public constant MAX_TRANSPARENT_MINIBATCH_SIZE = 8;
+    /// @notice Maximum epoch duration (2 weeks = 14 days)
+    uint32 public constant MAX_EPOCH_DURATION = 14 days;
 
     /// @notice Action constants for checkUpkeep and performUpkeep
     bytes4 private constant ACTION_START = bytes4(keccak256("start()"));
@@ -186,10 +188,11 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
     /// @inheritdoc IInternalStateOrchestrator
     function updateEpochDuration(uint32 newEpochDuration) external onlyOwner {
         if (newEpochDuration == 0) revert ErrorsLib.InvalidArguments();
+        if (newEpochDuration > MAX_EPOCH_DURATION) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         epochDuration = newEpochDuration;
-        _nextUpdateTime = block.timestamp + epochDuration;
+        _nextUpdateTime = Math.min(block.timestamp + epochDuration, _nextUpdateTime);
     }
 
     /// @inheritdoc IInternalStateOrchestrator
