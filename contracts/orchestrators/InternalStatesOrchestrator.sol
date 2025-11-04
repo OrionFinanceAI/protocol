@@ -625,18 +625,30 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
             if (sellingAmount > 0) {
                 sellingTokens[sellingIndex] = token;
                 sellingAmounts[sellingIndex] = sellingAmount;
-                sellingEstimatedUnderlyingAmounts[sellingIndex] = sellingAmount.mulDiv(
+                // Convert estimated amount from token decimals to underlying decimals
+                uint256 rawEstimatedAmount = sellingAmount.mulDiv(
                     _currentEpoch.priceArray[token],
                     priceAdapterPrecision
+                );
+                sellingEstimatedUnderlyingAmounts[sellingIndex] = UtilitiesLib.convertDecimals(
+                    rawEstimatedAmount,
+                    config.getTokenDecimals(token),
+                    underlyingDecimals
                 );
                 ++sellingIndex;
             }
             if (buyingAmount > 0) {
                 buyingTokens[buyingIndex] = token;
                 buyingAmounts[buyingIndex] = buyingAmount;
-                buyingEstimatedUnderlyingAmounts[buyingIndex] = buyingAmount.mulDiv(
+                // Convert estimated amount from token decimals to underlying decimals
+                uint256 rawEstimatedAmount = buyingAmount.mulDiv(
                     _currentEpoch.priceArray[token],
                     priceAdapterPrecision
+                );
+                buyingEstimatedUnderlyingAmounts[buyingIndex] = UtilitiesLib.convertDecimals(
+                    rawEstimatedAmount,
+                    config.getTokenDecimals(token),
+                    underlyingDecimals
                 );
                 ++buyingIndex;
             }
