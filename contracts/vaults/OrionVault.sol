@@ -291,13 +291,34 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         return shares.mulDiv(pointInTimeTotalAssets + 1, totalSupply() + 10 ** _decimalsOffset(), rounding);
     }
 
-    /// @inheritdoc IOrionVault
-    function convertToSharesWithPITTotalAssets(
+    /// @notice Internal version that uses a snapshot of totalSupply for batch processing
+    /// @param assets The assets to convert
+    /// @param pointInTimeTotalAssets The point-in-time total assets
+    /// @param snapshotTotalSupply The snapshot of totalSupply at batch start
+    /// @param rounding The rounding mode
+    /// @return The shares equivalent to the assets
+    function _convertToSharesWithPITTotalAssets(
         uint256 assets,
         uint256 pointInTimeTotalAssets,
+        uint256 snapshotTotalSupply,
         Math.Rounding rounding
-    ) public view returns (uint256) {
-        return assets.mulDiv(totalSupply() + 10 ** _decimalsOffset(), pointInTimeTotalAssets + 1, rounding);
+    ) internal view returns (uint256) {
+        return assets.mulDiv(snapshotTotalSupply + 10 ** _decimalsOffset(), pointInTimeTotalAssets + 1, rounding);
+    }
+
+    /// @notice Internal version that uses a snapshot of totalSupply for batch processing
+    /// @param shares The shares to convert
+    /// @param pointInTimeTotalAssets The point-in-time total assets
+    /// @param snapshotTotalSupply The snapshot of totalSupply at batch start
+    /// @param rounding The rounding mode
+    /// @return The assets equivalent to the shares
+    function _convertToAssetsWithPITTotalAssets(
+        uint256 shares,
+        uint256 pointInTimeTotalAssets,
+        uint256 snapshotTotalSupply,
+        Math.Rounding rounding
+    ) internal view returns (uint256) {
+        return shares.mulDiv(pointInTimeTotalAssets + 1, snapshotTotalSupply + 10 ** _decimalsOffset(), rounding);
     }
 
     /// --------- CONFIG FUNCTIONS ---------
@@ -565,6 +586,9 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         _pendingDeposit = 0;
         uint16 currentEpoch = internalStatesOrchestrator.epochCounter();
 
+        // Capture totalSupply snapshot to ensure consistent pricing for all users in this batch
+        uint256 snapshotTotalSupply = totalSupply();
+
         // Process all requests
         for (uint32 i = 0; i < length; ++i) {
             address user = users[i];
@@ -573,7 +597,12 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
             // slither-disable-next-line unused-return
             _depositRequests.remove(user);
 
-            uint256 shares = convertToSharesWithPITTotalAssets(amount, depositTotalAssets, Math.Rounding.Floor);
+            uint256 shares = _convertToSharesWithPITTotalAssets(
+                amount,
+                depositTotalAssets,
+                snapshotTotalSupply,
+                Math.Rounding.Floor
+            );
             _mint(user, shares);
 
             emit Deposit(address(this), user, currentEpoch, amount, shares);
@@ -600,6 +629,9 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         _pendingRedeem = 0;
         uint16 currentEpoch = internalStatesOrchestrator.epochCounter();
 
+        // Capture totalSupply snapshot to ensure consistent pricing for all users in this batch
+        uint256 snapshotTotalSupply = totalSupply();
+
         // Process all requests
         for (uint32 i = 0; i < length; ++i) {
             address user = users[i];
@@ -608,9 +640,10 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
             // slither-disable-next-line unused-return
             _redeemRequests.remove(user);
 
-            uint256 underlyingAmount = convertToAssetsWithPITTotalAssets(
+            uint256 underlyingAmount = _convertToAssetsWithPITTotalAssets(
                 shares,
                 redeemTotalAssets,
+                snapshotTotalSupply,
                 Math.Rounding.Floor
             );
             _burn(address(this), shares);
