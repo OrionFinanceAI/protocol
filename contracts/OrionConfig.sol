@@ -49,6 +49,8 @@ contract OrionConfig is Ownable, IOrionConfig {
     uint8 public priceAdapterDecimals;
     /// @notice Risk-free rate in basis points. Same decimals as BASIS_POINTS_FACTOR
     uint16 public riskFreeRate;
+    /// @notice Maximum risk-free rate (8% = 800)
+    uint16 public constant MAX_RISK_FREE_RATE = 800;
 
     // Vault-specific configuration
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -134,6 +136,7 @@ contract OrionConfig is Ownable, IOrionConfig {
     /// @inheritdoc IOrionConfig
     function setProtocolRiskFreeRate(uint16 _riskFreeRate) external onlyOwner {
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+        if (_riskFreeRate > MAX_RISK_FREE_RATE) revert ErrorsLib.InvalidArguments();
 
         riskFreeRate = _riskFreeRate;
 
