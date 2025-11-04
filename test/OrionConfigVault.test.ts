@@ -264,6 +264,41 @@ describe("Config", function () {
         .withArgs(user.address);
     });
   });
+
+  describe("removeWhitelistedVaultOwner", function () {
+    it("Should successfully remove a whitelisted vault owner", async function () {
+      const vaultOwnerToRemove = other.address;
+
+      // First, add the vault owner to whitelist
+      await orionConfig.addWhitelistedVaultOwner(vaultOwnerToRemove);
+      expect(await orionConfig.isWhitelistedVaultOwner(vaultOwnerToRemove)).to.equal(true);
+
+      // Remove the vault owner
+      await expect(orionConfig.removeWhitelistedVaultOwner(vaultOwnerToRemove)).to.not.be.reverted;
+      expect(await orionConfig.isWhitelistedVaultOwner(vaultOwnerToRemove)).to.equal(false);
+    });
+
+    it("Should revert when trying to remove non-whitelisted vault owner", async function () {
+      const nonWhitelistedVaultOwner = user.address;
+
+      expect(await orionConfig.isWhitelistedVaultOwner(nonWhitelistedVaultOwner)).to.equal(false);
+      await expect(orionConfig.removeWhitelistedVaultOwner(nonWhitelistedVaultOwner)).to.be.revertedWithCustomError(
+        orionConfig,
+        "InvalidAddress",
+      );
+    });
+
+    it("Should revert when called by non-owner", async function () {
+      const vaultOwnerToRemove = other.address;
+
+      // First, add the vault owner to whitelist
+      await orionConfig.addWhitelistedVaultOwner(vaultOwnerToRemove);
+
+      await expect(orionConfig.connect(user).removeWhitelistedVaultOwner(vaultOwnerToRemove))
+        .to.be.revertedWithCustomError(orionConfig, "OwnableUnauthorizedAccount")
+        .withArgs(user.address);
+    });
+  });
 });
 
 describe("OrionVault - Base Functionality", function () {

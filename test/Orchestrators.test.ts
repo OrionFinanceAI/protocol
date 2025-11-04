@@ -2391,6 +2391,80 @@ describe("Orchestrators", function () {
       const bufferAmountAfterWithdraw = await internalStatesOrchestrator.bufferAmount();
       expect(bufferAmountAfterWithdraw).to.equal(bufferAmountBeforeWithdraw - withdrawAmount);
     });
+
+    it("should revert depositLiquidity when system is not idle", async function () {
+      const epochDuration = await internalStatesOrchestrator.epochDuration();
+
+      // Ensure system is idle first
+      const currentPhase = await internalStatesOrchestrator.currentPhase();
+      if (currentPhase !== 0n) {
+        // Wait for epoch to complete if needed
+        await time.increase(epochDuration + 1n);
+        let [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+        while (_upkeepNeeded) {
+          await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+          [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+        }
+      }
+
+      // Start a new epoch to get system out of idle
+      await time.increase(epochDuration + 1n);
+      const [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+
+      // System should now be in a non-idle phase
+      const phase = await internalStatesOrchestrator.currentPhase();
+      expect(phase).to.not.equal(0);
+
+      const depositAmount = ethers.parseUnits("1000", underlyingDecimals);
+      await underlyingAsset.mint(user.address, depositAmount);
+      await underlyingAsset.connect(user).approve(await liquidityOrchestrator.getAddress(), depositAmount);
+
+      // Should revert with SystemNotIdle
+      await expect(liquidityOrchestrator.connect(user).depositLiquidity(depositAmount)).to.be.revertedWithCustomError(
+        liquidityOrchestrator,
+        "SystemNotIdle",
+      );
+    });
+
+    it("should revert withdrawLiquidity when system is not idle", async function () {
+      const epochDuration = await internalStatesOrchestrator.epochDuration();
+
+      // Ensure system is idle first and has some buffer
+      const currentPhase = await internalStatesOrchestrator.currentPhase();
+      if (currentPhase !== 0n) {
+        // Wait for epoch to complete if needed
+        await time.increase(epochDuration + 1n);
+        let [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+        while (_upkeepNeeded) {
+          await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+          [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+        }
+      }
+
+      // Deposit some liquidity first when idle
+      const depositAmount = ethers.parseUnits("1000", underlyingDecimals);
+      await underlyingAsset.mint(user.address, depositAmount);
+      await underlyingAsset.connect(user).approve(await liquidityOrchestrator.getAddress(), depositAmount);
+      await liquidityOrchestrator.connect(user).depositLiquidity(depositAmount);
+
+      // Start a new epoch to get system out of idle
+      await time.increase(epochDuration + 1n);
+      const [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+
+      // System should now be in a non-idle phase
+      const phase = await internalStatesOrchestrator.currentPhase();
+      expect(phase).to.not.equal(0);
+
+      const withdrawAmount = ethers.parseUnits("500", underlyingDecimals);
+
+      // Should revert with SystemNotIdle
+      await expect(liquidityOrchestrator.connect(user).withdrawLiquidity(withdrawAmount)).to.be.revertedWithCustomError(
+        liquidityOrchestrator,
+        "SystemNotIdle",
+      );
+    });
   });
 
   describe("configuration", function () {
