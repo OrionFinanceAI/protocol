@@ -506,12 +506,10 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
         uint256 pendingDeposit = vaultContract.pendingDeposit();
         uint256 pendingRedeem = vaultContract.pendingRedeem();
 
-        // Process deposits if pending
         if (pendingDeposit > 0) {
             vaultContract.fulfillDeposit(totalAssetsForDeposit);
         }
 
-        // Process redemptions if pending
         if (pendingRedeem > 0) {
             vaultContract.fulfillRedeem(totalAssetsForRedeem);
         }
