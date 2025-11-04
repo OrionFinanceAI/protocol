@@ -204,6 +204,12 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
         address underlyingAsset = this.asset();
 
+        // Ensure underlying asset is always whitelisted for this vault
+        if (!_vaultWhitelistedAssets.contains(underlyingAsset)) {
+            // slither-disable-next-line unused-return
+            _vaultWhitelistedAssets.add(underlyingAsset);
+        }
+
         // Add the weight to the underlying asset
         (bool underlyingExists, uint256 currentUnderlyingWeight) = _portfolioIntent.tryGet(underlyingAsset);
         if (underlyingExists) {
