@@ -47,7 +47,7 @@
  */
 
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
-import { ethers, network } from "hardhat";
+import { ethers } from "hardhat";
 import { expect } from "chai";
 import {
   OrionConfig,
@@ -57,9 +57,8 @@ import {
   OrionTransparentVault,
   PriceAdapterRegistry,
   OrionAssetERC4626PriceAdapter,
-  OrionAssetERC4626ExecutionAdapter
+  OrionAssetERC4626ExecutionAdapter,
 } from "../../typechain-types";
-import { IERC20 } from "../../typechain-types";
 
 describe("Mainnet Fork: removeWhitelistedAsset DoS Test", function () {
   // Test accounts
@@ -76,14 +75,14 @@ describe("Mainnet Fork: removeWhitelistedAsset DoS Test", function () {
   let priceAdapter: OrionAssetERC4626PriceAdapter;
   let executionAdapter: OrionAssetERC4626ExecutionAdapter;
 
-  let vaults: OrionTransparentVault[] = [];
+  const vaults: OrionTransparentVault[] = [];
 
   const MORPHO_VAULTS = {
-    maWETH: "0x490BBbc2485e99989Ba39b34802faFa58e26ABa4",  // Morpho Aave WETH Supply Vault
-    maUSDC: "0xA5269A8e31B93Ff27B887B56720A25F844db0529",  // Morpho Aave USDC Supply Vault (used in tests)
-    maDAI: "0x36F8d0D0573ae92326827C4a82Fe4CE4C244cAb6",   // Morpho Aave DAI Supply Vault
-    maUSDT: "0xAFe7131a57E44f832cb2dE78ade38CaD644aaC2f",  // Morpho Aave USDT Supply Vault
-    maWBTC: "0xd508F85F1511aAeC63434E26aeB6d10bE0188dC7",  // Morpho Aave WBTC Supply Vault
+    maWETH: "0x490BBbc2485e99989Ba39b34802faFa58e26ABa4", // Morpho Aave WETH Supply Vault
+    maUSDC: "0xA5269A8e31B93Ff27B887B56720A25F844db0529", // Morpho Aave USDC Supply Vault (used in tests)
+    maDAI: "0x36F8d0D0573ae92326827C4a82Fe4CE4C244cAb6", // Morpho Aave DAI Supply Vault
+    maUSDT: "0xAFe7131a57E44f832cb2dE78ade38CaD644aaC2f", // Morpho Aave USDT Supply Vault
+    maWBTC: "0xd508F85F1511aAeC63434E26aeB6d10bE0188dC7", // Morpho Aave WBTC Supply Vault
   };
 
   /**
@@ -107,11 +106,7 @@ describe("Mainnet Fork: removeWhitelistedAsset DoS Test", function () {
 
     // ===== 1. Deploy OrionConfig =====
     const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
-    const orionConfigDeployed = await OrionConfigFactory.deploy(
-      owner.address,
-      admin.address,
-      USDC_ADDRESS  
-    );
+    const orionConfigDeployed = await OrionConfigFactory.deploy(owner.address, admin.address, USDC_ADDRESS);
     await orionConfigDeployed.waitForDeployment();
     orionConfig = orionConfigDeployed as unknown as OrionConfig;
     console.log(`✓ OrionConfig deployed at: ${await orionConfig.getAddress()}`);
@@ -119,9 +114,7 @@ describe("Mainnet Fork: removeWhitelistedAsset DoS Test", function () {
     // ===== 2. Deploy TransparentVaultFactory =====
     // Factory contract for creating transparent (non-encrypted) Orion vaults
     const TransparentVaultFactoryFactory = await ethers.getContractFactory("TransparentVaultFactory");
-    const transparentVaultFactoryDeployed = await TransparentVaultFactoryFactory.deploy(
-      await orionConfig.getAddress()
-    );
+    const transparentVaultFactoryDeployed = await TransparentVaultFactoryFactory.deploy(await orionConfig.getAddress());
     await transparentVaultFactoryDeployed.waitForDeployment();
     transparentVaultFactory = transparentVaultFactoryDeployed as unknown as TransparentVaultFactory;
     console.log(`✓ TransparentVaultFactory deployed`);
@@ -131,7 +124,7 @@ describe("Mainnet Fork: removeWhitelistedAsset DoS Test", function () {
     const internalStatesOrchestratorDeployed = await InternalStatesOrchestratorFactory.deploy(
       owner.address,
       await orionConfig.getAddress(),
-      await other.address  // Chainlink keeper address (placeholder)
+      await other.address, // Chainlink keeper address (placeholder)
     );
     await internalStatesOrchestratorDeployed.waitForDeployment();
     internalStatesOrchestrator = internalStatesOrchestratorDeployed as unknown as InternalStatesOrchestrator;
@@ -142,7 +135,7 @@ describe("Mainnet Fork: removeWhitelistedAsset DoS Test", function () {
     const liquidityOrchestratorDeployed = await LiquidityOrchestratorFactory.deploy(
       owner.address,
       await orionConfig.getAddress(),
-      await other.address  // Chainlink keeper address (placeholder)
+      await other.address, // Chainlink keeper address (placeholder)
     );
     await liquidityOrchestratorDeployed.waitForDeployment();
     liquidityOrchestrator = liquidityOrchestratorDeployed as unknown as LiquidityOrchestrator;
@@ -151,7 +144,7 @@ describe("Mainnet Fork: removeWhitelistedAsset DoS Test", function () {
     const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistry");
     const priceAdapterRegistryDeployed = await PriceAdapterRegistryFactory.deploy(
       owner.address,
-      await orionConfig.getAddress()
+      await orionConfig.getAddress(),
     );
     await priceAdapterRegistryDeployed.waitForDeployment();
     priceAdapterRegistry = priceAdapterRegistryDeployed as unknown as PriceAdapterRegistry;
@@ -249,14 +242,12 @@ describe("Mainnet Fork: removeWhitelistedAsset DoS Test", function () {
       const maUSDC = MORPHO_VAULTS.maUSDC;
 
       // Whitelist the vault - REQUIRES OWNER ROLE
-      await orionConfig.connect(owner).addWhitelistedAsset(
-        maUSDC,
-        await priceAdapter.getAddress(),
-        await executionAdapter.getAddress()
-      );
+      await orionConfig
+        .connect(owner)
+        .addWhitelistedAsset(maUSDC, await priceAdapter.getAddress(), await executionAdapter.getAddress());
 
       // Verify it was whitelisted
-      expect(await orionConfig.isWhitelisted(maUSDC)).to.be.true;
+      void expect(await orionConfig.isWhitelisted(maUSDC)).to.be.true;
       console.log(`✓ Whitelisted maUSDC: ${maUSDC}`);
       console.log("Real Morpho vault successfully whitelisted in Orion protocol");
     });
@@ -283,16 +274,14 @@ describe("Mainnet Fork: removeWhitelistedAsset DoS Test", function () {
 
       for (let i = 0; i < numVaults; i++) {
         // Create vault through factory
-        const tx = await transparentVaultFactory
-          .connect(owner)
-          .createVault(
-            curator.address,       // Curator who will manage this vault
-            `Test Vault ${i}`,     // Vault name
-            `TV${i}`,              // Vault symbol
-            0,                     // Fee type
-            0,                     // Performance fee
-            0                      // Management fee
-          );
+        const tx = await transparentVaultFactory.connect(owner).createVault(
+          curator.address, // Curator who will manage this vault
+          `Test Vault ${i}`, // Vault name
+          `TV${i}`, // Vault symbol
+          0, // Fee type
+          0, // Performance fee
+          0, // Management fee
+        );
 
         const receipt = await tx.wait();
 
@@ -312,7 +301,7 @@ describe("Mainnet Fork: removeWhitelistedAsset DoS Test", function () {
         // Get vault contract instance
         const vault = (await ethers.getContractAt(
           "OrionTransparentVault",
-          vaultAddress
+          vaultAddress,
         )) as unknown as OrionTransparentVault;
 
         vaults.push(vault);
@@ -371,8 +360,8 @@ describe("Mainnet Fork: removeWhitelistedAsset DoS Test", function () {
 
       // Calculate gas costs
       const gasUsed = receipt!.gasUsed;
-      const gasPrice = ethers.parseUnits("3", "gwei");  // Current average on Ethereum
-      const ethPrice = 3500;                             // Current ETH price in USD => change as per market conditions
+      const gasPrice = ethers.parseUnits("3", "gwei"); // Current average on Ethereum
+      const ethPrice = 3500; // Current ETH price in USD => change as per market conditions
       const gasCostUSD = Number(ethers.formatEther(gasUsed * gasPrice)) * ethPrice;
 
       console.log(`\n=== Gas Analysis for removeWhitelistedAsset ===`);
@@ -381,12 +370,18 @@ describe("Mainnet Fork: removeWhitelistedAsset DoS Test", function () {
       console.log(`Gas cost (USD): $${gasCostUSD.toFixed(2)}`);
       console.log(`Gas per vault: ${(Number(gasUsed) / vaults.length).toFixed(0)}`);
       console.log(`\nExtrapolated costs:`);
-      console.log(`  50 vaults:  ~${((Number(gasUsed) / vaults.length) * 50 * Number(gasPrice) * ethPrice / 1e9).toFixed(2)} USD`);
-      console.log(`  100 vaults: ~${((Number(gasUsed) / vaults.length) * 100 * Number(gasPrice) * ethPrice / 1e9).toFixed(2)} USD`);
-      console.log(`  200 vaults: ~${((Number(gasUsed) / vaults.length) * 200 * Number(gasPrice) * ethPrice / 1e9).toFixed(2)} USD`);
+      console.log(
+        `  50 vaults:  ~${(((Number(gasUsed) / vaults.length) * 50 * Number(gasPrice) * ethPrice) / 1e9).toFixed(2)} USD`,
+      );
+      console.log(
+        `  100 vaults: ~${(((Number(gasUsed) / vaults.length) * 100 * Number(gasPrice) * ethPrice) / 1e9).toFixed(2)} USD`,
+      );
+      console.log(
+        `  200 vaults: ~${(((Number(gasUsed) / vaults.length) * 200 * Number(gasPrice) * ethPrice) / 1e9).toFixed(2)} USD`,
+      );
 
       // Verify asset was removed
-      expect(await orionConfig.isWhitelisted(maUSDC)).to.be.false;
+      void expect(await orionConfig.isWhitelisted(maUSDC)).to.be.false;
 
       console.log("Gas measurement complete - O(n) linear scaling confirmed");
     });
@@ -430,11 +425,9 @@ describe("Mainnet Fork: removeWhitelistedAsset DoS Test", function () {
       const maUSDC = MORPHO_VAULTS.maUSDC;
 
       // Re-add the asset since it was removed in previous test
-      await orionConfig.connect(owner).addWhitelistedAsset(
-        maUSDC,
-        await priceAdapter.getAddress(),
-        await executionAdapter.getAddress()
-      );
+      await orionConfig
+        .connect(owner)
+        .addWhitelistedAsset(maUSDC, await priceAdapter.getAddress(), await executionAdapter.getAddress());
 
       // Add to all vaults again
       for (const vault of vaults) {
@@ -505,7 +498,7 @@ describe("Mainnet Fork: removeWhitelistedAsset DoS Test", function () {
 
       // Placeholder showing the concept
       const vaultCounts = [1, 5, 10, 20, 50];
-      const results: { vaultCount: number; gasUsed: bigint; gasCostUSD: number }[] = [];
+      // const results: { vaultCount: number; gasUsed: bigint; gasCostUSD: number }[] = [];
 
       for (const count of vaultCounts) {
         console.log(`   Testing with ${count} vaults... (skipped)`);

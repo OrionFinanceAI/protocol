@@ -510,16 +510,15 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     ) internal {
         IOrionVault vaultContract = IOrionVault(vault);
 
-        // Check if vault has pending deposits and redemptions
-        uint256 pendingDeposit = vaultContract.pendingDeposit();
         uint256 pendingRedeem = vaultContract.pendingRedeem();
-
-        if (pendingDeposit > 0) {
-            vaultContract.fulfillDeposit(totalAssetsForDeposit);
-        }
+        uint256 pendingDeposit = vaultContract.pendingDeposit();
 
         if (pendingRedeem > 0) {
             vaultContract.fulfillRedeem(totalAssetsForRedeem);
+        }
+
+        if (pendingDeposit > 0) {
+            vaultContract.fulfillDeposit(totalAssetsForDeposit);
         }
     }
 }

@@ -1583,17 +1583,12 @@ describe("Orchestrators", function () {
         expect(amount).to.be.gt(0);
       }
 
-      // TODO: adjust deposit and redeem to have both buy and sell orders:
       console.log("sellingTokens:", sellingTokens);
       console.log("buyingTokens:", buyingTokens);
       console.log("sellingAmounts:", sellingAmounts);
       console.log("buyingAmounts:", buyingAmounts);
       console.log("sellingEstimatedUnderlyingAmounts:", sellingEstimatedUnderlyingAmounts);
       console.log("buyingEstimatedUnderlyingAmounts:", buyingEstimatedUnderlyingAmounts);
-
-      // ================================================================================================
-      // ASSESS EPOCH STATE DATA - Addressing TODO
-      // ================================================================================================
 
       // Get epoch tokens to assess tokenExists mapping
       const epochTokensForAssessment = await internalStatesOrchestrator.getEpochTokens();
