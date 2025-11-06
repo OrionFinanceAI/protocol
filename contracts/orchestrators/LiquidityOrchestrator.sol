@@ -297,7 +297,7 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
     function withdraw(uint256 assets, address receiver) external nonReentrant {
         if (!config.isDecommissionedVault(msg.sender)) revert ErrorsLib.NotAuthorized();
 
-        SafeERC20.safeTransfer(IERC20(underlyingAsset), receiver, assets);
+        IERC20(underlyingAsset).safeTransfer(receiver, assets);
     }
 
     /* -------------------------------------------------------------------------- */
