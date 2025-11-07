@@ -204,6 +204,10 @@ describe("Redeem Before Deposit Order Verification", function () {
     const expectedAssetsAfterBuffer = ethers.parseUnits("99", UNDERLYING_DECIMALS);
     expect(initialState.totalAssets).to.equal(expectedAssetsAfterBuffer);
     expect(initialState.totalSupply).to.equal(ethers.parseUnits("100", 18)); // 100 shares with 18 decimals
+
+    const balanceOfVault = await vault.balanceOf(initialDepositor.address);
+    const assets = await vault.convertToAssets(balanceOfVault);
+    expect(assets).to.equal(expectedAssetsAfterBuffer);
   });
 
   describe("Fulfillment Order Verification", function () {
