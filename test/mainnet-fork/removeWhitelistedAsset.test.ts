@@ -19,9 +19,8 @@
  *
  * SUCCESSFULLY TESTED:
  * - Real Morpho ERC4626 vaults from mainnet are compatible with Orion protocol
- * - Gas costs scale linearly O(n) with number of vaults (~35k gas per vault)
- * - The unbounded loop in OrionConfig.removeWhitelistedAsset (line 184-188) exists in production
- * - With 5 vaults: 174,047 gas ($2.45 USD at 3 gwei, ETH price is variable, but the gas price came out as expected)
+ * - The unbounded loop in OrionConfig.removeWhitelistedAsset exists in production
+ * - Asset removal functionality works correctly with multiple vaults
  *
  * LIMITATIONS (What we couldn't simulate):
  * - Actual transaction revert scenario (would require malicious vault or breaking invariants)
@@ -39,9 +38,8 @@
  * Test 1: PASSED - Verified 5 real Morpho vaults are ERC4626 compliant
  * Test 2: PASSED - Successfully whitelisted real maUSDC vault
  * Test 3: PASSED - Created 5 Orion vaults with real Morpho assets
- * Test 4: PASSED - Measured gas: 174,047 for 5 vaults ($2.45 USD)
- * Test 5: PASSED - Demonstrated DoS risk pattern with O(n) scaling
- * Test 6: PLACEHOLDER - Scalability test (requires full re-deployment per vault count)
+ * Test 4: PASSED - Asset removal functionality verified
+ * Test 5: PASSED - Demonstrated DoS risk pattern with loop verification
  *
  * @author Orion Finance Security Testing
  */
@@ -317,21 +315,18 @@ describe("Mainnet Fork: removeWhitelistedAsset DoS Test", function () {
 
     /**
      * TEST 4: Verify removeWhitelistedAsset functionality
-     *
-     * NOTE: Gas cost measurement has been moved to protocol-costs/removeWhitelistedAsset.ts
-     * See protocol-costs repo for detailed gas analysis and consumption maps
      */
     it("Should successfully remove whitelisted asset from protocol", async function () {
       const maUSDC = MORPHO_VAULTS.maUSDC;
 
       // Verify asset is currently whitelisted
-      expect(await orionConfig.isWhitelisted(maUSDC)).to.be.true;
+      void expect(await orionConfig.isWhitelisted(maUSDC)).to.be.true;
 
       // Remove asset from protocol - REQUIRES ADMIN ROLE
       await orionConfig.connect(admin).removeWhitelistedAsset(maUSDC);
 
       // Verify asset was removed
-      expect(await orionConfig.isWhitelisted(maUSDC)).to.be.false;
+      void expect(await orionConfig.isWhitelisted(maUSDC)).to.be.false;
 
       console.log(`Successfully removed asset from protocol`);
     });
@@ -372,7 +367,7 @@ describe("Mainnet Fork: removeWhitelistedAsset DoS Test", function () {
       await orionConfig.connect(admin).removeWhitelistedAsset(maUSDC);
 
       // Verify asset was removed from protocol
-      expect(await orionConfig.isWhitelisted(maUSDC)).to.be.false;
+      void expect(await orionConfig.isWhitelisted(maUSDC)).to.be.false;
 
       // Verify asset was removed from all vaults
       for (const vault of vaults) {
