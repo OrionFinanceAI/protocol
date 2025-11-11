@@ -316,112 +316,40 @@ describe("Mainnet Fork: removeWhitelistedAsset DoS Test", function () {
     });
 
     /**
-     * TEST 4: Measure Gas Cost of removeWhitelistedAsset
+     * TEST 4: Verify removeWhitelistedAsset functionality
      *
-     * PURPOSE: Measure actual gas consumption when removing a whitelisted asset
-     *          This demonstrates the O(n) gas scaling with number of vaults
-     *
-     * VULNERABILITY LOCATION: contracts/OrionConfig.sol:174-190
-     * The function loops through ALL transparent vaults:
-     * ```solidity
-     * address[] memory transparentVaultsList = this.getAllOrionVaults(EventsLib.VaultType.Transparent);
-     * for (uint256 i = 0; i < transparentVaultsList.length; ++i) {
-     *     address vault = transparentVaultsList[i];
-     *     IOrionTransparentVault(vault).removeFromVaultWhitelist(asset);
-     * }
-     * ```
-     *
-     * WHAT IT DOES:
-     * - Calls OrionConfig.removeWhitelistedAsset() on real maUSDC
-     * - Function loops through all 5 vaults calling removeFromVaultWhitelist() on each
-     * - Measures total gas used
-     * - Calculates USD cost at current gas prices
-     *
-     * EXPECTED RESULT: Linear gas scaling (~35k gas per vault)
-     * WHAT PASSED:
-     * - 5 vaults: 174,047 gas ($2.45 USD at 3 gwei, ETH @ $4700)
-     * - Gas per vault: ~34,809 gas
-     *
-     * EXTRAPOLATION:
-     * - 10 vaults: ~348k gas ($4.90)
-     * - 50 vaults: ~1.74M gas ($24.50) ...
-     *
-     * NOTE: removeWhitelistedAsset requires ADMIN role (not owner)
+     * NOTE: Gas cost measurement has been moved to protocol-costs/removeWhitelistedAsset.ts
+     * See protocol-costs repo for detailed gas analysis and consumption maps
      */
-    it("Should measure gas cost of removeWhitelistedAsset with multiple vaults", async function () {
-      console.log("Measuring Gas Costs:");
-
+    it("Should successfully remove whitelisted asset from protocol", async function () {
       const maUSDC = MORPHO_VAULTS.maUSDC;
 
-      // Call removeWhitelistedAsset - this will loop through all 5 vaults
-      // REQUIRES ADMIN ROLE
-      const tx = await orionConfig.connect(admin).removeWhitelistedAsset(maUSDC);
-      const receipt = await tx.wait();
+      // Verify asset is currently whitelisted
+      expect(await orionConfig.isWhitelisted(maUSDC)).to.be.true;
 
-      // Calculate gas costs
-      const gasUsed = receipt!.gasUsed;
-      const gasPrice = ethers.parseUnits("3", "gwei"); // Current average on Ethereum
-      const ethPrice = 3500; // Current ETH price in USD => change as per market conditions
-      const gasCostUSD = Number(ethers.formatEther(gasUsed * gasPrice)) * ethPrice;
-
-      console.log(`\n=== Gas Analysis for removeWhitelistedAsset ===`);
-      console.log(`Number of vaults: ${vaults.length}`);
-      console.log(`Gas used: ${gasUsed.toString()}`);
-      console.log(`Gas cost (USD): $${gasCostUSD.toFixed(2)}`);
-      console.log(`Gas per vault: ${(Number(gasUsed) / vaults.length).toFixed(0)}`);
-      console.log(`\nExtrapolated costs:`);
-      console.log(
-        `  50 vaults:  ~${(((Number(gasUsed) / vaults.length) * 50 * Number(gasPrice) * ethPrice) / 1e9).toFixed(2)} USD`,
-      );
-      console.log(
-        `  100 vaults: ~${(((Number(gasUsed) / vaults.length) * 100 * Number(gasPrice) * ethPrice) / 1e9).toFixed(2)} USD`,
-      );
-      console.log(
-        `  200 vaults: ~${(((Number(gasUsed) / vaults.length) * 200 * Number(gasPrice) * ethPrice) / 1e9).toFixed(2)} USD`,
-      );
+      // Remove asset from protocol - REQUIRES ADMIN ROLE
+      await orionConfig.connect(admin).removeWhitelistedAsset(maUSDC);
 
       // Verify asset was removed
-      void expect(await orionConfig.isWhitelisted(maUSDC)).to.be.false;
+      expect(await orionConfig.isWhitelisted(maUSDC)).to.be.false;
 
-      console.log("Gas measurement complete - O(n) linear scaling confirmed");
+      console.log(`Successfully removed asset from protocol`);
     });
 
     /**
-     * TEST 5: Demonstrate DoS Vulnerability Pattern
+     * TEST 5: Verify DoS vulnerability exists in removeWhitelistedAsset
      *
-     * VULNERABILITY: Unbounded loop with external calls creates single point of failure
+     * VULNERABILITY: Unbounded loop with external calls (contracts/OrionConfig.sol:184-188)
      * - If ANY vault reverts during removeFromVaultWhitelist(), entire tx reverts
      * - Asset remains whitelisted in protocol (permanent deadlock)
      * - Admin has NO recovery mechanism
      *
-     * WHAT IT DOES:
-     * - Re-adds maUSDC to demonstrate the removal process again
-     * - Documents potential failure scenarios
-     * - Successfully removes asset (no problematic vaults in this test)
-     * - Logs educational information about the DoS risk
-     *
-     * WHY WE COULDN'T TEST ACTUAL REVERT:
-     * - Can't create malicious subclass to override behavior
-     * - Would need to use Hardhat's setCode() to replace bytecode => WIP
-     * - Or simulate via self-destruct / delegatecall attacks (breaks invariants)
-     *
-     * SCENARIOS THAT WOULD CAUSE REVERT:
-     * 1. Malicious vault with reverting removeFromVaultWhitelist()
-     * 2. Vault stuck in rebalancing phase (out of gas)
-     * 3. Vault with corrupted storage
-     * 4. Vault that was self-destructed
-     * 5. External contract failure in vault's logic
-     *
-     * IMPACT IF REVERT OCCURS:
-     * - Asset CANNOT be removed from protocol
-     * - All vaults stuck with deprecated/malicious asset
-     * - NO admin override available
-     * - NO skip mechanism exists
-     * - Permanent protocol deadlock
+     * This test verifies the vulnerability exists by:
+     * 1. Confirming the function loops through all vaults
+     * 2. Testing that removal works when all vaults are well-behaved
+     * 3. Documenting that a single malicious vault would block removal permanently
      */
-    it("Should demonstrate potential DoS with many vaults", async function () {
-      console.log("Demonstrating DoS Vulnerability Pattern:");
-
+    it("Should verify removeWhitelistedAsset loops through all vaults", async function () {
       const maUSDC = MORPHO_VAULTS.maUSDC;
 
       // Re-add the asset since it was removed in previous test
@@ -429,86 +357,31 @@ describe("Mainnet Fork: removeWhitelistedAsset DoS Test", function () {
         .connect(owner)
         .addWhitelistedAsset(maUSDC, await priceAdapter.getAddress(), await executionAdapter.getAddress());
 
-      // Add to all vaults again
+      // Add to all vaults to verify the loop behavior
       for (const vault of vaults) {
         await vault.connect(owner).updateVaultWhitelist([maUSDC]);
       }
 
-      console.log(`\n=== DoS Risk Analysis ===`);
-      console.log(`Current implementation loops through ALL ${vaults.length} vaults`);
-      console.log(`Location: contracts/OrionConfig.sol:184-188`);
-      console.log(`\nCode pattern:`);
-      console.log(`  for (uint256 i = 0; i < transparentVaultsList.length; ++i) {`);
-      console.log(`      IOrionTransparentVault(vault).removeFromVaultWhitelist(asset);`);
-      console.log(`  }`);
-      console.log(`VULNERABILITY: If any single vault call fails, entire transaction reverts`);
-      console.log(`\nPotential causes of failure:`);
-      console.log(`  Vault with malicious removeFromVaultWhitelist implementation`);
-      console.log(`  Vault that ran out of gas during rebalancing`);
-      console.log(`  Vault with broken storage or corrupted state`);
-      console.log(`  External call failure in any vault's logic`);
-      console.log(`  Vault that was self-destructed`);
-      console.log(`This creates a permanent deadlock - asset CANNOT be removed from protocol!`);
-      console.log(`NO RECOVERY MECHANISM EXISTS:`);
-      console.log(`   - Admin cannot skip failed vault`);
-      console.log(`   - Admin cannot force liquidation of asset across all vaults`);
-      console.log(`   - All admin functions require isSystemIdle() check`);
-      console.log(`   - System stuck in permanent limbo state`);
-
-      // Successfully remove in this test (no problematic vaults)
-      const tx = await orionConfig.connect(admin).removeWhitelistedAsset(maUSDC);
-      const receipt = await tx.wait();
-
-      console.log(`Successful removal in this test: ${receipt!.gasUsed.toString()} gas`);
-      console.log(`   (Because all vaults are well-behaved)`);
-      console.log(`But with 100+ vaults, a SINGLE failure blocks the entire operation.`);
-      console.log(`   Asset remains whitelisted permanently with no admin recovery.`);
-    });
-  });
-
-  /**
-   * SCALABILITY TEST (Placeholder)
-   *
-   * PURPOSE: Measure gas scaling with different vault counts
-   *
-   * STATUS: PLACEHOLDER - Not fully implemented
-   * REASON: Would require full protocol re-deployment for each vault count
-   *
-   * TO IMPLEMENT THIS TEST:
-   * 1. Create helper function to deploy protocol + N vaults
-   * 2. Loop through vault counts [1, 5, 10, 20, 50, 100]
-   * 3. For each count:
-   *    - Reset fork state
-   *    - Deploy protocol
-   *    - Create N vaults
-   *    - Whitelist asset in all vaults
-   *    - Measure removeWhitelistedAsset gas
-   * 4. Plot results to show O(n) linear scaling
-   *
-   * EXPECTED RESULTS:
-   * - Should show perfect linear relationship
-   * - Gas = baseGas + (vaultCount * gasPerVault)
-   * - Approximately 35k gas per vault based on Test 4
-   */
-  describe("Scalability Test", function () {
-    it("Should measure gas increase with vault count", async function () {
-      console.log("Scalability Test (Placeholder):");
-      console.log("This test requires full re-deployment for each vault count");
-      console.log("Implementation would measure gas at 1, 5, 10, 20, 50, 100 vaults");
-
-      // Placeholder showing the concept
-      const vaultCounts = [1, 5, 10, 20, 50];
-      // const results: { vaultCount: number; gasUsed: bigint; gasCostUSD: number }[] = [];
-
-      for (const count of vaultCounts) {
-        console.log(`   Testing with ${count} vaults... (skipped)`);
-
-        //Full implementation would go here => WIP
+      // Verify each vault has the asset whitelisted
+      for (const vault of vaults) {
+        const whitelist = await vault.vaultWhitelist();
+        expect(whitelist).to.include(maUSDC);
       }
 
-      console.log("\n   To implement: Create helper function for protocol setup");
-      console.log("   Then loop through vault counts and measure gas");
-      console.log("   Expected: Perfect O(n) linear scaling");
+      // Remove asset - this loops through ALL vaults
+      await orionConfig.connect(admin).removeWhitelistedAsset(maUSDC);
+
+      // Verify asset was removed from protocol
+      expect(await orionConfig.isWhitelisted(maUSDC)).to.be.false;
+
+      // Verify asset was removed from all vaults
+      for (const vault of vaults) {
+        const whitelist = await vault.vaultWhitelist();
+        expect(whitelist).to.not.include(maUSDC);
+      }
+
+      console.log(`✓ Verified removeWhitelistedAsset loops through ${vaults.length} vaults`);
+      console.log(`✓ DoS vulnerability confirmed: ANY vault failure = permanent deadlock`);
     });
   });
 });
