@@ -263,24 +263,34 @@ describe("Redeem Before Deposit Order Verification", function () {
       const assetsReceived = balanceAfterRedeem - balanceBeforeRedeem;
       console.log(`Redeemer received: ${ethers.formatUnits(assetsReceived, UNDERLYING_DECIMALS)} USDC`);
 
-      // Redeemer should receive ~90 USDC (90% of 100 USDC)
-      expect(assetsReceived).to.be.closeTo(
-        ethers.parseUnits("90", UNDERLYING_DECIMALS),
-        ethers.parseUnits("1", UNDERLYING_DECIMALS),
-      );
+      // Redeemer should receive exactly 89.1 USDC (90 shares * 99 totalAssets / 100 totalSupply)
+      const expectedRedeemed = ethers.parseUnits("89.1", UNDERLYING_DECIMALS);
+      expect(assetsReceived).to.equal(expectedRedeemed);
 
       // Verify deposit was processed (newDepositor received shares)
       const newDepositorShares = await vault.balanceOf(newDepositor.address);
       console.log(`New depositor received: ${ethers.formatUnits(newDepositorShares, 18)} shares`);
-      expect(newDepositorShares).to.be.gt(0);
 
-      // Verify final vault state
-      // Total assets should be: initialAssets (after buffer) - redeemed + deposited
-      // Initial assets after buffer = 99 USDC, redeemed ~89.1 USDC (90% of 99), deposited = 10 USDC
-      const assetsAfterBuffer = ethers.parseUnits("99", UNDERLYING_DECIMALS);
-      const expectedRedeemed = ethers.parseUnits("89.1", UNDERLYING_DECIMALS); // 90% of 99 = 89.1
-      const expectedFinalAssets = assetsAfterBuffer - expectedRedeemed + NEW_DEPOSIT_AMOUNT;
-      expect(finalState.totalAssets).to.be.closeTo(expectedFinalAssets, ethers.parseUnits("0.1", UNDERLYING_DECIMALS));
+      // Calculate exact expected shares for new depositor using PIT totalAssets
+      // After redeem: totalAssets = 99 - 89.1 = 9.9 USDC, totalSupply = 100 - 90 = 10 shares
+      // Formula: shares = assets * (totalSupply + 10^decimalsOffset) / (totalAssets + 1)
+      // With decimalsOffset = 18 - 6 = 12, this is: 10 * (10 + 10^12) / (9.9 + 1)
+      // Due to Solidity's integer division rounding, we need to use the inflation-resistant calculation
+      const decimalsOffset = 12n;
+      const totalSupplyAfterRedeem = ethers.parseUnits("10", 18);
+      const virtualSupply = totalSupplyAfterRedeem + 10n ** decimalsOffset;
+      const virtualAssets = totalAssetsForDeposit + 1n;
+      const expectedNewDepositorShares = (NEW_DEPOSIT_AMOUNT * virtualSupply) / virtualAssets;
+      expect(newDepositorShares).to.equal(expectedNewDepositorShares);
+
+      // Verify final vault state with exact equality
+      // Total assets = 9.9 + 10 = 19.9 USDC exactly
+      const expectedFinalAssets = ethers.parseUnits("19.9", UNDERLYING_DECIMALS);
+      expect(finalState.totalAssets).to.equal(expectedFinalAssets);
+
+      // Total supply = 10 + expectedNewDepositorShares exactly
+      const expectedFinalSupply = totalSupplyAfterRedeem + expectedNewDepositorShares;
+      expect(finalState.totalSupply).to.equal(expectedFinalSupply);
 
       // Verify pending amounts cleared
       expect(finalState.pendingRedeem).to.equal(0);
@@ -316,12 +326,24 @@ describe("Redeem Before Deposit Order Verification", function () {
       const expectedRedeemerAssets = (REDEEM_AMOUNT_SHARES * totalAssetsBefore) / totalSupplyBefore;
       console.log(`Redeemer expected: ${ethers.formatUnits(expectedRedeemerAssets, UNDERLYING_DECIMALS)} USDC`);
       console.log(`Redeemer received: ${ethers.formatUnits(redeemerBalance, UNDERLYING_DECIMALS)} USDC`);
-      expect(redeemerBalance).to.be.closeTo(expectedRedeemerAssets, ethers.parseUnits("1", UNDERLYING_DECIMALS));
+      expect(redeemerBalance).to.equal(expectedRedeemerAssets);
 
       // Verify depositor got fair share count
       const depositorShares = await vault.balanceOf(newDepositor.address);
-      expect(depositorShares).to.be.gt(0);
       console.log(`Depositor received: ${ethers.formatUnits(depositorShares, 18)} shares`);
+
+      // Calculate exact expected depositor shares using PIT totalAssets
+      // After redeem: totalAssets = 99 - 89.1 = 9.9 USDC, totalSupply = 10 shares
+      // Formula: shares = assets * (totalSupply + 10^decimalsOffset) / (totalAssets + 1)
+      // Query the actual totalAssetsForDeposit to match Solidity rounding
+      const vaultAddress = await vault.getAddress();
+      const totalAssetsForDeposit = await internalStatesOrchestrator.getVaultTotalAssetsForFulfillDeposit(vaultAddress);
+      const decimalsOffset = 12n;
+      const totalSupplyAfterRedeem = ethers.parseUnits("10", 18);
+      const virtualSupply = totalSupplyAfterRedeem + 10n ** decimalsOffset;
+      const virtualAssets = totalAssetsForDeposit + 1n;
+      const expectedDepositorShares = (NEW_DEPOSIT_AMOUNT * virtualSupply) / virtualAssets;
+      expect(depositorShares).to.equal(expectedDepositorShares);
 
       // Calculate final share price
       const finalTotalAssets = await vault.totalAssets();
@@ -329,8 +351,8 @@ describe("Redeem Before Deposit Order Verification", function () {
       const finalSharePrice = (finalTotalAssets * ethers.parseUnits("1", 18)) / finalTotalSupply;
       console.log(`Final share price: ${ethers.formatUnits(finalSharePrice, UNDERLYING_DECIMALS)} USDC per share`);
 
-      // Share price should remain approximately stable
-      expect(finalSharePrice).to.be.closeTo(sharePrice, ethers.parseUnits("0.1", UNDERLYING_DECIMALS));
+      // Share price should remain exactly stable (no dilution)
+      expect(finalSharePrice).to.equal(sharePrice);
     });
   });
 
@@ -386,7 +408,10 @@ describe("Redeem Before Deposit Order Verification", function () {
       // Verify redemption processed normally
       const balanceAfter = await underlyingAsset.balanceOf(redeemer.address);
       const assetsReceived = balanceAfter - balanceBefore;
-      expect(assetsReceived).to.be.gt(0);
+
+      // Calculate exact expected redemption: 90 shares * 99 totalAssets / 100 totalSupply = 89.1 USDC
+      const expectedRedeemed = ethers.parseUnits("89.1", UNDERLYING_DECIMALS);
+      expect(assetsReceived).to.equal(expectedRedeemed);
       expect(await vault.pendingRedeem()).to.equal(0);
 
       console.log(
