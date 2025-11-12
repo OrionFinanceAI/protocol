@@ -12,6 +12,8 @@ import "../interfaces/IInternalStateOrchestrator.sol";
 import "../interfaces/ILiquidityOrchestrator.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+
 /**
  * @title OrionVault
  * @notice Modular asset management vault with asynchronous deposits and redemptions
@@ -37,6 +39,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
  */
 abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     using Math for uint256;
+    using SafeERC20 for IERC20;
     using EnumerableMap for EnumerableMap.AddressToUintMap;
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -340,8 +343,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         uint256 senderBalance = IERC20(asset()).balanceOf(msg.sender);
         if (assets > senderBalance) revert ErrorsLib.InsufficientAmount();
 
-        bool success = IERC20(asset()).transferFrom(msg.sender, address(liquidityOrchestrator), assets);
-        if (!success) revert ErrorsLib.TransferFailed();
+        IERC20(asset()).safeTransferFrom(msg.sender, address(liquidityOrchestrator), assets);
 
         // slither-disable-next-line unused-return
         (, uint256 currentAmount) = _depositRequests.tryGet(msg.sender);
@@ -386,8 +388,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         uint256 senderBalance = balanceOf(msg.sender);
         if (shares > senderBalance) revert ErrorsLib.InsufficientAmount();
 
-        bool success = IERC20(address(this)).transferFrom(msg.sender, address(this), shares);
-        if (!success) revert ErrorsLib.TransferFailed();
+        IERC20(address(this)).safeTransferFrom(msg.sender, address(this), shares);
 
         // slither-disable-next-line unused-return
         (, uint256 currentShares) = _redeemRequests.tryGet(msg.sender);
@@ -419,8 +420,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         _pendingRedeem -= shares;
 
         // Interactions - return shares to LP.
-        bool success = IERC20(address(this)).transfer(msg.sender, shares);
-        if (!success) revert ErrorsLib.TransferFailed();
+        IERC20(address(this)).safeTransfer(msg.sender, shares);
 
         emit RedeemRequestCancelled(msg.sender, shares);
     }
