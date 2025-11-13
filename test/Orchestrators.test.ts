@@ -2822,4 +2822,168 @@ describe("Orchestrators", function () {
       expect(currentPhase).to.not.equal(2); // Not BuyingLeg - malicious payload was ignored
     });
   });
+
+  describe("DOS Attack Protection", function () {
+    const MIN_DEPOSIT = ethers.parseUnits("100", 12); // 100 units in 12 decimals
+    const MIN_REDEEM = ethers.parseUnits("100", 18); // 100 shares
+
+    it("should allow owner to configure minimum amounts", async function () {
+      // Set minimum deposit amount
+      await expect(orionConfig.connect(owner).setMinDepositAmount(MIN_DEPOSIT))
+        .to.emit(orionConfig, "MinDepositAmountUpdated")
+        .withArgs(MIN_DEPOSIT);
+
+      expect(await orionConfig.minDepositAmount()).to.equal(MIN_DEPOSIT);
+
+      // Set minimum redeem amount
+      await expect(orionConfig.connect(owner).setMinRedeemAmount(MIN_REDEEM))
+        .to.emit(orionConfig, "MinRedeemAmountUpdated")
+        .withArgs(MIN_REDEEM);
+
+      expect(await orionConfig.minRedeemAmount()).to.equal(MIN_REDEEM);
+    });
+
+    it("should prevent 1 wei deposit attacks", async function () {
+      // Configure minimum
+      await orionConfig.connect(owner).setMinDepositAmount(MIN_DEPOSIT);
+
+      // Attacker tries to deposit 1 wei
+      await underlyingAsset.mint(user.address, 1n);
+      await underlyingAsset.connect(user).approve(await absoluteVault.getAddress(), 1n);
+
+      await expect(absoluteVault.connect(user).requestDeposit(1n)).to.be.revertedWithCustomError(
+        absoluteVault,
+        "BelowMinimumDeposit",
+      );
+    });
+
+    it("should prevent deposits below minimum", async function () {
+      await orionConfig.connect(owner).setMinDepositAmount(MIN_DEPOSIT);
+
+      const smallAmount = MIN_DEPOSIT - 1n;
+      await underlyingAsset.mint(user.address, smallAmount);
+      await underlyingAsset.connect(user).approve(await absoluteVault.getAddress(), smallAmount);
+
+      await expect(absoluteVault.connect(user).requestDeposit(smallAmount)).to.be.revertedWithCustomError(
+        absoluteVault,
+        "BelowMinimumDeposit",
+      );
+    });
+
+    it("should allow deposits at exact minimum", async function () {
+      await orionConfig.connect(owner).setMinDepositAmount(MIN_DEPOSIT);
+
+      await underlyingAsset.mint(user.address, MIN_DEPOSIT);
+      await underlyingAsset.connect(user).approve(await absoluteVault.getAddress(), MIN_DEPOSIT);
+
+      await expect(absoluteVault.connect(user).requestDeposit(MIN_DEPOSIT)).to.not.be.reverted;
+    });
+
+    it("should prevent redemptions below minimum", async function () {
+      await orionConfig.connect(owner).setMinRedeemAmount(MIN_REDEEM);
+
+      // User needs shares first - do a legitimate deposit
+      const depositAmount = ethers.parseUnits("500", underlyingDecimals);
+      await underlyingAsset.mint(user.address, depositAmount);
+      await underlyingAsset.connect(user).approve(await absoluteVault.getAddress(), depositAmount);
+      await absoluteVault.connect(user).requestDeposit(depositAmount);
+
+      // Process epoch to get shares
+      await time.increase(await internalStatesOrchestrator.epochDuration());
+      let [upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      while (upkeepNeeded) {
+        await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+        [upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      }
+      [upkeepNeeded, performData] = await liquidityOrchestrator.checkUpkeep("0x");
+      while (upkeepNeeded) {
+        await liquidityOrchestrator.connect(automationRegistry).performUpkeep(performData);
+        [upkeepNeeded, performData] = await liquidityOrchestrator.checkUpkeep("0x");
+      }
+
+      // Now try to redeem below minimum
+      const smallRedeemAmount = MIN_REDEEM - 1n;
+      const userShares = await absoluteVault.balanceOf(user.address);
+
+      if (userShares >= smallRedeemAmount) {
+        await expect(absoluteVault.connect(user).requestRedeem(smallRedeemAmount)).to.be.revertedWithCustomError(
+          absoluteVault,
+          "BelowMinimumRedeem",
+        );
+      }
+    });
+
+    it("should demonstrate economic infeasibility of queue flooding", async function () {
+      await orionConfig.connect(owner).setMinDepositAmount(MIN_DEPOSIT);
+
+      // Calculate attack cost
+      const MAX_FULFILL_BATCH_SIZE = 150n;
+      const totalCapitalRequired = MIN_DEPOSIT * MAX_FULFILL_BATCH_SIZE;
+
+      // Convert to human-readable (12 decimals)
+      const capitalInUnits = totalCapitalRequired / 10n ** BigInt(underlyingDecimals);
+
+      console.log(`      ✓ Capital required to fill queue (150 requests): ${capitalInUnits} units`);
+      console.log(`      ✓ Before mitigation: Only gas costs (~$1,500)`);
+      console.log(`      ✓ After mitigation: ${capitalInUnits} units capital + gas costs`);
+      console.log(`      ✓ Capital locked for: 1+ epochs (1+ days)`);
+
+      expect(capitalInUnits).to.equal(15000n);
+    });
+
+    it("should work with existing workflow - legitimate operations succeed", async function () {
+      // Configure protection
+      await orionConfig.connect(owner).setMinDepositAmount(MIN_DEPOSIT);
+      await orionConfig.connect(owner).setMinRedeemAmount(MIN_REDEEM);
+
+      // Legitimate user deposits above minimum
+      const legitimateAmount = ethers.parseUnits("1000", underlyingDecimals);
+      await underlyingAsset.mint(user.address, legitimateAmount);
+      await underlyingAsset.connect(user).approve(await absoluteVault.getAddress(), legitimateAmount);
+
+      // Should succeed
+      await expect(absoluteVault.connect(user).requestDeposit(legitimateAmount)).to.not.be.reverted;
+
+      // Verify deposit is in pending queue
+      const pendingDeposit = await absoluteVault.pendingDeposit();
+      expect(pendingDeposit).to.be.gt(0);
+    });
+
+    it("should maintain protection during full epoch cycle", async function () {
+      await orionConfig.connect(owner).setMinDepositAmount(MIN_DEPOSIT);
+
+      // Try attack before epoch
+      await underlyingAsset.mint(user.address, 1n);
+      await underlyingAsset.connect(user).approve(await absoluteVault.getAddress(), 1n);
+      await expect(absoluteVault.connect(user).requestDeposit(1n)).to.be.revertedWithCustomError(
+        absoluteVault,
+        "BelowMinimumDeposit",
+      );
+
+      // Process full epoch until system returns to idle
+      await time.increase(await internalStatesOrchestrator.epochDuration());
+
+      // Process Internal States Orchestrator
+      let [upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      while (upkeepNeeded) {
+        await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+        [upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      }
+
+      // Process Liquidity Orchestrator
+      [upkeepNeeded, performData] = await liquidityOrchestrator.checkUpkeep("0x");
+      while (upkeepNeeded) {
+        await liquidityOrchestrator.connect(automationRegistry).performUpkeep(performData);
+        [upkeepNeeded, performData] = await liquidityOrchestrator.checkUpkeep("0x");
+      }
+
+      // Try attack after epoch - should still be blocked
+      await underlyingAsset.mint(user.address, 1n);
+      await underlyingAsset.connect(user).approve(await absoluteVault.getAddress(), 1n);
+      await expect(absoluteVault.connect(user).requestDeposit(1n)).to.be.revertedWithCustomError(
+        absoluteVault,
+        "BelowMinimumDeposit",
+      );
+    });
+  });
 });

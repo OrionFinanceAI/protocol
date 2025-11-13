@@ -164,4 +164,22 @@ interface IOrionConfig {
     /// @param token The address of the token
     /// @return The number of decimals for the token
     function getTokenDecimals(address token) external view returns (uint8);
+
+    /// @notice Returns the minimum deposit amount
+    /// @return The minimum deposit amount in underlying asset units
+    function minDepositAmount() external view returns (uint256);
+
+    /// @notice Returns the minimum redeem amount
+    /// @return The minimum redeem amount in share units
+    function minRedeemAmount() external view returns (uint256);
+
+    /// @notice Sets the minimum deposit amount
+    /// @dev Can only be called by the contract owner
+    /// @param amount The new minimum deposit amount in underlying asset units
+    function setMinDepositAmount(uint256 amount) external;
+
+    /// @notice Sets the minimum redeem amount
+    /// @dev Can only be called by the contract owner
+    /// @param amount The new minimum redeem amount in share units
+    function setMinRedeemAmount(uint256 amount) external;
 }

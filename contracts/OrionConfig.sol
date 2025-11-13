@@ -51,6 +51,10 @@ contract OrionConfig is Ownable, IOrionConfig {
     uint16 public riskFreeRate;
     /// @notice Maximum risk-free rate (8% = 800)
     uint16 public constant MAX_RISK_FREE_RATE = 800;
+    /// @notice Minimum deposit amount in underlying asset units
+    uint256 public minDepositAmount;
+    /// @notice Minimum redeem amount in share units
+    uint256 public minRedeemAmount;
 
     // Vault-specific configuration
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -146,6 +150,24 @@ contract OrionConfig is Ownable, IOrionConfig {
         riskFreeRate = _riskFreeRate;
 
         emit EventsLib.RiskFreeRateUpdated(riskFreeRate);
+    }
+
+    /// @inheritdoc IOrionConfig
+    function setMinDepositAmount(uint256 amount) external onlyOwner {
+        if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+
+        minDepositAmount = amount;
+
+        emit EventsLib.MinDepositAmountUpdated(amount);
+    }
+
+    /// @inheritdoc IOrionConfig
+    function setMinRedeemAmount(uint256 amount) external onlyOwner {
+        if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+
+        minRedeemAmount = amount;
+
+        emit EventsLib.MinRedeemAmountUpdated(amount);
     }
 
     // === Whitelist Functions ===

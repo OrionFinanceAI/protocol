@@ -25,6 +25,14 @@ library EventsLib {
     /// @param riskFreeRate The new risk-free rate in basis points.
     event RiskFreeRateUpdated(uint16 indexed riskFreeRate);
 
+    /// @notice The minimum deposit amount has been updated.
+    /// @param minDepositAmount The new minimum deposit amount.
+    event MinDepositAmountUpdated(uint256 indexed minDepositAmount);
+
+    /// @notice The minimum redeem amount has been updated.
+    /// @param minRedeemAmount The new minimum redeem amount.
+    event MinRedeemAmountUpdated(uint256 indexed minRedeemAmount);
+
     // =======================
     // === Vault Lifecycle ===
     // =======================
