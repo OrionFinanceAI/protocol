@@ -503,9 +503,10 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
         (uint256 benchmark, uint256 divisor) = _getBenchmark(feeModel.feeType);
 
-        if (activeSharePrice < benchmark || divisor == 0) return 0;
-        uint256 feeRate = uint256(feeModel.performanceFee).mulDiv(activeSharePrice, divisor);
-        return feeRate.mulDiv(feeTotalAssets, BASIS_POINTS_FACTOR);
+        if (activeSharePrice <= benchmark || divisor == 0) return 0;
+        uint256 feeRate = uint256(feeModel.performanceFee).mulDiv(activeSharePrice - divisor, divisor);
+        uint256 performanceFeeAmount = feeRate.mulDiv(feeTotalAssets, BASIS_POINTS_FACTOR);
+        return performanceFeeAmount.mulDiv(internalStatesOrchestrator.epochDuration(), YEAR_IN_SECONDS);
     }
 
     /// @notice Get benchmark value based on fee model type

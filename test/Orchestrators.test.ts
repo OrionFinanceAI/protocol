@@ -1419,9 +1419,10 @@ describe("Orchestrators", function () {
             0, // Math.Rounding.Floor
           );
 
-          if (activeSharePrice >= benchmark && divisor > 0) {
-            const feeRate = (BigInt(performanceFee) * activeSharePrice) / divisor;
-            performanceFeeAmount = (feeRate * assetsForPerformanceFee) / 10000n;
+          if (activeSharePrice > benchmark && divisor > 0) {
+            const feeRate = (BigInt(performanceFee) * (activeSharePrice - divisor)) / divisor;
+            const annualPerformanceFee = (feeRate * assetsForPerformanceFee) / 10000n;
+            performanceFeeAmount = (annualPerformanceFee * BigInt(epochDuration)) / (365n * 24n * 60n * 60n);
           }
 
           console.log(`Performance Fee Details:`);
