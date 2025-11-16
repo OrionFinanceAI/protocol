@@ -432,30 +432,20 @@ describe("Minimum Amount DOS Prevention", function () {
       // Verify that even with many attempts, all fail due to minimum
       // (testing the principle without actually creating 200 accounts for speed)
       const attemptCount = 10;
-      let successfulAttacks = 0;
       for (let i = 0; i < attemptCount; i++) {
-        try {
-          await usdc.mint(attacker.address, 1n);
-          await usdc.connect(attacker).approve(await vault.getAddress(), 1n);
-          await vault.connect(attacker).requestDeposit(1n);
-          successfulAttacks++;
-        } catch (error) {
-          // Should fail with BelowMinimumDeposit
-          if (error instanceof Error) {
-            expect(error.message).to.include("BelowMinimumDeposit");
-          }
-        }
+        await usdc.mint(attacker.address, 1n);
+        await usdc.connect(attacker).approve(await vault.getAddress(), 1n);
+        await expect(vault.connect(attacker).requestDeposit(1n))
+          .to.be.revertedWithCustomError(vault, "BelowMinimumDeposit")
+          .withArgs(1n, MIN_DEPOSIT);
       }
-
-      // Attack should be completely prevented
-      expect(successfulAttacks).to.equal(0);
 
       // Calculate capital requirement
       const capitalRequired = (MIN_DEPOSIT * 150n) / 10n ** 6n; // 150 = MAX_FULFILL_BATCH_SIZE
       expect(capitalRequired).to.equal(15000n); // $15,000 USD to fill queue
 
       console.log("✓ DOS attack with 1-wei deposits completely prevented");
-      console.log(`✓ Attack attempts: ${attemptCount}, Successful: ${successfulAttacks}`);
+      console.log(`✓ Attack attempts: ${attemptCount}, All prevented`);
       console.log(`✓ Capital required to fill queue (150 requests): $${capitalRequired} USD`);
     });
   });
