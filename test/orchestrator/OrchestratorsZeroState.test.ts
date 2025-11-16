@@ -10,7 +10,7 @@ import {
   TransparentVaultFactory,
   OrionTransparentVault,
   MockUnderlyingAsset,
-} from "../typechain-types";
+} from "../../typechain-types";
 
 describe("Orchestrators - zero deposits and zero intents", function () {
   let orionConfig: OrionConfig;

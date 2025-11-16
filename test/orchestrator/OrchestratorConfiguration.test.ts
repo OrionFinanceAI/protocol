@@ -91,11 +91,6 @@ describe("Orchestrator Configuration", function () {
   const HURDLE_HWM_VAULT_DEPOSIT = 150;
   const PASSIVE_VAULT_DEPOSIT = 100;
 
-  // Expected price factors for mock assets after gains/losses (logged)
-  const MOCK_ASSET1_P0 = 1.55;
-  const MOCK_ASSET2_P0 = 1.5;
-  const MOCK_ASSET3_P0 = 1.055;
-
   let transparentVaultFactory: TransparentVaultFactory;
   let orionConfig: OrionConfig;
   let underlyingAsset: MockUnderlyingAsset;
