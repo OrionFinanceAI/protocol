@@ -246,8 +246,8 @@ describe("Redeem Before Deposit Order Verification", function () {
 
       // CRITICAL ASSERTION: Redeem uses higher totalAssets (before deposit impact)
       expect(totalAssetsForRedeem).to.be.gt(totalAssetsForDeposit);
-      console.log(`Total assets for redeem: ${ethers.formatUnits(totalAssetsForRedeem, UNDERLYING_DECIMALS)} USDC`);
-      console.log(`Total assets for deposit: ${ethers.formatUnits(totalAssetsForDeposit, UNDERLYING_DECIMALS)} USDC`);
+      expect(totalAssetsForRedeem).to.equal(ethers.parseUnits("99", UNDERLYING_DECIMALS));
+      expect(totalAssetsForDeposit).to.equal(ethers.parseUnits("9.9", UNDERLYING_DECIMALS));
 
       // Capture state before fulfillment
       const balanceBeforeRedeem = await underlyingAsset.balanceOf(redeemer.address);
