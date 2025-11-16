@@ -340,6 +340,9 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         if (assets == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
 
+        uint256 minDeposit = config.minDepositAmount();
+        if (assets < minDeposit) revert ErrorsLib.BelowMinimumDeposit(assets, minDeposit);
+
         uint256 senderBalance = IERC20(asset()).balanceOf(msg.sender);
         if (assets > senderBalance) revert ErrorsLib.InsufficientAmount();
 
@@ -384,6 +387,9 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     function requestRedeem(uint256 shares) external {
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         if (shares == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(address(this));
+
+        uint256 minRedeem = config.minRedeemAmount();
+        if (shares < minRedeem) revert ErrorsLib.BelowMinimumRedeem(shares, minRedeem);
 
         uint256 senderBalance = balanceOf(msg.sender);
         if (shares > senderBalance) revert ErrorsLib.InsufficientAmount();

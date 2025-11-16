@@ -1,7 +1,7 @@
 {
   "name": "@orion-finance/protocol",
   "description": "Orion Finance Protocol",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "engines": {
     "node": ">=20.0.0"
   },
@@ -16,7 +16,7 @@
     "compile": "cross-env TS_NODE_TRANSPILE_ONLY=true hardhat compile",
     "compile:sepolia": "cross-env TS_NODE_TRANSPILE_ONLY=true hardhat compile --network sepolia",
     "coverage": "SOLIDITY_COVERAGE=true hardhat coverage",
-    "deploy:sepolia": "hardhat run scripts/deploy.ts --network sepolia",
+    "deploy:sepolia": "hardhat run protocol-ops/deploy.ts --network sepolia",
     "docgen": "hardhat docgen",
     "lint": "pnpm lint:sol && pnpm lint:ts && pnpm prettier:check",
     "lint:sol": "solhint --max-warnings 20 \"contracts/**/*.sol\"",
@@ -27,8 +27,8 @@
     "prettier:check": "prettier --check \"**/*.{js,json,md,sol,ts,yml}\"",
     "prettier:write": "prettier --write \"**/*.{js,json,md,sol,ts,yml}\"",
     "slither": "HARDHAT_CONFIG=hardhat.slither.config.ts slither . --filter-paths 'lib|node_modules|dependencies|contracts/mocks' --fail-medium",
-    "verify": "hardhat run scripts/verify.ts --network sepolia",
-    "verify:vault": "hardhat run scripts/verify-vault.ts --network sepolia"
+    "verify": "hardhat run protocol-ops/verify.ts --network sepolia",
+    "verify:vault": "hardhat run protocol-ops/verify-vault.ts --network sepolia"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",

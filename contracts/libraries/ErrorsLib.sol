@@ -70,4 +70,14 @@ library ErrorsLib {
 
     /// @notice The strategy is not compatible with the provided whitelisted assets.
     error InvalidStrategy();
+
+    /// @notice The deposit amount is below the minimum required amount.
+    /// @param amount The amount that was provided.
+    /// @param minimum The minimum amount required.
+    error BelowMinimumDeposit(uint256 amount, uint256 minimum);
+
+    /// @notice The redeem amount is below the minimum required amount.
+    /// @param amount The amount that was provided.
+    /// @param minimum The minimum amount required.
+    error BelowMinimumRedeem(uint256 amount, uint256 minimum);
 }
