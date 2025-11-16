@@ -378,10 +378,6 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
 
     /// @notice Handles the sell action
     function _processMinibatchSell() internal {
-        if (currentPhase != LiquidityUpkeepPhase.SellingLeg) {
-            revert ErrorsLib.InvalidState();
-        }
-
         uint16 i0 = currentMinibatchIndex * executionMinibatchSize;
         uint16 i1 = i0 + executionMinibatchSize;
         ++currentMinibatchIndex;
@@ -402,10 +398,6 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
 
     /// @notice Handles the buy action
     function _processMinibatchBuy() internal {
-        if (currentPhase != LiquidityUpkeepPhase.BuyingLeg) {
-            revert ErrorsLib.InvalidState();
-        }
-
         uint16 i0 = currentMinibatchIndex * executionMinibatchSize;
         uint16 i1 = i0 + executionMinibatchSize;
         ++currentMinibatchIndex;
@@ -470,10 +462,6 @@ contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrat
 
     /// @notice Handles the fulfill deposit and redeem actions
     function _processFulfillDepositAndRedeem() internal {
-        if (currentPhase != LiquidityUpkeepPhase.FulfillDepositAndRedeem) {
-            revert ErrorsLib.InvalidState();
-        }
-
         // Process transparent vaults
         address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
 
