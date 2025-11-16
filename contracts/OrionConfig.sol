@@ -155,6 +155,7 @@ contract OrionConfig is Ownable, IOrionConfig {
     /// @inheritdoc IOrionConfig
     function setMinDepositAmount(uint256 amount) external onlyOwner {
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+        if (amount == 0) revert ErrorsLib.InvalidArguments();
 
         minDepositAmount = amount;
 
@@ -164,6 +165,7 @@ contract OrionConfig is Ownable, IOrionConfig {
     /// @inheritdoc IOrionConfig
     function setMinRedeemAmount(uint256 amount) external onlyOwner {
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+        if (amount == 0) revert ErrorsLib.InvalidArguments();
 
         minRedeemAmount = amount;
 

@@ -15,7 +15,7 @@ import {
   PriceAdapterRegistry,
   OrionAssetERC4626PriceAdapter,
   KBestTvlWeightedAverage,
-} from "../typechain-types";
+} from "../../typechain-types";
 
 describe("Orchestrators", function () {
   // Vault deposit amounts (in underlying asset units)
@@ -2828,6 +2828,16 @@ describe("Orchestrators", function () {
     const MIN_REDEEM = ethers.parseUnits("100", 18); // 100 shares
 
     it("should allow owner to configure minimum amounts", async function () {
+      // Not Owner should revert
+      await expect(orionConfig.connect(user).setMinDepositAmount(MIN_DEPOSIT)).to.be.revertedWithCustomError(
+        orionConfig,
+        "OwnableUnauthorizedAccount",
+      );
+      await expect(orionConfig.connect(user).setMinRedeemAmount(MIN_REDEEM)).to.be.revertedWithCustomError(
+        orionConfig,
+        "OwnableUnauthorizedAccount",
+      );
+
       // Set minimum deposit amount
       await expect(orionConfig.connect(owner).setMinDepositAmount(MIN_DEPOSIT))
         .to.emit(orionConfig, "MinDepositAmountUpdated")
@@ -2889,7 +2899,7 @@ describe("Orchestrators", function () {
       await absoluteVault.connect(user).requestDeposit(depositAmount);
 
       // Process epoch to get shares
-      await time.increase(await internalStatesOrchestrator.epochDuration());
+      await time.increase((await internalStatesOrchestrator.epochDuration()) + 1n);
       let [upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
       while (upkeepNeeded) {
         await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
@@ -2905,12 +2915,12 @@ describe("Orchestrators", function () {
       const smallRedeemAmount = MIN_REDEEM - 1n;
       const userShares = await absoluteVault.balanceOf(user.address);
 
-      if (userShares >= smallRedeemAmount) {
-        await expect(absoluteVault.connect(user).requestRedeem(smallRedeemAmount)).to.be.revertedWithCustomError(
-          absoluteVault,
-          "BelowMinimumRedeem",
-        );
-      }
+      expect(userShares).to.be.gte(smallRedeemAmount, "test setup should grant enough shares to redeem");
+
+      await expect(absoluteVault.connect(user).requestRedeem(smallRedeemAmount)).to.be.revertedWithCustomError(
+        absoluteVault,
+        "BelowMinimumRedeem",
+      );
     });
 
     it("should demonstrate economic infeasibility of queue flooding", async function () {
@@ -2961,7 +2971,7 @@ describe("Orchestrators", function () {
       );
 
       // Process full epoch until system returns to idle
-      await time.increase(await internalStatesOrchestrator.epochDuration());
+      await time.increase((await internalStatesOrchestrator.epochDuration()) + 1n);
 
       // Process Internal States Orchestrator
       let [upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");

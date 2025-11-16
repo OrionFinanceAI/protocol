@@ -306,13 +306,6 @@ describe("Minimum Amount DOS Prevention", function () {
         vault,
         "BelowMinimumDeposit",
       );
-
-      // Owner can change minimum to 0 to remove protection
-      await config.connect(owner).setMinDepositAmount(0);
-      expect(await config.minDepositAmount()).to.equal(0);
-
-      // Now tiny deposits work (protection removed)
-      await expect(vault.connect(user1).requestDeposit(tinyAmount)).to.emit(vault, "DepositRequest");
     });
   });
 
@@ -353,18 +346,6 @@ describe("Minimum Amount DOS Prevention", function () {
   });
 
   describe("Edge Cases", function () {
-    it("should handle zero minimum (no protection)", async function () {
-      const { config, vault, usdc, user1, owner } = await loadFixture(deployFixture);
-
-      // Explicitly set to zero
-      await config.connect(owner).setMinDepositAmount(0);
-      await config.connect(owner).setMinRedeemAmount(0);
-
-      // Should allow 1 wei deposits when protection is disabled
-      await usdc.connect(user1).approve(await vault.getAddress(), 1n);
-      await expect(vault.connect(user1).requestDeposit(1n)).to.emit(vault, "DepositRequest");
-    });
-
     it("should handle maximum uint256 minimum", async function () {
       const { config, owner } = await loadFixture(deployFixture);
 
@@ -436,13 +417,10 @@ describe("Minimum Amount DOS Prevention", function () {
     it("should completely prevent the described DOS attack scenario", async function () {
       const { config, vault, usdc, owner, attacker } = await loadFixture(deployFixture);
 
-      // Set minimum as recommended in audit
       await config.connect(owner).setMinDepositAmount(MIN_DEPOSIT);
       await config.connect(owner).setMinRedeemAmount(MIN_REDEEM);
 
-      // Simulate the exact attack from the audit finding:
       // "An attacker can create many small deposit requests of 1 wei from many accounts"
-
       // Try 1 wei deposit (should be rejected)
       await usdc.mint(attacker.address, 1n);
       await usdc.connect(attacker).approve(await vault.getAddress(), 1n);
