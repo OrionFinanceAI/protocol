@@ -80,4 +80,12 @@ library ErrorsLib {
     /// @param amount The amount that was provided.
     /// @param minimum The minimum amount required.
     error BelowMinimumRedeem(uint256 amount, uint256 minimum);
+
+    /// @notice Fee change cooldown period has not elapsed.
+    /// @param currentTime The current block timestamp.
+    /// @param effectiveTime The timestamp when the fee change becomes effective.
+    error FeeChangeCooldownActive(uint256 currentTime, uint256 effectiveTime);
+
+    /// @notice No pending fee change exists to apply or cancel.
+    error NoPendingFeeChange();
 }

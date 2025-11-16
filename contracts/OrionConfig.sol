@@ -55,6 +55,8 @@ contract OrionConfig is Ownable, IOrionConfig {
     uint256 public minDepositAmount;
     /// @notice Minimum redeem amount in share units
     uint256 public minRedeemAmount;
+    /// @notice Fee change cooldown duration in seconds (7 days default)
+    uint256 public feeChangeCooldownDuration;
 
     // Vault-specific configuration
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -100,6 +102,7 @@ contract OrionConfig is Ownable, IOrionConfig {
 
         curatorIntentDecimals = 9; // 9 for uint32
         priceAdapterDecimals = 14; // 14 for uint128
+        feeChangeCooldownDuration = 7 days; // Default 7 day cooldown
 
         // Store underlying asset decimals
         tokenDecimals[underlyingAsset_] = IERC20Metadata(underlyingAsset_).decimals();
@@ -168,6 +171,15 @@ contract OrionConfig is Ownable, IOrionConfig {
         minRedeemAmount = amount;
 
         emit EventsLib.MinRedeemAmountUpdated(amount);
+    }
+
+    /// @inheritdoc IOrionConfig
+    function setFeeChangeCooldownDuration(uint256 duration) external onlyOwner {
+        if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+
+        feeChangeCooldownDuration = duration;
+
+        emit EventsLib.FeeChangeCooldownDurationUpdated(duration);
     }
 
     // === Whitelist Functions ===

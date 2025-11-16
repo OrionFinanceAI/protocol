@@ -33,6 +33,49 @@ library EventsLib {
     /// @param minRedeemAmount The new minimum redeem amount.
     event MinRedeemAmountUpdated(uint256 indexed minRedeemAmount);
 
+    /// @notice The fee change cooldown duration has been updated.
+    /// @param newCooldownDuration The new cooldown duration in seconds.
+    event FeeChangeCooldownDurationUpdated(uint256 indexed newCooldownDuration);
+
+    /// @notice A vault fee model change has been scheduled.
+    /// @param vault The address of the vault.
+    /// @param feeType The new fee type.
+    /// @param performanceFee The new performance fee.
+    /// @param managementFee The new management fee.
+    /// @param effectiveTime The timestamp when the change becomes effective.
+    event VaultFeeChangeScheduled(
+        address indexed vault,
+        uint8 feeType,
+        uint16 performanceFee,
+        uint16 managementFee,
+        uint256 effectiveTime
+    );
+
+    /// @notice A scheduled vault fee change has been cancelled.
+    /// @param vault The address of the vault.
+    event VaultFeeChangeCancelled(address indexed vault);
+
+    /// @notice A scheduled vault fee change has been applied.
+    /// @param vault The address of the vault.
+    /// @param feeType The new fee type.
+    /// @param performanceFee The new performance fee.
+    /// @param managementFee The new management fee.
+    event VaultFeeChangeApplied(address indexed vault, uint8 feeType, uint16 performanceFee, uint16 managementFee);
+
+    /// @notice A protocol fee change has been scheduled.
+    /// @param vFeeCoefficient The new volume fee coefficient.
+    /// @param rsFeeCoefficient The new revenue share fee coefficient.
+    /// @param effectiveTime The timestamp when the change becomes effective.
+    event ProtocolFeeChangeScheduled(uint16 vFeeCoefficient, uint16 rsFeeCoefficient, uint256 effectiveTime);
+
+    /// @notice A scheduled protocol fee change has been cancelled.
+    event ProtocolFeeChangeCancelled();
+
+    /// @notice A scheduled protocol fee change has been applied.
+    /// @param vFeeCoefficient The new volume fee coefficient.
+    /// @param rsFeeCoefficient The new revenue share fee coefficient.
+    event ProtocolFeeChangeApplied(uint16 vFeeCoefficient, uint16 rsFeeCoefficient);
+
     // =======================
     // === Vault Lifecycle ===
     // =======================

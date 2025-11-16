@@ -182,4 +182,13 @@ interface IOrionConfig {
     /// @dev Can only be called by the contract owner
     /// @param amount The new minimum redeem amount in share units
     function setMinRedeemAmount(uint256 amount) external;
+
+    /// @notice Returns the fee change cooldown duration
+    /// @return The cooldown duration in seconds
+    function feeChangeCooldownDuration() external view returns (uint256);
+
+    /// @notice Sets the fee change cooldown duration
+    /// @dev Can only be called by the contract owner
+    /// @param duration The new cooldown duration in seconds
+    function setFeeChangeCooldownDuration(uint256 duration) external;
 }
