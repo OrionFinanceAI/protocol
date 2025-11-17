@@ -12,7 +12,6 @@ import { TransparentVaultFactory } from "../typechain-types";
  */
 describe("Minimum Amount DOS Prevention", function () {
   // Test constants
-  const INITIAL_SUPPLY = ethers.parseUnits("1000000", 6); // 1M USDC (6 decimals)
   const USER_BALANCE = ethers.parseUnits("10000", 6); // 10k USDC per user
   const MIN_DEPOSIT = ethers.parseUnits("100", 6); // 100 USDC minimum
   const MIN_REDEEM = ethers.parseUnits("100", 18); // 100 shares minimum (18 decimals)
@@ -59,6 +58,8 @@ describe("Minimum Amount DOS Prevention", function () {
     const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistry");
     const priceAdapterRegistry = await PriceAdapterRegistryFactory.deploy(owner.address, await config.getAddress());
     await config.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
+
+    await config.addWhitelistedCurator(curator.address);
 
     // Create a vault
     const vaultTx = await vaultFactory.connect(owner).createVault(
@@ -306,13 +307,6 @@ describe("Minimum Amount DOS Prevention", function () {
         vault,
         "BelowMinimumDeposit",
       );
-
-      // Owner can change minimum to 0 to remove protection
-      await config.connect(owner).setMinDepositAmount(0);
-      expect(await config.minDepositAmount()).to.equal(0);
-
-      // Now tiny deposits work (protection removed)
-      await expect(vault.connect(user1).requestDeposit(tinyAmount)).to.emit(vault, "DepositRequest");
     });
   });
 
@@ -353,18 +347,6 @@ describe("Minimum Amount DOS Prevention", function () {
   });
 
   describe("Edge Cases", function () {
-    it("should handle zero minimum (no protection)", async function () {
-      const { config, vault, usdc, user1, owner } = await loadFixture(deployFixture);
-
-      // Explicitly set to zero
-      await config.connect(owner).setMinDepositAmount(0);
-      await config.connect(owner).setMinRedeemAmount(0);
-
-      // Should allow 1 wei deposits when protection is disabled
-      await usdc.connect(user1).approve(await vault.getAddress(), 1n);
-      await expect(vault.connect(user1).requestDeposit(1n)).to.emit(vault, "DepositRequest");
-    });
-
     it("should handle maximum uint256 minimum", async function () {
       const { config, owner } = await loadFixture(deployFixture);
 
@@ -436,13 +418,10 @@ describe("Minimum Amount DOS Prevention", function () {
     it("should completely prevent the described DOS attack scenario", async function () {
       const { config, vault, usdc, owner, attacker } = await loadFixture(deployFixture);
 
-      // Set minimum as recommended in audit
       await config.connect(owner).setMinDepositAmount(MIN_DEPOSIT);
       await config.connect(owner).setMinRedeemAmount(MIN_REDEEM);
 
-      // Simulate the exact attack from the audit finding:
       // "An attacker can create many small deposit requests of 1 wei from many accounts"
-
       // Try 1 wei deposit (should be rejected)
       await usdc.mint(attacker.address, 1n);
       await usdc.connect(attacker).approve(await vault.getAddress(), 1n);
@@ -454,30 +433,20 @@ describe("Minimum Amount DOS Prevention", function () {
       // Verify that even with many attempts, all fail due to minimum
       // (testing the principle without actually creating 200 accounts for speed)
       const attemptCount = 10;
-      let successfulAttacks = 0;
       for (let i = 0; i < attemptCount; i++) {
-        try {
-          await usdc.mint(attacker.address, 1n);
-          await usdc.connect(attacker).approve(await vault.getAddress(), 1n);
-          await vault.connect(attacker).requestDeposit(1n);
-          successfulAttacks++;
-        } catch (error) {
-          // Should fail with BelowMinimumDeposit
-          if (error instanceof Error) {
-            expect(error.message).to.include("BelowMinimumDeposit");
-          }
-        }
+        await usdc.mint(attacker.address, 1n);
+        await usdc.connect(attacker).approve(await vault.getAddress(), 1n);
+        await expect(vault.connect(attacker).requestDeposit(1n))
+          .to.be.revertedWithCustomError(vault, "BelowMinimumDeposit")
+          .withArgs(1n, MIN_DEPOSIT);
       }
-
-      // Attack should be completely prevented
-      expect(successfulAttacks).to.equal(0);
 
       // Calculate capital requirement
       const capitalRequired = (MIN_DEPOSIT * 150n) / 10n ** 6n; // 150 = MAX_FULFILL_BATCH_SIZE
       expect(capitalRequired).to.equal(15000n); // $15,000 USD to fill queue
 
       console.log("✓ DOS attack with 1-wei deposits completely prevented");
-      console.log(`✓ Attack attempts: ${attemptCount}, Successful: ${successfulAttacks}`);
+      console.log(`✓ Attack attempts: ${attemptCount}, All prevented`);
       console.log(`✓ Capital required to fill queue (150 requests): $${capitalRequired} USD`);
     });
   });

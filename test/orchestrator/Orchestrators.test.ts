@@ -150,6 +150,8 @@ describe("Orchestrators", function () {
     await kbestTvlStrategyDeployed.waitForDeployment();
     kbestTvlStrategy = kbestTvlStrategyDeployed as unknown as KBestTvlWeightedAverage;
 
+    await orionConfig.addWhitelistedCurator(await kbestTvlStrategy.getAddress());
+
     const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistry");
     const priceAdapterRegistryDeployed = await PriceAdapterRegistryFactory.deploy(
       owner.address,
@@ -247,6 +249,8 @@ describe("Orchestrators", function () {
     );
 
     await orionConfig.setProtocolRiskFreeRate(0.0423 * 10_000);
+
+    await orionConfig.addWhitelistedCurator(curator.address);
 
     const absoluteVaultTx = await transparentVaultFactory
       .connect(owner)
@@ -363,15 +367,8 @@ describe("Orchestrators", function () {
       passiveVaultAddress,
     )) as unknown as OrionTransparentVault;
 
-    await expect(
-      passiveVault.connect(owner).updateCurator(await kbestTvlStrategy.getAddress()),
-    ).to.be.revertedWithCustomError(kbestTvlStrategy, "InvalidStrategy");
-
-    await passiveVault
-      .connect(owner)
-      .updateVaultWhitelist([await mockAsset1.getAddress(), await mockAsset3.getAddress()]);
-
     await passiveVault.connect(owner).updateCurator(await kbestTvlStrategy.getAddress());
+    await kbestTvlStrategy.connect(owner).submitIntent(passiveVault);
 
     let liquidityOrchestratorBalance = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
     expect(liquidityOrchestratorBalance).to.equal(0);
@@ -1674,13 +1671,8 @@ describe("Orchestrators", function () {
         expect(totalShares).to.be.gt(0);
       }
 
-      // Log the initial batch portfolio vs buying orders for visibility
-      // Note: buyingAmounts represent delta orders (what needs to be purchased),
-      // NOT the target portfolio amounts. They won't match due to:
-      // 1. Existing holdings from previous epochs
-      // 2. Performance fee changes affecting available capital
-      // 3. Selling some tokens to buy others (net rebalancing)
-      console.log("\n=== INITIAL BATCH PORTFOLIO vs BUYING ORDERS (INFO ONLY) ===");
+      // Verify that initialBatchPortfolio matches the buying orders
+      console.log("\n=== INITIAL BATCH PORTFOLIO vs BUYING ORDERS VERIFICATION ===");
       for (let i = 0; i < buyingTokens.length; i++) {
         const token = buyingTokens[i];
         const buyingAmount = buyingAmounts[i];
@@ -1689,8 +1681,7 @@ describe("Orchestrators", function () {
         console.log(
           `Token ${token}: Buying Amount = ${buyingAmount.toString()}, Portfolio Amount = ${portfolioAmount.toString()}`,
         );
-        // Verify buying amounts are positive (we're actually buying something)
-        expect(buyingAmount).to.be.gt(0);
+        expect(buyingAmount).to.equal(portfolioAmount);
       }
 
       console.log("=== END EPOCH STATE ASSESSMENT ===\n");
@@ -2848,6 +2839,16 @@ describe("Orchestrators", function () {
     const MIN_REDEEM = ethers.parseUnits("100", 18); // 100 shares
 
     it("should allow owner to configure minimum amounts", async function () {
+      // Not Owner should revert
+      await expect(orionConfig.connect(user).setMinDepositAmount(MIN_DEPOSIT)).to.be.revertedWithCustomError(
+        orionConfig,
+        "OwnableUnauthorizedAccount",
+      );
+      await expect(orionConfig.connect(user).setMinRedeemAmount(MIN_REDEEM)).to.be.revertedWithCustomError(
+        orionConfig,
+        "OwnableUnauthorizedAccount",
+      );
+
       // Set minimum deposit amount
       await expect(orionConfig.connect(owner).setMinDepositAmount(MIN_DEPOSIT))
         .to.emit(orionConfig, "MinDepositAmountUpdated")
@@ -2909,7 +2910,7 @@ describe("Orchestrators", function () {
       await absoluteVault.connect(user).requestDeposit(depositAmount);
 
       // Process epoch to get shares
-      await time.increase(await internalStatesOrchestrator.epochDuration());
+      await time.increase((await internalStatesOrchestrator.epochDuration()) + 1n);
       let [upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
       while (upkeepNeeded) {
         await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
@@ -2925,12 +2926,12 @@ describe("Orchestrators", function () {
       const smallRedeemAmount = MIN_REDEEM - 1n;
       const userShares = await absoluteVault.balanceOf(user.address);
 
-      if (userShares >= smallRedeemAmount) {
-        await expect(absoluteVault.connect(user).requestRedeem(smallRedeemAmount)).to.be.revertedWithCustomError(
-          absoluteVault,
-          "BelowMinimumRedeem",
-        );
-      }
+      expect(userShares).to.be.gte(smallRedeemAmount, "test setup should grant enough shares to redeem");
+
+      await expect(absoluteVault.connect(user).requestRedeem(smallRedeemAmount)).to.be.revertedWithCustomError(
+        absoluteVault,
+        "BelowMinimumRedeem",
+      );
     });
 
     it("should demonstrate economic infeasibility of queue flooding", async function () {
@@ -2983,7 +2984,7 @@ describe("Orchestrators", function () {
       );
 
       // Process full epoch until system returns to idle
-      await time.increase(await internalStatesOrchestrator.epochDuration());
+      await time.increase((await internalStatesOrchestrator.epochDuration()) + 1n);
 
       // Process Internal States Orchestrator
       let [upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");

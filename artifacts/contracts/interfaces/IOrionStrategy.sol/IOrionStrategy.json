@@ -6,68 +6,12 @@
     {
       "inputs": [
         {
-          "internalType": "address[]",
-          "name": "vaultWhitelistedAssets",
-          "type": "address[]"
+          "internalType": "contract IOrionTransparentVault",
+          "name": "vault",
+          "type": "address"
         }
       ],
-      "name": "computeIntent",
-      "outputs": [
-        {
-          "components": [
-            {
-              "internalType": "address",
-              "name": "token",
-              "type": "address"
-            },
-            {
-              "internalType": "uint32",
-              "name": "weight",
-              "type": "uint32"
-            }
-          ],
-          "internalType": "struct IOrionTransparentVault.IntentPosition[]",
-          "name": "intent",
-          "type": "tuple[]"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "getStatefulIntent",
-      "outputs": [
-        {
-          "components": [
-            {
-              "internalType": "address",
-              "name": "token",
-              "type": "address"
-            },
-            {
-              "internalType": "uint32",
-              "name": "weight",
-              "type": "uint32"
-            }
-          ],
-          "internalType": "struct IOrionTransparentVault.IntentPosition[]",
-          "name": "intent",
-          "type": "tuple[]"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address[]",
-          "name": "vaultWhitelistedAssets",
-          "type": "address[]"
-        }
-      ],
-      "name": "validateStrategy",
+      "name": "submitIntent",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

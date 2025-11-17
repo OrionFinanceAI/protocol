@@ -588,54 +588,12 @@ describe("Mainnet Fork: ERC4626 Vault Compatibility", function () {
 
         // Remove from whitelist for next test
         await orionConfig.connect(admin).removeWhitelistedAsset(vaultInfo.address);
+        expect(await orionConfig.isWhitelisted(vaultInfo.address)).to.equal(false);
         console.log(`   Successfully removed from whitelist`);
       }
 
       console.log("\n" + "=".repeat(60));
       console.log("All integration checks passed");
-    });
-  });
-
-  describe("Protocol Coverage Summary", function () {
-    /**
-     * TEST 8: Summary Report
-     *
-     * Provides overview of tested vaults and protocols
-     */
-    it("Should generate protocol coverage report", async function () {
-      console.log("\nPROTOCOL COVERAGE REPORT:");
-      console.log("=".repeat(60));
-
-      const protocols = new Set<string>();
-      const totalVaults = Object.keys(TEST_VAULTS).length;
-
-      console.log(`\n Total Vaults Tested: ${totalVaults}`);
-      console.log(`\n Protocols Covered:`);
-
-      for (const [, vaultInfo] of Object.entries(TEST_VAULTS)) {
-        protocols.add(vaultInfo.protocol);
-      }
-
-      protocols.forEach((protocol) => {
-        const count = Object.values(TEST_VAULTS).filter((v) => v.protocol === protocol).length;
-        console.log(`   - ${protocol}: ${count} vault(s)`);
-      });
-
-      console.log(`\n Validation Criteria Applied:`);
-      console.log(`   [PASS] ERC4626 compliance`);
-      console.log(`   [PASS] Immutable underlying asset`);
-      console.log(`   [PASS] Immutable decimals`);
-      console.log(`   [PASS] Liquidity availability`);
-      console.log(`   [PASS] Price adapter compatibility`);
-      console.log(`   [PASS] Execution adapter compatibility`);
-      console.log(`   [PASS] Orion protocol integration`);
-
-      console.log(`\n Notes:`);
-      console.log(`   - All tested vaults are production-grade with significant TVL`);
-      console.log(`   - Beefy vault 0x16F06...13cD0 excluded (not ERC4626 compliant)`);
-      console.log(`   - Test suite validates full integration compatibility`);
-
-      console.log("\n" + "=".repeat(60));
     });
   });
 });
