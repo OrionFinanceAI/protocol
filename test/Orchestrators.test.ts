@@ -747,10 +747,22 @@ describe("Orchestrators", function () {
 
       const targetBufferRatio = await liquidityOrchestrator.targetBufferRatio();
       const BASIS_POINTS_FACTOR = await internalStatesOrchestrator.BASIS_POINTS_FACTOR();
-      expect(bufferAmountAfter).to.equal(
-        (BigInt(50 + 125 + 200 + 75 + 150 + 100) * 10n ** BigInt(underlyingDecimals) * BigInt(targetBufferRatio)) /
-          BASIS_POINTS_FACTOR,
-      );
+
+      // Calculate protocol total assets symbolically following InternalStatesOrchestrator._buffer() logic
+      const sumAllVaultAssets =
+        BigInt(
+          ABSOLUTE_VAULT_DEPOSIT +
+            SOFT_HURDLE_VAULT_DEPOSIT +
+            HARD_HURDLE_VAULT_DEPOSIT +
+            HIGH_WATER_MARK_VAULT_DEPOSIT +
+            HURDLE_HWM_VAULT_DEPOSIT +
+            PASSIVE_VAULT_DEPOSIT,
+        ) *
+        10n ** BigInt(underlyingDecimals);
+
+      const expectedBufferAmount = (sumAllVaultAssets * BigInt(targetBufferRatio)) / BASIS_POINTS_FACTOR;
+
+      expect(bufferAmountAfter).to.equal(expectedBufferAmount);
 
       // Process all vaults in postprocessing phase - continue until we reach building orders phase
       while ((await internalStatesOrchestrator.currentPhase()) === 3n) {
