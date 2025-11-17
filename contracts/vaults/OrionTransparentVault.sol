@@ -180,6 +180,11 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
             if (!inserted) revert ErrorsLib.AlreadyRegistered();
         }
 
+        if (!_vaultWhitelistedAssets.contains(this.asset())) {
+            // slither-disable-next-line unused-return
+            _vaultWhitelistedAssets.add(this.asset());
+        }
+
         if (_isPassiveCurator) {
             IOrionStrategy(curator).validateStrategy(assets);
         }
@@ -202,15 +207,8 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
         // slither-disable-next-line unused-return
         _portfolioIntent.remove(asset);
 
-        address underlyingAsset = this.asset();
-
-        // Ensure underlying asset is always whitelisted for this vault
-        if (!_vaultWhitelistedAssets.contains(underlyingAsset)) {
-            // slither-disable-next-line unused-return
-            _vaultWhitelistedAssets.add(underlyingAsset);
-        }
-
         // Add the weight to the underlying asset
+        address underlyingAsset = this.asset();
         (bool underlyingExists, uint256 currentUnderlyingWeight) = _portfolioIntent.tryGet(underlyingAsset);
         if (underlyingExists) {
             // slither-disable-next-line unused-return

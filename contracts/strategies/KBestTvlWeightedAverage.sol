@@ -12,7 +12,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
  * @title KBestTvlWeightedAverage
- * @notice This strategy selects the top K assets based on their TVL and allocates them proportionally.
+ * @notice This strategy selects the top K ERC4626 assets based on their TVL and allocates them proportionally.
  * @author Orion Finance
  */
 contract KBestTvlWeightedAverage is IOrionStrategy, Ownable, ERC165 {
@@ -59,31 +59,6 @@ contract KBestTvlWeightedAverage is IOrionStrategy, Ownable, ERC165 {
 
     /// @inheritdoc IOrionStrategy
     function validateStrategy(address[] calldata vaultWhitelistedAssets) external {
-        uint16 n = uint16(vaultWhitelistedAssets.length);
-        address referenceUnderlyingAsset = address(0);
-
-        for (uint16 i = 0; i < n; ++i) {
-            address asset = vaultWhitelistedAssets[i];
-
-            // slither-disable-next-line unused-return
-            try IERC4626(asset).totalAssets() returns (uint256) {
-                // Asset is ERC4626 compliant, good.
-            } catch {
-                revert ErrorsLib.InvalidStrategy();
-            }
-
-            // Check that the underlying asset is the same across all assets in vaultWhitelistedAssets
-            try IERC4626(asset).asset() returns (address vaultUnderlyingAsset) {
-                if (referenceUnderlyingAsset == address(0)) {
-                    referenceUnderlyingAsset = vaultUnderlyingAsset;
-                } else if (vaultUnderlyingAsset != referenceUnderlyingAsset) {
-                    revert ErrorsLib.InvalidStrategy();
-                }
-            } catch {
-                revert ErrorsLib.InvalidStrategy();
-            }
-        }
-
         IOrionTransparentVault.IntentPosition[] memory computedIntent = this.computeIntent(vaultWhitelistedAssets);
 
         delete _statefulIntent;
@@ -114,7 +89,14 @@ contract KBestTvlWeightedAverage is IOrionStrategy, Ownable, ERC165 {
         tvls = new uint256[](n);
 
         for (uint16 i = 0; i < n; ++i) {
-            tvls[i] = IERC4626(vaultWhitelistedAssets[i]).totalAssets();
+            try IERC4626(vaultWhitelistedAssets[i]).totalAssets() returns (uint256 tvl) {
+                tvls[i] = tvl;
+            } catch {
+                tvls[i] = 1;
+                // Set to dust amount to avoid bad filtering.
+                // Dust-tolerant orchestration can handle this,
+                // in case intent is not rounded at the vault level.
+            }
         }
     }
 
@@ -176,7 +158,7 @@ contract KBestTvlWeightedAverage is IOrionStrategy, Ownable, ERC165 {
         }
 
         if (sumWeights < intentScale) {
-            intent[kActual - 1].weight += intentScale - sumWeights;
+            intent[0].weight += intentScale - sumWeights;
         }
     }
 

@@ -427,14 +427,6 @@ describe("Orchestrator Configuration", function () {
       passiveVaultAddress,
     )) as unknown as OrionTransparentVault;
 
-    await expect(
-      passiveVault.connect(owner).updateCurator(await kbestTvlStrategy.getAddress()),
-    ).to.be.revertedWithCustomError(kbestTvlStrategy, "InvalidStrategy");
-
-    await passiveVault
-      .connect(owner)
-      .updateVaultWhitelist([await mockAsset1.getAddress(), await mockAsset3.getAddress()]);
-
     await passiveVault.connect(owner).updateCurator(await kbestTvlStrategy.getAddress());
 
     let liquidityOrchestratorBalance = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());

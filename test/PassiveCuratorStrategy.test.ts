@@ -307,7 +307,7 @@ describe("Passive Curator Strategy", function () {
     it("should compute intent with correct asset selection", async function () {
       // Get vault whitelist
       const vaultWhitelist = await transparentVault.vaultWhitelist();
-      expect(vaultWhitelist.length).to.equal(4);
+      expect(vaultWhitelist.length).to.equal(5);
 
       // Get intent through the vault (which calls the strategy)
       const [tokens, weights] = await transparentVault.getIntent();
@@ -317,12 +317,13 @@ describe("Passive Curator Strategy", function () {
       expect(weights.length).to.equal(3);
 
       // Verify that the selected assets are the top 3 by TVL
-      // mockAsset1: 3000, mockAsset2: 2000, mockAsset3: 1500, mockAsset4: 1000
+      // mockAsset1: 3000, mockAsset2: 2000, mockAsset3: 1500, mockAsset4: 1000, underlyingAsset: 0
       // So top 3 should be mockAsset1, mockAsset2, mockAsset3
       expect(tokens).to.include(await mockAsset1.getAddress());
       expect(tokens).to.include(await mockAsset2.getAddress());
       expect(tokens).to.include(await mockAsset3.getAddress());
       expect(tokens).to.not.include(await mockAsset4.getAddress());
+      expect(tokens).to.not.include(await underlyingAsset.getAddress());
     });
 
     it("should compute intent with correct weight distribution", async function () {
@@ -342,21 +343,22 @@ describe("Passive Curator Strategy", function () {
     });
 
     it("should handle case when k > number of available assets", async function () {
-      // Update strategy to select 5 assets, but only 4 are available
-      await strategy.connect(curator).updateParameters(5);
+      // Update strategy to select 6 assets, but only 5 are available
+      await strategy.connect(curator).updateParameters(6);
 
       // Get intent through the vault (which calls the strategy)
       const [tokens, weights] = await transparentVault.getIntent();
 
-      // Should select all 4 available assets
-      expect(tokens.length).to.equal(4);
-      expect(weights.length).to.equal(4);
+      // Should select all available assets
+      expect(tokens.length).to.equal(5);
+      expect(weights.length).to.equal(5);
 
       // Verify all assets are selected
       expect(tokens).to.include(await mockAsset1.getAddress());
       expect(tokens).to.include(await mockAsset2.getAddress());
       expect(tokens).to.include(await mockAsset3.getAddress());
       expect(tokens).to.include(await mockAsset4.getAddress());
+      expect(tokens).to.include(await underlyingAsset.getAddress());
     });
 
     it("should handle case when k = 1", async function () {
@@ -456,19 +458,9 @@ describe("Passive Curator Strategy", function () {
         .updateVaultWhitelist([await mockAsset1.getAddress(), await mockAsset2.getAddress()]);
 
       const whitelist = await transparentVault.vaultWhitelist();
-      expect(whitelist.length).to.equal(2);
+      expect(whitelist.length).to.equal(3);
       expect(whitelist).to.include(await mockAsset1.getAddress());
       expect(whitelist).to.include(await mockAsset2.getAddress());
-    });
-
-    it("should reject invalid whitelist updates that break strategy", async function () {
-      // Try to update whitelist with an invalid asset (non-ERC4626)
-      // This should fail because the strategy validation will reject it
-      await expect(
-        transparentVault
-          .connect(owner)
-          .updateVaultWhitelist([await mockAsset1.getAddress(), await underlyingAsset.getAddress()]),
-      ).to.be.revertedWithCustomError(strategy, "InvalidStrategy");
     });
 
     it("should allow whitelist updates when curator is not a strategy", async function () {
