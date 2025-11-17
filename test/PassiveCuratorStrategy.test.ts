@@ -245,7 +245,10 @@ describe("Passive Curator Strategy", function () {
       ]);
 
     // Step 3: Update curator to the strategy contract
+    await orionConfig.addWhitelistedCurator(await strategy.getAddress());
     await transparentVault.connect(owner).updateCurator(await strategy.getAddress());
+
+    await strategy.connect(curator).submitIntent(transparentVault);
 
     await underlyingAsset.connect(user).approve(await transparentVault.getAddress(), ethers.parseUnits("10000", 12));
     const depositAmount = ethers.parseUnits("100", 12);
@@ -253,26 +256,13 @@ describe("Passive Curator Strategy", function () {
   });
 
   describe("Strategy Interface Detection", function () {
-    it("should correctly identify strategy as passive curator", async function () {
-      // Check that the vault correctly identifies the strategy as a passive curator
-      await expect(await transparentVault.isPassiveCurator()).to.be.true;
-    });
-
     it("should support IOrionStrategy interface", async function () {
       // Check that the strategy supports the IOrionStrategy interface
       // The interface ID is calculated from XOR of all function selectors in the interface
-      const computeIntentSelector = ethers.id("computeIntent(address[])").slice(0, 10);
-      const validateStrategySelector = ethers.id("validateStrategy(address[])").slice(0, 10);
-      const getStatefulIntentSelector = ethers.id("getStatefulIntent()").slice(0, 10);
+      const submitIntentSelector = ethers.id("submitIntent(address)").slice(0, 10);
 
       // XOR all three selectors to get the interface ID
-      const interfaceId = (
-        BigInt(computeIntentSelector) ^
-        BigInt(validateStrategySelector) ^
-        BigInt(getStatefulIntentSelector)
-      )
-        .toString(16)
-        .padStart(8, "0");
+      const interfaceId = BigInt(submitIntentSelector).toString(16).padStart(8, "0");
       await expect(await strategy.supportsInterface("0x" + interfaceId)).to.be.true;
     });
 
@@ -345,6 +335,7 @@ describe("Passive Curator Strategy", function () {
     it("should handle case when k > number of available assets", async function () {
       // Update strategy to select 6 assets, but only 5 are available
       await strategy.connect(curator).updateParameters(6);
+      await strategy.connect(curator).submitIntent(transparentVault);
 
       // Get intent through the vault (which calls the strategy)
       const [tokens, weights] = await transparentVault.getIntent();
@@ -364,6 +355,7 @@ describe("Passive Curator Strategy", function () {
     it("should handle case when k = 1", async function () {
       // Update strategy to select only 1 asset
       await strategy.connect(curator).updateParameters(1);
+      await strategy.connect(curator).submitIntent(transparentVault);
 
       // Get intent through the vault (which calls the strategy)
       const [tokens, weights] = await transparentVault.getIntent();
@@ -436,16 +428,22 @@ describe("Passive Curator Strategy", function () {
     it("should reflect parameter changes in intent computation", async function () {
       // Test with k=2
       await strategy.connect(curator).updateParameters(2);
+      await strategy.connect(curator).submitIntent(transparentVault);
+
       let [tokens, _weights] = await transparentVault.getIntent();
       expect(tokens.length).to.equal(2);
 
       // Test with k=4 (all assets)
       await strategy.connect(curator).updateParameters(4);
+      await strategy.connect(curator).submitIntent(transparentVault);
+
       [tokens, _weights] = await transparentVault.getIntent();
       expect(tokens.length).to.equal(4);
 
       // Test with k=1
       await strategy.connect(curator).updateParameters(1);
+      await strategy.connect(curator).submitIntent(transparentVault);
+
       [tokens, _weights] = await transparentVault.getIntent();
       expect(tokens.length).to.equal(1);
     });

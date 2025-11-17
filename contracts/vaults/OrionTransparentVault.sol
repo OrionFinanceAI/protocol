@@ -34,10 +34,6 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     /// @dev Only used for active management (wallet curators). Passive curators compute intents on-demand.
     EnumerableMap.AddressToUintMap internal _portfolioIntent;
 
-    /// @notice Flag indicating if the current curator is a passive curator (smart contract)
-    /// @dev This is cached to avoid repeated interface checks during intent retrieval
-    bool private _isPassiveCurator;
-
     /// @notice Constructor
     /// @param vaultOwner The address of the vault owner
     /// @param curator The address of the vault curator
@@ -57,7 +53,8 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
         uint16 performanceFee,
         uint16 managementFee
     ) OrionVault(vaultOwner, curator, configAddress, name, symbol, feeType, performanceFee, managementFee) {
-        _updateCuratorType(config.getAllWhitelistedAssets());
+        // slither-disable-next-line unused-return
+        _portfolioIntent.set(address(config.underlyingAsset()), uint32(10 ** config.curatorIntentDecimals()));
     }
 
     /// --------- CURATOR FUNCTIONS ---------
@@ -111,9 +108,6 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
             weights = new uint32[](1);
             tokens[0] = address(config.underlyingAsset());
             weights[0] = uint32(10 ** config.curatorIntentDecimals()); // 100%
-        } else if (_isPassiveCurator) {
-            // For passive curators, compute pull intent from strategy
-            return _computePassiveIntent();
         } else {
             // For active curators, return stored pushed intent
             uint16 length = uint16(_portfolioIntent.length());
@@ -159,9 +153,8 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
     /// @inheritdoc IOrionVault
     function updateCurator(address newCurator) external onlyVaultOwner {
-        if (newCurator == address(0)) revert ErrorsLib.InvalidAddress();
+        if (!config.isWhitelistedCurator(newCurator)) revert ErrorsLib.UnauthorizedAccess();
         curator = newCurator;
-        _updateCuratorType(this.vaultWhitelist());
         emit CuratorUpdated(newCurator);
     }
 
@@ -185,10 +178,6 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
             _vaultWhitelistedAssets.add(this.asset());
         }
 
-        if (_isPassiveCurator) {
-            IOrionStrategy(curator).validateStrategy(assets);
-        }
-
         emit VaultWhitelistUpdated(assets);
     }
 
@@ -197,9 +186,6 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     function removeFromVaultWhitelist(address asset) external onlyConfig {
         // slither-disable-next-line unused-return
         _vaultWhitelistedAssets.remove(asset);
-
-        // Only modify intent for active curators
-        if (_isPassiveCurator) return;
 
         (bool exists, uint256 blacklistedWeight) = _portfolioIntent.tryGet(asset);
         if (!exists) return; // Asset not in intent, nothing to modify
@@ -217,65 +203,5 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
             // slither-disable-next-line unused-return
             _portfolioIntent.set(underlyingAsset, blacklistedWeight);
         }
-    }
-
-    /// --------- INTERNAL FUNCTIONS ---------
-
-    /// @notice Update the curator type flag based on ERC-165 interface detection
-    /// @param whitelistedAssets List of assets currently whitelisted in the vault
-    function _updateCuratorType(address[] memory whitelistedAssets) internal {
-        if (curator.code.length == 0) {
-            // EOA (wallet) - active curator
-            _isPassiveCurator = false;
-        } else {
-            // Smart contract - check if it supports IOrionStrategy interface
-            try IERC165(curator).supportsInterface(type(IOrionStrategy).interfaceId) returns (bool supported) {
-                if (supported) {
-                    _isPassiveCurator = true;
-                    IOrionStrategy(curator).validateStrategy(whitelistedAssets);
-                } else {
-                    // Contract exists but doesn't support IOrionStrategy - invalid curator
-                    revert ErrorsLib.InvalidCuratorContract();
-                }
-            } catch {
-                // If supportsInterface fails, the curator contract is invalid
-                revert ErrorsLib.InvalidCuratorContract();
-            }
-        }
-    }
-
-    /// @notice Compute intent for passive curators
-    /// @return tokens Array of token addresses
-    /// @return weights Array of weights
-    function _computePassiveIntent() internal view returns (address[] memory tokens, uint32[] memory weights) {
-        address[] memory whitelistedAssets = this.vaultWhitelist();
-        IntentPosition[] memory intent = new IntentPosition[](0);
-
-        // Try to compute intent using pull-based approach (online computation)
-        try IOrionStrategy(curator).computeIntent(whitelistedAssets) returns (IntentPosition[] memory computedIntent) {
-            intent = computedIntent;
-        } catch {
-            // If computeIntent fails, gracefully fallback to stateful intent from validateStrategy
-            try IOrionStrategy(curator).getStatefulIntent() returns (IntentPosition[] memory statefulIntent) {
-                intent = statefulIntent;
-            } catch {
-                // If both fail, revert
-                revert ErrorsLib.InvalidStrategy();
-            }
-        }
-
-        // Convert to return format
-        tokens = new address[](intent.length);
-        weights = new uint32[](intent.length);
-        for (uint16 i = 0; i < intent.length; ++i) {
-            tokens[i] = intent[i].token;
-            weights[i] = intent[i].weight;
-        }
-    }
-
-    /// @notice Get the curator type
-    /// @return isPassive True if the curator is passive (smart contract), false if active (wallet)
-    function isPassiveCurator() external view returns (bool isPassive) {
-        return _isPassiveCurator;
     }
 }

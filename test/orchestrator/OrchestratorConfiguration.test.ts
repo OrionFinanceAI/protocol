@@ -428,6 +428,7 @@ describe("Orchestrator Configuration", function () {
     )) as unknown as OrionTransparentVault;
 
     await passiveVault.connect(owner).updateCurator(await kbestTvlStrategy.getAddress());
+    await kbestTvlStrategy.connect(owner).submitIntent(passiveVault);
 
     let liquidityOrchestratorBalance = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
     expect(liquidityOrchestratorBalance).to.equal(0);

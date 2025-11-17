@@ -426,14 +426,25 @@ describe("OrionVault - Base Functionality", function () {
   });
 
   describe("Curator Management", function () {
-    it("Should allow vault owner to update curator", async function () {
+    it("Should allow vault owner to update whitelisted curator", async function () {
       const newCurator = other.address;
+
+      await orionConfig.addWhitelistedCurator(newCurator);
 
       await expect(vault.connect(owner).updateCurator(newCurator)).to.not.be.reverted;
 
       // Verify curator was updated
       const updatedCurator = await vault.curator();
       expect(updatedCurator).to.equal(newCurator);
+    });
+
+    it("Should revert when vault owner tries to update non-whitelisted curator", async function () {
+      const newCurator = other.address;
+
+      await expect(vault.connect(owner).updateCurator(newCurator)).to.be.revertedWithCustomError(
+        vault,
+        "UnauthorizedAccess",
+      );
     });
 
     it("Should revert when non-owner tries to update curator", async function () {
@@ -448,12 +459,14 @@ describe("OrionVault - Base Functionality", function () {
     it("Should revert when setting curator to zero address", async function () {
       await expect(vault.connect(owner).updateCurator(ethers.ZeroAddress)).to.be.revertedWithCustomError(
         vault,
-        "InvalidAddress",
+        "UnauthorizedAccess",
       );
     });
 
     it("Should emit CuratorUpdated event when curator is updated", async function () {
       const newCurator = other.address;
+
+      await orionConfig.addWhitelistedCurator(newCurator);
 
       await expect(vault.connect(owner).updateCurator(newCurator))
         .to.emit(vault, "CuratorUpdated")
@@ -496,6 +509,8 @@ describe("OrionVault - Base Functionality", function () {
         vault,
         "UnauthorizedAccess",
       );
+
+      await orionConfig.addWhitelistedCurator(other.address);
 
       // Only owner should be able to call
       await expect(vault.connect(owner).updateCurator(other.address)).to.not.be.reverted;
