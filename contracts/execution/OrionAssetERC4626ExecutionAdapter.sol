@@ -21,9 +21,6 @@ contract OrionAssetERC4626ExecutionAdapter is IExecutionAdapter {
     /// @notice The Orion config contract
     IOrionConfig public config;
 
-    /// @notice Underlying asset address
-    address public underlyingAsset;
-
     /// @notice The underlying asset as an IERC20 interface
     IERC20 public underlyingAssetToken;
 
@@ -41,8 +38,7 @@ contract OrionAssetERC4626ExecutionAdapter is IExecutionAdapter {
         if (configAddress == address(0)) revert ErrorsLib.ZeroAddress();
 
         config = IOrionConfig(configAddress);
-        underlyingAsset = address(config.underlyingAsset());
-        underlyingAssetToken = IERC20(underlyingAsset);
+        underlyingAssetToken = config.underlyingAsset();
         liquidityOrchestrator = config.liquidityOrchestrator();
     }
 
@@ -50,7 +46,7 @@ contract OrionAssetERC4626ExecutionAdapter is IExecutionAdapter {
     /// @param asset The address of the asset to validate
     function validateExecutionAdapter(address asset) external view override {
         try IERC4626(asset).asset() returns (address vaultUnderlyingAsset) {
-            if (vaultUnderlyingAsset != underlyingAsset) revert ErrorsLib.InvalidAdapter();
+            if (vaultUnderlyingAsset != address(underlyingAssetToken)) revert ErrorsLib.InvalidAdapter();
         } catch {
             revert ErrorsLib.InvalidAdapter(); // Adapter not valid for this vault
         }
