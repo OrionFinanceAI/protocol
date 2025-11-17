@@ -167,6 +167,8 @@ describe("Redeem Before Deposit Order Verification", function () {
       await mockExecutionAdapter.getAddress(),
     );
 
+    await orionConfig.addWhitelistedCurator(curator.address);
+
     // Create vault
     const tx = await transparentVaultFactory.createVault(curator.address, "Test Vault", "TVault", 0, 0, 0);
     const receipt = await tx.wait();

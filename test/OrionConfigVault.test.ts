@@ -128,6 +128,8 @@ beforeEach(async function () {
     await mockExecutionAdapter2.getAddress(),
   );
 
+  await orionConfig.addWhitelistedCurator(curator.address);
+
   // Create a vault for testing
   const tx = await transparentVaultFactory.connect(owner).createVault(curator.address, "Test Vault", "TV", 0, 0, 0);
   const receipt = await tx.wait();

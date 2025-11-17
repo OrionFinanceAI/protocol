@@ -150,6 +150,8 @@ describe("Orchestrators", function () {
     await kbestTvlStrategyDeployed.waitForDeployment();
     kbestTvlStrategy = kbestTvlStrategyDeployed as unknown as KBestTvlWeightedAverage;
 
+    await orionConfig.addWhitelistedCurator(await kbestTvlStrategy.getAddress());
+
     const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistry");
     const priceAdapterRegistryDeployed = await PriceAdapterRegistryFactory.deploy(
       owner.address,
@@ -247,6 +249,8 @@ describe("Orchestrators", function () {
     );
 
     await orionConfig.setProtocolRiskFreeRate(0.0423 * 10_000);
+
+    await orionConfig.addWhitelistedCurator(curator.address);
 
     const absoluteVaultTx = await transparentVaultFactory
       .connect(owner)

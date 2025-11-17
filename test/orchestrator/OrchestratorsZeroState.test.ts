@@ -74,6 +74,8 @@ describe("Orchestrators - zero deposits and zero intents", function () {
     await liquidityOrchestrator.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
     await liquidityOrchestrator.setTargetBufferRatio(100); // 1%
 
+    await orionConfig.addWhitelistedCurator(curator.address);
+
     // Create transparent vault (no intent submitted)
     const tx = await transparentVaultFactory
       .connect(owner)

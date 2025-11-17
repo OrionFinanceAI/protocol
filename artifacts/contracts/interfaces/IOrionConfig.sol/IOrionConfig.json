@@ -48,6 +48,19 @@
       "inputs": [
         {
           "internalType": "address",
+          "name": "curator",
+          "type": "address"
+        }
+      ],
+      "name": "addWhitelistedCurator",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
           "name": "vaultOwner",
           "type": "address"
         }
@@ -253,6 +266,25 @@
       "inputs": [
         {
           "internalType": "address",
+          "name": "curator",
+          "type": "address"
+        }
+      ],
+      "name": "isWhitelistedCurator",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
           "name": "vaultOwner",
           "type": "address"
         }
@@ -355,6 +387,19 @@
         }
       ],
       "name": "removeWhitelistedAsset",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "curator",
+          "type": "address"
+        }
+      ],
+      "name": "removeWhitelistedCurator",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

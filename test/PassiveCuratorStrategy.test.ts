@@ -194,6 +194,8 @@ describe("Passive Curator Strategy", function () {
       await orionExecutionAdapter.getAddress(),
     );
 
+    await orionConfig.addWhitelistedCurator(curator.address);
+
     const KBestTvlWeightedAverageFactory = await ethers.getContractFactory("KBestTvlWeightedAverage");
     const strategyDeployed = await KBestTvlWeightedAverageFactory.deploy(
       curator.address,
