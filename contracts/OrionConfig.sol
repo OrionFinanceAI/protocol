@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "./interfaces/IOrionConfig.sol";
 import "./interfaces/IOrionVault.sol";
 import "./interfaces/IOrionTransparentVault.sol";
@@ -28,7 +28,7 @@ import "./interfaces/IInternalStateOrchestrator.sol";
  * @notice This contract is responsible for configuring the Orion protocol.
  * @author Orion Finance
  */
-contract OrionConfig is Ownable, IOrionConfig {
+contract OrionConfig is Ownable2Step, IOrionConfig {
     /// @notice Admin address (immutable, set at construction)
     address public immutable admin;
 

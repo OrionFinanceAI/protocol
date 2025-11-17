@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "../interfaces/ILiquidityOrchestrator.sol";
@@ -25,7 +25,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
  *      - Processing withdrawal requests from LPs;
  *      - Handling slippage and market execution differences from adapter price estimates via liquidity buffer.
  */
-contract LiquidityOrchestrator is Ownable, ReentrancyGuard, ILiquidityOrchestrator {
+contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, ILiquidityOrchestrator {
     using Math for uint256;
     using SafeERC20 for IERC20;
 

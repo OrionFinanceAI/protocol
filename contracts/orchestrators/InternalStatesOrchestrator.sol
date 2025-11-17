@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
@@ -26,7 +26,7 @@ import { UtilitiesLib } from "../libraries/UtilitiesLib.sol";
  *      - Computing state estimations for Liquidity Orchestrator;
  *      - Trigger the Liquidity Orchestrator.
  */
-contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateOrchestrator {
+contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, IInternalStateOrchestrator {
     using Math for uint256;
 
     /// @notice Chainlink Automation Registry address

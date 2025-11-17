@@ -7,7 +7,7 @@ import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { EventsLib } from "../libraries/EventsLib.sol";
 import { UtilitiesLib } from "../libraries/UtilitiesLib.sol";
 import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
 
 /**
  * @title PriceAdapterRegistry
@@ -15,7 +15,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
  * @author Orion Finance
  * @dev This contract allows the configuration of price adapters for various assets in the investment universe.
  */
-contract PriceAdapterRegistry is IPriceAdapterRegistry, Ownable {
+contract PriceAdapterRegistry is IPriceAdapterRegistry, Ownable2Step {
     /// @notice Orion Config contract address
     address public configAddress;
 
