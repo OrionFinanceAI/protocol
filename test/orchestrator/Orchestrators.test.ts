@@ -15,7 +15,7 @@ import {
   PriceAdapterRegistry,
   OrionAssetERC4626PriceAdapter,
   KBestTvlWeightedAverage,
-} from "../typechain-types";
+} from "../../typechain-types";
 
 describe("Orchestrators", function () {
   // Vault deposit amounts (in underlying asset units)
