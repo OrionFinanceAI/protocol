@@ -2936,14 +2936,16 @@ describe("Orchestrators", function () {
     it("should demonstrate economic infeasibility of queue flooding", async function () {
       await orionConfig.connect(owner).setMinDepositAmount(MIN_DEPOSIT);
 
-      // Calculate attack cost
-      const MAX_FULFILL_BATCH_SIZE = 150n;
+      // Calculate attack cost using contract constant to prevent test drift
+      const MAX_FULFILL_BATCH_SIZE = await absoluteVault.MAX_FULFILL_BATCH_SIZE();
       const totalCapitalRequired = MIN_DEPOSIT * MAX_FULFILL_BATCH_SIZE;
 
       // Convert to human-readable (12 decimals)
       const capitalInUnits = totalCapitalRequired / 10n ** BigInt(underlyingDecimals);
 
-      console.log(`      ✓ Capital required to fill queue (150 requests): ${capitalInUnits} units`);
+      console.log(
+        `      ✓ Capital required to fill queue (${MAX_FULFILL_BATCH_SIZE} requests): ${capitalInUnits} units`,
+      );
       console.log(`      ✓ Before mitigation: Only gas costs (~$1,500)`);
       console.log(`      ✓ After mitigation: ${capitalInUnits} units capital + gas costs`);
       console.log(`      ✓ Capital locked for: 1+ epochs (1+ days)`);
