@@ -127,6 +127,8 @@ beforeEach(async function () {
     await mockPriceAdapter2.getAddress(),
     await mockExecutionAdapter2.getAddress(),
   );
+
+  await orionConfig.addWhitelistedCurator(curator.address);
 });
 
 describe("TransparentVault - Curator Pipeline", function () {
