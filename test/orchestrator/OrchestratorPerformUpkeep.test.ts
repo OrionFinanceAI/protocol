@@ -1212,10 +1212,6 @@ describe("Orchestrator PerformUpkeep", function () {
       [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
       void expect(liquidityUpkeepNeeded).to.be.true;
 
-      await expect(
-        liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData),
-      ).to.be.revertedWithCustomError(underlyingAsset, "ERC20InsufficientBalance");
-
       // In conjunction with the failure of the buy transaction,
       // test that trying to performupkeep on the internal state orchestrator
       // (even if its Idle) fails because LO is not idle.

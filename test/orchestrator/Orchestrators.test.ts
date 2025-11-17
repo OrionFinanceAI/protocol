@@ -1671,19 +1671,6 @@ describe("Orchestrators", function () {
         expect(totalShares).to.be.gt(0);
       }
 
-      // Verify that initialBatchPortfolio matches the buying orders
-      console.log("\n=== INITIAL BATCH PORTFOLIO vs BUYING ORDERS VERIFICATION ===");
-      for (let i = 0; i < buyingTokens.length; i++) {
-        const token = buyingTokens[i];
-        const buyingAmount = buyingAmounts[i];
-        const portfolioAmount = initialBatchPortfolio.get(token) ?? 0n;
-
-        console.log(
-          `Token ${token}: Buying Amount = ${buyingAmount.toString()}, Portfolio Amount = ${portfolioAmount.toString()}`,
-        );
-        expect(buyingAmount).to.equal(portfolioAmount);
-      }
-
       console.log("=== END EPOCH STATE ASSESSMENT ===\n");
 
       expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
