@@ -15,6 +15,7 @@ import {
   PriceAdapterRegistry,
   OrionAssetERC4626PriceAdapter,
   KBestTvlWeightedAverage,
+  KBestTvlWeightedAverageInvalid,
 } from "../typechain-types";
 
 describe("Passive Curator Strategy", function () {
@@ -489,6 +490,67 @@ describe("Passive Curator Strategy", function () {
         const expectedTotalWeight = 10 ** Number(curatorIntentDecimals);
         expect(totalWeight).to.equal(expectedTotalWeight); // 100%
       }
+    });
+
+    it("should fail when strategy does not adjust weights to sum to intentScale", async function () {
+      // Deploy the invalid strategy contract (without weight adjustment logic)
+      const KBestTvlWeightedAverageInvalidFactory = await ethers.getContractFactory("KBestTvlWeightedAverageInvalid");
+      const invalidStrategyDeployed = await KBestTvlWeightedAverageInvalidFactory.deploy(
+        curator.address,
+        await orionConfig.getAddress(),
+        3, // k = 3, select top 3 assets
+      );
+      await invalidStrategyDeployed.waitForDeployment();
+      const invalidStrategy = invalidStrategyDeployed as unknown as KBestTvlWeightedAverageInvalid;
+
+      // Create a new vault for this test
+      const tx = await transparentVaultFactory
+        .connect(owner)
+        .createVault(curator.address, "Invalid Strategy Vault", "ISV", 0, 0, 0);
+      const receipt = await tx.wait();
+
+      // Find the vault creation event
+      const event = receipt?.logs.find((log) => {
+        try {
+          const parsed = transparentVaultFactory.interface.parseLog(log);
+          return parsed?.name === "OrionVaultCreated";
+        } catch {
+          return false;
+        }
+      });
+
+      void expect(event).to.not.be.undefined;
+      const parsedEvent = transparentVaultFactory.interface.parseLog(event!);
+      const vaultAddress = parsedEvent?.args[0];
+
+      void expect(vaultAddress).to.not.equal(ethers.ZeroAddress);
+
+      const invalidVault = (await ethers.getContractAt(
+        "OrionTransparentVault",
+        vaultAddress,
+      )) as unknown as OrionTransparentVault;
+
+      await invalidVault.connect(owner).updateFeeModel(3, 1000, 100);
+
+      // Update vault investment universe
+      await invalidVault
+        .connect(owner)
+        .updateVaultWhitelist([
+          await mockAsset1.getAddress(),
+          await mockAsset2.getAddress(),
+          await mockAsset3.getAddress(),
+          await mockAsset4.getAddress(),
+        ]);
+
+      // Associate the invalid strategy with the vault
+      await orionConfig.addWhitelistedCurator(await invalidStrategy.getAddress());
+      await invalidVault.connect(owner).updateCurator(await invalidStrategy.getAddress());
+
+      // Attempt to submit intent - this should fail because weights don't sum to intentScale
+      await expect(invalidStrategy.connect(curator).submitIntent(invalidVault)).to.be.revertedWithCustomError(
+        invalidVault,
+        "InvalidTotalWeight",
+      );
     });
   });
 });
