@@ -301,6 +301,36 @@ describe("Config", function () {
         .withArgs(user.address);
     });
   });
+
+  describe("removeWhitelistedCurator", function () {
+    it("Should successfully remove a whitelisted curator", async function () {
+      const curatorToRemove = curator.address;
+
+      // Verify curator is whitelisted (added in beforeEach)
+      expect(await orionConfig.isWhitelistedCurator(curatorToRemove)).to.equal(true);
+
+      await expect(orionConfig.removeWhitelistedCurator(curatorToRemove)).to.not.be.reverted;
+      expect(await orionConfig.isWhitelistedCurator(curatorToRemove)).to.equal(false);
+    });
+
+    it("Should revert when trying to remove non-whitelisted curator", async function () {
+      const nonWhitelistedCurator = user.address;
+
+      expect(await orionConfig.isWhitelistedCurator(nonWhitelistedCurator)).to.equal(false);
+      await expect(orionConfig.removeWhitelistedCurator(nonWhitelistedCurator)).to.be.revertedWithCustomError(
+        orionConfig,
+        "InvalidAddress",
+      );
+    });
+
+    it("Should revert when called by non-owner", async function () {
+      const curatorToRemove = curator.address;
+
+      await expect(orionConfig.connect(user).removeWhitelistedCurator(curatorToRemove))
+        .to.be.revertedWithCustomError(orionConfig, "OwnableUnauthorizedAccount")
+        .withArgs(user.address);
+    });
+  });
 });
 
 describe("OrionVault - Base Functionality", function () {

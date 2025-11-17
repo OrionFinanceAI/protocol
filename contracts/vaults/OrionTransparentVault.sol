@@ -17,11 +17,8 @@ import { EventsLib } from "../libraries/EventsLib.sol";
  * @author Orion Finance
  * @dev
  * This implementation supports two curator types:
- * 1. Active Management: Wallet curators submit intents via submitIntent() (push-based)
- * 2. Passive Management: Smart contract curators implement IOrionStrategy for on-demand intent computation (pull-based)
- *
- * The vault automatically detects curator type and handles intent retrieval accordingly.
- * Vault owners can switch between active and passive management by updating the curator.
+ * 1. Active Management: Wallet curators submit intents via submitIntent()
+ * 2. Passive Management: Smart contract curator strategies implement IOrionStrategy for on-demand intent computation
  */
 contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
@@ -31,7 +28,6 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     EnumerableMap.AddressToUintMap internal _portfolio;
 
     /// @notice Curator intent (w_1) - mapping of token address to target allocation
-    /// @dev Only used for active management (wallet curators). Passive curators compute intents on-demand.
     EnumerableMap.AddressToUintMap internal _portfolioIntent;
 
     /// @notice Constructor

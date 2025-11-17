@@ -371,6 +371,16 @@ describe("Passive Curator Strategy", function () {
       const expectedTotalWeight = 10 ** Number(curatorIntentDecimals);
       expect(weights[0]).to.equal(expectedTotalWeight); // 100% allocation
     });
+
+    it("should handle case when k = 0", async function () {
+      // Update strategy to select 0 assets
+      await strategy.connect(curator).updateParameters(0);
+
+      await expect(strategy.connect(curator).submitIntent(transparentVault)).to.be.revertedWithCustomError(
+        strategy,
+        "OrderIntentCannotBeEmpty",
+      );
+    });
   });
 
   describe("Vault Integration with Strategy", function () {

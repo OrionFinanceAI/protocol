@@ -34,7 +34,9 @@ contract KBestTvlWeightedAverage is IOrionStrategy, Ownable, ERC165 {
     }
 
     /// @inheritdoc IOrionStrategy
-    function submitIntent(IOrionTransparentVault vault) external {
+    function submitIntent(IOrionTransparentVault vault) external onlyOwner {
+        if (k == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
+
         address[] memory vaultWhitelistedAssets = vault.vaultWhitelist();
         uint16 n = uint16(vaultWhitelistedAssets.length);
         uint256[] memory tvls = _getAssetTVLs(vaultWhitelistedAssets, n);
