@@ -472,7 +472,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         // Set when new rates become effective
         newFeeRatesTimestamp = effectiveTime;
 
-        emit EventsLib.VaultFeeChangeScheduled(address(this), feeType, performanceFee, managementFee, effectiveTime);
+        emit EventsLib.VaultFeeChangeScheduled(address(this));
     }
 
     /// @notice Returns the active fee model (old during cooldown, new after)

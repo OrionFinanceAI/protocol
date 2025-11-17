@@ -579,30 +579,6 @@
           "internalType": "address",
           "name": "vault",
           "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint8",
-          "name": "feeType",
-          "type": "uint8"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint16",
-          "name": "performanceFee",
-          "type": "uint16"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint16",
-          "name": "managementFee",
-          "type": "uint16"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "effectiveTime",
-          "type": "uint256"
         }
       ],
       "name": "VaultFeeChangeScheduled",

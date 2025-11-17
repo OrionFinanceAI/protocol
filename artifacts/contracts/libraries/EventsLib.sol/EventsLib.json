@@ -213,31 +213,6 @@
           "internalType": "uint16",
           "name": "rsFeeCoefficient",
           "type": "uint16"
-        }
-      ],
-      "name": "ProtocolFeeChangeApplied",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [],
-      "name": "ProtocolFeeChangeCancelled",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": false,
-          "internalType": "uint16",
-          "name": "vFeeCoefficient",
-          "type": "uint16"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint16",
-          "name": "rsFeeCoefficient",
-          "type": "uint16"
         },
         {
           "indexed": false,
@@ -270,74 +245,6 @@
           "internalType": "address",
           "name": "vault",
           "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint8",
-          "name": "feeType",
-          "type": "uint8"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint16",
-          "name": "performanceFee",
-          "type": "uint16"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint16",
-          "name": "managementFee",
-          "type": "uint16"
-        }
-      ],
-      "name": "VaultFeeChangeApplied",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "vault",
-          "type": "address"
-        }
-      ],
-      "name": "VaultFeeChangeCancelled",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "vault",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint8",
-          "name": "feeType",
-          "type": "uint8"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint16",
-          "name": "performanceFee",
-          "type": "uint16"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint16",
-          "name": "managementFee",
-          "type": "uint16"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "effectiveTime",
-          "type": "uint256"
         }
       ],
       "name": "VaultFeeChangeScheduled",
@@ -383,8 +290,8 @@
       "type": "event"
     }
   ],
-  "bytecode": "0x60556032600b8282823980515f1a607314602657634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f5ffdfea26469706673582212200f3d79115c61d779511ece8595210a48a73655ac364bf553097fa298c3280eb064736f6c634300081c0033",
-  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f5ffdfea26469706673582212200f3d79115c61d779511ece8595210a48a73655ac364bf553097fa298c3280eb064736f6c634300081c0033",
+  "bytecode": "0x60556032600b8282823980515f1a607314602657634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f5ffdfea26469706673582212207b23cf236ca3ec1d695f47b2ff075437b4919cdf3c97bbcc75257fa7eed36e1064736f6c634300081c0033",
+  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f5ffdfea26469706673582212207b23cf236ca3ec1d695f47b2ff075437b4919cdf3c97bbcc75257fa7eed36e1064736f6c634300081c0033",
   "linkReferences": {},
   "deployedLinkReferences": {}
 }
