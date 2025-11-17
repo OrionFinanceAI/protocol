@@ -817,10 +817,22 @@ describe("Orchestrator PerformUpkeep", function () {
 
       const targetBufferRatio = await liquidityOrchestrator.targetBufferRatio();
       const BASIS_POINTS_FACTOR = await internalStatesOrchestrator.BASIS_POINTS_FACTOR();
-      expect(bufferAmountAfter).to.equal(
-        (BigInt(50 + 125 + 200 + 75 + 150 + 100) * 10n ** BigInt(underlyingDecimals) * BigInt(targetBufferRatio)) /
-          BASIS_POINTS_FACTOR,
-      );
+
+      // Calculate protocol total assets symbolically following InternalStatesOrchestrator._buffer() logic
+      const sumAllVaultAssets =
+        BigInt(
+          ABSOLUTE_VAULT_DEPOSIT +
+            SOFT_HURDLE_VAULT_DEPOSIT +
+            HARD_HURDLE_VAULT_DEPOSIT +
+            HIGH_WATER_MARK_VAULT_DEPOSIT +
+            HURDLE_HWM_VAULT_DEPOSIT +
+            PASSIVE_VAULT_DEPOSIT,
+        ) *
+        10n ** BigInt(underlyingDecimals);
+
+      const expectedBufferAmount = (sumAllVaultAssets * BigInt(targetBufferRatio)) / BASIS_POINTS_FACTOR;
+
+      expect(bufferAmountAfter).to.equal(expectedBufferAmount);
 
       // Process all vaults in postprocessing phase - continue until we reach building orders phase
       while ((await internalStatesOrchestrator.currentPhase()) === 3n) {
@@ -1732,11 +1744,13 @@ describe("Orchestrator PerformUpkeep", function () {
         expect(totalShares).to.be.gt(0);
       }
 
-      // NOTE: Removed invalid assertion that compared buying orders to total portfolio
-      // During rebalancing, buyingAmounts represent NET NEW positions being acquired,
-      // NOT total portfolio values. This assertion only holds in first epoch when
-      // portfolios are built from scratch, but fails during rebalancing operations.
-      console.log("\n=== INITIAL BATCH PORTFOLIO vs BUYING ORDERS VERIFICATION ===");
+      // Log the initial batch portfolio vs buying orders for visibility
+      // Note: buyingAmounts represent delta orders (what needs to be purchased),
+      // NOT the target portfolio amounts. They won't match due to:
+      // 1. Existing holdings from previous epochs
+      // 2. Performance fee changes affecting available capital
+      // 3. Selling some tokens to buy others (net rebalancing)
+      console.log("\n=== INITIAL BATCH PORTFOLIO vs BUYING ORDERS (INFO ONLY) ===");
       for (let i = 0; i < buyingTokens.length; i++) {
         const token = buyingTokens[i];
         const buyingAmount = buyingAmounts[i];
@@ -1745,8 +1759,8 @@ describe("Orchestrator PerformUpkeep", function () {
         console.log(
           `Token ${token}: Buying Amount = ${buyingAmount.toString()}, Portfolio Amount = ${portfolioAmount.toString()}`,
         );
-        // REMOVED: expect(buyingAmount).to.equal(portfolioAmount);
-        // This assertion is invalid - buying amounts are incremental changes, not total values
+        // Verify buying amounts are positive (we're actually buying something)
+        expect(buyingAmount).to.be.gt(0);
       }
 
       console.log("=== END EPOCH STATE ASSESSMENT ===\n");
@@ -1808,23 +1822,35 @@ describe("Orchestrator PerformUpkeep", function () {
       const investmentUniverseAssets = [mockAsset1, mockAsset2, mockAsset3];
       const assetNames = ["Mock Asset 1", "Mock Asset 2", "Mock Asset 3"];
 
+      // After FulfillDepositAndRedeem, calculate total asset distribution
+      // Sum of (all vault holdings + LO holdings) should equal what we had before
       for (let i = 0; i < investmentUniverseAssets.length; i++) {
         const asset = investmentUniverseAssets[i];
         const assetName = assetNames[i];
+        const assetAddress = await asset.getAddress();
         const liquidityOrchestratorBalance = await asset.balanceOf(await liquidityOrchestrator.getAddress());
 
-        console.log(`${assetName}: ${liquidityOrchestratorBalance.toString()}`);
+        // Sum up all vault holdings of this asset
+        let totalVaultHoldings = 0n;
+        for (const { vault } of allVaults) {
+          const [portfolioTokens, portfolioShares] = await vault.getPortfolio();
+          for (let j = 0; j < portfolioTokens.length; j++) {
+            if (portfolioTokens[j] === assetAddress) {
+              totalVaultHoldings += portfolioShares[j];
+            }
+          }
+        }
 
-        // Note: At this point, FulfillDepositAndRedeem has completed, so bought assets
-        // have been distributed to vaults. The LO balance represents what's left over
-        // after distribution, which depends on the complex interaction between:
-        // - Initial holdings
-        // - Rebalancing orders (sells + buys)
-        // - Distribution to vaults based on target portfolios
-        // - Performance fee calculations (which changed with the bug fix)
-        //
-        // We just verify balances are non-negative as a sanity check
-        expect(liquidityOrchestratorBalance).to.be.gte(0, `${assetName} balance should be non-negative`);
+        console.log(`${assetName}:`);
+        console.log(`  LO Balance: ${liquidityOrchestratorBalance.toString()}`);
+        console.log(`  Total Vault Holdings: ${totalVaultHoldings.toString()}`);
+        console.log(`  Grand Total: ${(liquidityOrchestratorBalance + totalVaultHoldings).toString()}`);
+
+        // Verify LO balance is non-negative
+        expect(liquidityOrchestratorBalance).to.be.gte(0, `${assetName} LO balance should be non-negative`);
+
+        // Verify total vault holdings are positive (assets have been distributed)
+        expect(totalVaultHoldings).to.be.gt(0, `${assetName} should be held by vaults after distribution`);
       }
 
       // 4. Verify buffer management and exchange ratios
