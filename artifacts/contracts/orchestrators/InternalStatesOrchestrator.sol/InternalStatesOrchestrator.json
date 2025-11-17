@@ -36,11 +36,6 @@
     },
     {
       "inputs": [],
-      "name": "InvalidState",
-      "type": "error"
-    },
-    {
-      "inputs": [],
       "name": "NotAuthorized",
       "type": "error"
     },

@@ -319,10 +319,6 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
 
     /// @notice Preprocesses minibatch of transparent vaults
     function _preprocessTransparentMinibatch() internal {
-        if (currentPhase != InternalUpkeepPhase.PreprocessingTransparentVaults) {
-            revert ErrorsLib.InvalidState();
-        }
-
         uint16 i0 = currentMinibatchIndex * transparentMinibatchSize;
         uint16 i1 = i0 + transparentMinibatchSize;
         ++currentMinibatchIndex;
@@ -421,9 +417,6 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
      *      - Distributes the buffer cost proportionally across all vaults
      */
     function _buffer() internal {
-        if (currentPhase != InternalUpkeepPhase.Buffering) {
-            revert ErrorsLib.InvalidState();
-        }
         currentPhase = InternalUpkeepPhase.PostprocessingTransparentVaults;
 
         uint16 nTransparentVaults = uint16(transparentVaultsEpoch.length);
@@ -457,10 +450,6 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
 
     /// @notice Postprocesses minibatch of transparent vaults
     function _postprocessTransparentMinibatch() internal {
-        if (currentPhase != InternalUpkeepPhase.PostprocessingTransparentVaults) {
-            revert ErrorsLib.InvalidState();
-        }
-
         uint16 i0 = currentMinibatchIndex * transparentMinibatchSize;
         uint16 i1 = i0 + transparentMinibatchSize;
         ++currentMinibatchIndex;
@@ -525,9 +514,6 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
     /// @dev Compares _finalBatchPortfolio with _initialBatchPortfolio to determine rebalancing needs
     ///      Orders are stored in _currentEpoch.sellingOrders and _currentEpoch.buyingOrders.
     function _buildOrders() internal {
-        if (currentPhase != InternalUpkeepPhase.BuildingOrders) {
-            revert ErrorsLib.InvalidState();
-        }
         address[] memory tokens = _currentEpoch.tokens;
         uint16 length = uint16(tokens.length);
 
