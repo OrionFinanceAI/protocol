@@ -18,11 +18,10 @@ abi/
 *.tenseal
 __pycache__/
 typechain-types/
-scripts/
+protocol-ops/
 protocol-costs/
 reports/
 docs/
-orion-strategies/
 # files
 *.env
 *.log
