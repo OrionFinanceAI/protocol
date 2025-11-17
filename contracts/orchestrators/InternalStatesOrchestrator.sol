@@ -271,9 +271,6 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
         for (uint16 i = 0; i < allTransparent.length; ++i) {
             address v = allTransparent[i];
             if (IOrionVault(v).pendingDeposit() + IOrionVault(v).totalAssets() == 0) continue;
-            // slither-disable-next-line unused-return
-            (address[] memory tTokens, ) = IOrionTransparentVault(v).getIntent();
-            if (tTokens.length == 0) continue;
             transparentVaultsEpoch.push(v);
         }
     }

@@ -150,6 +150,8 @@ describe("Orchestrators", function () {
     await kbestTvlStrategyDeployed.waitForDeployment();
     kbestTvlStrategy = kbestTvlStrategyDeployed as unknown as KBestTvlWeightedAverage;
 
+    await orionConfig.addWhitelistedCurator(await kbestTvlStrategy.getAddress());
+
     const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistry");
     const priceAdapterRegistryDeployed = await PriceAdapterRegistryFactory.deploy(
       owner.address,
@@ -247,6 +249,8 @@ describe("Orchestrators", function () {
     );
 
     await orionConfig.setProtocolRiskFreeRate(0.0423 * 10_000);
+
+    await orionConfig.addWhitelistedCurator(curator.address);
 
     const absoluteVaultTx = await transparentVaultFactory
       .connect(owner)
@@ -363,15 +367,8 @@ describe("Orchestrators", function () {
       passiveVaultAddress,
     )) as unknown as OrionTransparentVault;
 
-    await expect(
-      passiveVault.connect(owner).updateCurator(await kbestTvlStrategy.getAddress()),
-    ).to.be.revertedWithCustomError(kbestTvlStrategy, "InvalidStrategy");
-
-    await passiveVault
-      .connect(owner)
-      .updateVaultWhitelist([await mockAsset1.getAddress(), await mockAsset3.getAddress()]);
-
     await passiveVault.connect(owner).updateCurator(await kbestTvlStrategy.getAddress());
+    await kbestTvlStrategy.connect(owner).submitIntent(passiveVault);
 
     let liquidityOrchestratorBalance = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
     expect(liquidityOrchestratorBalance).to.equal(0);
@@ -689,7 +686,7 @@ describe("Orchestrators", function () {
   });
 
   describe("performUpkeep", function () {
-    it("should complete full upkeep cycles without intent decryption", async function () {
+    it("", async function () {
       // Fast forward time to trigger upkeep
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Idle
       expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle

@@ -15,6 +15,7 @@ import {
   PriceAdapterRegistry,
   OrionAssetERC4626PriceAdapter,
   KBestTvlWeightedAverage,
+  KBestTvlWeightedAverageInvalid,
 } from "../typechain-types";
 
 describe("Passive Curator Strategy", function () {
@@ -194,6 +195,8 @@ describe("Passive Curator Strategy", function () {
       await orionExecutionAdapter.getAddress(),
     );
 
+    await orionConfig.addWhitelistedCurator(curator.address);
+
     const KBestTvlWeightedAverageFactory = await ethers.getContractFactory("KBestTvlWeightedAverage");
     const strategyDeployed = await KBestTvlWeightedAverageFactory.deploy(
       curator.address,
@@ -243,7 +246,10 @@ describe("Passive Curator Strategy", function () {
       ]);
 
     // Step 3: Update curator to the strategy contract
+    await orionConfig.addWhitelistedCurator(await strategy.getAddress());
     await transparentVault.connect(owner).updateCurator(await strategy.getAddress());
+
+    await strategy.connect(curator).submitIntent(transparentVault);
 
     await underlyingAsset.connect(user).approve(await transparentVault.getAddress(), ethers.parseUnits("10000", 12));
     const depositAmount = ethers.parseUnits("100", 12);
@@ -251,26 +257,13 @@ describe("Passive Curator Strategy", function () {
   });
 
   describe("Strategy Interface Detection", function () {
-    it("should correctly identify strategy as passive curator", async function () {
-      // Check that the vault correctly identifies the strategy as a passive curator
-      await expect(await transparentVault.isPassiveCurator()).to.be.true;
-    });
-
     it("should support IOrionStrategy interface", async function () {
       // Check that the strategy supports the IOrionStrategy interface
       // The interface ID is calculated from XOR of all function selectors in the interface
-      const computeIntentSelector = ethers.id("computeIntent(address[])").slice(0, 10);
-      const validateStrategySelector = ethers.id("validateStrategy(address[])").slice(0, 10);
-      const getStatefulIntentSelector = ethers.id("getStatefulIntent()").slice(0, 10);
+      const submitIntentSelector = ethers.id("submitIntent(address)").slice(0, 10);
 
       // XOR all three selectors to get the interface ID
-      const interfaceId = (
-        BigInt(computeIntentSelector) ^
-        BigInt(validateStrategySelector) ^
-        BigInt(getStatefulIntentSelector)
-      )
-        .toString(16)
-        .padStart(8, "0");
+      const interfaceId = BigInt(submitIntentSelector).toString(16).padStart(8, "0");
       await expect(await strategy.supportsInterface("0x" + interfaceId)).to.be.true;
     });
 
@@ -305,7 +298,7 @@ describe("Passive Curator Strategy", function () {
     it("should compute intent with correct asset selection", async function () {
       // Get vault whitelist
       const vaultWhitelist = await transparentVault.vaultWhitelist();
-      expect(vaultWhitelist.length).to.equal(4);
+      expect(vaultWhitelist.length).to.equal(5);
 
       // Get intent through the vault (which calls the strategy)
       const [tokens, weights] = await transparentVault.getIntent();
@@ -315,12 +308,13 @@ describe("Passive Curator Strategy", function () {
       expect(weights.length).to.equal(3);
 
       // Verify that the selected assets are the top 3 by TVL
-      // mockAsset1: 3000, mockAsset2: 2000, mockAsset3: 1500, mockAsset4: 1000
+      // mockAsset1: 3000, mockAsset2: 2000, mockAsset3: 1500, mockAsset4: 1000, underlyingAsset: 0
       // So top 3 should be mockAsset1, mockAsset2, mockAsset3
       expect(tokens).to.include(await mockAsset1.getAddress());
       expect(tokens).to.include(await mockAsset2.getAddress());
       expect(tokens).to.include(await mockAsset3.getAddress());
       expect(tokens).to.not.include(await mockAsset4.getAddress());
+      expect(tokens).to.not.include(await underlyingAsset.getAddress());
     });
 
     it("should compute intent with correct weight distribution", async function () {
@@ -340,26 +334,29 @@ describe("Passive Curator Strategy", function () {
     });
 
     it("should handle case when k > number of available assets", async function () {
-      // Update strategy to select 5 assets, but only 4 are available
-      await strategy.connect(curator).updateParameters(5);
+      // Update strategy to select 6 assets, but only 5 are available
+      await strategy.connect(curator).updateParameters(6);
+      await strategy.connect(curator).submitIntent(transparentVault);
 
       // Get intent through the vault (which calls the strategy)
       const [tokens, weights] = await transparentVault.getIntent();
 
-      // Should select all 4 available assets
-      expect(tokens.length).to.equal(4);
-      expect(weights.length).to.equal(4);
+      // Should select all available assets
+      expect(tokens.length).to.equal(5);
+      expect(weights.length).to.equal(5);
 
       // Verify all assets are selected
       expect(tokens).to.include(await mockAsset1.getAddress());
       expect(tokens).to.include(await mockAsset2.getAddress());
       expect(tokens).to.include(await mockAsset3.getAddress());
       expect(tokens).to.include(await mockAsset4.getAddress());
+      expect(tokens).to.include(await underlyingAsset.getAddress());
     });
 
     it("should handle case when k = 1", async function () {
       // Update strategy to select only 1 asset
       await strategy.connect(curator).updateParameters(1);
+      await strategy.connect(curator).submitIntent(transparentVault);
 
       // Get intent through the vault (which calls the strategy)
       const [tokens, weights] = await transparentVault.getIntent();
@@ -373,6 +370,16 @@ describe("Passive Curator Strategy", function () {
       const curatorIntentDecimals = await orionConfig.curatorIntentDecimals();
       const expectedTotalWeight = 10 ** Number(curatorIntentDecimals);
       expect(weights[0]).to.equal(expectedTotalWeight); // 100% allocation
+    });
+
+    it("should handle case when k = 0", async function () {
+      // Update strategy to select 0 assets
+      await strategy.connect(curator).updateParameters(0);
+
+      await expect(strategy.connect(curator).submitIntent(transparentVault)).to.be.revertedWithCustomError(
+        strategy,
+        "OrderIntentCannotBeEmpty",
+      );
     });
   });
 
@@ -432,16 +439,22 @@ describe("Passive Curator Strategy", function () {
     it("should reflect parameter changes in intent computation", async function () {
       // Test with k=2
       await strategy.connect(curator).updateParameters(2);
+      await strategy.connect(curator).submitIntent(transparentVault);
+
       let [tokens, _weights] = await transparentVault.getIntent();
       expect(tokens.length).to.equal(2);
 
       // Test with k=4 (all assets)
       await strategy.connect(curator).updateParameters(4);
+      await strategy.connect(curator).submitIntent(transparentVault);
+
       [tokens, _weights] = await transparentVault.getIntent();
       expect(tokens.length).to.equal(4);
 
       // Test with k=1
       await strategy.connect(curator).updateParameters(1);
+      await strategy.connect(curator).submitIntent(transparentVault);
+
       [tokens, _weights] = await transparentVault.getIntent();
       expect(tokens.length).to.equal(1);
     });
@@ -454,19 +467,9 @@ describe("Passive Curator Strategy", function () {
         .updateVaultWhitelist([await mockAsset1.getAddress(), await mockAsset2.getAddress()]);
 
       const whitelist = await transparentVault.vaultWhitelist();
-      expect(whitelist.length).to.equal(2);
+      expect(whitelist.length).to.equal(3);
       expect(whitelist).to.include(await mockAsset1.getAddress());
       expect(whitelist).to.include(await mockAsset2.getAddress());
-    });
-
-    it("should reject invalid whitelist updates that break strategy", async function () {
-      // Try to update whitelist with an invalid asset (non-ERC4626)
-      // This should fail because the strategy validation will reject it
-      await expect(
-        transparentVault
-          .connect(owner)
-          .updateVaultWhitelist([await mockAsset1.getAddress(), await underlyingAsset.getAddress()]),
-      ).to.be.revertedWithCustomError(strategy, "InvalidStrategy");
     });
 
     it("should allow whitelist updates when curator is not a strategy", async function () {
@@ -497,6 +500,67 @@ describe("Passive Curator Strategy", function () {
         const expectedTotalWeight = 10 ** Number(curatorIntentDecimals);
         expect(totalWeight).to.equal(expectedTotalWeight); // 100%
       }
+    });
+
+    it("should fail when strategy does not adjust weights to sum to intentScale", async function () {
+      // Deploy the invalid strategy contract (without weight adjustment logic)
+      const KBestTvlWeightedAverageInvalidFactory = await ethers.getContractFactory("KBestTvlWeightedAverageInvalid");
+      const invalidStrategyDeployed = await KBestTvlWeightedAverageInvalidFactory.deploy(
+        curator.address,
+        await orionConfig.getAddress(),
+        3, // k = 3, select top 3 assets
+      );
+      await invalidStrategyDeployed.waitForDeployment();
+      const invalidStrategy = invalidStrategyDeployed as unknown as KBestTvlWeightedAverageInvalid;
+
+      // Create a new vault for this test
+      const tx = await transparentVaultFactory
+        .connect(owner)
+        .createVault(curator.address, "Invalid Strategy Vault", "ISV", 0, 0, 0);
+      const receipt = await tx.wait();
+
+      // Find the vault creation event
+      const event = receipt?.logs.find((log) => {
+        try {
+          const parsed = transparentVaultFactory.interface.parseLog(log);
+          return parsed?.name === "OrionVaultCreated";
+        } catch {
+          return false;
+        }
+      });
+
+      void expect(event).to.not.be.undefined;
+      const parsedEvent = transparentVaultFactory.interface.parseLog(event!);
+      const vaultAddress = parsedEvent?.args[0];
+
+      void expect(vaultAddress).to.not.equal(ethers.ZeroAddress);
+
+      const invalidVault = (await ethers.getContractAt(
+        "OrionTransparentVault",
+        vaultAddress,
+      )) as unknown as OrionTransparentVault;
+
+      await invalidVault.connect(owner).updateFeeModel(3, 1000, 100);
+
+      // Update vault investment universe
+      await invalidVault
+        .connect(owner)
+        .updateVaultWhitelist([
+          await mockAsset1.getAddress(),
+          await mockAsset2.getAddress(),
+          await mockAsset3.getAddress(),
+          await mockAsset4.getAddress(),
+        ]);
+
+      // Associate the invalid strategy with the vault
+      await orionConfig.addWhitelistedCurator(await invalidStrategy.getAddress());
+      await invalidVault.connect(owner).updateCurator(await invalidStrategy.getAddress());
+
+      // Attempt to submit intent - this should fail because weights don't sum to intentScale
+      await expect(invalidStrategy.connect(curator).submitIntent(invalidVault)).to.be.revertedWithCustomError(
+        invalidVault,
+        "InvalidTotalWeight",
+      );
     });
   });
 });

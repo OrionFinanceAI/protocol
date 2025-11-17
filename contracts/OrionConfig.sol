@@ -60,6 +60,7 @@ contract OrionConfig is Ownable, IOrionConfig {
     using EnumerableSet for EnumerableSet.AddressSet;
     EnumerableSet.AddressSet private whitelistedAssets;
     EnumerableSet.AddressSet private whitelistedVaultOwners;
+    EnumerableSet.AddressSet private whitelistedCurators;
 
     /// @notice Mapping of token address to its decimals
     mapping(address => uint8) public tokenDecimals;
@@ -109,6 +110,8 @@ contract OrionConfig is Ownable, IOrionConfig {
 
         // slither-disable-next-line unused-return
         whitelistedVaultOwners.add(initialOwner);
+        // slither-disable-next-line unused-return
+        whitelistedCurators.add(initialOwner);
     }
 
     // === Protocol Configuration ===
@@ -250,6 +253,25 @@ contract OrionConfig is Ownable, IOrionConfig {
     /// @inheritdoc IOrionConfig
     function isWhitelistedVaultOwner(address vaultOwner) external view returns (bool) {
         return whitelistedVaultOwners.contains(vaultOwner);
+    }
+
+    /// @inheritdoc IOrionConfig
+    function addWhitelistedCurator(address curator) external onlyOwner {
+        bool inserted = whitelistedCurators.add(curator);
+        if (!inserted) revert ErrorsLib.AlreadyRegistered();
+    }
+
+    /// @inheritdoc IOrionConfig
+    function removeWhitelistedCurator(address curator) external onlyOwner {
+        if (!this.isWhitelistedCurator(curator)) revert ErrorsLib.InvalidAddress();
+
+        bool removed = whitelistedCurators.remove(curator);
+        if (!removed) revert ErrorsLib.InvalidAddress();
+    }
+
+    /// @inheritdoc IOrionConfig
+    function isWhitelistedCurator(address curator) external view returns (bool) {
+        return whitelistedCurators.contains(curator);
     }
 
     // === Orion Vaults ===

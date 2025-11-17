@@ -12,7 +12,6 @@ import { TransparentVaultFactory } from "../typechain-types";
  */
 describe("Minimum Amount DOS Prevention", function () {
   // Test constants
-  const INITIAL_SUPPLY = ethers.parseUnits("1000000", 6); // 1M USDC (6 decimals)
   const USER_BALANCE = ethers.parseUnits("10000", 6); // 10k USDC per user
   const MIN_DEPOSIT = ethers.parseUnits("100", 6); // 100 USDC minimum
   const MIN_REDEEM = ethers.parseUnits("100", 18); // 100 shares minimum (18 decimals)
@@ -59,6 +58,8 @@ describe("Minimum Amount DOS Prevention", function () {
     const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistry");
     const priceAdapterRegistry = await PriceAdapterRegistryFactory.deploy(owner.address, await config.getAddress());
     await config.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
+
+    await config.addWhitelistedCurator(curator.address);
 
     // Create a vault
     const vaultTx = await vaultFactory.connect(owner).createVault(

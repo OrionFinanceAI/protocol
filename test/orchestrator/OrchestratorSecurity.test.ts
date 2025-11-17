@@ -331,6 +331,8 @@ describe("Orchestrator Security", function () {
 
     await orionConfig.setProtocolRiskFreeRate(0.0423 * 10_000);
 
+    await orionConfig.addWhitelistedCurator(curator.address);
+
     const absoluteVaultTx = await transparentVaultFactory
       .connect(owner)
       .createVault(curator.address, "Absolute Fee Vault", "AFV", 0, 500, 50);
@@ -426,6 +428,8 @@ describe("Orchestrator Security", function () {
       hurdleHwmVaultAddress,
     )) as unknown as OrionTransparentVault;
 
+    await orionConfig.addWhitelistedCurator(await kbestTvlStrategy.getAddress());
+
     // Create passive vault with kbestTVL strategy (no curator intents)
     const passiveVaultTx = await transparentVaultFactory
       .connect(owner)
@@ -445,14 +449,6 @@ describe("Orchestrator Security", function () {
       "OrionTransparentVault",
       passiveVaultAddress,
     )) as unknown as OrionTransparentVault;
-
-    await expect(
-      passiveVault.connect(owner).updateCurator(await kbestTvlStrategy.getAddress()),
-    ).to.be.revertedWithCustomError(kbestTvlStrategy, "InvalidStrategy");
-
-    await passiveVault
-      .connect(owner)
-      .updateVaultWhitelist([await mockAsset1.getAddress(), await mockAsset3.getAddress()]);
 
     await passiveVault.connect(owner).updateCurator(await kbestTvlStrategy.getAddress());
 
