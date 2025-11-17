@@ -70,4 +70,7 @@ library ErrorsLib {
 
     /// @notice The strategy is not compatible with the provided whitelisted assets.
     error InvalidStrategy();
+
+    /// @notice Vault is decommissioned and cannot accept new requests.
+    error VaultDecommissioned();
 }
