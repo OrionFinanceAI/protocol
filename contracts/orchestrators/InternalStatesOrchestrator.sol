@@ -58,6 +58,14 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, IInternalS
     /// @notice Revenue share fee coefficient
     uint16 public rsFeeCoefficient;
 
+    /// @notice Timestamp when new protocol fee rates become effective
+    uint256 public newProtocolFeeRatesTimestamp;
+
+    /// @notice Old volume fee coefficient (used during cooldown period)
+    uint16 private oldVFeeCoefficient;
+    /// @notice Old revenue share fee coefficient (used during cooldown period)
+    uint16 private oldRsFeeCoefficient;
+
     /// @notice Pending protocol fees [assets]
     uint256 public pendingProtocolFees;
 
@@ -211,8 +219,31 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, IInternalS
         if (_vFeeCoefficient > 50 || _rsFeeCoefficient > 2_000) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
+        // Store old fees for cooldown period
+        (uint16 oldVFee, uint16 oldRsFee) = activeProtocolFees();
+        oldVFeeCoefficient = oldVFee;
+        oldRsFeeCoefficient = oldRsFee;
+
+        // Update to new fees immediately in storage
         vFeeCoefficient = _vFeeCoefficient;
         rsFeeCoefficient = _rsFeeCoefficient;
+
+        // Set when new rates become effective
+        newProtocolFeeRatesTimestamp = block.timestamp + config.feeChangeCooldownDuration();
+
+        emit EventsLib.ProtocolFeeChangeScheduled(_vFeeCoefficient, _rsFeeCoefficient);
+    }
+
+    /// @notice Returns the active protocol fees (old during cooldown, new after)
+    /// @return vFee The active volume fee coefficient
+    /// @return rsFee The active revenue share fee coefficient
+    function activeProtocolFees() public view returns (uint16 vFee, uint16 rsFee) {
+        // If we're still in cooldown period, return old rates
+        if (newProtocolFeeRatesTimestamp > block.timestamp) {
+            return (oldVFeeCoefficient, oldRsFeeCoefficient);
+        }
+        // Otherwise return new rates
+        return (vFeeCoefficient, rsFeeCoefficient);
     }
 
     /* solhint-disable code-complexity */
@@ -271,9 +302,6 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, IInternalS
         for (uint16 i = 0; i < allTransparent.length; ++i) {
             address v = allTransparent[i];
             if (IOrionVault(v).pendingDeposit() + IOrionVault(v).totalAssets() == 0) continue;
-            // slither-disable-next-line unused-return
-            (address[] memory tTokens, ) = IOrionTransparentVault(v).getIntent();
-            if (tTokens.length == 0) continue;
             transparentVaultsEpoch.push(v);
         }
     }
@@ -322,10 +350,6 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, IInternalS
 
     /// @notice Preprocesses minibatch of transparent vaults
     function _preprocessTransparentMinibatch() internal {
-        if (currentPhase != InternalUpkeepPhase.PreprocessingTransparentVaults) {
-            revert ErrorsLib.InvalidState();
-        }
-
         uint16 i0 = currentMinibatchIndex * transparentMinibatchSize;
         uint16 i1 = i0 + transparentMinibatchSize;
         ++currentMinibatchIndex;
@@ -334,6 +358,8 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, IInternalS
             currentPhase = InternalUpkeepPhase.Buffering;
             currentMinibatchIndex = 0;
         }
+
+        (uint16 activeVFee, uint16 activeRsFee) = activeProtocolFees();
 
         for (uint16 i = i0; i < i1; ++i) {
             IOrionTransparentVault vault = IOrionTransparentVault(transparentVaultsEpoch[i]);
@@ -374,7 +400,7 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, IInternalS
             }
 
             // STEP 2: PROTOCOL VOLUME FEE
-            uint256 protocolVolumeFee = uint256(vFeeCoefficient).mulDiv(totalAssets, BASIS_POINTS_FACTOR);
+            uint256 protocolVolumeFee = uint256(activeVFee).mulDiv(totalAssets, BASIS_POINTS_FACTOR);
             protocolVolumeFee = protocolVolumeFee.mulDiv(epochDuration, 365 days);
             pendingProtocolFees += protocolVolumeFee;
             totalAssets -= protocolVolumeFee;
@@ -385,7 +411,7 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, IInternalS
             totalAssets -= curatorFee;
             _currentEpoch.vaultsTotalAssetsForFulfillRedeem[address(vault)] = totalAssets;
 
-            uint256 protocolRevenueShareFee = uint256(rsFeeCoefficient).mulDiv(curatorFee, BASIS_POINTS_FACTOR);
+            uint256 protocolRevenueShareFee = uint256(activeRsFee).mulDiv(curatorFee, BASIS_POINTS_FACTOR);
             pendingProtocolFees += protocolRevenueShareFee;
             curatorFee -= protocolRevenueShareFee;
             vault.accrueCuratorFees(epochCounter, curatorFee);
@@ -424,9 +450,6 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, IInternalS
      *      - Distributes the buffer cost proportionally across all vaults
      */
     function _buffer() internal {
-        if (currentPhase != InternalUpkeepPhase.Buffering) {
-            revert ErrorsLib.InvalidState();
-        }
         currentPhase = InternalUpkeepPhase.PostprocessingTransparentVaults;
 
         uint16 nTransparentVaults = uint16(transparentVaultsEpoch.length);
@@ -460,10 +483,6 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, IInternalS
 
     /// @notice Postprocesses minibatch of transparent vaults
     function _postprocessTransparentMinibatch() internal {
-        if (currentPhase != InternalUpkeepPhase.PostprocessingTransparentVaults) {
-            revert ErrorsLib.InvalidState();
-        }
-
         uint16 i0 = currentMinibatchIndex * transparentMinibatchSize;
         uint16 i1 = i0 + transparentMinibatchSize;
         ++currentMinibatchIndex;
@@ -528,9 +547,6 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, IInternalS
     /// @dev Compares _finalBatchPortfolio with _initialBatchPortfolio to determine rebalancing needs
     ///      Orders are stored in _currentEpoch.sellingOrders and _currentEpoch.buyingOrders.
     function _buildOrders() internal {
-        if (currentPhase != InternalUpkeepPhase.BuildingOrders) {
-            revert ErrorsLib.InvalidState();
-        }
         address[] memory tokens = _currentEpoch.tokens;
         uint16 length = uint16(tokens.length);
 

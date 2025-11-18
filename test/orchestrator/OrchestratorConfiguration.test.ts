@@ -91,11 +91,6 @@ describe("Orchestrator Configuration", function () {
   const HURDLE_HWM_VAULT_DEPOSIT = 150;
   const PASSIVE_VAULT_DEPOSIT = 100;
 
-  // Expected price factors for mock assets after gains/losses (logged)
-  const MOCK_ASSET1_P0 = 1.55;
-  const MOCK_ASSET2_P0 = 1.5;
-  const MOCK_ASSET3_P0 = 1.055;
-
   let transparentVaultFactory: TransparentVaultFactory;
   let orionConfig: OrionConfig;
   let underlyingAsset: MockUnderlyingAsset;
@@ -184,17 +179,6 @@ describe("Orchestrator Configuration", function () {
     await mockAsset1.connect(user).simulateGains(ethers.parseUnits("50", underlyingDecimals));
     await mockAsset2.connect(user).simulateLosses(ethers.parseUnits("30", underlyingDecimals), user.address);
     await mockAsset3.connect(user).simulateGains(ethers.parseUnits("60", underlyingDecimals));
-
-    const decimals1 = await mockAsset1.decimals();
-    const decimals2 = await mockAsset2.decimals();
-    const decimals3 = await mockAsset3.decimals();
-    const currentSharePrice1 = await mockAsset1.convertToAssets(10n ** BigInt(decimals1));
-    const currentSharePrice2 = await mockAsset2.convertToAssets(10n ** BigInt(decimals2));
-    const currentSharePrice3 = await mockAsset3.convertToAssets(10n ** BigInt(decimals3));
-
-    console.log(currentSharePrice1);
-    console.log(currentSharePrice2);
-    console.log(currentSharePrice3);
 
     const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
     const orionConfigDeployed = await OrionConfigFactory.deploy(
@@ -313,6 +297,8 @@ describe("Orchestrator Configuration", function () {
 
     await orionConfig.setProtocolRiskFreeRate(0.0423 * 10_000);
 
+    await orionConfig.addWhitelistedCurator(curator.address);
+
     const absoluteVaultTx = await transparentVaultFactory
       .connect(owner)
       .createVault(curator.address, "Absolute Fee Vault", "AFV", 0, 500, 50);
@@ -408,6 +394,8 @@ describe("Orchestrator Configuration", function () {
       hurdleHwmVaultAddress,
     )) as unknown as OrionTransparentVault;
 
+    await orionConfig.addWhitelistedCurator(await kbestTvlStrategy.getAddress());
+
     // Create passive vault with kbestTVL strategy (no curator intents)
     const passiveVaultTx = await transparentVaultFactory
       .connect(owner)
@@ -428,15 +416,8 @@ describe("Orchestrator Configuration", function () {
       passiveVaultAddress,
     )) as unknown as OrionTransparentVault;
 
-    await expect(
-      passiveVault.connect(owner).updateCurator(await kbestTvlStrategy.getAddress()),
-    ).to.be.revertedWithCustomError(kbestTvlStrategy, "InvalidStrategy");
-
-    await passiveVault
-      .connect(owner)
-      .updateVaultWhitelist([await mockAsset1.getAddress(), await mockAsset3.getAddress()]);
-
     await passiveVault.connect(owner).updateCurator(await kbestTvlStrategy.getAddress());
+    await kbestTvlStrategy.connect(owner).submitIntent(passiveVault);
 
     let liquidityOrchestratorBalance = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
     expect(liquidityOrchestratorBalance).to.equal(0);

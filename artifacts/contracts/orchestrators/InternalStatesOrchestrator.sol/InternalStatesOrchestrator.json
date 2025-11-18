@@ -36,11 +36,6 @@
     },
     {
       "inputs": [],
-      "name": "InvalidState",
-      "type": "error"
-    },
-    {
-      "inputs": [],
       "name": "NotAuthorized",
       "type": "error"
     },
@@ -148,6 +143,25 @@
         }
       ],
       "name": "OwnershipTransferred",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "uint16",
+          "name": "vFeeCoefficient",
+          "type": "uint16"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint16",
+          "name": "rsFeeCoefficient",
+          "type": "uint16"
+        }
+      ],
+      "name": "ProtocolFeeChangeScheduled",
       "type": "event"
     },
     {
@@ -453,6 +467,19 @@
           "internalType": "contract ILiquidityOrchestrator",
           "name": "",
           "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "newProtocolFeeRatesTimestamp",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
         }
       ],
       "stateMutability": "view",

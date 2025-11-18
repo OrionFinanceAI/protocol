@@ -28,11 +28,10 @@ export default defineConfig([
     "**/node_modules",
     "**/types",
     "**/typechain-types",
-    "**/scripts",
     "**/.venv",
     "**/fhevmTemp",
     "**/protocol-costs",
-    "**/orion-strategies",
+    "**/protocol-ops",
     // files
     "**/*.env",
     "**/*.log",

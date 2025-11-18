@@ -112,6 +112,21 @@ interface IOrionConfig {
     /// @return True if the vault owner is whitelisted, false otherwise
     function isWhitelistedVaultOwner(address vaultOwner) external view returns (bool);
 
+    /// @notice Adds a curator to the whitelist
+    /// @dev Can only be called by the contract owner
+    /// @param curator The address of the curator to whitelist
+    function addWhitelistedCurator(address curator) external;
+
+    /// @notice Removes a curator from the whitelist
+    /// @dev Can only be called by the contract owner
+    /// @param curator The address of the curator to remove from whitelist
+    function removeWhitelistedCurator(address curator) external;
+
+    /// @notice Checks if a curator is whitelisted
+    /// @param curator The address of the curator to check
+    /// @return True if the curator is whitelisted, false otherwise
+    function isWhitelistedCurator(address curator) external view returns (bool);
+
     /// @notice Adds a new Orion vault to the protocol registry
     /// @dev Only callable by the vault factories contracts
     /// @param vault The address of the vault to add to the registry
@@ -164,4 +179,31 @@ interface IOrionConfig {
     /// @param token The address of the token
     /// @return The number of decimals for the token
     function getTokenDecimals(address token) external view returns (uint8);
+
+    /// @notice Returns the minimum deposit amount
+    /// @return The minimum deposit amount in underlying asset units
+    function minDepositAmount() external view returns (uint256);
+
+    /// @notice Returns the minimum redeem amount
+    /// @return The minimum redeem amount in share units
+    function minRedeemAmount() external view returns (uint256);
+
+    /// @notice Sets the minimum deposit amount
+    /// @dev Can only be called by the contract owner
+    /// @param amount The new minimum deposit amount in underlying asset units
+    function setMinDepositAmount(uint256 amount) external;
+
+    /// @notice Sets the minimum redeem amount
+    /// @dev Can only be called by the contract owner
+    /// @param amount The new minimum redeem amount in share units
+    function setMinRedeemAmount(uint256 amount) external;
+
+    /// @notice Returns the fee change cooldown duration
+    /// @return The cooldown duration in seconds
+    function feeChangeCooldownDuration() external view returns (uint256);
+
+    /// @notice Sets the fee change cooldown duration
+    /// @dev Can only be called by the contract owner
+    /// @param duration The new cooldown duration in seconds
+    function setFeeChangeCooldownDuration(uint256 duration) external;
 }

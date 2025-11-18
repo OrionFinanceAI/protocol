@@ -25,6 +25,27 @@ library EventsLib {
     /// @param riskFreeRate The new risk-free rate in basis points.
     event RiskFreeRateUpdated(uint16 indexed riskFreeRate);
 
+    /// @notice The minimum deposit amount has been updated.
+    /// @param minDepositAmount The new minimum deposit amount.
+    event MinDepositAmountUpdated(uint256 indexed minDepositAmount);
+
+    /// @notice The minimum redeem amount has been updated.
+    /// @param minRedeemAmount The new minimum redeem amount.
+    event MinRedeemAmountUpdated(uint256 indexed minRedeemAmount);
+
+    /// @notice The fee change cooldown duration has been updated.
+    /// @param newCooldownDuration The new cooldown duration in seconds.
+    event FeeChangeCooldownDurationUpdated(uint256 indexed newCooldownDuration);
+
+    /// @notice A vault fee model change has been scheduled.
+    /// @param vault The address of the vault.
+    event VaultFeeChangeScheduled(address indexed vault);
+
+    /// @notice A protocol fee change has been scheduled.
+    /// @param vFeeCoefficient The new volume fee coefficient.
+    /// @param rsFeeCoefficient The new revenue share fee coefficient.
+    event ProtocolFeeChangeScheduled(uint16 vFeeCoefficient, uint16 rsFeeCoefficient);
+
     // =======================
     // === Vault Lifecycle ===
     // =======================

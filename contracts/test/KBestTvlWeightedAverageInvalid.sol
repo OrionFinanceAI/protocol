@@ -5,24 +5,25 @@ import { IOrionTransparentVault } from "../interfaces/IOrionTransparentVault.sol
 import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
 import { IOrionStrategy } from "../interfaces/IOrionStrategy.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
-import "@openzeppelin/contracts/access/Ownable2Step.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
- * @title KBestTvlWeightedAverage
- * @notice This strategy selects the top K ERC4626 assets based on their TVL and allocates them proportionally.
+ * @title KBestTvlWeightedAverageInvalid
+ * @notice Test contract similar to KBestTvlWeightedAverage but without weight adjustment logic.
+ *         This contract is designed to fail when submitting intent because weights may not sum to intentScale.
  * @author Orion Finance
  */
-contract KBestTvlWeightedAverage is IOrionStrategy, Ownable2Step, ERC165 {
+contract KBestTvlWeightedAverageInvalid is IOrionStrategy, Ownable, ERC165 {
     /// @notice The Orion configuration contract
     IOrionConfig public config;
 
     /// @notice The number of assets to pick
     uint16 public k;
 
-    /// @notice Constructor for KBestTvlWeightedAverage strategy
+    /// @notice Constructor for KBestTvlWeightedAverageInvalid strategy
     /// @param owner The owner of the contract
     /// @param _config The Orion configuration contract address
     /// @param _k The number of assets to pick
@@ -34,9 +35,7 @@ contract KBestTvlWeightedAverage is IOrionStrategy, Ownable2Step, ERC165 {
     }
 
     /// @inheritdoc IOrionStrategy
-    function submitIntent(IOrionTransparentVault vault) external onlyOwner {
-        if (k == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
-
+    function submitIntent(IOrionTransparentVault vault) external {
         address[] memory vaultWhitelistedAssets = vault.vaultWhitelist();
         uint16 n = uint16(vaultWhitelistedAssets.length);
         uint256[] memory tvls = _getAssetTVLs(vaultWhitelistedAssets, n);
@@ -108,6 +107,7 @@ contract KBestTvlWeightedAverage is IOrionStrategy, Ownable2Step, ERC165 {
     }
 
     /// @notice Calculates position allocations based on TVL weights
+    /// @notice NOTE: This function intentionally does NOT adjust weights to sum to intentScale
     /// @param tokens Array of selected token addresses
     /// @param topTvls Array of TVL values for selected tokens
     /// @param kActual Actual number of assets to allocate
@@ -125,16 +125,16 @@ contract KBestTvlWeightedAverage is IOrionStrategy, Ownable2Step, ERC165 {
         uint32 intentScale = uint32(10 ** config.curatorIntentDecimals());
         intent = new IOrionTransparentVault.IntentPosition[](kActual);
 
-        uint32 sumWeights = 0;
+        // Calculate weights without adjustment - this may result in sumWeights < intentScale
         for (uint16 i = 0; i < kActual; ++i) {
             uint32 weight = uint32((topTvls[i] * intentScale) / totalTVL);
             intent[i] = IOrionTransparentVault.IntentPosition({ token: tokens[i], weight: weight });
-            sumWeights += weight;
         }
 
-        if (sumWeights < intentScale) {
-            intent[0].weight += intentScale - sumWeights;
-        }
+        // Intentionally removed: weight adjustment logic that ensures sumWeights == intentScale
+        // if (sumWeights < intentScale) {
+        //     intent[0].weight += intentScale - sumWeights;
+        // }
     }
 
     /// @notice Owner can update k
@@ -148,3 +148,4 @@ contract KBestTvlWeightedAverage is IOrionStrategy, Ownable2Step, ERC165 {
         return interfaceId == type(IOrionStrategy).interfaceId || super.supportsInterface(interfaceId);
     }
 }
+

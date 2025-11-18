@@ -97,6 +97,45 @@
       "inputs": [
         {
           "indexed": true,
+          "internalType": "uint256",
+          "name": "newCooldownDuration",
+          "type": "uint256"
+        }
+      ],
+      "name": "FeeChangeCooldownDurationUpdated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "minDepositAmount",
+          "type": "uint256"
+        }
+      ],
+      "name": "MinDepositAmountUpdated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "minRedeemAmount",
+          "type": "uint256"
+        }
+      ],
+      "name": "MinRedeemAmountUpdated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
           "internalType": "address",
           "name": "vault",
           "type": "address"
@@ -247,6 +286,19 @@
       "inputs": [
         {
           "internalType": "address",
+          "name": "curator",
+          "type": "address"
+        }
+      ],
+      "name": "addWhitelistedCurator",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
           "name": "vaultOwner",
           "type": "address"
         }
@@ -290,6 +342,19 @@
           "internalType": "uint8",
           "name": "",
           "type": "uint8"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "feeChangeCooldownDuration",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
         }
       ],
       "stateMutability": "view",
@@ -452,6 +517,25 @@
       "inputs": [
         {
           "internalType": "address",
+          "name": "curator",
+          "type": "address"
+        }
+      ],
+      "name": "isWhitelistedCurator",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
           "name": "vaultOwner",
           "type": "address"
         }
@@ -475,6 +559,32 @@
           "internalType": "address",
           "name": "",
           "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "minDepositAmount",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "minRedeemAmount",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
         }
       ],
       "stateMutability": "view",
@@ -562,6 +672,19 @@
       "inputs": [
         {
           "internalType": "address",
+          "name": "curator",
+          "type": "address"
+        }
+      ],
+      "name": "removeWhitelistedCurator",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
           "name": "vaultOwner",
           "type": "address"
         }
@@ -594,6 +717,19 @@
     {
       "inputs": [
         {
+          "internalType": "uint256",
+          "name": "duration",
+          "type": "uint256"
+        }
+      ],
+      "name": "setFeeChangeCooldownDuration",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
           "internalType": "address",
           "name": "orchestrator",
           "type": "address"
@@ -613,6 +749,32 @@
         }
       ],
       "name": "setLiquidityOrchestrator",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "setMinDepositAmount",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "setMinRedeemAmount",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

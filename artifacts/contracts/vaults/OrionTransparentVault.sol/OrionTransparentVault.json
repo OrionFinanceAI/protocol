@@ -68,6 +68,38 @@
     {
       "inputs": [
         {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "minimum",
+          "type": "uint256"
+        }
+      ],
+      "name": "BelowMinimumDeposit",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "minimum",
+          "type": "uint256"
+        }
+      ],
+      "name": "BelowMinimumRedeem",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
           "internalType": "address",
           "name": "spender",
           "type": "address"
@@ -248,16 +280,6 @@
     {
       "inputs": [],
       "name": "InvalidArguments",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "InvalidCuratorContract",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "InvalidStrategy",
       "type": "error"
     },
     {
@@ -643,6 +665,19 @@
         }
       ],
       "name": "Transfer",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "vault",
+          "type": "address"
+        }
+      ],
+      "name": "VaultFeeChangeScheduled",
       "type": "event"
     },
     {
@@ -1203,19 +1238,6 @@
     },
     {
       "inputs": [],
-      "name": "isPassiveCurator",
-      "outputs": [
-        {
-          "internalType": "bool",
-          "name": "isPassive",
-          "type": "bool"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
       "name": "liquidityOrchestrator",
       "outputs": [
         {
@@ -1335,6 +1357,19 @@
           "internalType": "string",
           "name": "",
           "type": "string"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "newFeeRatesTimestamp",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
         }
       ],
       "stateMutability": "view",

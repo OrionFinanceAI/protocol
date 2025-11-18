@@ -26,7 +26,7 @@
     },
     {
       "inputs": [],
-      "name": "InvalidStrategy",
+      "name": "OrderIntentCannotBeEmpty",
       "type": "error"
     },
     {
@@ -147,45 +147,7 @@
     },
     {
       "inputs": [],
-      "name": "getStatefulIntent",
-      "outputs": [
-        {
-          "components": [
-            {
-              "internalType": "address",
-              "name": "token",
-              "type": "address"
-            },
-            {
-              "internalType": "uint32",
-              "name": "weight",
-              "type": "uint32"
-            }
-          ],
-          "internalType": "struct IOrionTransparentVault.IntentPosition[]",
-          "name": "intent",
-          "type": "tuple[]"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
       "name": "k",
-      "outputs": [
-        {
-          "internalType": "uint16",
-          "name": "",
-          "type": "uint16"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "kMax",
       "outputs": [
         {
           "internalType": "uint16",
@@ -232,6 +194,19 @@
     {
       "inputs": [
         {
+          "internalType": "contract IOrionTransparentVault",
+          "name": "vault",
+          "type": "address"
+        }
+      ],
+      "name": "submitIntent",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
           "internalType": "bytes4",
           "name": "interfaceId",
           "type": "bytes4"
@@ -270,19 +245,6 @@
         }
       ],
       "name": "updateParameters",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address[]",
-          "name": "vaultWhitelistedAssets",
-          "type": "address[]"
-        }
-      ],
-      "name": "validateStrategy",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

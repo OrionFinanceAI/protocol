@@ -51,11 +51,18 @@ contract OrionConfig is Ownable2Step, IOrionConfig {
     uint16 public riskFreeRate;
     /// @notice Maximum risk-free rate (8% = 800)
     uint16 public constant MAX_RISK_FREE_RATE = 800;
+    /// @notice Minimum deposit amount in underlying asset units
+    uint256 public minDepositAmount;
+    /// @notice Minimum redeem amount in share units
+    uint256 public minRedeemAmount;
+    /// @notice Fee change cooldown duration in seconds (7 days default)
+    uint256 public feeChangeCooldownDuration;
 
     // Vault-specific configuration
     using EnumerableSet for EnumerableSet.AddressSet;
     EnumerableSet.AddressSet private whitelistedAssets;
     EnumerableSet.AddressSet private whitelistedVaultOwners;
+    EnumerableSet.AddressSet private whitelistedCurators;
 
     /// @notice Mapping of token address to its decimals
     mapping(address => uint8) public tokenDecimals;
@@ -96,6 +103,7 @@ contract OrionConfig is Ownable2Step, IOrionConfig {
 
         curatorIntentDecimals = 9; // 9 for uint32
         priceAdapterDecimals = 14; // 14 for uint128
+        feeChangeCooldownDuration = 7 days; // Default 7 day cooldown
 
         // Store underlying asset decimals
         tokenDecimals[underlyingAsset_] = IERC20Metadata(underlyingAsset_).decimals();
@@ -105,6 +113,8 @@ contract OrionConfig is Ownable2Step, IOrionConfig {
 
         // slither-disable-next-line unused-return
         whitelistedVaultOwners.add(initialOwner);
+        // slither-disable-next-line unused-return
+        whitelistedCurators.add(initialOwner);
     }
 
     // === Protocol Configuration ===
@@ -146,6 +156,35 @@ contract OrionConfig is Ownable2Step, IOrionConfig {
         riskFreeRate = _riskFreeRate;
 
         emit EventsLib.RiskFreeRateUpdated(riskFreeRate);
+    }
+
+    /// @inheritdoc IOrionConfig
+    function setMinDepositAmount(uint256 amount) external onlyOwner {
+        if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+        if (amount == 0) revert ErrorsLib.InvalidArguments();
+
+        minDepositAmount = amount;
+
+        emit EventsLib.MinDepositAmountUpdated(amount);
+    }
+
+    /// @inheritdoc IOrionConfig
+    function setMinRedeemAmount(uint256 amount) external onlyOwner {
+        if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+        if (amount == 0) revert ErrorsLib.InvalidArguments();
+
+        minRedeemAmount = amount;
+
+        emit EventsLib.MinRedeemAmountUpdated(amount);
+    }
+
+    /// @inheritdoc IOrionConfig
+    function setFeeChangeCooldownDuration(uint256 duration) external onlyOwner {
+        if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+
+        feeChangeCooldownDuration = duration;
+
+        emit EventsLib.FeeChangeCooldownDurationUpdated(duration);
     }
 
     // === Whitelist Functions ===
@@ -226,6 +265,25 @@ contract OrionConfig is Ownable2Step, IOrionConfig {
     /// @inheritdoc IOrionConfig
     function isWhitelistedVaultOwner(address vaultOwner) external view returns (bool) {
         return whitelistedVaultOwners.contains(vaultOwner);
+    }
+
+    /// @inheritdoc IOrionConfig
+    function addWhitelistedCurator(address curator) external onlyOwner {
+        bool inserted = whitelistedCurators.add(curator);
+        if (!inserted) revert ErrorsLib.AlreadyRegistered();
+    }
+
+    /// @inheritdoc IOrionConfig
+    function removeWhitelistedCurator(address curator) external onlyOwner {
+        if (!this.isWhitelistedCurator(curator)) revert ErrorsLib.InvalidAddress();
+
+        bool removed = whitelistedCurators.remove(curator);
+        if (!removed) revert ErrorsLib.InvalidAddress();
+    }
+
+    /// @inheritdoc IOrionConfig
+    function isWhitelistedCurator(address curator) external view returns (bool) {
+        return whitelistedCurators.contains(curator);
     }
 
     // === Orion Vaults ===

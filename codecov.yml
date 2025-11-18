@@ -18,7 +18,7 @@ coverage:
     - "**/mocks/**"
     - "**/*.t.sol"
     - "artifacts/**"
-    - "scripts/**"
+    - "protocol-ops/**"
     - "audits/**"
     - "*.config.ts"
     - "*.md"
