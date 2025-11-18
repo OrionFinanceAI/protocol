@@ -58,6 +58,14 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
     /// @notice Revenue share fee coefficient
     uint16 public rsFeeCoefficient;
 
+    /// @notice Timestamp when new protocol fee rates become effective
+    uint256 public newProtocolFeeRatesTimestamp;
+
+    /// @notice Old volume fee coefficient (used during cooldown period)
+    uint16 private oldVFeeCoefficient;
+    /// @notice Old revenue share fee coefficient (used during cooldown period)
+    uint16 private oldRsFeeCoefficient;
+
     /// @notice Pending protocol fees [assets]
     uint256 public pendingProtocolFees;
 
@@ -211,8 +219,31 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
         if (_vFeeCoefficient > 50 || _rsFeeCoefficient > 2_000) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
+        // Store old fees for cooldown period
+        (uint16 oldVFee, uint16 oldRsFee) = activeProtocolFees();
+        oldVFeeCoefficient = oldVFee;
+        oldRsFeeCoefficient = oldRsFee;
+
+        // Update to new fees immediately in storage
         vFeeCoefficient = _vFeeCoefficient;
         rsFeeCoefficient = _rsFeeCoefficient;
+
+        // Set when new rates become effective
+        newProtocolFeeRatesTimestamp = block.timestamp + config.feeChangeCooldownDuration();
+
+        emit EventsLib.ProtocolFeeChangeScheduled(_vFeeCoefficient, _rsFeeCoefficient);
+    }
+
+    /// @notice Returns the active protocol fees (old during cooldown, new after)
+    /// @return vFee The active volume fee coefficient
+    /// @return rsFee The active revenue share fee coefficient
+    function activeProtocolFees() public view returns (uint16 vFee, uint16 rsFee) {
+        // If we're still in cooldown period, return old rates
+        if (newProtocolFeeRatesTimestamp > block.timestamp) {
+            return (oldVFeeCoefficient, oldRsFeeCoefficient);
+        }
+        // Otherwise return new rates
+        return (vFeeCoefficient, rsFeeCoefficient);
     }
 
     /* solhint-disable code-complexity */
@@ -328,6 +359,8 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
             currentMinibatchIndex = 0;
         }
 
+        (uint16 activeVFee, uint16 activeRsFee) = activeProtocolFees();
+
         for (uint16 i = i0; i < i1; ++i) {
             IOrionTransparentVault vault = IOrionTransparentVault(transparentVaultsEpoch[i]);
 
@@ -367,7 +400,7 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
             }
 
             // STEP 2: PROTOCOL VOLUME FEE
-            uint256 protocolVolumeFee = uint256(vFeeCoefficient).mulDiv(totalAssets, BASIS_POINTS_FACTOR);
+            uint256 protocolVolumeFee = uint256(activeVFee).mulDiv(totalAssets, BASIS_POINTS_FACTOR);
             protocolVolumeFee = protocolVolumeFee.mulDiv(epochDuration, 365 days);
             pendingProtocolFees += protocolVolumeFee;
             totalAssets -= protocolVolumeFee;
@@ -378,7 +411,7 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
             totalAssets -= curatorFee;
             _currentEpoch.vaultsTotalAssetsForFulfillRedeem[address(vault)] = totalAssets;
 
-            uint256 protocolRevenueShareFee = uint256(rsFeeCoefficient).mulDiv(curatorFee, BASIS_POINTS_FACTOR);
+            uint256 protocolRevenueShareFee = uint256(activeRsFee).mulDiv(curatorFee, BASIS_POINTS_FACTOR);
             pendingProtocolFees += protocolRevenueShareFee;
             curatorFee -= protocolRevenueShareFee;
             vault.accrueCuratorFees(epochCounter, curatorFee);

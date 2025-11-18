@@ -122,6 +122,12 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     /// @notice Fee model
     FeeModel public feeModel;
 
+    /// @notice Timestamp when new fee rates become effective
+    uint256 public newFeeRatesTimestamp;
+
+    /// @notice Previous fee model (used during cooldown period)
+    FeeModel private oldFeeModel;
+
     /// @notice Flag indicating if the vault is in decommissioning mode
     /// @dev When true, intent is overridden to 100% underlying asset
     bool public isDecommissioning;
@@ -202,6 +208,9 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         feeModel.managementFee = managementFee_;
 
         feeModel.highWaterMark = 10 ** underlyingDecimals;
+
+        oldFeeModel = feeModel;
+        newFeeRatesTimestamp = block.timestamp;
 
         _initializeVaultWhitelist();
     }
@@ -438,12 +447,13 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         return _vaultWhitelistedAssets.values();
     }
 
-    /// @notice Update the fee model parameters
+    /// @notice Update the fee model parameters with cooldown protection
     /// @param feeType The fee type (0=ABSOLUTE, 1=HURDLE, 2=HIGH_WATER_MARK, 3=HURDLE_HWM)
     /// @param performanceFee The performance fee
     /// @param managementFee The management fee
     /// @dev Only vault owner can update fee model parameters
     ///      Performance and management fees are capped by protocol limits
+    ///      New fees take effect after cooldown period to protect depositors
     function updateFeeModel(uint8 feeType, uint16 performanceFee, uint16 managementFee) external onlyVaultOwner {
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
@@ -452,11 +462,29 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         if (performanceFee > MAX_PERFORMANCE_FEE) revert ErrorsLib.InvalidArguments();
         if (managementFee > MAX_MANAGEMENT_FEE) revert ErrorsLib.InvalidArguments();
 
+        // Store old fee model for cooldown period
+        oldFeeModel = _activeFeeModel();
+
+        // Update to new fee model immediately in storage
         feeModel.feeType = FeeType(feeType);
         feeModel.performanceFee = performanceFee;
         feeModel.managementFee = managementFee;
 
-        emit FeeModelUpdated(feeType, performanceFee, managementFee);
+        // Set when new rates become effective
+        newFeeRatesTimestamp = block.timestamp + config.feeChangeCooldownDuration();
+
+        emit EventsLib.VaultFeeChangeScheduled(address(this));
+    }
+
+    /// @notice Returns the active fee model (old during cooldown, new after)
+    /// @return The currently active fee model
+    function _activeFeeModel() internal view returns (FeeModel memory) {
+        // If we're still in cooldown period, return old rates
+        if (newFeeRatesTimestamp > block.timestamp) {
+            return oldFeeModel;
+        }
+        // Otherwise return new rates
+        return feeModel;
     }
 
     /// @notice Validate that all assets in an intent are whitelisted for this vault
@@ -482,9 +510,10 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     /// @param feeTotalAssets The total assets to calculate management fee for
     /// @return The management fee amount in underlying asset units
     function _managementFeeAmount(uint256 feeTotalAssets) internal view returns (uint256) {
-        if (feeModel.managementFee == 0) return 0;
+        FeeModel memory activeFees = _activeFeeModel();
+        if (activeFees.managementFee == 0) return 0;
 
-        uint256 annualFeeAmount = uint256(feeModel.managementFee).mulDiv(feeTotalAssets, BASIS_POINTS_FACTOR);
+        uint256 annualFeeAmount = uint256(activeFees.managementFee).mulDiv(feeTotalAssets, BASIS_POINTS_FACTOR);
         return annualFeeAmount.mulDiv(internalStatesOrchestrator.epochDuration(), YEAR_IN_SECONDS);
     }
 
@@ -493,7 +522,8 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     /// @param feeTotalAssets The total assets to calculate performance fee for
     /// @return The performance fee amount in underlying asset units
     function _performanceFeeAmount(uint256 feeTotalAssets) internal view returns (uint256) {
-        if (feeModel.performanceFee == 0) return 0;
+        FeeModel memory activeFees = _activeFeeModel();
+        if (activeFees.performanceFee == 0) return 0;
 
         uint256 activeSharePrice = convertToAssetsWithPITTotalAssets(
             10 ** decimals(),
@@ -501,10 +531,10 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
             Math.Rounding.Floor
         );
 
-        (uint256 benchmark, uint256 divisor) = _getBenchmark(feeModel.feeType);
+        (uint256 benchmark, uint256 divisor) = _getBenchmark(activeFees.feeType);
 
         if (activeSharePrice < benchmark || divisor == 0) return 0;
-        uint256 feeRate = uint256(feeModel.performanceFee).mulDiv(activeSharePrice - divisor, divisor);
+        uint256 feeRate = uint256(activeFees.performanceFee).mulDiv(activeSharePrice - divisor, divisor);
         uint256 performanceFeeAmount = feeRate.mulDiv(feeTotalAssets, BASIS_POINTS_FACTOR);
         return performanceFeeAmount.mulDiv(internalStatesOrchestrator.epochDuration(), YEAR_IN_SECONDS);
     }
