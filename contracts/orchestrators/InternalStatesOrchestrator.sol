@@ -220,26 +220,24 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         // Store old fees for cooldown period
-        (uint16 oldVFee, uint16 oldRsFee) = _activeProtocolFees();
+        (uint16 oldVFee, uint16 oldRsFee) = activeProtocolFees();
         oldVFeeCoefficient = oldVFee;
         oldRsFeeCoefficient = oldRsFee;
-
-        uint256 effectiveTime = block.timestamp + config.feeChangeCooldownDuration();
 
         // Update to new fees immediately in storage
         vFeeCoefficient = _vFeeCoefficient;
         rsFeeCoefficient = _rsFeeCoefficient;
 
         // Set when new rates become effective
-        newProtocolFeeRatesTimestamp = effectiveTime;
+        newProtocolFeeRatesTimestamp = block.timestamp + config.feeChangeCooldownDuration();
 
-        emit EventsLib.ProtocolFeeChangeScheduled(_vFeeCoefficient, _rsFeeCoefficient, effectiveTime);
+        emit EventsLib.ProtocolFeeChangeScheduled(_vFeeCoefficient, _rsFeeCoefficient);
     }
 
     /// @notice Returns the active protocol fees (old during cooldown, new after)
     /// @return vFee The active volume fee coefficient
     /// @return rsFee The active revenue share fee coefficient
-    function _activeProtocolFees() internal view returns (uint16 vFee, uint16 rsFee) {
+    function activeProtocolFees() public view returns (uint16 vFee, uint16 rsFee) {
         // If we're still in cooldown period, return old rates
         if (newProtocolFeeRatesTimestamp > block.timestamp) {
             return (oldVFeeCoefficient, oldRsFeeCoefficient);
@@ -400,7 +398,7 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
             }
 
             // STEP 2: PROTOCOL VOLUME FEE
-            (uint16 activeVFee, uint16 activeRsFee) = _activeProtocolFees();
+            (uint16 activeVFee, uint16 activeRsFee) = activeProtocolFees();
             uint256 protocolVolumeFee = uint256(activeVFee).mulDiv(totalAssets, BASIS_POINTS_FACTOR);
             protocolVolumeFee = protocolVolumeFee.mulDiv(epochDuration, 365 days);
             pendingProtocolFees += protocolVolumeFee;

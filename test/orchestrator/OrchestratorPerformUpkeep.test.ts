@@ -752,6 +752,7 @@ describe("Orchestrator PerformUpkeep", function () {
 
       const epochDuration = await internalStatesOrchestrator.epochDuration();
       await time.increase(epochDuration + 1n);
+      await time.increase((await orionConfig.feeChangeCooldownDuration()) + 1n);
 
       const [_liquidityUpkeepNeeded, _liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
       void expect(_liquidityUpkeepNeeded).to.be.false;
@@ -2117,6 +2118,7 @@ describe("Orchestrator PerformUpkeep", function () {
 
       const epochDuration = await internalStatesOrchestrator.epochDuration();
       await time.increase(epochDuration + 1n);
+      await time.increase((await orionConfig.feeChangeCooldownDuration()) + 1n);
 
       let [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
       void expect(_liquidityUpkeepNeeded).to.be.false;
@@ -2350,6 +2352,7 @@ describe("Orchestrator PerformUpkeep", function () {
     it("should test internal states orchestrator with positive deltaAmount scenario", async function () {
       const epochDuration = await internalStatesOrchestrator.epochDuration();
       await time.increase(epochDuration + 1n);
+      await time.increase((await orionConfig.feeChangeCooldownDuration()) + 1n);
 
       let [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);

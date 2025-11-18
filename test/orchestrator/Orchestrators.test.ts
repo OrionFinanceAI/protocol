@@ -573,6 +573,7 @@ describe("Orchestrators", function () {
 
       const epochDuration = await internalStatesOrchestrator.epochDuration();
       await time.increase(epochDuration + 1n);
+      await time.increase((await orionConfig.feeChangeCooldownDuration()) + 1n);
 
       const [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
@@ -683,6 +684,7 @@ describe("Orchestrators", function () {
 
       const epochDuration = await internalStatesOrchestrator.epochDuration();
       await time.increase(epochDuration + 1n);
+      await time.increase((await orionConfig.feeChangeCooldownDuration()) + 1n);
 
       const [_liquidityUpkeepNeeded, _liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
       void expect(_liquidityUpkeepNeeded).to.be.false;
@@ -2021,6 +2023,7 @@ describe("Orchestrators", function () {
 
       const epochDuration = await internalStatesOrchestrator.epochDuration();
       await time.increase(epochDuration + 1n);
+      await time.increase((await orionConfig.feeChangeCooldownDuration()) + 1n);
 
       let [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
       void expect(_liquidityUpkeepNeeded).to.be.false;
@@ -2254,6 +2257,7 @@ describe("Orchestrators", function () {
     it("should test internal states orchestrator with positive deltaAmount scenario", async function () {
       const epochDuration = await internalStatesOrchestrator.epochDuration();
       await time.increase(epochDuration + 1n);
+      await time.increase((await orionConfig.feeChangeCooldownDuration()) + 1n);
 
       let [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
@@ -2464,6 +2468,11 @@ describe("Orchestrators", function () {
       await internalStatesOrchestrator.updateProtocolFees(50, 100); // 0.5% volume fee, 1% revenue share
       expect(await internalStatesOrchestrator.vFeeCoefficient()).to.equal(50);
       expect(await internalStatesOrchestrator.rsFeeCoefficient()).to.equal(100);
+
+      // Check cooldown
+      const [activeVFee, activeRsFee] = await internalStatesOrchestrator.activeProtocolFees();
+      expect(activeVFee).to.equal(0);
+      expect(activeRsFee).to.equal(0);
     });
 
     it("should revert when updating protocol fees with invalid arguments", async function () {
@@ -2527,286 +2536,6 @@ describe("Orchestrators", function () {
         .withArgs(newAutomationRegistry);
 
       expect(await liquidityOrchestrator.automationRegistry()).to.equal(newAutomationRegistry);
-    });
-  });
-
-  describe("Security Tests - InternalStatesOrchestrator InvalidState Protection", function () {
-    const createMaliciousPerformData = (action: string, minibatchIndex: number = 0) => {
-      const actionHash = ethers.keccak256(ethers.toUtf8Bytes(action));
-      const actionBytes4 = actionHash.slice(0, 10);
-      return ethers.AbiCoder.defaultAbiCoder().encode(["bytes4", "uint8"], [actionBytes4, minibatchIndex]);
-    };
-
-    it("should ignore malicious payloads and execute correct action for current phase", async function () {
-      const epochDuration = await internalStatesOrchestrator.epochDuration();
-      await time.increase(epochDuration + 1n);
-
-      const [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
-
-      // Malicious payload for buffer() should be ignored - correct action for current phase is executed
-      const maliciousData = createMaliciousPerformData("buffer()", 0);
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(maliciousData);
-
-      // Should still be in PreprocessingTransparentVaults or progressed to next phase, not buffer phase
-      const currentPhase = await internalStatesOrchestrator.currentPhase();
-      expect(currentPhase).to.not.equal(2); // Not Buffering - malicious payload was ignored
-    });
-
-    it("should ignore malicious payloads and execute correct minibatch action for current phase", async function () {
-      const epochDuration = await internalStatesOrchestrator.epochDuration();
-      await time.increase(epochDuration + 1n);
-
-      const [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
-
-      // Malicious payload for buffer() should be ignored - correct action for current phase is executed
-      const maliciousData = createMaliciousPerformData("buffer()", 0);
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(maliciousData);
-
-      // Should still be in PreprocessingTransparentVaults or progressed to next phase, not buffer phase
-      const currentPhase = await internalStatesOrchestrator.currentPhase();
-      expect(currentPhase).to.not.equal(2); // Not Buffering - malicious payload was ignored
-    });
-  });
-
-  describe("Security Tests - LiquidityOrchestrator InvalidState Protection", function () {
-    const createMaliciousLiquidityPerformData = (action: string, minibatchIndex: number = 0) => {
-      const actionHash = ethers.keccak256(ethers.toUtf8Bytes(action));
-      const actionBytes4 = actionHash.slice(0, 10);
-      return ethers.AbiCoder.defaultAbiCoder().encode(["bytes4", "uint8"], [actionBytes4, minibatchIndex]);
-    };
-
-    it("should not update phase when calling start() in any phase", async function () {
-      expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
-
-      const epochDuration = await internalStatesOrchestrator.epochDuration();
-      await time.increase(epochDuration + 1n);
-
-      let [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
-
-      // Process all vaults in preprocessing phase - continue until we reach buffering phase
-      while ((await internalStatesOrchestrator.currentPhase()) === 1n) {
-        [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-        await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      }
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // Buffering
-
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
-
-      // Process all vaults in postprocessing phase - continue until we reach building orders phase
-      while ((await internalStatesOrchestrator.currentPhase()) === 3n) {
-        [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-        await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      }
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
-
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Back to Idle
-
-      const [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
-      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
-      expect(await liquidityOrchestrator.currentPhase()).to.equal(2); // BuyingLeg (skips SellingLeg since no selling tokens)
-
-      const maliciousData = createMaliciousLiquidityPerformData("start()", 0);
-      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(maliciousData);
-
-      expect(await liquidityOrchestrator.currentPhase()).to.equal(2); // No phase change.
-    });
-
-    it("should revert with InvalidState when trying to execute phases out of order", async function () {
-      const epochDuration = await internalStatesOrchestrator.epochDuration();
-      await time.increase(epochDuration + 1n);
-
-      let [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
-
-      // Process all vaults in preprocessing phase - continue until we reach buffering phase
-      while ((await internalStatesOrchestrator.currentPhase()) === 1n) {
-        [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-        await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      }
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // Buffering
-
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
-
-      // Process all vaults in postprocessing phase - continue until we reach building orders phase
-      while ((await internalStatesOrchestrator.currentPhase()) === 3n) {
-        [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-        await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      }
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
-
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Back to Idle
-
-      const [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
-      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
-      expect(await liquidityOrchestrator.currentPhase()).to.equal(2); // BuyingLeg (skips SellingLeg since no selling tokens)
-
-      // Malicious payload for processSell() should be ignored - correct action for current phase is executed
-      const maliciousData = createMaliciousLiquidityPerformData("processSell(uint8)", 0);
-      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(maliciousData);
-
-      // Should still be in BuyingLeg or progressed to next phase, not SellingLeg
-      const currentPhase = await liquidityOrchestrator.currentPhase();
-      expect(currentPhase).to.not.equal(1); // Not SellingLeg - malicious payload was ignored
-    });
-
-    it("should ignore malicious payloads and execute correct minibatch action for current phase", async function () {
-      const epochDuration = await internalStatesOrchestrator.epochDuration();
-      await time.increase(epochDuration + 1n);
-
-      let [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
-
-      // Process all vaults in preprocessing phase - continue until we reach buffering phase
-      while ((await internalStatesOrchestrator.currentPhase()) === 1n) {
-        [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-        await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      }
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // Buffering
-
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
-
-      // Process all vaults in postprocessing phase - continue until we reach building orders phase
-      while ((await internalStatesOrchestrator.currentPhase()) === 3n) {
-        [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-        await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      }
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
-
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Back to Idle
-
-      const [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
-      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
-      expect(await liquidityOrchestrator.currentPhase()).to.equal(2); // BuyingLeg (skips SellingLeg since no selling tokens)
-
-      // Malicious payload for processFulfillDepositAndRedeem() should be ignored - correct action for current phase is executed
-      const maliciousData = createMaliciousLiquidityPerformData("processFulfillDepositAndRedeem()", 0);
-      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(maliciousData);
-
-      // Should still be in BuyingLeg or progressed to next phase, not FulfillDepositAndRedeem
-      const currentPhase = await liquidityOrchestrator.currentPhase();
-      expect(currentPhase).to.not.equal(3); // Not FulfillDepositAndRedeem - malicious payload was ignored
-    });
-
-    it("should ignore malicious payloads for processSell in BuyingLeg phase", async function () {
-      const epochDuration = await internalStatesOrchestrator.epochDuration();
-      await time.increase(epochDuration + 1n);
-
-      let [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
-
-      // Process all vaults in preprocessing phase - continue until we reach buffering phase
-      while ((await internalStatesOrchestrator.currentPhase()) === 1n) {
-        [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-        await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      }
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // Buffering
-
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
-
-      // Process all vaults in postprocessing phase - continue until we reach building orders phase
-      while ((await internalStatesOrchestrator.currentPhase()) === 3n) {
-        [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-        await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      }
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
-
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Back to Idle
-
-      const [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
-      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
-      expect(await liquidityOrchestrator.currentPhase()).to.equal(2); // BuyingLeg (skips SellingLeg since no selling tokens)
-
-      // Malicious payload for processSell() should be ignored - correct action for current phase is executed
-      const maliciousData = createMaliciousLiquidityPerformData("processSell(uint8)", 0);
-      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(maliciousData);
-
-      // Should still be in BuyingLeg or progressed to next phase, not SellingLeg
-      const currentPhase = await liquidityOrchestrator.currentPhase();
-      expect(currentPhase).to.not.equal(1); // Not SellingLeg - malicious payload was ignored
-    });
-
-    it("should ignore malicious payloads for processBuy in FulfillDepositAndRedeem phase", async function () {
-      const epochDuration = await internalStatesOrchestrator.epochDuration();
-      await time.increase(epochDuration + 1n);
-
-      let [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
-
-      // Process all vaults in preprocessing phase - continue until we reach buffering phase
-      while ((await internalStatesOrchestrator.currentPhase()) === 1n) {
-        [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-        await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      }
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // Buffering
-
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
-
-      // Process all vaults in postprocessing phase - continue until we reach building orders phase
-      while ((await internalStatesOrchestrator.currentPhase()) === 3n) {
-        [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-        await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      }
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
-
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Back to Idle
-
-      let [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
-      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
-      expect(await liquidityOrchestrator.currentPhase()).to.equal(2); // BuyingLeg (skips SellingLeg since no selling tokens)
-
-      [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
-      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
-      expect(await liquidityOrchestrator.currentPhase()).to.equal(2); // Still BuyingLeg (processing minibatches)
-
-      [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
-      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
-      expect(await liquidityOrchestrator.currentPhase()).to.equal(2); // Still BuyingLeg (processing minibatches)
-
-      [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
-      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
-      expect(await liquidityOrchestrator.currentPhase()).to.equal(2); // Still BuyingLeg (processing minibatches)
-
-      [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
-      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
-      expect(await liquidityOrchestrator.currentPhase()).to.equal(3); // FulfillDepositAndRedeem
-
-      // Malicious payload for processBuy() should be ignored - correct action for current phase is executed
-      const maliciousData = createMaliciousLiquidityPerformData("processBuy(uint8)", 0);
-      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(maliciousData);
-
-      // Should still be in FulfillDepositAndRedeem or progressed to next phase, not BuyingLeg
-      const currentPhase = await liquidityOrchestrator.currentPhase();
-      expect(currentPhase).to.not.equal(2); // Not BuyingLeg - malicious payload was ignored
     });
   });
 

@@ -44,8 +44,7 @@ library EventsLib {
     /// @notice A protocol fee change has been scheduled.
     /// @param vFeeCoefficient The new volume fee coefficient.
     /// @param rsFeeCoefficient The new revenue share fee coefficient.
-    /// @param effectiveTime The timestamp when the change becomes effective.
-    event ProtocolFeeChangeScheduled(uint16 vFeeCoefficient, uint16 rsFeeCoefficient, uint256 effectiveTime);
+    event ProtocolFeeChangeScheduled(uint16 vFeeCoefficient, uint16 rsFeeCoefficient);
 
     // =======================
     // === Vault Lifecycle ===
