@@ -292,6 +292,13 @@
       "type": "function"
     },
     {
+      "inputs": [],
+      "name": "updateNextUpdateTime",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
       "inputs": [
         {
           "internalType": "uint16",

@@ -54,9 +54,6 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, ILiquidityOrche
     /*                               UPKEEP STATE                                 */
     /* -------------------------------------------------------------------------- */
 
-    /// @notice Last processed epoch counter from Internal States Orchestrator
-    uint16 public lastProcessedEpoch;
-
     /// @notice Execution minibatch size
     uint8 public executionMinibatchSize;
 
@@ -82,32 +79,13 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, ILiquidityOrche
     /// @notice Maximum buy approval multiplier
     uint8 public constant MAX_BUY_APPROVAL_MULTIPLIER = 5;
 
-    /// @notice Action constants for checkUpkeep and performUpkeep
-    bytes4 private constant ACTION_START = bytes4(keccak256("start()"));
-    bytes4 private constant ACTION_PROCESS_SELL = bytes4(keccak256("processSell(uint8)"));
-    bytes4 private constant ACTION_PROCESS_BUY = bytes4(keccak256("processBuy(uint8)"));
-    bytes4 private constant ACTION_PROCESS_FULFILL_DEPOSIT_AND_REDEEM =
-        bytes4(keccak256("processFulfillDepositAndRedeem()"));
-
     /* -------------------------------------------------------------------------- */
     /*                                 EPOCH STATE                                */
     /* -------------------------------------------------------------------------- */
 
-    /// @notice Selling tokens for current epoch
-    address[] public sellingTokens;
-    /// @notice Selling amounts for current epoch
-    uint256[] public sellingAmounts;
-    /// @notice Selling underlying amounts for current epoch
-    uint256[] public sellingEstimatedUnderlyingAmounts;
-    /// @notice Buying tokens for current epoch
-    address[] public buyingTokens;
-    /// @notice Buying amounts for current epoch
-    uint256[] public buyingAmounts;
-    /// @notice Buying underlying amounts for current epoch
-    uint256[] public buyingEstimatedUnderlyingAmounts;
-
     /// @notice Delta buffer amount for current epoch
     int256 public deltaBufferAmount;
+
     /* -------------------------------------------------------------------------- */
     /*                                MODIFIERS                                   */
     /* -------------------------------------------------------------------------- */
@@ -131,6 +109,12 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, ILiquidityOrche
         _;
     }
 
+    /// @dev Restricts function to only Internal States Orchestrator contract
+    modifier onlyInternalStatesOrchestrator() {
+        if (msg.sender != address(internalStatesOrchestrator)) revert ErrorsLib.NotAuthorized();
+        _;
+    }
+
     /// @notice Constructor
     /// @param initialOwner The address of the initial owner
     /// @param config_ The address of the OrionConfig contract
@@ -144,7 +128,6 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, ILiquidityOrche
         admin = config.admin();
 
         automationRegistry = automationRegistry_;
-        lastProcessedEpoch = 0;
         currentPhase = LiquidityUpkeepPhase.Idle;
         executionMinibatchSize = 1;
         minibatchSize = 1;
@@ -260,6 +243,15 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, ILiquidityOrche
     }
 
     /* -------------------------------------------------------------------------- */
+    /*                  INTERNAL STATES ORCHESTRATOR FUNCTIONS                    */
+    /* -------------------------------------------------------------------------- */
+
+    /// @inheritdoc ILiquidityOrchestrator
+    function advanceIdlePhase() external onlyInternalStatesOrchestrator {
+        currentPhase = LiquidityUpkeepPhase.SellingLeg;
+    }
+
+    /* -------------------------------------------------------------------------- */
     /*                                VAULT FUNCTIONS                             */
     /* -------------------------------------------------------------------------- */
 
@@ -308,9 +300,7 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, ILiquidityOrche
     /// @return upkeepNeeded Whether the upkeep is needed
     /// @return performData Empty bytes
     function checkUpkeep(bytes calldata) external view override returns (bool upkeepNeeded, bytes memory performData) {
-        if (config.isSystemIdle() && internalStatesOrchestrator.epochCounter() > lastProcessedEpoch) {
-            upkeepNeeded = true;
-        } else if (currentPhase == LiquidityUpkeepPhase.SellingLeg) {
+        if (currentPhase == LiquidityUpkeepPhase.SellingLeg) {
             upkeepNeeded = true;
         } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
             upkeepNeeded = true;
@@ -324,14 +314,13 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, ILiquidityOrche
 
     /// @notice Performs the upkeep
     function performUpkeep(bytes calldata) external override onlyAuthorizedTrigger nonReentrant {
-        if (config.isSystemIdle() && internalStatesOrchestrator.epochCounter() > lastProcessedEpoch) {
-            _handleStart();
-        } else if (currentPhase == LiquidityUpkeepPhase.SellingLeg) {
+        if (currentPhase == LiquidityUpkeepPhase.SellingLeg) {
             _processMinibatchSell();
         } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
             _processMinibatchBuy();
         } else if (currentPhase == LiquidityUpkeepPhase.FulfillDepositAndRedeem) {
             _processFulfillDepositAndRedeem();
+            internalStatesOrchestrator.updateNextUpdateTime();
         }
 
         emit EventsLib.PortfolioRebalanced();
@@ -341,46 +330,20 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, ILiquidityOrche
     /*                                INTERNAL FUNCTIONS                          */
     /* -------------------------------------------------------------------------- */
 
-    /// @notice Handles the start action
-    function _handleStart() internal {
-        uint16 currentEpoch = internalStatesOrchestrator.epochCounter();
-        if (currentEpoch < lastProcessedEpoch + 1) {
-            return;
-        }
-        lastProcessedEpoch = currentEpoch;
-
-        // Clear previous epoch data
-        delete sellingTokens;
-        delete sellingAmounts;
-        delete buyingTokens;
-        delete buyingAmounts;
-        delete sellingEstimatedUnderlyingAmounts;
-        delete buyingEstimatedUnderlyingAmounts;
-        deltaBufferAmount = 0;
-        // Populate new epoch data
-        (
-            sellingTokens,
-            sellingAmounts,
-            buyingTokens,
-            buyingAmounts,
-            sellingEstimatedUnderlyingAmounts,
-            buyingEstimatedUnderlyingAmounts
-        ) = internalStatesOrchestrator.getOrders();
-
-        currentPhase = LiquidityUpkeepPhase.SellingLeg;
-        if (sellingTokens.length == 0) {
-            currentPhase = LiquidityUpkeepPhase.BuyingLeg;
-            if (buyingTokens.length == 0) {
-                currentPhase = LiquidityUpkeepPhase.Idle;
-            }
-        }
-    }
-
     /// @notice Handles the sell action
     function _processMinibatchSell() internal {
         uint16 i0 = currentMinibatchIndex * executionMinibatchSize;
         uint16 i1 = i0 + executionMinibatchSize;
         ++currentMinibatchIndex;
+
+        (
+            address[] memory sellingTokens,
+            uint256[] memory sellingAmounts,
+            address[] memory buyingTokens,
+            uint256[] memory buyingAmounts,
+            uint256[] memory sellingEstimatedUnderlyingAmounts,
+            uint256[] memory buyingEstimatedUnderlyingAmounts
+        ) = internalStatesOrchestrator.getOrders();
 
         if (i1 > sellingTokens.length || i1 == sellingTokens.length) {
             i1 = uint16(sellingTokens.length);
@@ -402,6 +365,15 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, ILiquidityOrche
         uint16 i1 = i0 + executionMinibatchSize;
         ++currentMinibatchIndex;
 
+        (
+            address[] memory sellingTokens,
+            uint256[] memory sellingAmounts,
+            address[] memory buyingTokens,
+            uint256[] memory buyingAmounts,
+            uint256[] memory sellingEstimatedUnderlyingAmounts,
+            uint256[] memory buyingEstimatedUnderlyingAmounts
+        ) = internalStatesOrchestrator.getOrders();
+
         if (i1 > buyingTokens.length || i1 == buyingTokens.length) {
             i1 = uint16(buyingTokens.length);
             currentPhase = LiquidityUpkeepPhase.FulfillDepositAndRedeem;
@@ -416,7 +388,9 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, ILiquidityOrche
         }
 
         if (i1 == buyingTokens.length) {
+            // slither-disable-next-line reentrancy-no-eth
             internalStatesOrchestrator.updateBufferAmount(deltaBufferAmount);
+            deltaBufferAmount = 0;
         }
     }
 

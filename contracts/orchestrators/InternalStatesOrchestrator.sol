@@ -280,6 +280,12 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, IInternalS
             _postprocessTransparentMinibatch();
         } else if (currentPhase == InternalUpkeepPhase.BuildingOrders) {
             _buildOrders();
+
+            currentPhase = InternalUpkeepPhase.Idle;
+            liquidityOrchestrator.advanceIdlePhase();
+
+            ++epochCounter;
+            emit EventsLib.InternalStateProcessed(epochCounter);
         }
     }
     /* solhint-enable code-complexity */
@@ -341,7 +347,6 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, IInternalS
         _buildTransparentVaultsEpoch();
 
         if (transparentVaultsEpoch.length > 0) {
-            _nextUpdateTime = block.timestamp + epochDuration;
             currentPhase = InternalUpkeepPhase.PreprocessingTransparentVaults;
         }
     }
@@ -561,15 +566,17 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, IInternalS
                 _currentEpoch.buyingOrders[token] = finalValue - initialValue;
             }
         }
-
-        currentPhase = InternalUpkeepPhase.Idle;
-        ++epochCounter;
-        emit EventsLib.InternalStateProcessed(epochCounter);
     }
 
     /* -------------------------------------------------------------------------- */
     /*                      LIQUIDITY ORCHESTRATOR FUNCTIONS                      */
     /* -------------------------------------------------------------------------- */
+
+    /// @inheritdoc IInternalStateOrchestrator
+    function updateNextUpdateTime() external onlyLiquidityOrchestrator {
+        if (currentPhase != InternalUpkeepPhase.Idle) revert ErrorsLib.SystemNotIdle();
+        _nextUpdateTime = block.timestamp + epochDuration;
+    }
 
     /// @inheritdoc IInternalStateOrchestrator
     function getOrders()

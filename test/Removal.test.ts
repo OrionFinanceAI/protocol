@@ -617,28 +617,27 @@ describe("Whitelist and Vault Removal Flows", function () {
 
   it("should block requestDeposit when vault is decommissioning", async function () {
     await testVault.connect(curator).submitIntent([{ token: await mockAsset1.getAddress(), weight: 1000000000 }]);
-
-    const epochDuration = await internalStatesOrchestrator.epochDuration();
-    await time.increase(epochDuration + 1n);
-
-    // Process one full epoch cycle to have some assets
-    const [upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-    if (upkeepNeeded) {
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-
-      while ((await internalStatesOrchestrator.currentPhase()) !== 0n) {
-        const [_upkeepNeeded, _performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-        if (_upkeepNeeded) {
-          await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(_performData);
-        }
-      }
-    }
-
     // Mark vault for decommissioning
     await orionConfig.connect(user).removeOrionVault(await testVault.getAddress());
 
     // Verify vault is decommissioning
     void expect(await testVault.isDecommissioning()).to.be.true;
+
+    const epochDuration = await internalStatesOrchestrator.epochDuration();
+    await time.increase(epochDuration + 1n);
+
+    // Process one full epoch cycle to have some assets
+    let [upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+    while (upkeepNeeded) {
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      [upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+    }
+
+    [upkeepNeeded, performData] = await liquidityOrchestrator.checkUpkeep("0x");
+    while (upkeepNeeded) {
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      [upkeepNeeded, performData] = await liquidityOrchestrator.checkUpkeep("0x");
+    }
 
     // Try to request deposit - should revert
     const depositAmount = ethers.parseUnits("100", 12);

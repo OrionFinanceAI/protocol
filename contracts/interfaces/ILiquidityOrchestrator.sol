@@ -93,4 +93,8 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @param assets The amount of underlying assets to withdraw
     /// @param receiver The address to receive the underlying assets
     function withdraw(uint256 assets, address receiver) external;
+
+    /// @notice Advances the idle phase
+    /// @dev Called by the internal states orchestrator to advance the idle phase
+    function advanceIdlePhase() external;
 }

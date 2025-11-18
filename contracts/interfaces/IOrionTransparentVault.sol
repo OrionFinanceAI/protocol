@@ -40,6 +40,9 @@ interface IOrionTransparentVault is IOrionVault {
     /// @notice Updates the vault's portfolio state and total assets
     /// @dev Can only be called by the liquidity orchestrator.
     ///      Clears the previous portfolio and replaces it with the new one.
+    ///      Updates the high watermark if the current share price exceeds it.
+    ///      The system maintains a single global high watermark shared across all LPs.
+    ///      Emits a VaultStateUpdated event.
     /// @param portfolio Array of PortfolioPosition structs
     ///        It contains the new portfolio token addresses and plaintext number of shares per asset.
     /// @param newTotalAssets The new total assets value for the vault

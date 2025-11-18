@@ -21,6 +21,10 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     /// @return The epoch duration in seconds
     function epochDuration() external view returns (uint32);
 
+    /// @notice Updates the next update time
+    /// @dev Can only be called by the Liquidity Orchestrator
+    function updateNextUpdateTime() external;
+
     /// @notice Returns the current upkeep phase
     /// @return The current InternalUpkeepPhase
     function currentPhase() external view returns (InternalUpkeepPhase);

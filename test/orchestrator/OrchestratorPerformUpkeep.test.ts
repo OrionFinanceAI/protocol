@@ -1142,8 +1142,8 @@ describe("Orchestrator PerformUpkeep", function () {
       // Price increase for buying-only order, at least one buying order expected to fail
       // due to high mismatch between measured and execution prices.
 
-      // Now check if liquidity orchestrator needs to be triggered
-      expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
+      // Now check liquidity orchestrator phase
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(1); // SellingLeg
 
       const liquidityOrchestratorBalanceBeforeBuying = await underlyingAsset.balanceOf(
         await liquidityOrchestrator.getAddress(),
@@ -1747,7 +1747,7 @@ describe("Orchestrator PerformUpkeep", function () {
 
       console.log("=== END EPOCH STATE ASSESSMENT ===\n");
 
-      expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(1); // SellingLeg
 
       [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
       void expect(liquidityUpkeepNeeded).to.be.true;
@@ -2172,8 +2172,8 @@ describe("Orchestrator PerformUpkeep", function () {
       await underlyingAsset.connect(user).approve(await mockAsset3.getAddress(), lossAmount3);
       await mockAsset3.connect(user).simulateLosses(lossAmount3, user.address);
 
-      // Now check if liquidity orchestrator needs to be triggered
-      expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
+      // Now check liquidity orchestrator phase
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(1); // SellingLeg
 
       while ((await liquidityOrchestrator.currentPhase()) !== 3n) {
         const [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
@@ -2181,11 +2181,11 @@ describe("Orchestrator PerformUpkeep", function () {
         await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
       }
 
-      expect(await liquidityOrchestrator.deltaBufferAmount()).to.be.gt(0);
+      expect(await liquidityOrchestrator.deltaBufferAmount()).to.be.equal(0);
+      expect(await internalStatesOrchestrator.bufferAmount()).to.be.gt(0);
 
       const bufferAmountAfterRebalancing = await internalStatesOrchestrator.bufferAmount();
 
-      console.log("Buffer Amount After Rebalancing:", bufferAmountAfterRebalancing.toString());
       expect(bufferAmountAfterRebalancing).to.be.gt(bufferAmountBefore);
 
       while ((await liquidityOrchestrator.currentPhase()) === 3n) {

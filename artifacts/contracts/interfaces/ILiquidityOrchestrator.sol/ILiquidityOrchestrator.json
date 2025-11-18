@@ -4,6 +4,13 @@
   "sourceName": "contracts/interfaces/ILiquidityOrchestrator.sol",
   "abi": [
     {
+      "inputs": [],
+      "name": "advanceIdlePhase",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
       "inputs": [
         {
           "internalType": "bytes",
