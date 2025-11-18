@@ -222,19 +222,11 @@ describe("Price Adapter", function () {
         "TV",
       )) as unknown as MockERC4626Asset;
       await erc4626Vault.waitForDeployment();
-
-      // Seed the vault with initial mint to establish correct exchange rate
-      // Using mint() with shares in 18 decimals ensures proper asset:share ratio
-      const seedShares = ethers.parseUnits("1", 18); // 1 share (18 decimals)
-      const seedAssets = ethers.parseUnits("1", 12); // 1 USDC (12 decimals)
-      await underlyingAsset.mint(owner.address, seedAssets * 10n); // Extra for safety
-      await underlyingAsset.approve(await erc4626Vault.getAddress(), ethers.MaxUint256);
-      await erc4626Vault.mint(seedShares, owner.address);
     });
 
     it("should mint exact shares requested via buy(), preventing accounting drift", async function () {
-      const sharesTarget = ethers.parseUnits("1000", 18);
-      const underlyingAmount = ethers.parseUnits("10000", 12); // Provide plenty for safety
+      const sharesTarget = ethers.parseUnits("1000", 12);
+      const underlyingAmount = ethers.parseUnits("10000", 12);
 
       // Mint underlying to LO
       await underlyingAsset.mint(await liquidityOrchestrator.getAddress(), underlyingAmount);
@@ -267,8 +259,8 @@ describe("Price Adapter", function () {
     });
 
     it("should return excess underlying when previewMint overestimates", async function () {
-      const sharesTarget = ethers.parseUnits("1000", 18);
-      const underlyingAmount = ethers.parseUnits("10000", 12); // Provide plenty extra
+      const sharesTarget = ethers.parseUnits("1000", 12);
+      const underlyingAmount = ethers.parseUnits("10000", 12);
 
       // Mint underlying to LO
       await underlyingAsset.mint(await liquidityOrchestrator.getAddress(), underlyingAmount);
@@ -303,9 +295,9 @@ describe("Price Adapter", function () {
     });
 
     it("should guarantee exact shares across multiple buy operations", async function () {
-      const sharesPerBuy = ethers.parseUnits("100", 18);
+      const sharesPerBuy = ethers.parseUnits("100", 12);
       const numBuys = 5;
-      const underlyingPerBuy = ethers.parseUnits("1000", 12); // Plenty per buy
+      const underlyingPerBuy = ethers.parseUnits("1000", 12);
       const totalUnderlying = underlyingPerBuy * BigInt(numBuys);
 
       // Mint enough underlying to LO
@@ -344,8 +336,8 @@ describe("Price Adapter", function () {
     });
 
     it("should handle sell operation correctly with exact shares", async function () {
-      const sharesAmount = ethers.parseUnits("1000", 18);
-      const underlyingAmount = ethers.parseUnits("10000", 12); // Plenty for the buy
+      const sharesAmount = ethers.parseUnits("1000", 12);
+      const underlyingAmount = ethers.parseUnits("10000", 12);
 
       // Mint underlying to LO
       await underlyingAsset.mint(await liquidityOrchestrator.getAddress(), underlyingAmount);

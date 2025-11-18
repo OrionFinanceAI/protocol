@@ -25,12 +25,29 @@
       "type": "error"
     },
     {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "asset",
+          "type": "address"
+        }
+      ],
+      "name": "ExecutionFailed",
+      "type": "error"
+    },
+    {
       "inputs": [],
       "name": "InsufficientAmount",
       "type": "error"
     },
     {
-      "inputs": [],
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "asset",
+          "type": "address"
+        }
+      ],
       "name": "InvalidAdapter",
       "type": "error"
     },
@@ -132,8 +149,8 @@
       "type": "error"
     }
   ],
-  "bytecode": "0x60556032600b8282823980515f1a607314602657634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f5ffdfea26469706673582212208a68848b7710ff983acbb9ff831ec0919024b95e7ed661b278894a097936a57264736f6c634300081c0033",
-  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f5ffdfea26469706673582212208a68848b7710ff983acbb9ff831ec0919024b95e7ed661b278894a097936a57264736f6c634300081c0033",
+  "bytecode": "0x60556032600b8282823980515f1a607314602657634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f5ffdfea26469706673582212204fe20f8468558d039b7853813abc0745706d2efece3500f570e1d9deb5ae04fe64736f6c634300081c0033",
+  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f5ffdfea26469706673582212204fe20f8468558d039b7853813abc0745706d2efece3500f570e1d9deb5ae04fe64736f6c634300081c0033",
   "linkReferences": {},
   "deployedLinkReferences": {}
 }

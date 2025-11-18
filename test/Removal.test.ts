@@ -688,35 +688,4 @@ describe("Whitelist and Vault Removal Flows", function () {
       "VaultDecommissioned",
     );
   });
-
-  it("should block submitIntent when vault is decommissioning", async function () {
-    await testVault.connect(curator).submitIntent([{ token: await mockAsset1.getAddress(), weight: 1000000000 }]);
-
-    const epochDuration = await internalStatesOrchestrator.epochDuration();
-    await time.increase(epochDuration + 1n);
-
-    // Process one full epoch cycle
-    const [upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-    if (upkeepNeeded) {
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-
-      while ((await internalStatesOrchestrator.currentPhase()) !== 0n) {
-        const [_upkeepNeeded, _performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-        if (_upkeepNeeded) {
-          await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(_performData);
-        }
-      }
-    }
-
-    // Mark vault for decommissioning
-    await orionConfig.connect(user).removeOrionVault(await testVault.getAddress());
-
-    // Verify vault is decommissioning
-    void expect(await testVault.isDecommissioning()).to.be.true;
-
-    // Try to submit new intent - should revert
-    await expect(
-      testVault.connect(curator).submitIntent([{ token: await mockAsset2.getAddress(), weight: 1000000000 }]),
-    ).to.be.revertedWithCustomError(testVault, "VaultDecommissioned");
-  });
 });

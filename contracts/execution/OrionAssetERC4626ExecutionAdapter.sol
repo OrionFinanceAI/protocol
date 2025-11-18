@@ -46,9 +46,9 @@ contract OrionAssetERC4626ExecutionAdapter is IExecutionAdapter {
     /// @param asset The address of the asset to validate
     function validateExecutionAdapter(address asset) external view override {
         try IERC4626(asset).asset() returns (address vaultUnderlyingAsset) {
-            if (vaultUnderlyingAsset != address(underlyingAssetToken)) revert ErrorsLib.InvalidAdapter();
+            if (vaultUnderlyingAsset != address(underlyingAssetToken)) revert ErrorsLib.InvalidAdapter(asset);
         } catch {
-            revert ErrorsLib.InvalidAdapter(); // Adapter not valid for this vault
+            revert ErrorsLib.InvalidAdapter(asset);
         }
     }
 
@@ -76,26 +76,21 @@ contract OrionAssetERC4626ExecutionAdapter is IExecutionAdapter {
         IERC4626 vault = IERC4626(vaultAsset);
 
         // Preview the required underlying amount for minting exact shares
-        uint256 previewedAmount = vault.previewMint(sharesAmount);
+        uint256 previewedUnderlyingAmount = vault.previewMint(sharesAmount);
 
         // Pull previewed amount from the caller
-        underlyingAssetToken.safeTransferFrom(msg.sender, address(this), previewedAmount);
+        underlyingAssetToken.safeTransferFrom(msg.sender, address(this), previewedUnderlyingAmount);
 
         // Approve vault to spend underlying assets (with buffer for rounding)
         underlyingAssetToken.forceApprove(vaultAsset, type(uint256).max);
 
-        // Mint exact shares - vault will pull the required underlying amount
-        // This guarantees sharesAmount shares are minted, preventing accounting drift
+        // Mint exact shares. Vault will pull the required underlying amount
+        // This guarantees sharesAmount shares are minted.
         spentUnderlyingAmount = vault.mint(sharesAmount, address(this));
+        if (spentUnderlyingAmount != previewedUnderlyingAmount) revert ErrorsLib.ExecutionFailed(vaultAsset);
 
         // Clean up approval
         underlyingAssetToken.forceApprove(vaultAsset, 0);
-
-        // Return any excess underlying back to the caller
-        uint256 excessAmount = previewedAmount - spentUnderlyingAmount;
-        if (excessAmount > 0) {
-            underlyingAssetToken.safeTransfer(msg.sender, excessAmount);
-        }
 
         // Push all minted shares to the caller
         IERC20(vaultAsset).safeTransfer(msg.sender, sharesAmount);

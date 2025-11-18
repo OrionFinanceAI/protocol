@@ -5,7 +5,7 @@ import { IOrionTransparentVault } from "../interfaces/IOrionTransparentVault.sol
 import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
 import { IOrionStrategy } from "../interfaces/IOrionStrategy.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -15,7 +15,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
  * @notice This strategy selects the top K assets based on their TVL and allocates them proportionally.
  * @author Orion Finance
  */
-contract KBestTvlWeightedAverage is IOrionStrategy, Ownable, ERC165 {
+contract KBestTvlWeightedAverage is IOrionStrategy, Ownable2Step, ERC165 {
     /// @notice The Orion configuration contract
     IOrionConfig public config;
 

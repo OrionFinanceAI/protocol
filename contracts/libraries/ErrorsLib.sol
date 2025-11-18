@@ -57,7 +57,12 @@ library ErrorsLib {
     error InvalidState();
 
     /// @notice The adapter is not compatible with the asset.
-    error InvalidAdapter();
+    /// @param asset The asset address that is not compatible with the adapter.
+    error InvalidAdapter(address asset);
+
+    /// @notice Execution failed.
+    /// @param asset The asset address that failed to execute.
+    error ExecutionFailed(address asset);
 
     /// @notice Operation cannot be performed because the system is not idle.
     error SystemNotIdle();
