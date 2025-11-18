@@ -78,7 +78,7 @@ library ErrorsLib {
 
     /// @notice Vault is decommissioned and cannot accept new requests.
     error VaultDecommissioned();
-    
+
     /// @notice The deposit amount is below the minimum required amount.
     /// @param amount The amount that was provided.
     /// @param minimum The minimum amount required.
