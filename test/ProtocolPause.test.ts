@@ -48,22 +48,6 @@
  *    - Multiple pause/unpause cycles
  *    - Pause with pending deposits/redeems
  *
- * SECURITY PRINCIPLES TESTED:
- * ===========================
- * - Access Control: Only guardian/admin can trigger emergency pause
- * - Asymmetric Control: Guardian can pause, only admin can unpause
- * - Complete Coverage: All critical operations blocked when paused
- * - Centralized Control: Individual contracts cannot be paused except via OrionConfig
- * - Event Emission: All pause/unpause actions emit appropriate events
- *
- * WHY THESE TESTS MATTER:
- * =======================
- * - Emergency pause is critical for responding to security incidents
- * - Off-chain monitoring can detect invariant violations and trigger pause
- * - Prevents multi-transaction exploits by halting all state changes
- * - Ensures only trusted parties can pause/unpause protocol
- * - Validates that paused state actually blocks dangerous operations
- *
  * ATTACK VECTORS PREVENTED:
  * =========================
  * - Unauthorized pause: Non-guardian cannot pause protocol
