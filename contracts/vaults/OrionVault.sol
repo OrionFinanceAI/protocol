@@ -209,6 +209,9 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
         feeModel.highWaterMark = 10 ** underlyingDecimals;
 
+        oldFeeModel = feeModel;
+        newFeeRatesTimestamp = block.timestamp;
+
         _initializeVaultWhitelist();
     }
 
@@ -462,15 +465,13 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         // Store old fee model for cooldown period
         oldFeeModel = _activeFeeModel();
 
-        uint256 effectiveTime = block.timestamp + config.feeChangeCooldownDuration();
-
         // Update to new fee model immediately in storage
         feeModel.feeType = FeeType(feeType);
         feeModel.performanceFee = performanceFee;
         feeModel.managementFee = managementFee;
 
         // Set when new rates become effective
-        newFeeRatesTimestamp = effectiveTime;
+        newFeeRatesTimestamp = block.timestamp + config.feeChangeCooldownDuration();
 
         emit EventsLib.VaultFeeChangeScheduled(address(this));
     }

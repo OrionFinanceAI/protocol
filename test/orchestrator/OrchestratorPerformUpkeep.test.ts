@@ -190,17 +190,6 @@ describe("Orchestrator PerformUpkeep", function () {
     await mockAsset2.connect(user).simulateLosses(ethers.parseUnits("30", underlyingDecimals), user.address);
     await mockAsset3.connect(user).simulateGains(ethers.parseUnits("60", underlyingDecimals));
 
-    const decimals1 = await mockAsset1.decimals();
-    const decimals2 = await mockAsset2.decimals();
-    const decimals3 = await mockAsset3.decimals();
-    const currentSharePrice1 = await mockAsset1.convertToAssets(10n ** BigInt(decimals1));
-    const currentSharePrice2 = await mockAsset2.convertToAssets(10n ** BigInt(decimals2));
-    const currentSharePrice3 = await mockAsset3.convertToAssets(10n ** BigInt(decimals3));
-
-    console.log(currentSharePrice1);
-    console.log(currentSharePrice2);
-    console.log(currentSharePrice3);
-
     const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
     const orionConfigDeployed = await OrionConfigFactory.deploy(
       owner.address,
