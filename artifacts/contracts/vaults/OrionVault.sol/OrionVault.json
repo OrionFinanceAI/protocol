@@ -278,6 +278,11 @@
       "type": "error"
     },
     {
+      "inputs": [],
+      "name": "VaultDecommissioned",
+      "type": "error"
+    },
+    {
       "anonymous": false,
       "inputs": [
         {

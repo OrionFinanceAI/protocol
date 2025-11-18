@@ -21,9 +21,6 @@ contract OrionAssetERC4626ExecutionAdapter is IExecutionAdapter {
     /// @notice The Orion config contract
     IOrionConfig public config;
 
-    /// @notice Underlying asset address
-    address public underlyingAsset;
-
     /// @notice The underlying asset as an IERC20 interface
     IERC20 public underlyingAssetToken;
 
@@ -41,8 +38,7 @@ contract OrionAssetERC4626ExecutionAdapter is IExecutionAdapter {
         if (configAddress == address(0)) revert ErrorsLib.ZeroAddress();
 
         config = IOrionConfig(configAddress);
-        underlyingAsset = address(config.underlyingAsset());
-        underlyingAssetToken = IERC20(underlyingAsset);
+        underlyingAssetToken = config.underlyingAsset();
         liquidityOrchestrator = config.liquidityOrchestrator();
     }
 
@@ -50,9 +46,9 @@ contract OrionAssetERC4626ExecutionAdapter is IExecutionAdapter {
     /// @param asset The address of the asset to validate
     function validateExecutionAdapter(address asset) external view override {
         try IERC4626(asset).asset() returns (address vaultUnderlyingAsset) {
-            if (vaultUnderlyingAsset != underlyingAsset) revert ErrorsLib.InvalidAdapter();
+            if (vaultUnderlyingAsset != address(underlyingAssetToken)) revert ErrorsLib.InvalidAdapter(asset);
         } catch {
-            revert ErrorsLib.InvalidAdapter(); // Adapter not valid for this vault
+            revert ErrorsLib.InvalidAdapter(asset);
         }
     }
 
@@ -79,22 +75,24 @@ contract OrionAssetERC4626ExecutionAdapter is IExecutionAdapter {
 
         IERC4626 vault = IERC4626(vaultAsset);
 
-        spentUnderlyingAmount = vault.previewMint(sharesAmount);
+        // Preview the required underlying amount for minting exact shares
+        uint256 previewedUnderlyingAmount = vault.previewMint(sharesAmount);
 
-        // Pull underlying assets from the caller
-        underlyingAssetToken.safeTransferFrom(msg.sender, address(this), spentUnderlyingAmount);
+        // Pull previewed amount from the caller
+        underlyingAssetToken.safeTransferFrom(msg.sender, address(this), previewedUnderlyingAmount);
 
-        // Approve vault to spend underlying assets
-        underlyingAssetToken.forceApprove(vaultAsset, spentUnderlyingAmount);
+        // Approve vault to spend underlying assets (with buffer for rounding)
+        underlyingAssetToken.forceApprove(vaultAsset, type(uint256).max);
 
-        // Deposit underlying assets to get vault shares
-        // Capture actual shares minted (may differ from sharesAmount due to rounding)
-        uint256 actualSharesMinted = vault.deposit(spentUnderlyingAmount, address(this));
+        // Mint exact shares. Vault will pull the required underlying amount
+        // This guarantees sharesAmount shares are minted.
+        spentUnderlyingAmount = vault.mint(sharesAmount, address(this));
+        if (spentUnderlyingAmount != previewedUnderlyingAmount) revert ErrorsLib.ExecutionFailed(vaultAsset);
 
         // Clean up approval
         underlyingAssetToken.forceApprove(vaultAsset, 0);
 
-        // Push all received shares to the caller
-        IERC20(vaultAsset).safeTransfer(msg.sender, actualSharesMinted);
+        // Push all minted shares to the caller
+        IERC20(vaultAsset).safeTransfer(msg.sender, sharesAmount);
     }
 }

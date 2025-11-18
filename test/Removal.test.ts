@@ -614,4 +614,80 @@ describe("Whitelist and Vault Removal Flows", function () {
       expect(finalOwnerBalance).to.equal(initialOwnerBalance + pendingCuratorFees);
     }
   });
+
+  it("should block requestDeposit when vault is decommissioning", async function () {
+    await testVault.connect(curator).submitIntent([{ token: await mockAsset1.getAddress(), weight: 1000000000 }]);
+
+    const epochDuration = await internalStatesOrchestrator.epochDuration();
+    await time.increase(epochDuration + 1n);
+
+    // Process one full epoch cycle to have some assets
+    const [upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+    if (upkeepNeeded) {
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+
+      while ((await internalStatesOrchestrator.currentPhase()) !== 0n) {
+        const [_upkeepNeeded, _performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+        if (_upkeepNeeded) {
+          await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(_performData);
+        }
+      }
+    }
+
+    // Mark vault for decommissioning
+    await orionConfig.connect(user).removeOrionVault(await testVault.getAddress());
+
+    // Verify vault is decommissioning
+    void expect(await testVault.isDecommissioning()).to.be.true;
+
+    // Try to request deposit - should revert
+    const depositAmount = ethers.parseUnits("100", 12);
+    await underlyingAsset.connect(user).approve(await testVault.getAddress(), depositAmount);
+
+    await expect(testVault.connect(user).requestDeposit(depositAmount)).to.be.revertedWithCustomError(
+      testVault,
+      "VaultDecommissioned",
+    );
+  });
+
+  it("should block requestRedeem when vault is decommissioning", async function () {
+    // First make a deposit and get some shares
+    const depositAmount = ethers.parseUnits("1000", 12);
+    await underlyingAsset.connect(user).approve(await testVault.getAddress(), depositAmount);
+    await testVault.connect(user).requestDeposit(depositAmount);
+
+    await testVault.connect(curator).submitIntent([{ token: await mockAsset1.getAddress(), weight: 1000000000 }]);
+
+    const epochDuration = await internalStatesOrchestrator.epochDuration();
+    await time.increase(epochDuration + 1n);
+
+    // Process epochs to fulfill the deposit
+    let [upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+    while (upkeepNeeded || (await internalStatesOrchestrator.currentPhase()) !== 0n) {
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      [upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+    }
+
+    let [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+    while (liquidityUpkeepNeeded || (await liquidityOrchestrator.currentPhase()) !== 0n) {
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+      [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+    }
+
+    // Verify user has shares
+    const userShares = await testVault.balanceOf(user.address);
+    expect(userShares).to.be.gt(0);
+
+    // Mark vault for decommissioning
+    await orionConfig.connect(user).removeOrionVault(await testVault.getAddress());
+
+    // Verify vault is decommissioning
+    void expect(await testVault.isDecommissioning()).to.be.true;
+
+    // Try to request redeem - should revert
+    await expect(testVault.connect(user).requestRedeem(userShares / 2n)).to.be.revertedWithCustomError(
+      testVault,
+      "VaultDecommissioned",
+    );
+  });
 });

@@ -36,9 +36,9 @@ contract OrionAssetERC4626PriceAdapter is IPriceAdapter {
     /// @inheritdoc IPriceAdapter
     function validatePriceAdapter(address asset) external view {
         try IERC4626(asset).asset() returns (address vaultUnderlyingAsset) {
-            if (vaultUnderlyingAsset != underlyingAsset) revert ErrorsLib.InvalidAdapter();
+            if (vaultUnderlyingAsset != underlyingAsset) revert ErrorsLib.InvalidAdapter(asset);
         } catch {
-            revert ErrorsLib.InvalidAdapter();
+            revert ErrorsLib.InvalidAdapter(asset);
         }
     }
 

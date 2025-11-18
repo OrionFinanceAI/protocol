@@ -57,12 +57,29 @@
       "type": "error"
     },
     {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "asset",
+          "type": "address"
+        }
+      ],
+      "name": "ExecutionFailed",
+      "type": "error"
+    },
+    {
       "inputs": [],
       "name": "InsufficientAmount",
       "type": "error"
     },
     {
-      "inputs": [],
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "asset",
+          "type": "address"
+        }
+      ],
       "name": "InvalidAdapter",
       "type": "error"
     },
@@ -155,12 +172,17 @@
     },
     {
       "inputs": [],
+      "name": "VaultDecommissioned",
+      "type": "error"
+    },
+    {
+      "inputs": [],
       "name": "ZeroAddress",
       "type": "error"
     }
   ],
-  "bytecode": "0x60556032600b8282823980515f1a607314602657634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f5ffdfea26469706673582212204cb5274106b0884560a6dafabcc128daa14366bf521b219c5337ea4f08f5ef1764736f6c634300081c0033",
-  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f5ffdfea26469706673582212204cb5274106b0884560a6dafabcc128daa14366bf521b219c5337ea4f08f5ef1764736f6c634300081c0033",
+  "bytecode": "0x60556032600b8282823980515f1a607314602657634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f5ffdfea2646970667358221220a331607177668fc645dc2985728d5fca1f2f492b55eb2f8cfd795e243d67baf364736f6c634300081c0033",
+  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f5ffdfea2646970667358221220a331607177668fc645dc2985728d5fca1f2f492b55eb2f8cfd795e243d67baf364736f6c634300081c0033",
   "linkReferences": {},
   "deployedLinkReferences": {}
 }

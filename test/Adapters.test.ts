@@ -7,6 +7,7 @@ import {
   LiquidityOrchestrator,
   MockERC4626Asset,
   MockUnderlyingAsset,
+  OrionAssetERC4626ExecutionAdapter,
   OrionAssetERC4626PriceAdapter,
   OrionConfig,
   PriceAdapterRegistry,
@@ -198,6 +199,183 @@ describe("Price Adapter", function () {
           await erc4626ExecutionAdapter.getAddress(),
         ),
       ).to.be.revertedWithCustomError(erc4626ExecutionAdapter, "InvalidAdapter");
+    });
+  });
+
+  describe("ERC4626 Execution Adapter - Share Accounting", function () {
+    let erc4626ExecutionAdapter: OrionAssetERC4626ExecutionAdapter;
+    let erc4626Vault: MockERC4626Asset;
+
+    beforeEach(async function () {
+      const OrionAssetERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
+        "OrionAssetERC4626ExecutionAdapter",
+      );
+      erc4626ExecutionAdapter = (await OrionAssetERC4626ExecutionAdapterFactory.deploy(
+        await orionConfig.getAddress(),
+      )) as unknown as OrionAssetERC4626ExecutionAdapter;
+      await erc4626ExecutionAdapter.waitForDeployment();
+
+      const MockERC4626AssetFactory = await ethers.getContractFactory("MockERC4626Asset");
+      erc4626Vault = (await MockERC4626AssetFactory.deploy(
+        await underlyingAsset.getAddress(),
+        "Test Vault",
+        "TV",
+      )) as unknown as MockERC4626Asset;
+      await erc4626Vault.waitForDeployment();
+    });
+
+    it("should mint exact shares requested via buy(), preventing accounting drift", async function () {
+      const sharesTarget = ethers.parseUnits("1000", 12);
+      const underlyingAmount = ethers.parseUnits("10000", 12);
+
+      // Mint underlying to LO
+      await underlyingAsset.mint(await liquidityOrchestrator.getAddress(), underlyingAmount);
+
+      // Impersonate LO to call buy
+      await ethers.provider.send("hardhat_impersonateAccount", [await liquidityOrchestrator.getAddress()]);
+      const loSigner = await ethers.getSigner(await liquidityOrchestrator.getAddress());
+
+      // Set ETH balance for LO for gas
+      await ethers.provider.send("hardhat_setBalance", [
+        await liquidityOrchestrator.getAddress(),
+        ethers.toQuantity(ethers.parseEther("1.0")),
+      ]);
+
+      // Approve adapter from LO with max allowance
+      await underlyingAsset.connect(loSigner).approve(await erc4626ExecutionAdapter.getAddress(), ethers.MaxUint256);
+
+      const balanceBefore = await erc4626Vault.balanceOf(await liquidityOrchestrator.getAddress());
+
+      // Execute buy as LO
+      await erc4626ExecutionAdapter.connect(loSigner).buy(await erc4626Vault.getAddress(), sharesTarget);
+
+      // Verify exact shares were minted
+      const balanceAfter = await erc4626Vault.balanceOf(await liquidityOrchestrator.getAddress());
+      const sharesMinted = balanceAfter - balanceBefore;
+
+      expect(sharesMinted).to.equal(sharesTarget, "Shares minted must exactly match shares requested");
+
+      await ethers.provider.send("hardhat_stopImpersonatingAccount", [await liquidityOrchestrator.getAddress()]);
+    });
+
+    it("should return excess underlying when previewMint overestimates", async function () {
+      const sharesTarget = ethers.parseUnits("1000", 12);
+      const underlyingAmount = ethers.parseUnits("10000", 12);
+
+      // Mint underlying to LO
+      await underlyingAsset.mint(await liquidityOrchestrator.getAddress(), underlyingAmount);
+
+      // Impersonate LO
+      await ethers.provider.send("hardhat_impersonateAccount", [await liquidityOrchestrator.getAddress()]);
+      const loSigner = await ethers.getSigner(await liquidityOrchestrator.getAddress());
+
+      // Set ETH balance for LO for gas
+      await ethers.provider.send("hardhat_setBalance", [
+        await liquidityOrchestrator.getAddress(),
+        ethers.toQuantity(ethers.parseEther("1.0")),
+      ]);
+
+      await underlyingAsset.connect(loSigner).approve(await erc4626ExecutionAdapter.getAddress(), ethers.MaxUint256);
+
+      const underlyingBalanceBefore = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
+
+      // Execute buy from adapter
+      await erc4626ExecutionAdapter.connect(loSigner).buy(await erc4626Vault.getAddress(), sharesTarget);
+
+      const underlyingBalanceAfter = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
+
+      // Verify that not all underlying was consumed (some was returned)
+      const underlyingSpent = underlyingBalanceBefore - underlyingBalanceAfter;
+
+      // Should have spent approximately sharesTarget worth (1000), not the full 2000
+      expect(underlyingSpent).to.be.lessThan(underlyingAmount);
+      expect(underlyingSpent).to.be.greaterThan(0n);
+
+      await ethers.provider.send("hardhat_stopImpersonatingAccount", [await liquidityOrchestrator.getAddress()]);
+    });
+
+    it("should guarantee exact shares across multiple buy operations", async function () {
+      const sharesPerBuy = ethers.parseUnits("100", 12);
+      const numBuys = 5;
+      const underlyingPerBuy = ethers.parseUnits("1000", 12);
+      const totalUnderlying = underlyingPerBuy * BigInt(numBuys);
+
+      // Mint enough underlying to LO
+      await underlyingAsset.mint(await liquidityOrchestrator.getAddress(), totalUnderlying);
+
+      // Impersonate LO
+      await ethers.provider.send("hardhat_impersonateAccount", [await liquidityOrchestrator.getAddress()]);
+      const loSigner = await ethers.getSigner(await liquidityOrchestrator.getAddress());
+
+      // Set ETH balance for LO for gas
+      await ethers.provider.send("hardhat_setBalance", [
+        await liquidityOrchestrator.getAddress(),
+        ethers.toQuantity(ethers.parseEther("1.0")),
+      ]);
+
+      await underlyingAsset.connect(loSigner).approve(await erc4626ExecutionAdapter.getAddress(), ethers.MaxUint256);
+
+      let totalSharesReceived = 0n;
+
+      for (let i = 0; i < numBuys; i++) {
+        const balanceBefore = await erc4626Vault.balanceOf(await liquidityOrchestrator.getAddress());
+        await erc4626ExecutionAdapter.connect(loSigner).buy(await erc4626Vault.getAddress(), sharesPerBuy);
+        const balanceAfter = await erc4626Vault.balanceOf(await liquidityOrchestrator.getAddress());
+
+        const sharesMinted = balanceAfter - balanceBefore;
+        expect(sharesMinted).to.equal(sharesPerBuy, `Buy ${i + 1} must mint exact shares`);
+
+        totalSharesReceived += sharesMinted;
+      }
+
+      // Verify total accumulated shares
+      const expectedTotalShares = sharesPerBuy * BigInt(numBuys);
+      expect(totalSharesReceived).to.equal(expectedTotalShares, "Total shares must match sum of targets");
+
+      await ethers.provider.send("hardhat_stopImpersonatingAccount", [await liquidityOrchestrator.getAddress()]);
+    });
+
+    it("should handle sell operation correctly with exact shares", async function () {
+      const sharesAmount = ethers.parseUnits("1000", 12);
+      const underlyingAmount = ethers.parseUnits("10000", 12);
+
+      // Mint underlying to LO
+      await underlyingAsset.mint(await liquidityOrchestrator.getAddress(), underlyingAmount);
+
+      // Impersonate LO
+      await ethers.provider.send("hardhat_impersonateAccount", [await liquidityOrchestrator.getAddress()]);
+      const loSigner = await ethers.getSigner(await liquidityOrchestrator.getAddress());
+
+      // Set ETH balance for LO for gas
+      await ethers.provider.send("hardhat_setBalance", [
+        await liquidityOrchestrator.getAddress(),
+        ethers.toQuantity(ethers.parseEther("1.0")),
+      ]);
+
+      // First buy shares via adapter
+      await underlyingAsset.connect(loSigner).approve(await erc4626ExecutionAdapter.getAddress(), ethers.MaxUint256);
+      await erc4626ExecutionAdapter.connect(loSigner).buy(await erc4626Vault.getAddress(), sharesAmount);
+
+      // Verify we have exact shares
+      const shareBalance = await erc4626Vault.balanceOf(await liquidityOrchestrator.getAddress());
+      expect(shareBalance).to.equal(sharesAmount);
+
+      // Now sell those exact shares
+      await erc4626Vault.connect(loSigner).approve(await erc4626ExecutionAdapter.getAddress(), sharesAmount);
+
+      const underlyingBefore = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
+      await erc4626ExecutionAdapter.connect(loSigner).sell(await erc4626Vault.getAddress(), sharesAmount);
+      const underlyingAfter = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
+
+      // Verify shares were fully redeemed
+      const finalShareBalance = await erc4626Vault.balanceOf(await liquidityOrchestrator.getAddress());
+      expect(finalShareBalance).to.equal(0n, "All shares should be redeemed");
+
+      // Verify we got underlying back
+      const underlyingReceived = underlyingAfter - underlyingBefore;
+      expect(underlyingReceived).to.be.greaterThan(0n, "Should receive underlying from redemption");
+
+      await ethers.provider.send("hardhat_stopImpersonatingAccount", [await liquidityOrchestrator.getAddress()]);
     });
   });
 });
