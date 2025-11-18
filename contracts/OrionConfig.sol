@@ -353,18 +353,13 @@ contract OrionConfig is Ownable2Step, IOrionConfig {
     function completeVaultDecommissioning(address vault) external onlyLiquidityOrchestrator {
         if (!decommissioningInProgressVaults.contains(vault)) revert ErrorsLib.InvalidAddress();
 
-        // Determine vault type and remove from appropriate vault list
-        EventsLib.VaultType vaultType;
-        if (encryptedVaults.contains(vault)) {
-            vaultType = EventsLib.VaultType.Encrypted;
-            // slither-disable-next-line unused-return
-            encryptedVaults.remove(vault);
-        } else if (transparentVaults.contains(vault)) {
-            vaultType = EventsLib.VaultType.Transparent;
-            // slither-disable-next-line unused-return
-            transparentVaults.remove(vault);
-        } else {
-            revert ErrorsLib.InvalidAddress();
+        // Remove from appropriate vault list - use remove() return value instead of contains() + remove()
+        bool removedFromEncrypted = encryptedVaults.remove(vault);
+        if (!removedFromEncrypted) {
+            bool removedFromTransparent = transparentVaults.remove(vault);
+            if (!removedFromTransparent) {
+                revert ErrorsLib.InvalidAddress();
+            }
         }
 
         // Remove from decommissioning in progress list
