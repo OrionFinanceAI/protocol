@@ -359,6 +359,8 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
             currentMinibatchIndex = 0;
         }
 
+        (uint16 activeVFee, uint16 activeRsFee) = activeProtocolFees();
+
         for (uint16 i = i0; i < i1; ++i) {
             IOrionTransparentVault vault = IOrionTransparentVault(transparentVaultsEpoch[i]);
 
@@ -398,7 +400,6 @@ contract InternalStatesOrchestrator is Ownable, ReentrancyGuard, IInternalStateO
             }
 
             // STEP 2: PROTOCOL VOLUME FEE
-            (uint16 activeVFee, uint16 activeRsFee) = activeProtocolFees();
             uint256 protocolVolumeFee = uint256(activeVFee).mulDiv(totalAssets, BASIS_POINTS_FACTOR);
             protocolVolumeFee = protocolVolumeFee.mulDiv(epochDuration, 365 days);
             pendingProtocolFees += protocolVolumeFee;
