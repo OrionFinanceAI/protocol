@@ -93,4 +93,12 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @param assets The amount of underlying assets to withdraw
     /// @param receiver The address to receive the underlying assets
     function withdraw(uint256 assets, address receiver) external;
+
+    /// @notice Pauses the contract
+    /// @dev Can only be called by OrionConfig for emergency situations
+    function pause() external;
+
+    /// @notice Unpauses the contract
+    /// @dev Can only be called by OrionConfig after resolving emergency
+    function unpause() external;
 }

@@ -46,6 +46,18 @@ library EventsLib {
     /// @param rsFeeCoefficient The new revenue share fee coefficient.
     event ProtocolFeeChangeScheduled(uint16 vFeeCoefficient, uint16 rsFeeCoefficient);
 
+    /// @notice The guardian address has been updated.
+    /// @param guardian The new guardian address.
+    event GuardianUpdated(address indexed guardian);
+
+    /// @notice The protocol has been paused.
+    /// @param pauser The address that triggered the pause.
+    event ProtocolPaused(address indexed pauser);
+
+    /// @notice The protocol has been unpaused.
+    /// @param unpauser The address that triggered the unpause.
+    event ProtocolUnpaused(address indexed unpauser);
+
     // =======================
     // === Vault Lifecycle ===
     // =======================

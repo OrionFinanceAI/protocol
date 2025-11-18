@@ -53,6 +53,19 @@
       "inputs": [
         {
           "indexed": true,
+          "internalType": "address",
+          "name": "guardian",
+          "type": "address"
+        }
+      ],
+      "name": "GuardianUpdated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
           "internalType": "uint16",
           "name": "epochCounter",
           "type": "uint16"
@@ -223,6 +236,32 @@
       "inputs": [
         {
           "indexed": true,
+          "internalType": "address",
+          "name": "pauser",
+          "type": "address"
+        }
+      ],
+      "name": "ProtocolPaused",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "unpauser",
+          "type": "address"
+        }
+      ],
+      "name": "ProtocolUnpaused",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
           "internalType": "uint16",
           "name": "riskFreeRate",
           "type": "uint16"
@@ -284,8 +323,8 @@
       "type": "event"
     }
   ],
-  "bytecode": "0x60556032600b8282823980515f1a607314602657634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f5ffdfea264697066735822122039760a0f97d3e8dd4af077632174f529403f3cba13858fff4a1a1377b1a0155464736f6c634300081c0033",
-  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f5ffdfea264697066735822122039760a0f97d3e8dd4af077632174f529403f3cba13858fff4a1a1377b1a0155464736f6c634300081c0033",
+  "bytecode": "0x60556032600b8282823980515f1a607314602657634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f5ffdfea26469706673582212207a8a2ee69932aafdeb08db93ab50287087b7b67e4ed585d9b44fbcf118deaf0864736f6c634300081c0033",
+  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f5ffdfea26469706673582212207a8a2ee69932aafdeb08db93ab50287087b7b67e4ed585d9b44fbcf118deaf0864736f6c634300081c0033",
   "linkReferences": {},
   "deployedLinkReferences": {}
 }

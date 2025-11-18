@@ -210,4 +210,12 @@ interface IOrionVault is IERC4626 {
     /// @param epoch The epoch for which to accrue fees
     /// @param feeAmount The amount of curator fees to accrue in underlying asset units
     function accrueCuratorFees(uint256 epoch, uint256 feeAmount) external;
+
+    /// @notice Pauses the contract
+    /// @dev Can only be called by OrionConfig for emergency situations
+    function pause() external;
+
+    /// @notice Unpauses the contract
+    /// @dev Can only be called by OrionConfig after resolving emergency
+    function unpause() external;
 }

@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "../interfaces/IOrionConfig.sol";
 import "../interfaces/IOrionVault.sol";
@@ -37,7 +38,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
  * 4. Portfolio Weights (w_0) [shares] – current allocation in share units for stateless TVL estimation
  * 5. Curator Intent (w_1) [%] – target allocation in percentage of total supply
  */
-abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
+abstract contract OrionVault is ERC4626, ReentrancyGuard, Pausable, IOrionVault {
     using Math for uint256;
     using SafeERC20 for IERC20;
     using EnumerableMap for EnumerableMap.AddressToUintMap;
@@ -345,7 +346,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     /// --------- LP FUNCTIONS ---------
 
     /// @inheritdoc IOrionVault
-    function requestDeposit(uint256 assets) external nonReentrant {
+    function requestDeposit(uint256 assets) external nonReentrant whenNotPaused {
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         if (isDecommissioning || config.isDecommissionedVault(address(this))) revert ErrorsLib.VaultDecommissioned();
         if (assets == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
@@ -368,7 +369,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     }
 
     /// @inheritdoc IOrionVault
-    function cancelDepositRequest(uint256 amount) external nonReentrant {
+    function cancelDepositRequest(uint256 amount) external nonReentrant whenNotPaused {
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
 
@@ -394,7 +395,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     }
 
     /// @inheritdoc IOrionVault
-    function requestRedeem(uint256 shares) external nonReentrant {
+    function requestRedeem(uint256 shares) external nonReentrant whenNotPaused {
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         if (isDecommissioning || config.isDecommissionedVault(address(this))) revert ErrorsLib.VaultDecommissioned();
         if (shares == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(address(this));
@@ -417,7 +418,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     }
 
     /// @inheritdoc IOrionVault
-    function cancelRedeemRequest(uint256 shares) external nonReentrant {
+    function cancelRedeemRequest(uint256 shares) external nonReentrant whenNotPaused {
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         if (shares == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(address(this));
 
@@ -684,5 +685,19 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         }
 
         _pendingRedeem -= processedShares;
+    }
+
+    /// @notice Pauses the contract
+    /// @dev Can only be called by OrionConfig for emergency situations
+    function pause() external {
+        if (msg.sender != address(config)) revert ErrorsLib.UnauthorizedAccess();
+        _pause();
+    }
+
+    /// @notice Unpauses the contract
+    /// @dev Can only be called by OrionConfig after resolving emergency
+    function unpause() external {
+        if (msg.sender != address(config)) revert ErrorsLib.UnauthorizedAccess();
+        _unpause();
     }
 }
