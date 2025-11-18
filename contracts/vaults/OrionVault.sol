@@ -589,12 +589,40 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, Pausable, IOrionVault 
 
     /// @inheritdoc IOrionVault
     function pendingDeposit() external view returns (uint256) {
-        return _pendingDeposit;
+        uint32 length = uint32(_depositRequests.length());
+        if (length == 0) {
+            return 0;
+        }
+
+        // Only first MAX_FULFILL_BATCH_SIZE requests will be processed in this epoch
+        uint16 batchSize = length > MAX_FULFILL_BATCH_SIZE ? MAX_FULFILL_BATCH_SIZE : uint16(length);
+
+        uint256 processableAmount = 0;
+        for (uint16 i = 0; i < batchSize; ++i) {
+            (, uint256 amount) = _depositRequests.at(i);
+            processableAmount += amount;
+        }
+
+        return processableAmount;
     }
 
     /// @inheritdoc IOrionVault
     function pendingRedeem() external view returns (uint256) {
-        return _pendingRedeem;
+        uint32 length = uint32(_redeemRequests.length());
+        if (length == 0) {
+            return 0;
+        }
+
+        // Only first MAX_FULFILL_BATCH_SIZE requests will be processed in this epoch
+        uint16 batchSize = length > MAX_FULFILL_BATCH_SIZE ? MAX_FULFILL_BATCH_SIZE : uint16(length);
+
+        uint256 processableShares = 0;
+        for (uint16 i = 0; i < batchSize; ++i) {
+            (, uint256 shares) = _redeemRequests.at(i);
+            processableShares += shares;
+        }
+
+        return processableShares;
     }
 
     /// @inheritdoc IOrionVault
