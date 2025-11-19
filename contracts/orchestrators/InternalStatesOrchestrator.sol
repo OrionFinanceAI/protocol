@@ -76,6 +76,10 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
     uint8 public constant MAX_TRANSPARENT_MINIBATCH_SIZE = 8;
     /// @notice Maximum epoch duration (2 weeks = 14 days)
     uint32 public constant MAX_EPOCH_DURATION = 14 days;
+    /// @notice Dust threshold to prevent rounding-induced orders (0.01 units in 18 decimals)
+    /// @dev This accounts for rounding errors when converting between different decimal precisions
+    ///      (e.g., USDC 6 decimals <-> aUSDC 18 decimals). Set to 1e16 = 0.01 units.
+    uint256 public constant DUST_THRESHOLD = 1e16;
 
     /// @notice Action constants for checkUpkeep and performUpkeep
     bytes4 private constant ACTION_START = bytes4(keccak256("start()"));
@@ -547,6 +551,7 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
     /// @notice Builds selling and buying orders based on portfolio differences
     /// @dev Compares _finalBatchPortfolio with _initialBatchPortfolio to determine rebalancing needs
     ///      Orders are stored in _currentEpoch.sellingOrders and _currentEpoch.buyingOrders.
+    ///      Dust threshold is applied to prevent unnecessary orders from rounding errors.
     function _buildOrders() internal {
         address[] memory tokens = _currentEpoch.tokens;
         uint16 length = uint16(tokens.length);
@@ -557,9 +562,17 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
             uint256 finalValue = _currentEpoch.finalBatchPortfolio[token];
 
             if (initialValue > finalValue) {
-                _currentEpoch.sellingOrders[token] = initialValue - finalValue;
+                uint256 delta = initialValue - finalValue;
+                // Only create sell order if delta exceeds dust threshold
+                if (delta > DUST_THRESHOLD) {
+                    _currentEpoch.sellingOrders[token] = delta;
+                }
             } else if (finalValue > initialValue) {
-                _currentEpoch.buyingOrders[token] = finalValue - initialValue;
+                uint256 delta = finalValue - initialValue;
+                // Only create buy order if delta exceeds dust threshold
+                if (delta > DUST_THRESHOLD) {
+                    _currentEpoch.buyingOrders[token] = delta;
+                }
             }
         }
 
