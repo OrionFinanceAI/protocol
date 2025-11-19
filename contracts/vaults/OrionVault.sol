@@ -191,9 +191,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         liquidityOrchestrator = ILiquidityOrchestrator(config_.liquidityOrchestrator());
         curatorIntentDecimals = config_.curatorIntentDecimals();
 
-        _totalAssets = 0;
-        _pendingDeposit = 0;
-        _pendingRedeem = 0;
+        // Note: _totalAssets, _pendingDeposit, and _pendingRedeem are automatically initialized to 0
 
         uint8 underlyingDecimals = IERC20Metadata(address(config_.underlyingAsset())).decimals();
         if (underlyingDecimals > SHARE_DECIMALS) revert ErrorsLib.InvalidUnderlyingDecimals();

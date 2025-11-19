@@ -32,6 +32,9 @@ contract OrionConfig is Ownable2Step, IOrionConfig {
     /// @notice Admin address (immutable, set at construction)
     address public immutable admin;
 
+    /// @notice Guardian address for emergency pausing
+    address public guardian;
+
     /// @notice Underlying asset address
     IERC20 public underlyingAsset;
     /// @notice Address of the internal states orchestrator
@@ -349,18 +352,12 @@ contract OrionConfig is Ownable2Step, IOrionConfig {
     function completeVaultDecommissioning(address vault) external onlyLiquidityOrchestrator {
         if (!decommissioningInProgressVaults.contains(vault)) revert ErrorsLib.InvalidAddress();
 
-        // Determine vault type and remove from appropriate vault list
-        EventsLib.VaultType vaultType;
-        if (encryptedVaults.contains(vault)) {
-            vaultType = EventsLib.VaultType.Encrypted;
-            // slither-disable-next-line unused-return
-            encryptedVaults.remove(vault);
-        } else if (transparentVaults.contains(vault)) {
-            vaultType = EventsLib.VaultType.Transparent;
-            // slither-disable-next-line unused-return
-            transparentVaults.remove(vault);
-        } else {
-            revert ErrorsLib.InvalidAddress();
+        bool removedFromEncrypted = encryptedVaults.remove(vault);
+        if (!removedFromEncrypted) {
+            bool removedFromTransparent = transparentVaults.remove(vault);
+            if (!removedFromTransparent) {
+                revert ErrorsLib.InvalidAddress();
+            }
         }
 
         // Remove from decommissioning in progress list
@@ -384,5 +381,35 @@ contract OrionConfig is Ownable2Step, IOrionConfig {
     /// @inheritdoc IOrionConfig
     function getTokenDecimals(address token) external view returns (uint8) {
         return tokenDecimals[token];
+    }
+
+    /// @notice Sets the guardian address for emergency pausing
+    /// @param _guardian The new guardian address
+    /// @dev Only admin can set the guardian
+    function setGuardian(address _guardian) external onlyAdmin {
+        guardian = _guardian;
+        emit EventsLib.GuardianUpdated(_guardian);
+    }
+
+    /// @notice Pauses all protocol operations across orchestrators
+    /// @dev Can only be called by guardian or admin
+    ///      Pauses InternalStatesOrchestrator and LiquidityOrchestrator
+    function pauseAll() external {
+        if (msg.sender != guardian && msg.sender != admin) revert ErrorsLib.UnauthorizedAccess();
+
+        IInternalStateOrchestrator(internalStatesOrchestrator).pause();
+        ILiquidityOrchestrator(liquidityOrchestrator).pause();
+
+        emit EventsLib.ProtocolPaused(msg.sender);
+    }
+
+    /// @notice Unpauses all protocol operations across orchestrators
+    /// @dev Can only be called by admin (not guardian: requires admin approval to resume)
+    ///      Unpauses InternalStatesOrchestrator and LiquidityOrchestrator
+    function unpauseAll() external onlyAdmin {
+        IInternalStateOrchestrator(internalStatesOrchestrator).unpause();
+        ILiquidityOrchestrator(liquidityOrchestrator).unpause();
+
+        emit EventsLib.ProtocolUnpaused(msg.sender);
     }
 }

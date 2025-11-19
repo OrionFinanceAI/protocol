@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "../interfaces/ILiquidityOrchestrator.sol";
 import "../interfaces/IOrionConfig.sol";
@@ -25,7 +26,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
  *      - Processing withdrawal requests from LPs;
  *      - Handling slippage and market execution differences from adapter price estimates via liquidity buffer.
  */
-contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, ILiquidityOrchestrator {
+contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiquidityOrchestrator {
     using Math for uint256;
     using SafeERC20 for IERC20;
 
@@ -144,11 +145,9 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, ILiquidityOrche
         admin = config.admin();
 
         automationRegistry = automationRegistry_;
-        lastProcessedEpoch = 0;
         currentPhase = LiquidityUpkeepPhase.Idle;
         executionMinibatchSize = 1;
         minibatchSize = 1;
-        currentMinibatchIndex = 0;
         buyApprovalMultiplier = 2;
     }
 
@@ -323,7 +322,7 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, ILiquidityOrche
     }
 
     /// @notice Performs the upkeep
-    function performUpkeep(bytes calldata) external override onlyAuthorizedTrigger nonReentrant {
+    function performUpkeep(bytes calldata) external override onlyAuthorizedTrigger nonReentrant whenNotPaused {
         if (config.isSystemIdle() && internalStatesOrchestrator.epochCounter() > lastProcessedEpoch) {
             _handleStart();
         } else if (currentPhase == LiquidityUpkeepPhase.SellingLeg) {
@@ -508,5 +507,15 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, ILiquidityOrche
         if (pendingDeposit > 0) {
             vaultContract.fulfillDeposit(totalAssetsForDeposit);
         }
+    }
+
+    /// @inheritdoc ILiquidityOrchestrator
+    function pause() external onlyConfig {
+        _pause();
+    }
+
+    /// @inheritdoc ILiquidityOrchestrator
+    function unpause() external onlyConfig {
+        _unpause();
     }
 }

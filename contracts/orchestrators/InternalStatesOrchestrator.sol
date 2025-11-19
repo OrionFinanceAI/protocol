@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "../interfaces/IOrionConfig.sol";
@@ -26,7 +27,7 @@ import { UtilitiesLib } from "../libraries/UtilitiesLib.sol";
  *      - Computing state estimations for Liquidity Orchestrator;
  *      - Trigger the Liquidity Orchestrator.
  */
-contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, IInternalStateOrchestrator {
+contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, IInternalStateOrchestrator {
     using Math for uint256;
 
     /// @notice Chainlink Automation Registry address
@@ -147,6 +148,12 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, IInternalS
         _;
     }
 
+    /// @dev Restricts function to only Orion Config contract
+    modifier onlyConfig() {
+        if (msg.sender != address(config)) revert ErrorsLib.NotAuthorized();
+        _;
+    }
+
     /// @dev Restricts function to only Liquidity Orchestrator
     modifier onlyLiquidityOrchestrator() {
         if (msg.sender != address(liquidityOrchestrator)) revert ErrorsLib.NotAuthorized();
@@ -175,13 +182,6 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, IInternalS
         _nextUpdateTime = block.timestamp + epochDuration;
 
         currentPhase = InternalUpkeepPhase.Idle;
-        epochCounter = 0;
-        currentMinibatchIndex = 0;
-
-        vFeeCoefficient = 0;
-        rsFeeCoefficient = 0;
-
-        bufferAmount = 0;
     }
 
     /// @inheritdoc IInternalStateOrchestrator
@@ -269,7 +269,7 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, IInternalS
     }
 
     /// @notice Performs state reading and estimation operations
-    function performUpkeep(bytes calldata) external override onlyAuthorizedTrigger nonReentrant {
+    function performUpkeep(bytes calldata) external override onlyAuthorizedTrigger nonReentrant whenNotPaused {
         if (config.isSystemIdle() && _shouldTriggerUpkeep()) {
             _handleStart();
         } else if (currentPhase == InternalUpkeepPhase.PreprocessingTransparentVaults) {
@@ -724,5 +724,15 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, IInternalS
     /// @inheritdoc IInternalStateOrchestrator
     function getTransparentVaultsEpoch() external view returns (address[] memory vaults) {
         return transparentVaultsEpoch;
+    }
+
+    /// @inheritdoc IInternalStateOrchestrator
+    function pause() external onlyConfig {
+        _pause();
+    }
+
+    /// @inheritdoc IInternalStateOrchestrator
+    function unpause() external onlyConfig {
+        _unpause();
     }
 }
