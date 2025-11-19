@@ -365,11 +365,11 @@ describe("Fee Cooldown Mechanism", function () {
 
       await expect(
         vault.connect(fixture.user1).updateFeeModel(FEE_TYPE.ABSOLUTE, 2000, 200),
-      ).to.be.revertedWithCustomError(vault, "UnauthorizedAccess");
+      ).to.be.revertedWithCustomError(vault, "NotAuthorized");
 
       await expect(
         vault.connect(fixture.curator).updateFeeModel(FEE_TYPE.ABSOLUTE, 2000, 200),
-      ).to.be.revertedWithCustomError(vault, "UnauthorizedAccess");
+      ).to.be.revertedWithCustomError(vault, "NotAuthorized");
     });
 
     it("should only allow owner to update protocol fees", async function () {

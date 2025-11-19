@@ -16,9 +16,6 @@ import {
  * @notice Tests for the automatic vault decommissioning when vault owner is removed
  * @dev This test suite validates that when a vault owner is removed from the whitelist,
  *      all vaults owned by that vault owner are automatically marked for decommissioning.
- *
- *      Security Issue: If trust on vault owner is lost, any vault created by such owner
- *      should be immediately decommissioned to protect user funds.
  */
 describe("Vault Owner Removal - Automatic Decommissioning", function () {
   async function deployFixture() {
@@ -239,10 +236,7 @@ describe("Vault Owner Removal - Automatic Decommissioning", function () {
 
       // Verify system is not idle
       const currentPhase = await internalStatesOrchestrator.currentPhase();
-      if (currentPhase === BigInt(0)) {
-        // If system is idle, this test is not applicable in current state
-        this.skip();
-      }
+      void expect(currentPhase).to.not.equal(0n);
 
       // Try to remove vault owner while system is not idle
       await expect(config.removeWhitelistedVaultOwner(vaultOwner1.address)).to.be.revertedWithCustomError(

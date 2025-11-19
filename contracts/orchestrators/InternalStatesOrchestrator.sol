@@ -730,14 +730,14 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
     /// @notice Pauses the contract
     /// @dev Can only be called by OrionConfig for emergency situations
     function pause() external {
-        if (msg.sender != address(config)) revert ErrorsLib.UnauthorizedAccess();
+        if (msg.sender != address(config)) revert ErrorsLib.NotAuthorized();
         _pause();
     }
 
     /// @notice Unpauses the contract
     /// @dev Can only be called by OrionConfig after resolving emergency
     function unpause() external {
-        if (msg.sender != address(config)) revert ErrorsLib.UnauthorizedAccess();
+        if (msg.sender != address(config)) revert ErrorsLib.NotAuthorized();
         _unpause();
     }
 }

@@ -135,25 +135,25 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, Pausable, IOrionVault 
 
     /// @dev Restricts function to only vault owner
     modifier onlyVaultOwner() {
-        if (msg.sender != vaultOwner) revert ErrorsLib.UnauthorizedAccess();
+        if (msg.sender != vaultOwner) revert ErrorsLib.NotAuthorized();
         _;
     }
 
     /// @dev Restricts function to only vault curator
     modifier onlyCurator() {
-        if (msg.sender != curator) revert ErrorsLib.UnauthorizedAccess();
+        if (msg.sender != curator) revert ErrorsLib.NotAuthorized();
         _;
     }
 
     /// @dev Restricts function to only internal states orchestrator
     modifier onlyInternalStatesOrchestrator() {
-        if (msg.sender != address(internalStatesOrchestrator)) revert ErrorsLib.UnauthorizedAccess();
+        if (msg.sender != address(internalStatesOrchestrator)) revert ErrorsLib.NotAuthorized();
         _;
     }
 
     /// @dev Restricts function to only liquidity orchestrator
     modifier onlyLiquidityOrchestrator() {
-        if (msg.sender != address(liquidityOrchestrator)) revert ErrorsLib.UnauthorizedAccess();
+        if (msg.sender != address(liquidityOrchestrator)) revert ErrorsLib.NotAuthorized();
         _;
     }
 
@@ -599,6 +599,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, Pausable, IOrionVault 
 
         uint256 processableAmount = 0;
         for (uint16 i = 0; i < batchSize; ++i) {
+            // slither-disable-next-line unused-return
             (, uint256 amount) = _depositRequests.at(i);
             processableAmount += amount;
         }
@@ -618,6 +619,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, Pausable, IOrionVault 
 
         uint256 processableShares = 0;
         for (uint16 i = 0; i < batchSize; ++i) {
+            // slither-disable-next-line unused-return
             (, uint256 shares) = _redeemRequests.at(i);
             processableShares += shares;
         }
@@ -716,14 +718,14 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, Pausable, IOrionVault 
     /// @notice Pauses the contract
     /// @dev Can only be called by OrionConfig for emergency situations
     function pause() external {
-        if (msg.sender != address(config)) revert ErrorsLib.UnauthorizedAccess();
+        if (msg.sender != address(config)) revert ErrorsLib.NotAuthorized();
         _pause();
     }
 
     /// @notice Unpauses the contract
     /// @dev Can only be called by OrionConfig after resolving emergency
     function unpause() external {
-        if (msg.sender != address(config)) revert ErrorsLib.UnauthorizedAccess();
+        if (msg.sender != address(config)) revert ErrorsLib.NotAuthorized();
         _unpause();
     }
 }

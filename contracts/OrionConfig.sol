@@ -78,12 +78,12 @@ contract OrionConfig is Ownable2Step, IOrionConfig {
     EnumerableSet.AddressSet private decommissionedVaults;
 
     modifier onlyAdmin() {
-        if (msg.sender != admin) revert ErrorsLib.UnauthorizedAccess();
+        if (msg.sender != admin) revert ErrorsLib.NotAuthorized();
         _;
     }
 
     modifier onlyFactories() {
-        if (msg.sender != transparentVaultFactory) revert ErrorsLib.UnauthorizedAccess();
+        if (msg.sender != transparentVaultFactory) revert ErrorsLib.NotAuthorized();
         _;
     }
 
@@ -342,10 +342,8 @@ contract OrionConfig is Ownable2Step, IOrionConfig {
         if (!this.isOrionVault(vault)) {
             revert ErrorsLib.InvalidAddress();
         }
-
         // slither-disable-next-line unused-return
         decommissioningInProgressVaults.add(vault);
-
         IOrionVault(vault).overrideIntentForDecommissioning();
     }
 
@@ -427,7 +425,7 @@ contract OrionConfig is Ownable2Step, IOrionConfig {
     /// @dev Can only be called by guardian or admin
     ///      Pauses InternalStatesOrchestrator, LiquidityOrchestrator, and all vaults
     function pauseAll() external {
-        if (msg.sender != guardian && msg.sender != admin) revert ErrorsLib.UnauthorizedAccess();
+        if (msg.sender != guardian && msg.sender != admin) revert ErrorsLib.NotAuthorized();
 
         // Pause orchestrators by calling their public pause() functions
         IInternalStateOrchestrator(internalStatesOrchestrator).pause();

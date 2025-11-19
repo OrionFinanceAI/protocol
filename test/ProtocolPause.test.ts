@@ -252,7 +252,7 @@ describe("Protocol Pause Functionality", function () {
     it("should prevent non-admin from setting guardian", async function () {
       await expect(config.connect(user1).setGuardian(user2.address)).to.be.revertedWithCustomError(
         config,
-        "UnauthorizedAccess",
+        "NotAuthorized",
       );
     });
 
@@ -286,7 +286,7 @@ describe("Protocol Pause Functionality", function () {
     });
 
     it("should prevent non-privileged users from pausing", async function () {
-      await expect(config.connect(user1).pauseAll()).to.be.revertedWithCustomError(config, "UnauthorizedAccess");
+      await expect(config.connect(user1).pauseAll()).to.be.revertedWithCustomError(config, "NotAuthorized");
 
       // Verify nothing is paused
       void expect(await internalStatesOrchestrator.paused()).to.be.false;
@@ -327,7 +327,7 @@ describe("Protocol Pause Functionality", function () {
     });
 
     it("should prevent guardian from unpausing (only admin)", async function () {
-      await expect(config.connect(guardian).unpauseAll()).to.be.revertedWithCustomError(config, "UnauthorizedAccess");
+      await expect(config.connect(guardian).unpauseAll()).to.be.revertedWithCustomError(config, "NotAuthorized");
 
       // Verify everything is still paused
       void expect(await internalStatesOrchestrator.paused()).to.be.true;
@@ -336,7 +336,7 @@ describe("Protocol Pause Functionality", function () {
     });
 
     it("should prevent non-admin from unpausing", async function () {
-      await expect(config.connect(user1).unpauseAll()).to.be.revertedWithCustomError(config, "UnauthorizedAccess");
+      await expect(config.connect(user1).unpauseAll()).to.be.revertedWithCustomError(config, "NotAuthorized");
 
       // Verify everything is still paused
       void expect(await internalStatesOrchestrator.paused()).to.be.true;
@@ -423,12 +423,12 @@ describe("Protocol Pause Functionality", function () {
     it("should prevent non-OrionConfig from calling pause() on InternalStatesOrchestrator", async function () {
       await expect(internalStatesOrchestrator.connect(admin).pause()).to.be.revertedWithCustomError(
         internalStatesOrchestrator,
-        "UnauthorizedAccess",
+        "NotAuthorized",
       );
 
       await expect(internalStatesOrchestrator.connect(guardian).pause()).to.be.revertedWithCustomError(
         internalStatesOrchestrator,
-        "UnauthorizedAccess",
+        "NotAuthorized",
       );
     });
 
@@ -438,19 +438,19 @@ describe("Protocol Pause Functionality", function () {
 
       await expect(internalStatesOrchestrator.connect(admin).unpause()).to.be.revertedWithCustomError(
         internalStatesOrchestrator,
-        "UnauthorizedAccess",
+        "NotAuthorized",
       );
     });
 
     it("should prevent non-OrionConfig from calling pause() on LiquidityOrchestrator", async function () {
       await expect(liquidityOrchestrator.connect(admin).pause()).to.be.revertedWithCustomError(
         liquidityOrchestrator,
-        "UnauthorizedAccess",
+        "NotAuthorized",
       );
 
       await expect(liquidityOrchestrator.connect(guardian).pause()).to.be.revertedWithCustomError(
         liquidityOrchestrator,
-        "UnauthorizedAccess",
+        "NotAuthorized",
       );
     });
 
@@ -460,19 +460,19 @@ describe("Protocol Pause Functionality", function () {
 
       await expect(liquidityOrchestrator.connect(admin).unpause()).to.be.revertedWithCustomError(
         liquidityOrchestrator,
-        "UnauthorizedAccess",
+        "NotAuthorized",
       );
     });
 
     it("should prevent non-OrionConfig from calling pause() on OrionVault", async function () {
       await expect(transparentVault.connect(admin).pause()).to.be.revertedWithCustomError(
         transparentVault,
-        "UnauthorizedAccess",
+        "NotAuthorized",
       );
 
       await expect(transparentVault.connect(guardian).pause()).to.be.revertedWithCustomError(
         transparentVault,
-        "UnauthorizedAccess",
+        "NotAuthorized",
       );
     });
 
@@ -482,7 +482,7 @@ describe("Protocol Pause Functionality", function () {
 
       await expect(transparentVault.connect(admin).unpause()).to.be.revertedWithCustomError(
         transparentVault,
-        "UnauthorizedAccess",
+        "NotAuthorized",
       );
     });
   });
