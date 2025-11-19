@@ -387,14 +387,14 @@ describe("OrionVault - Base Functionality", function () {
       await vault.connect(user).requestDeposit(depositAmount);
 
       // Verify deposit request was created
-      const pendingDeposits = await vault.pendingDeposit();
+      const pendingDeposits = await vault.pendingDeposit(await orionConfig.maxFulfillBatchSize());
       expect(pendingDeposits).to.equal(depositAmount);
 
       // Cancel the deposit request
       await expect(vault.connect(user).cancelDepositRequest(depositAmount)).to.not.be.reverted;
 
       // Verify deposit request was cancelled
-      const pendingDepositsAfter = await vault.pendingDeposit();
+      const pendingDepositsAfter = await vault.pendingDeposit(await orionConfig.maxFulfillBatchSize());
       expect(pendingDepositsAfter).to.equal(0);
     });
 
@@ -431,7 +431,7 @@ describe("OrionVault - Base Functionality", function () {
       await expect(vault.connect(user).cancelDepositRequest(cancelAmount)).to.not.be.reverted;
 
       // Verify remaining amount
-      const pendingDeposits = await vault.pendingDeposit();
+      const pendingDeposits = await vault.pendingDeposit(await orionConfig.maxFulfillBatchSize());
       expect(pendingDeposits).to.equal(remainingAmount);
     });
   });
@@ -506,12 +506,12 @@ describe("OrionVault - Base Functionality", function () {
 
   describe("Pending Amounts", function () {
     it("Should return zero pending deposits initially", async function () {
-      const pendingDeposits = await vault.pendingDeposit();
+      const pendingDeposits = await vault.pendingDeposit(await orionConfig.maxFulfillBatchSize());
       expect(pendingDeposits).to.equal(0);
     });
 
     it("Should return zero pending redemptions initially", async function () {
-      const pendingRedeems = await vault.pendingRedeem();
+      const pendingRedeems = await vault.pendingRedeem(await orionConfig.maxFulfillBatchSize());
       expect(pendingRedeems).to.equal(0);
     });
 
@@ -522,7 +522,7 @@ describe("OrionVault - Base Functionality", function () {
       await vault.connect(user).requestDeposit(depositAmount);
 
       // Check pending deposits
-      const pendingDeposits = await vault.pendingDeposit();
+      const pendingDeposits = await vault.pendingDeposit(await orionConfig.maxFulfillBatchSize());
       expect(pendingDeposits).to.equal(depositAmount);
     });
   });

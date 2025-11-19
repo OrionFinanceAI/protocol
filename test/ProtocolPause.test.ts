@@ -329,7 +329,7 @@ describe("Protocol Pause Functionality", function () {
       await expect(transparentVault.connect(user1).requestDeposit(DEPOSIT_AMOUNT)).to.not.be.reverted;
 
       // Verify deposit was successful
-      expect(await transparentVault.pendingDeposit()).to.equal(DEPOSIT_AMOUNT);
+      expect(await transparentVault.pendingDeposit(await config.maxFulfillBatchSize())).to.equal(DEPOSIT_AMOUNT);
     });
   });
 
@@ -391,7 +391,7 @@ describe("Protocol Pause Functionality", function () {
       // User can now cancel their request
       await expect(transparentVault.connect(user1).cancelDepositRequest(DEPOSIT_AMOUNT)).to.not.be.reverted;
 
-      expect(await transparentVault.pendingDeposit()).to.equal(0);
+      expect(await transparentVault.pendingDeposit(await config.maxFulfillBatchSize())).to.equal(0);
     });
 
     it("should handle multiple pause/unpause cycles", async function () {
@@ -422,23 +422,23 @@ describe("Protocol Pause Functionality", function () {
     it("should preserve state across pause/unpause", async function () {
       // Setup initial state
       await transparentVault.connect(user1).requestDeposit(DEPOSIT_AMOUNT);
-      const depositBefore = await transparentVault.pendingDeposit();
+      const depositBefore = await transparentVault.pendingDeposit(await config.maxFulfillBatchSize());
 
       // Pause
       await config.connect(guardian).pauseAll();
 
       // State should be unchanged
-      expect(await transparentVault.pendingDeposit()).to.equal(depositBefore);
+      expect(await transparentVault.pendingDeposit(await config.maxFulfillBatchSize())).to.equal(depositBefore);
 
       // Unpause
       await config.connect(admin).unpauseAll();
 
       // State should still be unchanged
-      expect(await transparentVault.pendingDeposit()).to.equal(depositBefore);
+      expect(await transparentVault.pendingDeposit(await config.maxFulfillBatchSize())).to.equal(depositBefore);
 
       // Can still interact with preserved state
       await transparentVault.connect(user1).cancelDepositRequest(DEPOSIT_AMOUNT);
-      expect(await transparentVault.pendingDeposit()).to.equal(0);
+      expect(await transparentVault.pendingDeposit(await config.maxFulfillBatchSize())).to.equal(0);
     });
 
     it("should block epoch progression when paused", async function () {

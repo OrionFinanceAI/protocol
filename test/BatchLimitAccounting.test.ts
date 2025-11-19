@@ -14,12 +14,12 @@ import {
  * @title Batch Limit Accounting Tests
  * @notice Tests for the critical fix to batch limit accounting mismatch
  * @dev This test suite validates that pendingDeposit() and pendingRedeem()
- *      return only the processable amount (first 150 requests) rather than
+ *      return only the processable amount (first maxFulfillBatchSize requests) rather than
  *      the total pending amount, preventing accounting vs execution mismatch
  *
  *      Issue: The orchestrator treats all pendingDeposit/pendingRedeem entries
  *      as part of totalAssets() during preprocessing, but fulfill functions
- *      only process up to 150 requests at a time, causing accounting mismatch.
+ *      only process up to maxFulfillBatchSize requests at a time, causing accounting mismatch.
  */
 describe("Batch Limit Accounting Fix", function () {
   const DEPOSIT_AMOUNT = ethers.parseUnits("100", 6); // 100 USDC
@@ -129,9 +129,9 @@ describe("Batch Limit Accounting Fix", function () {
     };
   }
 
-  describe("1. pendingDeposit() with limited users (< 150)", function () {
-    it("should return full amount when deposits < 150", async function () {
-      const { vault, users } = await loadFixture(deployFixture);
+  describe("1. pendingDeposit() with limited users (< maxFulfillBatchSize)", function () {
+    it("should return full amount when deposits < maxFulfillBatchSize", async function () {
+      const { vault, users, config } = await loadFixture(deployFixture);
 
       // Make deposit requests with available users
       const numUsers = Math.min(users.length, 10);
@@ -139,21 +139,21 @@ describe("Batch Limit Accounting Fix", function () {
         await vault.connect(users[i]).requestDeposit(DEPOSIT_AMOUNT);
       }
 
-      const pendingDeposit = await vault.pendingDeposit();
+      const pendingDeposit = await vault.pendingDeposit(await config.maxFulfillBatchSize());
       const expectedAmount = DEPOSIT_AMOUNT * BigInt(numUsers);
 
       void expect(pendingDeposit).to.equal(expectedAmount);
     });
 
     it("should return 0 when no deposits", async function () {
-      const { vault } = await loadFixture(deployFixture);
+      const { vault, config } = await loadFixture(deployFixture);
 
-      const pendingDeposit = await vault.pendingDeposit();
+      const pendingDeposit = await vault.pendingDeposit(await config.maxFulfillBatchSize());
       void expect(pendingDeposit).to.equal(0);
     });
 
     it("should handle varying deposit amounts correctly", async function () {
-      const { vault, users } = await loadFixture(deployFixture);
+      const { vault, users, config } = await loadFixture(deployFixture);
 
       let expectedSum = BigInt(0);
       const numUsers = Math.min(users.length, 10);
@@ -164,14 +164,14 @@ describe("Batch Limit Accounting Fix", function () {
         expectedSum += amount;
       }
 
-      const pendingDeposit = await vault.pendingDeposit();
+      const pendingDeposit = await vault.pendingDeposit(await config.maxFulfillBatchSize());
       void expect(pendingDeposit).to.equal(expectedSum);
     });
   });
 
-  describe("2. pendingRedeem() with limited users (< 150)", function () {
-    it("should return full shares when redeems < 150", async function () {
-      const { vault, users, usdc, liquidityOrchestrator, owner } = await loadFixture(deployFixture);
+  describe("2. pendingRedeem() with limited users (< maxFulfillBatchSize)", function () {
+    it("should return full shares when redeems < maxFulfillBatchSize", async function () {
+      const { vault, users, usdc, liquidityOrchestrator, owner, config } = await loadFixture(deployFixture);
 
       const numUsers = Math.min(users.length, 10);
 
@@ -201,7 +201,7 @@ describe("Batch Limit Accounting Fix", function () {
         await vault.connect(users[i]).requestRedeem(userShares);
       }
 
-      const pendingRedeem = await vault.pendingRedeem();
+      const pendingRedeem = await vault.pendingRedeem(await config.maxFulfillBatchSize());
       const totalShares = await vault.totalSupply();
 
       void expect(pendingRedeem).to.be.greaterThan(0);
@@ -209,30 +209,30 @@ describe("Batch Limit Accounting Fix", function () {
     });
 
     it("should return 0 when no redeems", async function () {
-      const { vault } = await loadFixture(deployFixture);
+      const { vault, config } = await loadFixture(deployFixture);
 
-      const pendingRedeem = await vault.pendingRedeem();
+      const pendingRedeem = await vault.pendingRedeem(await config.maxFulfillBatchSize());
       void expect(pendingRedeem).to.equal(0);
     });
   });
 
   describe("3. Simulated batch limit behavior", function () {
     it("should demonstrate batch limit logic by making same user deposit multiple times", async function () {
-      const { vault, users } = await loadFixture(deployFixture);
+      const { vault, users, config } = await loadFixture(deployFixture);
 
-      // Strategy: have one user make multiple small deposits to simulate >150 requests
+      // Strategy: have one user make multiple small deposits to simulate >maxFulfillBatchSize requests
       // Note: In production, requestDeposit overwrites previous request from same user,
       // but we can test the logic by checking what would happen with different amounts
 
       // First request
       await vault.connect(users[0]).requestDeposit(DEPOSIT_AMOUNT);
-      let pending = await vault.pendingDeposit();
+      let pending = await vault.pendingDeposit(await config.maxFulfillBatchSize());
       void expect(pending).to.equal(DEPOSIT_AMOUNT);
 
       // Second request - note: requestDeposit increments, not overwrites!
       const largerAmount = DEPOSIT_AMOUNT * BigInt(2);
       await vault.connect(users[0]).requestDeposit(largerAmount);
-      pending = await vault.pendingDeposit();
+      pending = await vault.pendingDeposit(await config.maxFulfillBatchSize());
       // Total should be first deposit + second deposit
       void expect(pending).to.equal(DEPOSIT_AMOUNT + largerAmount);
     });
@@ -240,7 +240,7 @@ describe("Batch Limit Accounting Fix", function () {
 
   describe("4. Integration with fulfillDeposit", function () {
     it("fulfillDeposit should process the amount that pendingDeposit reports", async function () {
-      const { vault, users, usdc, liquidityOrchestrator, owner } = await loadFixture(deployFixture);
+      const { vault, users, usdc, liquidityOrchestrator, owner, config } = await loadFixture(deployFixture);
 
       const numUsers = Math.min(users.length, 10);
 
@@ -250,7 +250,7 @@ describe("Batch Limit Accounting Fix", function () {
       }
 
       // Get pendingDeposit
-      const pendingDepositBefore = await vault.pendingDeposit();
+      const pendingDepositBefore = await vault.pendingDeposit(await config.maxFulfillBatchSize());
       const expectedAmount = DEPOSIT_AMOUNT * BigInt(numUsers);
       void expect(pendingDepositBefore).to.equal(expectedAmount);
 
@@ -266,7 +266,7 @@ describe("Batch Limit Accounting Fix", function () {
       await vault.connect(loSigner).fulfillDeposit(pendingDepositBefore);
 
       // After fulfillment, pendingDeposit should be 0
-      const pendingDepositAfter = await vault.pendingDeposit();
+      const pendingDepositAfter = await vault.pendingDeposit(await config.maxFulfillBatchSize());
       void expect(pendingDepositAfter).to.equal(0);
 
       // Verify shares were minted
@@ -279,36 +279,24 @@ describe("Batch Limit Accounting Fix", function () {
 
   describe("5. Documentation of the fix", function () {
     it("demonstrates the critical accounting fix prevents mismatch", async function () {
-      const { vault, users } = await loadFixture(deployFixture);
+      const { vault, users, config, owner } = await loadFixture(deployFixture);
 
-      /**
-       * THE PROBLEM (Before the fix):
-       * 1. If there were 200 pending deposit requests totaling 20,000 USDC
-       * 2. pendingDeposit() would return 20,000 USDC
-       * 3. InternalStatesOrchestrator preprocessing would add ALL 20,000 to totalAssets
-       * 4. But fulfillDeposit() only processes first 150 requests (~15,000 USDC)
-       * 5. This creates 5,000 USDC accounting mismatch
-       *
-       * THE FIX (After the fix):
-       * 1. If there are 200 pending deposit requests totaling 20,000 USDC
-       * 2. pendingDeposit() now returns only the first 150 requests (~15,000 USDC)
-       * 3. InternalStatesOrchestrator preprocessing adds correct 15,000 to totalAssets
-       * 4. fulfillDeposit() processes first 150 requests (~15,000 USDC)
-       * 5. No accounting mismatch!
-       * 6. Remaining 50 requests are processed in next epoch
-       */
+      await config.connect(owner).setMaxFulfillBatchSize(8n);
 
       // Simulate having multiple deposits (limited by available signers)
       const numUsers = Math.min(users.length, 10);
+
+      // More deposits than processed deposits.
+      void expect(await config.maxFulfillBatchSize()).to.be.lessThan(numUsers);
+
       for (let i = 0; i < numUsers; i++) {
         await vault.connect(users[i]).requestDeposit(DEPOSIT_AMOUNT);
       }
 
       // With the fix, pendingDeposit returns processable amount
-      const pendingDeposit = await vault.pendingDeposit();
+      const pendingDeposit = await vault.pendingDeposit(await config.maxFulfillBatchSize());
 
-      // Since we have < 150 requests, it should return all of them
-      void expect(pendingDeposit).to.equal(DEPOSIT_AMOUNT * BigInt(numUsers));
+      void expect(pendingDeposit).to.be.lessThan(DEPOSIT_AMOUNT * BigInt(numUsers));
     });
   });
 });

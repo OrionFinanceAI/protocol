@@ -573,13 +573,13 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
 
     /// @inheritdoc IOrionVault
-    function pendingDeposit() external view returns (uint256) {
+    function pendingDeposit(uint256 fulfillBatchSize) external view returns (uint256) {
         uint256 length = _depositRequests.length();
         if (length == 0) {
             return 0;
         }
 
-        uint256 batchSize = Math.min(length, config.maxFulfillBatchSize());
+        uint256 batchSize = Math.min(length, fulfillBatchSize);
         uint256 processableAmount = 0;
 
         for (uint16 i = 0; i < batchSize; ++i) {
@@ -592,13 +592,13 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     }
 
     /// @inheritdoc IOrionVault
-    function pendingRedeem() external view returns (uint256) {
+    function pendingRedeem(uint256 fulfillBatchSize) external view returns (uint256) {
         uint256 length = _redeemRequests.length();
         if (length == 0) {
             return 0;
         }
 
-        uint256 batchSize = Math.min(length, config.maxFulfillBatchSize());
+        uint256 batchSize = Math.min(length, fulfillBatchSize);
         uint256 processableShares = 0;
 
         for (uint16 i = 0; i < batchSize; ++i) {
