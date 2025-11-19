@@ -274,11 +274,6 @@
     },
     {
       "inputs": [],
-      "name": "UnauthorizedAccess",
-      "type": "error"
-    },
-    {
-      "inputs": [],
       "name": "VaultDecommissioned",
       "type": "error"
     },

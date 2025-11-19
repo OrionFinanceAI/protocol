@@ -42,8 +42,8 @@ contract TransparentVaultFactory {
     ) external returns (address vault) {
         address vaultOwner = msg.sender;
 
-        if (!config.isWhitelistedVaultOwner(vaultOwner)) revert ErrorsLib.UnauthorizedAccess();
-        if (!config.isWhitelistedCurator(curator)) revert ErrorsLib.UnauthorizedAccess();
+        if (!config.isWhitelistedVaultOwner(vaultOwner)) revert ErrorsLib.NotAuthorized();
+        if (!config.isWhitelistedCurator(curator)) revert ErrorsLib.NotAuthorized();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         OrionTransparentVault transparentVault = new OrionTransparentVault(

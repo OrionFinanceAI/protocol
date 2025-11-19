@@ -126,25 +126,25 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
     /// @dev Restricts function to only vault owner
     modifier onlyVaultOwner() {
-        if (msg.sender != vaultOwner) revert ErrorsLib.UnauthorizedAccess();
+        if (msg.sender != vaultOwner) revert ErrorsLib.NotAuthorized();
         _;
     }
 
     /// @dev Restricts function to only vault curator
     modifier onlyCurator() {
-        if (msg.sender != curator) revert ErrorsLib.UnauthorizedAccess();
+        if (msg.sender != curator) revert ErrorsLib.NotAuthorized();
         _;
     }
 
     /// @dev Restricts function to only internal states orchestrator
     modifier onlyInternalStatesOrchestrator() {
-        if (msg.sender != address(internalStatesOrchestrator)) revert ErrorsLib.UnauthorizedAccess();
+        if (msg.sender != address(internalStatesOrchestrator)) revert ErrorsLib.NotAuthorized();
         _;
     }
 
     /// @dev Restricts function to only liquidity orchestrator
     modifier onlyLiquidityOrchestrator() {
-        if (msg.sender != address(liquidityOrchestrator)) revert ErrorsLib.UnauthorizedAccess();
+        if (msg.sender != address(liquidityOrchestrator)) revert ErrorsLib.NotAuthorized();
         _;
     }
 

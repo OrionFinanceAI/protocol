@@ -128,7 +128,7 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
 
     /// @dev Restricts function to only admin from config
     modifier onlyAdmin() {
-        if (msg.sender != admin) revert ErrorsLib.UnauthorizedAccess();
+        if (msg.sender != admin) revert ErrorsLib.NotAuthorized();
         _;
     }
 

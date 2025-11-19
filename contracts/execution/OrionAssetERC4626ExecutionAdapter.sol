@@ -28,7 +28,7 @@ contract OrionAssetERC4626ExecutionAdapter is IExecutionAdapter {
     address public liquidityOrchestrator;
 
     modifier onlyLiquidityOrchestrator() {
-        if (msg.sender != liquidityOrchestrator) revert ErrorsLib.UnauthorizedAccess();
+        if (msg.sender != liquidityOrchestrator) revert ErrorsLib.NotAuthorized();
         _;
     }
 

@@ -79,12 +79,12 @@ contract OrionConfig is Ownable2Step, IOrionConfig {
     EnumerableSet.AddressSet private decommissionedVaults;
 
     modifier onlyAdmin() {
-        if (msg.sender != admin) revert ErrorsLib.UnauthorizedAccess();
+        if (msg.sender != admin) revert ErrorsLib.NotAuthorized();
         _;
     }
 
     modifier onlyFactories() {
-        if (msg.sender != transparentVaultFactory) revert ErrorsLib.UnauthorizedAccess();
+        if (msg.sender != transparentVaultFactory) revert ErrorsLib.NotAuthorized();
         _;
     }
 
@@ -215,7 +215,7 @@ contract OrionConfig is Ownable2Step, IOrionConfig {
     /// @dev Can only be called by guardian or admin
     ///      Pauses InternalStatesOrchestrator and LiquidityOrchestrator
     function pauseAll() external {
-        if (msg.sender != guardian && msg.sender != admin) revert ErrorsLib.UnauthorizedAccess();
+        if (msg.sender != guardian && msg.sender != admin) revert ErrorsLib.NotAuthorized();
 
         IInternalStateOrchestrator(internalStatesOrchestrator).pause();
         ILiquidityOrchestrator(liquidityOrchestrator).pause();
@@ -303,9 +303,37 @@ contract OrionConfig is Ownable2Step, IOrionConfig {
     /// @inheritdoc IOrionConfig
     function removeWhitelistedVaultOwner(address vaultOwner) external onlyOwner {
         if (!this.isWhitelistedVaultOwner(vaultOwner)) revert ErrorsLib.InvalidAddress();
+        if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+
+        // Decommission all vaults owned by this vault owner
+        // Check transparent vaults
+        address[] memory transparentVaultsList = this.getAllOrionVaults(EventsLib.VaultType.Transparent);
+        for (uint256 i = 0; i < transparentVaultsList.length; ++i) {
+            address vault = transparentVaultsList[i];
+            if (IOrionVault(vault).vaultOwner() == vaultOwner) {
+                // Mark vault for decommissioning
+                // slither-disable-next-line unused-return
+                decommissioningInProgressVaults.add(vault);
+                IOrionVault(vault).overrideIntentForDecommissioning();
+            }
+        }
+
+        // Check encrypted vaults
+        address[] memory encryptedVaultsList = this.getAllOrionVaults(EventsLib.VaultType.Encrypted);
+        for (uint256 i = 0; i < encryptedVaultsList.length; ++i) {
+            address vault = encryptedVaultsList[i];
+            if (IOrionVault(vault).vaultOwner() == vaultOwner) {
+                // Mark vault for decommissioning
+                // slither-disable-next-line unused-return
+                decommissioningInProgressVaults.add(vault);
+                IOrionVault(vault).overrideIntentForDecommissioning();
+            }
+        }
 
         bool removed = whitelistedVaultOwners.remove(vaultOwner);
         if (!removed) revert ErrorsLib.InvalidAddress();
+
+        emit EventsLib.VaultOwnerRemoved(vaultOwner);
     }
 
     /// @inheritdoc IOrionConfig
@@ -356,10 +384,8 @@ contract OrionConfig is Ownable2Step, IOrionConfig {
         if (!this.isOrionVault(vault)) {
             revert ErrorsLib.InvalidAddress();
         }
-
         // slither-disable-next-line unused-return
         decommissioningInProgressVaults.add(vault);
-
         IOrionVault(vault).overrideIntentForDecommissioning();
     }
 

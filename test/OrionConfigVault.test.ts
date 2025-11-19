@@ -212,7 +212,7 @@ describe("Config", function () {
 
       await expect(orionConfig.connect(user).removeWhitelistedAsset(assetAddress)).to.be.revertedWithCustomError(
         orionConfig,
-        "UnauthorizedAccess",
+        "NotAuthorized",
       );
     });
   });
@@ -224,7 +224,7 @@ describe("Config", function () {
 
       await expect(orionConfig.connect(user).addOrionVault(maliciousVault, vaultType)).to.be.revertedWithCustomError(
         orionConfig,
-        "UnauthorizedAccess",
+        "NotAuthorized",
       );
     });
 
@@ -234,7 +234,7 @@ describe("Config", function () {
 
       await expect(orionConfig.connect(owner).addOrionVault(maliciousVault, vaultType)).to.be.revertedWithCustomError(
         orionConfig,
-        "UnauthorizedAccess",
+        "NotAuthorized",
       );
     });
   });
@@ -473,23 +473,20 @@ describe("OrionVault - Base Functionality", function () {
 
       await expect(vault.connect(owner).updateCurator(newCurator)).to.be.revertedWithCustomError(
         vault,
-        "UnauthorizedAccess",
+        "NotAuthorized",
       );
     });
 
     it("Should revert when non-owner tries to update curator", async function () {
       const newCurator = other.address;
 
-      await expect(vault.connect(user).updateCurator(newCurator)).to.be.revertedWithCustomError(
-        vault,
-        "UnauthorizedAccess",
-      );
+      await expect(vault.connect(user).updateCurator(newCurator)).to.be.revertedWithCustomError(vault, "NotAuthorized");
     });
 
     it("Should revert when setting curator to zero address", async function () {
       await expect(vault.connect(owner).updateCurator(ethers.ZeroAddress)).to.be.revertedWithCustomError(
         vault,
-        "UnauthorizedAccess",
+        "NotAuthorized",
       );
     });
 
@@ -532,12 +529,12 @@ describe("OrionVault - Base Functionality", function () {
       // Test updateCurator function
       await expect(vault.connect(user).updateCurator(other.address)).to.be.revertedWithCustomError(
         vault,
-        "UnauthorizedAccess",
+        "NotAuthorized",
       );
 
       await expect(vault.connect(curator).updateCurator(other.address)).to.be.revertedWithCustomError(
         vault,
-        "UnauthorizedAccess",
+        "NotAuthorized",
       );
 
       await orionConfig.addWhitelistedCurator(other.address);
