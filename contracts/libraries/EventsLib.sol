@@ -58,6 +58,10 @@ library EventsLib {
     /// @param unpauser The address that triggered the unpause.
     event ProtocolUnpaused(address indexed unpauser);
 
+    /// @notice A vault owner has been removed from the whitelist.
+    /// @param vaultOwner The address of the vault owner that was removed.
+    event VaultOwnerRemoved(address indexed vaultOwner);
+
     // =======================
     // === Vault Lifecycle ===
     // =======================
