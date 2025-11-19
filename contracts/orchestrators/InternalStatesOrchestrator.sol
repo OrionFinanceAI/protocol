@@ -148,6 +148,12 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
         _;
     }
 
+    /// @dev Restricts function to only Orion Config contract
+    modifier onlyConfig() {
+        if (msg.sender != address(config)) revert ErrorsLib.NotAuthorized();
+        _;
+    }
+
     /// @dev Restricts function to only Liquidity Orchestrator
     modifier onlyLiquidityOrchestrator() {
         if (msg.sender != address(liquidityOrchestrator)) revert ErrorsLib.NotAuthorized();
@@ -176,13 +182,6 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
         _nextUpdateTime = block.timestamp + epochDuration;
 
         currentPhase = InternalUpkeepPhase.Idle;
-        epochCounter = 0;
-        currentMinibatchIndex = 0;
-
-        vFeeCoefficient = 0;
-        rsFeeCoefficient = 0;
-
-        bufferAmount = 0;
     }
 
     /// @inheritdoc IInternalStateOrchestrator
@@ -727,17 +726,13 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
         return transparentVaultsEpoch;
     }
 
-    /// @notice Pauses the contract
-    /// @dev Can only be called by OrionConfig for emergency situations
-    function pause() external {
-        if (msg.sender != address(config)) revert ErrorsLib.UnauthorizedAccess();
+    /// @inheritdoc IInternalStateOrchestrator
+    function pause() external onlyConfig {
         _pause();
     }
 
-    /// @notice Unpauses the contract
-    /// @dev Can only be called by OrionConfig after resolving emergency
-    function unpause() external {
-        if (msg.sender != address(config)) revert ErrorsLib.UnauthorizedAccess();
+    /// @inheritdoc IInternalStateOrchestrator
+    function unpause() external onlyConfig {
         _unpause();
     }
 }

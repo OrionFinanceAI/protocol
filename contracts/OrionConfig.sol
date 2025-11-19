@@ -2,7 +2,6 @@
 pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/access/Ownable2Step.sol";
-import "@openzeppelin/contracts/utils/Pausable.sol";
 import "./interfaces/IOrionConfig.sol";
 import "./interfaces/IOrionVault.sol";
 import "./interfaces/IOrionTransparentVault.sol";
@@ -353,7 +352,6 @@ contract OrionConfig is Ownable2Step, IOrionConfig {
     function completeVaultDecommissioning(address vault) external onlyLiquidityOrchestrator {
         if (!decommissioningInProgressVaults.contains(vault)) revert ErrorsLib.InvalidAddress();
 
-        // Remove from appropriate vault list - use remove() return value instead of contains() + remove()
         bool removedFromEncrypted = encryptedVaults.remove(vault);
         if (!removedFromEncrypted) {
             bool removedFromTransparent = transparentVaults.remove(vault);
@@ -385,8 +383,6 @@ contract OrionConfig is Ownable2Step, IOrionConfig {
         return tokenDecimals[token];
     }
 
-    // === Emergency Pause Functions ===
-
     /// @notice Sets the guardian address for emergency pausing
     /// @param _guardian The new guardian address
     /// @dev Only admin can set the guardian
@@ -395,50 +391,24 @@ contract OrionConfig is Ownable2Step, IOrionConfig {
         emit EventsLib.GuardianUpdated(_guardian);
     }
 
-    /// @notice Pauses all protocol operations across orchestrators and vaults
+    /// @notice Pauses all protocol operations across orchestrators
     /// @dev Can only be called by guardian or admin
-    ///      Pauses InternalStatesOrchestrator, LiquidityOrchestrator, and all vaults
+    ///      Pauses InternalStatesOrchestrator and LiquidityOrchestrator
     function pauseAll() external {
         if (msg.sender != guardian && msg.sender != admin) revert ErrorsLib.UnauthorizedAccess();
 
-        // Pause orchestrators by calling their public pause() functions
         IInternalStateOrchestrator(internalStatesOrchestrator).pause();
         ILiquidityOrchestrator(liquidityOrchestrator).pause();
-
-        // Pause all transparent vaults
-        address[] memory transparentVaultsList = this.getAllOrionVaults(EventsLib.VaultType.Transparent);
-        for (uint256 i = 0; i < transparentVaultsList.length; ++i) {
-            IOrionVault(transparentVaultsList[i]).pause();
-        }
-
-        // Pause all encrypted vaults
-        address[] memory encryptedVaultsList = this.getAllOrionVaults(EventsLib.VaultType.Encrypted);
-        for (uint256 i = 0; i < encryptedVaultsList.length; ++i) {
-            IOrionVault(encryptedVaultsList[i]).pause();
-        }
 
         emit EventsLib.ProtocolPaused(msg.sender);
     }
 
-    /// @notice Unpauses all protocol operations across orchestrators and vaults
-    /// @dev Can only be called by admin (not guardian - requires admin approval to resume)
-    ///      Unpauses InternalStatesOrchestrator, LiquidityOrchestrator, and all vaults
+    /// @notice Unpauses all protocol operations across orchestrators
+    /// @dev Can only be called by admin (not guardian: requires admin approval to resume)
+    ///      Unpauses InternalStatesOrchestrator and LiquidityOrchestrator
     function unpauseAll() external onlyAdmin {
-        // Unpause orchestrators
         IInternalStateOrchestrator(internalStatesOrchestrator).unpause();
         ILiquidityOrchestrator(liquidityOrchestrator).unpause();
-
-        // Unpause all transparent vaults
-        address[] memory transparentVaultsList = this.getAllOrionVaults(EventsLib.VaultType.Transparent);
-        for (uint256 i = 0; i < transparentVaultsList.length; ++i) {
-            IOrionVault(transparentVaultsList[i]).unpause();
-        }
-
-        // Unpause all encrypted vaults
-        address[] memory encryptedVaultsList = this.getAllOrionVaults(EventsLib.VaultType.Encrypted);
-        for (uint256 i = 0; i < encryptedVaultsList.length; ++i) {
-            IOrionVault(encryptedVaultsList[i]).unpause();
-        }
 
         emit EventsLib.ProtocolUnpaused(msg.sender);
     }
