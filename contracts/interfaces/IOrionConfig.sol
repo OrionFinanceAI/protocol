@@ -206,4 +206,13 @@ interface IOrionConfig {
     /// @dev Can only be called by the contract owner
     /// @param duration The new cooldown duration in seconds
     function setFeeChangeCooldownDuration(uint256 duration) external;
+
+    /// @notice Returns the maximum fulfill batch size
+    /// @return The maximum fulfill batch size
+    function maxFulfillBatchSize() external view returns (uint256);
+
+    /// @notice Sets the maximum fulfill batch size
+    /// @dev Can only be called by the contract owner
+    /// @param size The new maximum fulfill batch size
+    function setMaxFulfillBatchSize(uint256 size) external;
 }

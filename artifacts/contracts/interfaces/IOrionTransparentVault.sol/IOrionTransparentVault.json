@@ -834,7 +834,13 @@
       "type": "function"
     },
     {
-      "inputs": [],
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "fulfillBatchSize",
+          "type": "uint256"
+        }
+      ],
       "name": "pendingDeposit",
       "outputs": [
         {
@@ -847,7 +853,13 @@
       "type": "function"
     },
     {
-      "inputs": [],
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "fulfillBatchSize",
+          "type": "uint256"
+        }
+      ],
       "name": "pendingRedeem",
       "outputs": [
         {

@@ -88,8 +88,8 @@ describe("Redeem Before Deposit Order Verification", function () {
     return {
       totalAssets: await vault.totalAssets(),
       totalSupply: await vault.totalSupply(),
-      pendingDeposit: await vault.pendingDeposit(),
-      pendingRedeem: await vault.pendingRedeem(),
+      pendingDeposit: await vault.pendingDeposit(await orionConfig.maxFulfillBatchSize()),
+      pendingRedeem: await vault.pendingRedeem(await orionConfig.maxFulfillBatchSize()),
     };
   }
 
@@ -234,8 +234,8 @@ describe("Redeem Before Deposit Order Verification", function () {
       await vault.connect(newDepositor).requestDeposit(NEW_DEPOSIT_AMOUNT);
 
       // Verify pending state
-      expect(await vault.pendingRedeem()).to.equal(REDEEM_AMOUNT_SHARES);
-      expect(await vault.pendingDeposit()).to.equal(NEW_DEPOSIT_AMOUNT);
+      expect(await vault.pendingRedeem(await orionConfig.maxFulfillBatchSize())).to.equal(REDEEM_AMOUNT_SHARES);
+      expect(await vault.pendingDeposit(await orionConfig.maxFulfillBatchSize())).to.equal(NEW_DEPOSIT_AMOUNT);
 
       // Phase C: Process through orchestrator phases
       await time.increase(epochDuration + 1n);
@@ -365,8 +365,8 @@ describe("Redeem Before Deposit Order Verification", function () {
       await underlyingAsset.connect(newDepositor).approve(await vault.getAddress(), NEW_DEPOSIT_AMOUNT);
       await vault.connect(newDepositor).requestDeposit(NEW_DEPOSIT_AMOUNT);
 
-      expect(await vault.pendingDeposit()).to.equal(NEW_DEPOSIT_AMOUNT);
-      expect(await vault.pendingRedeem()).to.equal(0);
+      expect(await vault.pendingDeposit(await orionConfig.maxFulfillBatchSize())).to.equal(NEW_DEPOSIT_AMOUNT);
+      expect(await vault.pendingRedeem(await orionConfig.maxFulfillBatchSize())).to.equal(0);
 
       // Process epoch
       await time.increase(epochDuration + 1n);
@@ -385,7 +385,7 @@ describe("Redeem Before Deposit Order Verification", function () {
       // Verify deposit processed normally
       const depositorShares = await vault.balanceOf(newDepositor.address);
       expect(depositorShares).to.be.gt(0);
-      expect(await vault.pendingDeposit()).to.equal(0);
+      expect(await vault.pendingDeposit(await orionConfig.maxFulfillBatchSize())).to.equal(0);
 
       console.log(`Deposit-only scenario: depositor received ${ethers.formatUnits(depositorShares, 18)} shares`);
     });
@@ -398,8 +398,8 @@ describe("Redeem Before Deposit Order Verification", function () {
       await vault.connect(redeemer).approve(await vault.getAddress(), REDEEM_AMOUNT_SHARES);
       await vault.connect(redeemer).requestRedeem(REDEEM_AMOUNT_SHARES);
 
-      expect(await vault.pendingRedeem()).to.equal(REDEEM_AMOUNT_SHARES);
-      expect(await vault.pendingDeposit()).to.equal(0);
+      expect(await vault.pendingRedeem(await orionConfig.maxFulfillBatchSize())).to.equal(REDEEM_AMOUNT_SHARES);
+      expect(await vault.pendingDeposit(await orionConfig.maxFulfillBatchSize())).to.equal(0);
 
       // Capture redeemer balance before
       const balanceBefore = await underlyingAsset.balanceOf(redeemer.address);
@@ -414,7 +414,7 @@ describe("Redeem Before Deposit Order Verification", function () {
       // Calculate exact expected redemption: 90 shares * 99 totalAssets / 100 totalSupply = 89.1 USDC
       const expectedRedeemed = ethers.parseUnits("89.1", UNDERLYING_DECIMALS);
       expect(assetsReceived).to.equal(expectedRedeemed);
-      expect(await vault.pendingRedeem()).to.equal(0);
+      expect(await vault.pendingRedeem(await orionConfig.maxFulfillBatchSize())).to.equal(0);
 
       console.log(
         `Redeem-only scenario: redeemer received ${ethers.formatUnits(assetsReceived, UNDERLYING_DECIMALS)} USDC`,

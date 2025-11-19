@@ -654,19 +654,6 @@
     },
     {
       "inputs": [],
-      "name": "MAX_FULFILL_BATCH_SIZE",
-      "outputs": [
-        {
-          "internalType": "uint16",
-          "name": "",
-          "type": "uint16"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
       "name": "MAX_MANAGEMENT_FEE",
       "outputs": [
         {
@@ -1256,7 +1243,13 @@
       "type": "function"
     },
     {
-      "inputs": [],
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "fulfillBatchSize",
+          "type": "uint256"
+        }
+      ],
       "name": "pendingDeposit",
       "outputs": [
         {
@@ -1269,7 +1262,13 @@
       "type": "function"
     },
     {
-      "inputs": [],
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "fulfillBatchSize",
+          "type": "uint256"
+        }
+      ],
       "name": "pendingRedeem",
       "outputs": [
         {
