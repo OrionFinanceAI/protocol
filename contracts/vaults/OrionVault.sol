@@ -5,7 +5,6 @@ import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "../interfaces/IOrionConfig.sol";
 import "../interfaces/IOrionVault.sol";
@@ -38,7 +37,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
  * 4. Portfolio Weights (w_0) [shares] – current allocation in share units for stateless TVL estimation
  * 5. Curator Intent (w_1) [%] – target allocation in percentage of total supply
  */
-abstract contract OrionVault is ERC4626, ReentrancyGuard, Pausable, IOrionVault {
+abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     using Math for uint256;
     using SafeERC20 for IERC20;
     using EnumerableMap for EnumerableMap.AddressToUintMap;
@@ -71,19 +70,11 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, Pausable, IOrionVault 
     /// @notice Redemption requests queue (R) - mapping of user address to requested [shares] amount
     EnumerableMap.AddressToUintMap private _redeemRequests;
 
-    /// @notice Cached pending deposit amount [assets] - updated incrementally for gas efficiency
-    uint256 private _pendingDeposit;
-
-    /// @notice Cached pending redemption amount [shares] - updated incrementally for gas efficiency
-    uint256 private _pendingRedeem;
-
     /// @notice Pending curator fees [assets]
     uint256 public pendingCuratorFees;
 
     /// @notice Share token decimals
     uint8 public constant SHARE_DECIMALS = 18;
-    /// @notice Maximum number of requests to process per fulfill call
-    uint16 public constant MAX_FULFILL_BATCH_SIZE = 150;
 
     /* -------------------------------------------------------------------------- */
     /*                               CURATOR FEES                                 */
@@ -191,8 +182,6 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, Pausable, IOrionVault 
         internalStatesOrchestrator = IInternalStateOrchestrator(config_.internalStatesOrchestrator());
         liquidityOrchestrator = ILiquidityOrchestrator(config_.liquidityOrchestrator());
         curatorIntentDecimals = config_.curatorIntentDecimals();
-
-        // Note: _totalAssets, _pendingDeposit, and _pendingRedeem are automatically initialized to 0
 
         uint8 underlyingDecimals = IERC20Metadata(address(config_.underlyingAsset())).decimals();
         if (underlyingDecimals > SHARE_DECIMALS) revert ErrorsLib.InvalidUnderlyingDecimals();
@@ -344,7 +333,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, Pausable, IOrionVault 
     /// --------- LP FUNCTIONS ---------
 
     /// @inheritdoc IOrionVault
-    function requestDeposit(uint256 assets) external nonReentrant whenNotPaused {
+    function requestDeposit(uint256 assets) external nonReentrant {
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         if (isDecommissioning || config.isDecommissionedVault(address(this))) revert ErrorsLib.VaultDecommissioned();
         if (assets == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
@@ -361,13 +350,12 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, Pausable, IOrionVault 
         (, uint256 currentAmount) = _depositRequests.tryGet(msg.sender);
         // slither-disable-next-line unused-return
         _depositRequests.set(msg.sender, currentAmount + assets);
-        _pendingDeposit += assets;
 
         emit DepositRequest(msg.sender, assets);
     }
 
     /// @inheritdoc IOrionVault
-    function cancelDepositRequest(uint256 amount) external nonReentrant whenNotPaused {
+    function cancelDepositRequest(uint256 amount) external nonReentrant {
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
 
@@ -384,7 +372,6 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, Pausable, IOrionVault 
             // slither-disable-next-line unused-return
             _depositRequests.set(msg.sender, newAmount);
         }
-        _pendingDeposit -= amount;
 
         // Request funds from liquidity orchestrator
         liquidityOrchestrator.returnDepositFunds(msg.sender, amount);
@@ -393,7 +380,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, Pausable, IOrionVault 
     }
 
     /// @inheritdoc IOrionVault
-    function requestRedeem(uint256 shares) external nonReentrant whenNotPaused {
+    function requestRedeem(uint256 shares) external nonReentrant {
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         if (isDecommissioning || config.isDecommissionedVault(address(this))) revert ErrorsLib.VaultDecommissioned();
         if (shares == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(address(this));
@@ -410,13 +397,12 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, Pausable, IOrionVault 
         (, uint256 currentShares) = _redeemRequests.tryGet(msg.sender);
         // slither-disable-next-line unused-return
         _redeemRequests.set(msg.sender, currentShares + shares);
-        _pendingRedeem += shares;
 
         emit RedeemRequest(msg.sender, shares);
     }
 
     /// @inheritdoc IOrionVault
-    function cancelRedeemRequest(uint256 shares) external nonReentrant whenNotPaused {
+    function cancelRedeemRequest(uint256 shares) external nonReentrant {
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         if (shares == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(address(this));
 
@@ -433,7 +419,6 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, Pausable, IOrionVault 
             // slither-disable-next-line unused-return
             _redeemRequests.set(msg.sender, newShares);
         }
-        _pendingRedeem -= shares;
 
         // Interactions - return shares to LP.
         IERC20(address(this)).safeTransfer(msg.sender, shares);
@@ -588,16 +573,15 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, Pausable, IOrionVault 
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
 
     /// @inheritdoc IOrionVault
-    function pendingDeposit() external view returns (uint256) {
-        uint32 length = uint32(_depositRequests.length());
+    function pendingDeposit(uint256 fulfillBatchSize) external view returns (uint256) {
+        uint256 length = _depositRequests.length();
         if (length == 0) {
             return 0;
         }
 
-        // Only first MAX_FULFILL_BATCH_SIZE requests will be processed in this epoch
-        uint16 batchSize = length > MAX_FULFILL_BATCH_SIZE ? MAX_FULFILL_BATCH_SIZE : uint16(length);
-
+        uint256 batchSize = Math.min(length, fulfillBatchSize);
         uint256 processableAmount = 0;
+
         for (uint16 i = 0; i < batchSize; ++i) {
             // slither-disable-next-line unused-return
             (, uint256 amount) = _depositRequests.at(i);
@@ -608,16 +592,15 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, Pausable, IOrionVault 
     }
 
     /// @inheritdoc IOrionVault
-    function pendingRedeem() external view returns (uint256) {
-        uint32 length = uint32(_redeemRequests.length());
+    function pendingRedeem(uint256 fulfillBatchSize) external view returns (uint256) {
+        uint256 length = _redeemRequests.length();
         if (length == 0) {
             return 0;
         }
 
-        // Only first MAX_FULFILL_BATCH_SIZE requests will be processed in this epoch
-        uint16 batchSize = length > MAX_FULFILL_BATCH_SIZE ? MAX_FULFILL_BATCH_SIZE : uint16(length);
-
+        uint256 batchSize = Math.min(length, fulfillBatchSize);
         uint256 processableShares = 0;
+
         for (uint16 i = 0; i < batchSize; ++i) {
             // slither-disable-next-line unused-return
             (, uint256 shares) = _redeemRequests.at(i);
@@ -638,13 +621,12 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, Pausable, IOrionVault 
 
     /// @inheritdoc IOrionVault
     function fulfillDeposit(uint256 depositTotalAssets) external onlyLiquidityOrchestrator nonReentrant {
-        uint32 length = uint32(_depositRequests.length());
+        uint256 length = _depositRequests.length();
         if (length == 0) {
             return;
         }
 
-        // Process requests in batches (up to MAX_FULFILL_BATCH_SIZE per epoch)
-        uint16 batchSize = length > MAX_FULFILL_BATCH_SIZE ? MAX_FULFILL_BATCH_SIZE : uint16(length);
+        uint256 batchSize = Math.min(length, config.maxFulfillBatchSize());
         uint16 currentEpoch = internalStatesOrchestrator.epochCounter();
 
         // Capture totalSupply snapshot to ensure consistent pricing for all users in this batch
@@ -670,19 +652,16 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, Pausable, IOrionVault 
 
             emit Deposit(address(this), user, currentEpoch, amount, shares);
         }
-
-        _pendingDeposit -= processedAmount;
     }
 
     /// @inheritdoc IOrionVault
     function fulfillRedeem(uint256 redeemTotalAssets) external onlyLiquidityOrchestrator nonReentrant {
-        uint32 length = uint32(_redeemRequests.length());
+        uint256 length = _redeemRequests.length();
         if (length == 0) {
             return;
         }
 
-        // Process requests in batches (up to MAX_FULFILL_BATCH_SIZE per epoch)
-        uint16 batchSize = length > MAX_FULFILL_BATCH_SIZE ? MAX_FULFILL_BATCH_SIZE : uint16(length);
+        uint256 batchSize = Math.min(length, config.maxFulfillBatchSize());
         uint16 currentEpoch = internalStatesOrchestrator.epochCounter();
 
         // Capture totalSupply snapshot to ensure consistent pricing for all users in this batch
@@ -711,21 +690,5 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, Pausable, IOrionVault 
 
             emit Redeem(address(this), user, currentEpoch, underlyingAmount, shares);
         }
-
-        _pendingRedeem -= processedShares;
-    }
-
-    /// @notice Pauses the contract
-    /// @dev Can only be called by OrionConfig for emergency situations
-    function pause() external {
-        if (msg.sender != address(config)) revert ErrorsLib.NotAuthorized();
-        _pause();
-    }
-
-    /// @notice Unpauses the contract
-    /// @dev Can only be called by OrionConfig after resolving emergency
-    function unpause() external {
-        if (msg.sender != address(config)) revert ErrorsLib.NotAuthorized();
-        _unpause();
     }
 }

@@ -180,14 +180,16 @@ interface IOrionVault is IERC4626 {
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
 
     /// @notice Get total pending deposit amount across all users
+    /// @param fulfillBatchSize The maximum number of requests to process per fulfill call
     /// @return Total pending deposits denominated in underlying asset units (e.g., USDC, ETH)
     /// @dev This returns asset amounts, not share amounts
-    function pendingDeposit() external view returns (uint256);
+    function pendingDeposit(uint256 fulfillBatchSize) external view returns (uint256);
 
     /// @notice Get total pending redemption shares across all users
+    /// @param fulfillBatchSize The maximum number of requests to process per fulfill call
     /// @return Total pending redemptions denominated in vault share units
     /// @dev This returns share amounts, not underlying asset amounts
-    function pendingRedeem() external view returns (uint256);
+    function pendingRedeem(uint256 fulfillBatchSize) external view returns (uint256);
 
     /// @notice Calculate the curator's fee based on total assets
     /// @param totalAssets The total assets under management
@@ -210,12 +212,4 @@ interface IOrionVault is IERC4626 {
     /// @param epoch The epoch for which to accrue fees
     /// @param feeAmount The amount of curator fees to accrue in underlying asset units
     function accrueCuratorFees(uint256 epoch, uint256 feeAmount) external;
-
-    /// @notice Pauses the contract
-    /// @dev Can only be called by OrionConfig for emergency situations
-    function pause() external;
-
-    /// @notice Unpauses the contract
-    /// @dev Can only be called by OrionConfig after resolving emergency
-    function unpause() external;
 }

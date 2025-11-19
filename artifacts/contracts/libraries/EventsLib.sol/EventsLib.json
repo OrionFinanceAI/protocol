@@ -80,6 +80,19 @@
         {
           "indexed": true,
           "internalType": "uint256",
+          "name": "maxFulfillBatchSize",
+          "type": "uint256"
+        }
+      ],
+      "name": "MaxFulfillBatchSizeUpdated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
           "name": "minDepositAmount",
           "type": "uint256"
         }

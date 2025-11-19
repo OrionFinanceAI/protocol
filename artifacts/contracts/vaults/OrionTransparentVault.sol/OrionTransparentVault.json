@@ -269,16 +269,6 @@
     },
     {
       "inputs": [],
-      "name": "EnforcedPause",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "ExpectedPause",
-      "type": "error"
-    },
-    {
-      "inputs": [],
       "name": "InsufficientAmount",
       "type": "error"
     },
@@ -576,19 +566,6 @@
       "anonymous": false,
       "inputs": [
         {
-          "indexed": false,
-          "internalType": "address",
-          "name": "account",
-          "type": "address"
-        }
-      ],
-      "name": "Paused",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
           "indexed": true,
           "internalType": "address",
           "name": "vault",
@@ -689,19 +666,6 @@
       "anonymous": false,
       "inputs": [
         {
-          "indexed": false,
-          "internalType": "address",
-          "name": "account",
-          "type": "address"
-        }
-      ],
-      "name": "Unpaused",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
           "indexed": true,
           "internalType": "address",
           "name": "vault",
@@ -777,19 +741,6 @@
     {
       "inputs": [],
       "name": "BASIS_POINTS_FACTOR",
-      "outputs": [
-        {
-          "internalType": "uint16",
-          "name": "",
-          "type": "uint16"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "MAX_FULFILL_BATCH_SIZE",
       "outputs": [
         {
           "internalType": "uint16",
@@ -1415,26 +1366,6 @@
     },
     {
       "inputs": [],
-      "name": "pause",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "paused",
-      "outputs": [
-        {
-          "internalType": "bool",
-          "name": "",
-          "type": "bool"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
       "name": "pendingCuratorFees",
       "outputs": [
         {
@@ -1447,7 +1378,13 @@
       "type": "function"
     },
     {
-      "inputs": [],
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "fulfillBatchSize",
+          "type": "uint256"
+        }
+      ],
       "name": "pendingDeposit",
       "outputs": [
         {
@@ -1460,7 +1397,13 @@
       "type": "function"
     },
     {
-      "inputs": [],
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "fulfillBatchSize",
+          "type": "uint256"
+        }
+      ],
       "name": "pendingRedeem",
       "outputs": [
         {
@@ -1730,13 +1673,6 @@
           "type": "bool"
         }
       ],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "unpause",
-      "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
     },

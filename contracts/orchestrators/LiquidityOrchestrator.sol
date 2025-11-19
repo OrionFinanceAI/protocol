@@ -145,11 +145,9 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
         admin = config.admin();
 
         automationRegistry = automationRegistry_;
-        lastProcessedEpoch = 0;
         currentPhase = LiquidityUpkeepPhase.Idle;
         executionMinibatchSize = 1;
         minibatchSize = 1;
-        currentMinibatchIndex = 0;
         buyApprovalMultiplier = 2;
     }
 
@@ -499,8 +497,9 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
     ) internal {
         IOrionVault vaultContract = IOrionVault(vault);
 
-        uint256 pendingRedeem = vaultContract.pendingRedeem();
-        uint256 pendingDeposit = vaultContract.pendingDeposit();
+        uint256 maxFulfillBatchSize = config.maxFulfillBatchSize();
+        uint256 pendingRedeem = vaultContract.pendingRedeem(maxFulfillBatchSize);
+        uint256 pendingDeposit = vaultContract.pendingDeposit(maxFulfillBatchSize);
 
         if (pendingRedeem > 0) {
             vaultContract.fulfillRedeem(totalAssetsForRedeem);
@@ -511,17 +510,13 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
         }
     }
 
-    /// @notice Pauses the contract
-    /// @dev Can only be called by OrionConfig for emergency situations
-    function pause() external {
-        if (msg.sender != address(config)) revert ErrorsLib.NotAuthorized();
+    /// @inheritdoc ILiquidityOrchestrator
+    function pause() external onlyConfig {
         _pause();
     }
 
-    /// @notice Unpauses the contract
-    /// @dev Can only be called by OrionConfig after resolving emergency
-    function unpause() external {
-        if (msg.sender != address(config)) revert ErrorsLib.NotAuthorized();
+    /// @inheritdoc ILiquidityOrchestrator
+    function unpause() external onlyConfig {
         _unpause();
     }
 }

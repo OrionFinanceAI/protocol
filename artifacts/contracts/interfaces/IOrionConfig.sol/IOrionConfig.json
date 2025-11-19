@@ -328,6 +328,19 @@
     },
     {
       "inputs": [],
+      "name": "maxFulfillBatchSize",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
       "name": "minDepositAmount",
       "outputs": [
         {
@@ -478,6 +491,19 @@
         }
       ],
       "name": "setLiquidityOrchestrator",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "size",
+          "type": "uint256"
+        }
+      ],
+      "name": "setMaxFulfillBatchSize",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

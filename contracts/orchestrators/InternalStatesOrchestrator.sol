@@ -148,6 +148,12 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
         _;
     }
 
+    /// @dev Restricts function to only Orion Config contract
+    modifier onlyConfig() {
+        if (msg.sender != address(config)) revert ErrorsLib.NotAuthorized();
+        _;
+    }
+
     /// @dev Restricts function to only Liquidity Orchestrator
     modifier onlyLiquidityOrchestrator() {
         if (msg.sender != address(liquidityOrchestrator)) revert ErrorsLib.NotAuthorized();
@@ -176,13 +182,6 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
         _nextUpdateTime = block.timestamp + epochDuration;
 
         currentPhase = InternalUpkeepPhase.Idle;
-        epochCounter = 0;
-        currentMinibatchIndex = 0;
-
-        vFeeCoefficient = 0;
-        rsFeeCoefficient = 0;
-
-        bufferAmount = 0;
     }
 
     /// @inheritdoc IInternalStateOrchestrator
@@ -300,9 +299,11 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
     function _buildTransparentVaultsEpoch() internal {
         address[] memory allTransparent = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
         delete transparentVaultsEpoch;
+
+        uint256 maxFulfillBatchSize = config.maxFulfillBatchSize();
         for (uint16 i = 0; i < allTransparent.length; ++i) {
             address v = allTransparent[i];
-            if (IOrionVault(v).pendingDeposit() + IOrionVault(v).totalAssets() == 0) continue;
+            if (IOrionVault(v).pendingDeposit(maxFulfillBatchSize) + IOrionVault(v).totalAssets() == 0) continue;
             transparentVaultsEpoch.push(v);
         }
     }
@@ -361,6 +362,7 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
         }
 
         (uint16 activeVFee, uint16 activeRsFee) = activeProtocolFees();
+        uint256 maxFulfillBatchSize = config.maxFulfillBatchSize();
 
         for (uint16 i = i0; i < i1; ++i) {
             IOrionTransparentVault vault = IOrionTransparentVault(transparentVaultsEpoch[i]);
@@ -419,14 +421,14 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
 
             // STEP 5: WITHDRAWAL EXCHANGE RATE (based on post-fee totalAssets)
             uint256 pendingRedeem = vault.convertToAssetsWithPITTotalAssets(
-                vault.pendingRedeem(),
+                vault.pendingRedeem(maxFulfillBatchSize),
                 totalAssets,
                 Math.Rounding.Floor
             );
 
             // STEP 6: DEPOSIT PROCESSING (add deposits, subtract withdrawals)
             totalAssets -= pendingRedeem;
-            uint256 pendingDeposit = vault.pendingDeposit();
+            uint256 pendingDeposit = vault.pendingDeposit(maxFulfillBatchSize);
             _currentEpoch.vaultsTotalAssetsForFulfillDeposit[address(vault)] = totalAssets;
             totalAssets += pendingDeposit;
             _currentEpoch.vaultsTotalAssets[address(vault)] = totalAssets;
@@ -727,17 +729,13 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
         return transparentVaultsEpoch;
     }
 
-    /// @notice Pauses the contract
-    /// @dev Can only be called by OrionConfig for emergency situations
-    function pause() external {
-        if (msg.sender != address(config)) revert ErrorsLib.NotAuthorized();
+    /// @inheritdoc IInternalStateOrchestrator
+    function pause() external onlyConfig {
         _pause();
     }
 
-    /// @notice Unpauses the contract
-    /// @dev Can only be called by OrionConfig after resolving emergency
-    function unpause() external {
-        if (msg.sender != address(config)) revert ErrorsLib.NotAuthorized();
+    /// @inheritdoc IInternalStateOrchestrator
+    function unpause() external onlyConfig {
         _unpause();
     }
 }

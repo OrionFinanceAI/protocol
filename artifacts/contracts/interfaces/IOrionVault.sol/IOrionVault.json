@@ -786,13 +786,6 @@
     },
     {
       "inputs": [],
-      "name": "pause",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [],
       "name": "pendingCuratorFees",
       "outputs": [
         {
@@ -805,7 +798,13 @@
       "type": "function"
     },
     {
-      "inputs": [],
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "fulfillBatchSize",
+          "type": "uint256"
+        }
+      ],
       "name": "pendingDeposit",
       "outputs": [
         {
@@ -818,7 +817,13 @@
       "type": "function"
     },
     {
-      "inputs": [],
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "fulfillBatchSize",
+          "type": "uint256"
+        }
+      ],
       "name": "pendingRedeem",
       "outputs": [
         {
@@ -1063,13 +1068,6 @@
           "type": "bool"
         }
       ],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "unpause",
-      "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
     },

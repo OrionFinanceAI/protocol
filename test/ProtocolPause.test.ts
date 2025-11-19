@@ -17,29 +17,21 @@
  *    - Admin can pause all protocol operations
  *    - Non-privileged users cannot pause
  *    - Pause affects all orchestrators (InternalStates, Liquidity)
- *    - Pause affects all vaults (Transparent and Encrypted)
  *    - ProtocolPaused event is emitted
  *
  * 3. UNPAUSE ALL FUNCTIONALITY
  *    - Only admin can unpause (not guardian)
  *    - Non-privileged users cannot unpause
  *    - Unpause restores all orchestrators
- *    - Unpause restores all vaults
  *    - ProtocolUnpaused event is emitted
  *
  * 4. PAUSED STATE ENFORCEMENT
  *    - InternalStatesOrchestrator.performUpkeep() reverts when paused
  *    - LiquidityOrchestrator.performUpkeep() reverts when paused
- *    - OrionVault.requestDeposit() reverts when paused
- *    - OrionVault.cancelDepositRequest() reverts when paused
- *    - OrionVault.requestRedeem() reverts when paused
- *    - OrionVault.cancelRedeemRequest() reverts when paused
  *
  * 5. INDIVIDUAL CONTRACT PAUSE ACCESS CONTROL
  *    - Only OrionConfig can call pause() on orchestrators
  *    - Only OrionConfig can call unpause() on orchestrators
- *    - Only OrionConfig can call pause() on vaults
- *    - Only OrionConfig can unpause() on vaults
  *    - Direct calls to pause/unpause from non-OrionConfig addresses revert
  *
  * 6. INTEGRATION SCENARIOS
@@ -48,21 +40,6 @@
  *    - Multiple pause/unpause cycles
  *    - Pause with pending deposits/redeems
  *
- * ATTACK VECTORS PREVENTED:
- * =========================
- * - Unauthorized pause: Non-guardian cannot pause protocol
- * - Unauthorized unpause: Non-admin cannot resume protocol operations
- * - Bypass pause: All critical functions respect paused state
- * - Direct manipulation: Cannot pause/unpause individual contracts directly
- *
- * USE CASE: Off-Chain Invariant Monitoring
- * =========================================
- * This pause system enables an off-chain monitoring service to:
- * 1. Monitor protocol invariants in real-time
- * 2. Detect violations (e.g., price manipulation, liquidity drain)
- * 3. Immediately call OrionConfig.pauseAll() to halt operations
- * 4. Allow admins to investigate and fix the issue
- * 5. Resume operations via OrionConfig.unpauseAll() once safe
  */
 
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
@@ -79,6 +56,7 @@ import {
   OrionTransparentVault,
   TransparentVaultFactory,
 } from "../typechain-types";
+import { time } from "@nomicfoundation/hardhat-network-helpers";
 
 describe("Protocol Pause Functionality", function () {
   // Contract instances
@@ -271,9 +249,6 @@ describe("Protocol Pause Functionality", function () {
       // Verify orchestrators are paused
       void expect(await internalStatesOrchestrator.paused()).to.be.true;
       void expect(await liquidityOrchestrator.paused()).to.be.true;
-
-      // Verify vault is paused
-      void expect(await transparentVault.paused()).to.be.true;
     });
 
     it("should allow admin to pause all protocol operations", async function () {
@@ -282,7 +257,6 @@ describe("Protocol Pause Functionality", function () {
       // Verify all contracts are paused
       void expect(await internalStatesOrchestrator.paused()).to.be.true;
       void expect(await liquidityOrchestrator.paused()).to.be.true;
-      void expect(await transparentVault.paused()).to.be.true;
     });
 
     it("should prevent non-privileged users from pausing", async function () {
@@ -291,21 +265,6 @@ describe("Protocol Pause Functionality", function () {
       // Verify nothing is paused
       void expect(await internalStatesOrchestrator.paused()).to.be.false;
       void expect(await liquidityOrchestrator.paused()).to.be.false;
-      void expect(await transparentVault.paused()).to.be.false;
-    });
-
-    it("should pause all vaults (transparent and encrypted)", async function () {
-      // For this test, we verify transparent vault is paused
-      // In production, encrypted vaults would also be tested
-      await config.connect(guardian).pauseAll();
-
-      const allTransparentVaults = await config.getAllOrionVaults(0); // VaultType.Transparent = 0
-      expect(allTransparentVaults.length).to.be.greaterThan(0);
-
-      for (const vaultAddress of allTransparentVaults) {
-        const vault = await ethers.getContractAt("OrionTransparentVault", vaultAddress);
-        void expect(await vault.paused()).to.be.true;
-      }
     });
   });
 
@@ -321,9 +280,6 @@ describe("Protocol Pause Functionality", function () {
       // Verify orchestrators are unpaused
       void expect(await internalStatesOrchestrator.paused()).to.be.false;
       void expect(await liquidityOrchestrator.paused()).to.be.false;
-
-      // Verify vault is unpaused
-      void expect(await transparentVault.paused()).to.be.false;
     });
 
     it("should prevent guardian from unpausing (only admin)", async function () {
@@ -332,7 +288,6 @@ describe("Protocol Pause Functionality", function () {
       // Verify everything is still paused
       void expect(await internalStatesOrchestrator.paused()).to.be.true;
       void expect(await liquidityOrchestrator.paused()).to.be.true;
-      void expect(await transparentVault.paused()).to.be.true;
     });
 
     it("should prevent non-admin from unpausing", async function () {
@@ -341,18 +296,6 @@ describe("Protocol Pause Functionality", function () {
       // Verify everything is still paused
       void expect(await internalStatesOrchestrator.paused()).to.be.true;
       void expect(await liquidityOrchestrator.paused()).to.be.true;
-      void expect(await transparentVault.paused()).to.be.true;
-    });
-
-    it("should unpause all vaults", async function () {
-      await config.connect(admin).unpauseAll();
-
-      const allTransparentVaults = await config.getAllOrionVaults(0);
-
-      for (const vaultAddress of allTransparentVaults) {
-        const vault = await ethers.getContractAt("OrionTransparentVault", vaultAddress);
-        void expect(await vault.paused()).to.be.false;
-      }
     });
   });
 
@@ -378,35 +321,6 @@ describe("Protocol Pause Functionality", function () {
       ).to.be.revertedWithCustomError(liquidityOrchestrator, "EnforcedPause");
     });
 
-    it("should prevent OrionVault.requestDeposit() when paused", async function () {
-      await expect(transparentVault.connect(user1).requestDeposit(DEPOSIT_AMOUNT)).to.be.revertedWithCustomError(
-        transparentVault,
-        "EnforcedPause",
-      );
-    });
-
-    it("should prevent OrionVault.cancelDepositRequest() when paused", async function () {
-      // We can't even make a deposit request to cancel, but test the guard anyway
-      await expect(transparentVault.connect(user1).cancelDepositRequest(DEPOSIT_AMOUNT)).to.be.revertedWithCustomError(
-        transparentVault,
-        "EnforcedPause",
-      );
-    });
-
-    it("should prevent OrionVault.requestRedeem() when paused", async function () {
-      await expect(transparentVault.connect(user1).requestRedeem(MIN_REDEEM)).to.be.revertedWithCustomError(
-        transparentVault,
-        "EnforcedPause",
-      );
-    });
-
-    it("should prevent OrionVault.cancelRedeemRequest() when paused", async function () {
-      await expect(transparentVault.connect(user1).cancelRedeemRequest(MIN_REDEEM)).to.be.revertedWithCustomError(
-        transparentVault,
-        "EnforcedPause",
-      );
-    });
-
     it("should allow operations to resume after unpause", async function () {
       // Unpause
       await config.connect(admin).unpauseAll();
@@ -415,7 +329,7 @@ describe("Protocol Pause Functionality", function () {
       await expect(transparentVault.connect(user1).requestDeposit(DEPOSIT_AMOUNT)).to.not.be.reverted;
 
       // Verify deposit was successful
-      expect(await transparentVault.pendingDeposit()).to.equal(DEPOSIT_AMOUNT);
+      expect(await transparentVault.pendingDeposit(await config.maxFulfillBatchSize())).to.equal(DEPOSIT_AMOUNT);
     });
   });
 
@@ -463,55 +377,9 @@ describe("Protocol Pause Functionality", function () {
         "NotAuthorized",
       );
     });
-
-    it("should prevent non-OrionConfig from calling pause() on OrionVault", async function () {
-      await expect(transparentVault.connect(admin).pause()).to.be.revertedWithCustomError(
-        transparentVault,
-        "NotAuthorized",
-      );
-
-      await expect(transparentVault.connect(guardian).pause()).to.be.revertedWithCustomError(
-        transparentVault,
-        "NotAuthorized",
-      );
-    });
-
-    it("should prevent non-OrionConfig from calling unpause() on OrionVault", async function () {
-      // Pause first
-      await config.connect(guardian).pauseAll();
-
-      await expect(transparentVault.connect(admin).unpause()).to.be.revertedWithCustomError(
-        transparentVault,
-        "NotAuthorized",
-      );
-    });
   });
 
   describe("6. Integration Scenarios", function () {
-    it("should handle pause during active operations", async function () {
-      // User makes a deposit request
-      await transparentVault.connect(user1).requestDeposit(DEPOSIT_AMOUNT);
-      expect(await transparentVault.pendingDeposit()).to.equal(DEPOSIT_AMOUNT);
-
-      // Guardian pauses protocol
-      await config.connect(guardian).pauseAll();
-
-      // User cannot make additional requests
-      await expect(transparentVault.connect(user2).requestDeposit(DEPOSIT_AMOUNT)).to.be.revertedWithCustomError(
-        transparentVault,
-        "EnforcedPause",
-      );
-
-      // User cannot cancel existing request
-      await expect(transparentVault.connect(user1).cancelDepositRequest(DEPOSIT_AMOUNT)).to.be.revertedWithCustomError(
-        transparentVault,
-        "EnforcedPause",
-      );
-
-      // Pending deposit amount persists during pause
-      expect(await transparentVault.pendingDeposit()).to.equal(DEPOSIT_AMOUNT);
-    });
-
     it("should allow resuming operations after unpause", async function () {
       // Make initial deposit
       await transparentVault.connect(user1).requestDeposit(DEPOSIT_AMOUNT);
@@ -523,48 +391,54 @@ describe("Protocol Pause Functionality", function () {
       // User can now cancel their request
       await expect(transparentVault.connect(user1).cancelDepositRequest(DEPOSIT_AMOUNT)).to.not.be.reverted;
 
-      expect(await transparentVault.pendingDeposit()).to.equal(0);
+      expect(await transparentVault.pendingDeposit(await config.maxFulfillBatchSize())).to.equal(0);
     });
 
     it("should handle multiple pause/unpause cycles", async function () {
       // Cycle 1: Pause and unpause
       await config.connect(guardian).pauseAll();
-      void expect(await transparentVault.paused()).to.be.true;
+      void expect(await internalStatesOrchestrator.paused()).to.be.true;
+      void expect(await liquidityOrchestrator.paused()).to.be.true;
 
       await config.connect(admin).unpauseAll();
-      void expect(await transparentVault.paused()).to.be.false;
-
+      void expect(await internalStatesOrchestrator.paused()).to.be.false;
+      void expect(await liquidityOrchestrator.paused()).to.be.false;
       // Cycle 2: Pause and unpause again
       await config.connect(admin).pauseAll(); // Admin can also pause
-      void expect(await transparentVault.paused()).to.be.true;
+      void expect(await internalStatesOrchestrator.paused()).to.be.true;
+      void expect(await liquidityOrchestrator.paused()).to.be.true;
 
       await config.connect(admin).unpauseAll();
-      void expect(await transparentVault.paused()).to.be.false;
+      void expect(await internalStatesOrchestrator.paused()).to.be.false;
+      void expect(await liquidityOrchestrator.paused()).to.be.false;
 
-      // Operations should still work
-      await expect(transparentVault.connect(user1).requestDeposit(DEPOSIT_AMOUNT)).to.not.be.reverted;
+      await time.increase(await internalStatesOrchestrator.epochDuration());
+      const [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+
+      await expect(internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData)).to.not.be
+        .reverted;
     });
 
     it("should preserve state across pause/unpause", async function () {
       // Setup initial state
       await transparentVault.connect(user1).requestDeposit(DEPOSIT_AMOUNT);
-      const depositBefore = await transparentVault.pendingDeposit();
+      const depositBefore = await transparentVault.pendingDeposit(await config.maxFulfillBatchSize());
 
       // Pause
       await config.connect(guardian).pauseAll();
 
       // State should be unchanged
-      expect(await transparentVault.pendingDeposit()).to.equal(depositBefore);
+      expect(await transparentVault.pendingDeposit(await config.maxFulfillBatchSize())).to.equal(depositBefore);
 
       // Unpause
       await config.connect(admin).unpauseAll();
 
       // State should still be unchanged
-      expect(await transparentVault.pendingDeposit()).to.equal(depositBefore);
+      expect(await transparentVault.pendingDeposit(await config.maxFulfillBatchSize())).to.equal(depositBefore);
 
       // Can still interact with preserved state
       await transparentVault.connect(user1).cancelDepositRequest(DEPOSIT_AMOUNT);
-      expect(await transparentVault.pendingDeposit()).to.equal(0);
+      expect(await transparentVault.pendingDeposit(await config.maxFulfillBatchSize())).to.equal(0);
     });
 
     it("should block epoch progression when paused", async function () {

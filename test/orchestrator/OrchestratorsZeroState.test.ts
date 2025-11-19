@@ -100,8 +100,8 @@ describe("Orchestrators - zero deposits and zero intents", function () {
     await underlyingAsset.mint(user.address, ethers.parseUnits("10000", 12));
 
     // Ensure no deposits or intents present
-    expect(await transparentVault.pendingDeposit()).to.equal(0);
-    expect(await transparentVault.pendingRedeem()).to.equal(0);
+    expect(await transparentVault.pendingDeposit(await orionConfig.maxFulfillBatchSize())).to.equal(0);
+    expect(await transparentVault.pendingRedeem(await orionConfig.maxFulfillBatchSize())).to.equal(0);
   });
 
   it("completes upkeep with zero TVL and zero intents without errors", async function () {
@@ -127,7 +127,7 @@ describe("Orchestrators - zero deposits and zero intents", function () {
 
     // Verify the vault has no total assets and no pending deposits
     expect(await transparentVault.totalAssets()).to.equal(0);
-    expect(await transparentVault.pendingDeposit()).to.equal(0);
+    expect(await transparentVault.pendingDeposit(await orionConfig.maxFulfillBatchSize())).to.equal(0);
 
     // Verify the vault has a valid intent
     const [intentTokens, _intentWeights] = await transparentVault.getIntent();

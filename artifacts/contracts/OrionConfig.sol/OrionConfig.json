@@ -119,6 +119,19 @@
         {
           "indexed": true,
           "internalType": "uint256",
+          "name": "maxFulfillBatchSize",
+          "type": "uint256"
+        }
+      ],
+      "name": "MaxFulfillBatchSizeUpdated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
           "name": "minDepositAmount",
           "type": "uint256"
         }
@@ -626,6 +639,19 @@
     },
     {
       "inputs": [],
+      "name": "maxFulfillBatchSize",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
       "name": "minDepositAmount",
       "outputs": [
         {
@@ -829,6 +855,19 @@
         }
       ],
       "name": "setLiquidityOrchestrator",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "size",
+          "type": "uint256"
+        }
+      ],
+      "name": "setMaxFulfillBatchSize",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

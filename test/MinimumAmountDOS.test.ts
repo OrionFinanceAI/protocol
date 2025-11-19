@@ -319,7 +319,7 @@ describe("Minimum Amount DOS Prevention", function () {
       await config.connect(owner).setMinDepositAmount(minDeposit);
 
       // Calculate cost to fill 150-request queue
-      const MAX_FULFILL_BATCH_SIZE = 150n;
+      const MAX_FULFILL_BATCH_SIZE = await config.maxFulfillBatchSize();
       const totalCapitalRequired = minDeposit * MAX_FULFILL_BATCH_SIZE;
 
       // Should require $15,000 USD (150 * $100) of locked capital
