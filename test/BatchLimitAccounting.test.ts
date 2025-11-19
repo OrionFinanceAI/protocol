@@ -309,14 +309,6 @@ describe("Batch Limit Accounting Fix", function () {
 
       // Since we have < 150 requests, it should return all of them
       void expect(pendingDeposit).to.equal(DEPOSIT_AMOUNT * BigInt(numUsers));
-
-      /**
-       * If we had 200 users making requests:
-       * - OLD: pendingDeposit() would return sum of all 200 = 20,000 USDC
-       * - NEW: pendingDeposit() returns sum of first 150 = 15,000 USDC
-       *
-       * This ensures preprocessing and fulfillment always agree on amounts
-       */
     });
   });
 });
