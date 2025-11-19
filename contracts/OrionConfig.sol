@@ -215,7 +215,7 @@ contract OrionConfig is Ownable2Step, IOrionConfig {
     /// @dev Can only be called by guardian or admin
     ///      Pauses InternalStatesOrchestrator and LiquidityOrchestrator
     function pauseAll() external {
-        if (msg.sender != guardian && msg.sender != admin) revert ErrorsLib.UnauthorizedAccess();
+        if (msg.sender != guardian && msg.sender != admin) revert ErrorsLib.NotAuthorized();
 
         IInternalStateOrchestrator(internalStatesOrchestrator).pause();
         ILiquidityOrchestrator(liquidityOrchestrator).pause();
