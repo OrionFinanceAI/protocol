@@ -2643,7 +2643,7 @@ describe("Orchestrators", function () {
       await orionConfig.connect(owner).setMinDepositAmount(MIN_DEPOSIT);
 
       // Calculate attack cost using contract constant to prevent test drift
-      const MAX_FULFILL_BATCH_SIZE = await absoluteVault.MAX_FULFILL_BATCH_SIZE();
+      const MAX_FULFILL_BATCH_SIZE = await orionConfig.maxFulfillBatchSize();
       const totalCapitalRequired = MIN_DEPOSIT * MAX_FULFILL_BATCH_SIZE;
 
       // Convert to human-readable (12 decimals)

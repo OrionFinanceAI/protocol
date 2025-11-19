@@ -75,8 +75,6 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
     /// @notice Share token decimals
     uint8 public constant SHARE_DECIMALS = 18;
-    /// @notice Maximum number of requests to process per fulfill call
-    uint16 public constant MAX_FULFILL_BATCH_SIZE = 150;
 
     /* -------------------------------------------------------------------------- */
     /*                               CURATOR FEES                                 */
@@ -576,15 +574,14 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
     /// @inheritdoc IOrionVault
     function pendingDeposit() external view returns (uint256) {
-        uint16 length = uint16(_depositRequests.length());
+        uint256 length = _depositRequests.length();
         if (length == 0) {
             return 0;
         }
 
-        // Only first MAX_FULFILL_BATCH_SIZE requests will be processed in this epoch
-        uint16 batchSize = length > MAX_FULFILL_BATCH_SIZE ? MAX_FULFILL_BATCH_SIZE : length;
-
+        uint256 batchSize = Math.min(length, config.maxFulfillBatchSize());
         uint256 processableAmount = 0;
+
         for (uint16 i = 0; i < batchSize; ++i) {
             // slither-disable-next-line unused-return
             (, uint256 amount) = _depositRequests.at(i);
@@ -596,15 +593,14 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
     /// @inheritdoc IOrionVault
     function pendingRedeem() external view returns (uint256) {
-        uint16 length = uint16(_redeemRequests.length());
+        uint256 length = _redeemRequests.length();
         if (length == 0) {
             return 0;
         }
 
-        // Only first MAX_FULFILL_BATCH_SIZE requests will be processed in this epoch
-        uint16 batchSize = length > MAX_FULFILL_BATCH_SIZE ? MAX_FULFILL_BATCH_SIZE : length;
-
+        uint256 batchSize = Math.min(length, config.maxFulfillBatchSize());
         uint256 processableShares = 0;
+
         for (uint16 i = 0; i < batchSize; ++i) {
             // slither-disable-next-line unused-return
             (, uint256 shares) = _redeemRequests.at(i);
@@ -625,13 +621,12 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
     /// @inheritdoc IOrionVault
     function fulfillDeposit(uint256 depositTotalAssets) external onlyLiquidityOrchestrator nonReentrant {
-        uint16 length = uint16(_depositRequests.length());
+        uint256 length = _depositRequests.length();
         if (length == 0) {
             return;
         }
 
-        // Process requests in batches (up to MAX_FULFILL_BATCH_SIZE per epoch)
-        uint16 batchSize = length > MAX_FULFILL_BATCH_SIZE ? MAX_FULFILL_BATCH_SIZE : length;
+        uint256 batchSize = Math.min(length, config.maxFulfillBatchSize());
         uint16 currentEpoch = internalStatesOrchestrator.epochCounter();
 
         // Capture totalSupply snapshot to ensure consistent pricing for all users in this batch
@@ -661,13 +656,12 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
     /// @inheritdoc IOrionVault
     function fulfillRedeem(uint256 redeemTotalAssets) external onlyLiquidityOrchestrator nonReentrant {
-        uint16 length = uint16(_redeemRequests.length());
+        uint256 length = _redeemRequests.length();
         if (length == 0) {
             return;
         }
 
-        // Process requests in batches (up to MAX_FULFILL_BATCH_SIZE per epoch)
-        uint16 batchSize = length > MAX_FULFILL_BATCH_SIZE ? MAX_FULFILL_BATCH_SIZE : length;
+        uint256 batchSize = Math.min(length, config.maxFulfillBatchSize());
         uint16 currentEpoch = internalStatesOrchestrator.epochCounter();
 
         // Capture totalSupply snapshot to ensure consistent pricing for all users in this batch
