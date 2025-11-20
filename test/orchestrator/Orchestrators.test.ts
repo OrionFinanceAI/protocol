@@ -624,12 +624,6 @@ describe("Orchestrators", function () {
         "SystemNotIdle",
       );
 
-      // Test LiquidityOrchestrator functions
-      await expect(liquidityOrchestrator.updateExecutionMinibatchSize(5)).to.be.revertedWithCustomError(
-        liquidityOrchestrator,
-        "SystemNotIdle",
-      );
-
       await expect(liquidityOrchestrator.updateAutomationRegistry(user.address)).to.be.revertedWithCustomError(
         liquidityOrchestrator,
         "SystemNotIdle",
@@ -1074,10 +1068,6 @@ describe("Orchestrators", function () {
       // Now check if liquidity orchestrator phase
       expect(await liquidityOrchestrator.currentPhase()).to.equal(1); // SellingLeg
 
-      const liquidityOrchestratorBalanceBeforeBuying = await underlyingAsset.balanceOf(
-        await liquidityOrchestrator.getAddress(),
-      );
-
       // No selling in first epoch.
 
       let [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
@@ -1085,51 +1075,6 @@ describe("Orchestrators", function () {
       await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
 
       expect(await liquidityOrchestrator.currentPhase()).to.equal(2); // BuyingLeg
-
-      [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
-      void expect(liquidityUpkeepNeeded).to.be.true;
-      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
-
-      const liquidityOrchestratorBalance1 = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
-
-      console.log("liquidityOrchestratorBalance1:", liquidityOrchestratorBalance1.toString());
-
-      const expectedCost1 =
-        (buyingAmounts[0] * BigInt(Math.round(MOCK_ASSET1_P0 * 10 ** underlyingDecimals))) / 10n ** BigInt(decimals1);
-      const actualCost1 = liquidityOrchestratorBalanceBeforeBuying - liquidityOrchestratorBalance1;
-
-      // Use closeTo for approximate equality with tolerance
-      expect(Number(actualCost1)).to.be.closeTo(Number(expectedCost1), 1e-9 * Number(10n ** BigInt(decimals1)));
-
-      expect(buyingEstimatedUnderlyingAmounts[0] - actualCost1).to.equal(
-        await liquidityOrchestrator.deltaBufferAmount(),
-      );
-
-      expect(await liquidityOrchestrator.currentPhase()).to.equal(2); // BuyingLeg
-
-      [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
-      void expect(liquidityUpkeepNeeded).to.be.true;
-      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
-
-      const liquidityOrchestratorBalance2 = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
-
-      console.log("liquidityOrchestratorBalance2:", liquidityOrchestratorBalance2.toString());
-
-      const expectedCost2 =
-        (buyingAmounts[1] * BigInt(MOCK_ASSET2_P0 * 10 ** underlyingDecimals)) / 10n ** BigInt(decimals2);
-      const actualCost2 = liquidityOrchestratorBalance1 - liquidityOrchestratorBalance2;
-
-      // Use closeTo for approximate equality with tolerance
-      expect(Number(actualCost2)).to.be.closeTo(Number(expectedCost2), 1e-9 * Number(10n ** BigInt(decimals2)));
-
-      expect(
-        buyingEstimatedUnderlyingAmounts[0] - actualCost1 + buyingEstimatedUnderlyingAmounts[1] - actualCost2,
-      ).to.equal(await liquidityOrchestrator.deltaBufferAmount());
-
-      expect(await liquidityOrchestrator.currentPhase()).to.equal(2); // BuyingLeg
-
-      [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
-      void expect(liquidityUpkeepNeeded).to.be.true;
 
       await expect(
         liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData),
@@ -1154,41 +1099,24 @@ describe("Orchestrators", function () {
       // Retry the performUpkeep call after liquidity injection
       await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
 
-      const liquidityOrchestratorBalance3 = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
-      console.log("liquidityOrchestratorBalance3:", liquidityOrchestratorBalance3.toString());
+      const liquidityOrchestratorBalance = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
+      console.log("liquidityOrchestratorBalance:", liquidityOrchestratorBalance.toString());
 
-      const expectedCost3 =
+      const expectedCost =
+        (buyingAmounts[0] * BigInt(Math.round(MOCK_ASSET1_P0 * 10 ** underlyingDecimals))) / 10n ** BigInt(decimals1) +
+        (buyingAmounts[1] * BigInt(Math.round(MOCK_ASSET2_P0 * 10 ** underlyingDecimals))) / 10n ** BigInt(decimals2) +
         (buyingAmounts[2] * BigInt(Math.round(MOCK_ASSET3_P0 * 10 ** underlyingDecimals))) / 10n ** BigInt(decimals3);
-      const actualCost3 = liquidityOrchestratorBalanceAfterInjection - liquidityOrchestratorBalance3;
+      const actualCost = liquidityOrchestratorBalanceAfterInjection - liquidityOrchestratorBalance;
+
+      console.log("expectedCost:", expectedCost.toString());
+      console.log("actualCost:", actualCost.toString());
 
       // Use closeTo for approximate equality with tolerance
-      expect(Number(actualCost3)).to.be.closeTo(Number(expectedCost3), 1e-9 * Number(10n ** BigInt(decimals3)));
-
-      expect(
-        buyingEstimatedUnderlyingAmounts[0] -
-          actualCost1 +
-          buyingEstimatedUnderlyingAmounts[1] -
-          actualCost2 +
-          buyingEstimatedUnderlyingAmounts[2] -
-          actualCost3,
-      ).to.equal(await liquidityOrchestrator.deltaBufferAmount());
-
-      expect(await liquidityOrchestrator.currentPhase()).to.equal(2); // BuyingLeg
-
-      [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
-      void expect(liquidityUpkeepNeeded).to.be.true;
-      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
-
-      const liquidityOrchestratorBalance4 = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
-
-      console.log("liquidityOrchestratorBalance4:", liquidityOrchestratorBalance4.toString());
-
-      // Underlying asset, no transaction.
-      expect(liquidityOrchestratorBalance4).to.equal(liquidityOrchestratorBalance3);
-
-      expect(await liquidityOrchestrator.currentPhase()).to.equal(3); // FulfillDepositAndRedeem
+      expect(Number(actualCost)).to.be.closeTo(Number(expectedCost), 1e-9 * Number(10n ** BigInt(decimals3)));
 
       const bufferAmountAfterRebalancing = await internalStatesOrchestrator.bufferAmount();
+
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(3); // FulfillDepositAndRedeem
 
       // Check balances of investment unverse assets in the LO.
       const liquidityOrchestratorBalanceOfMockAsset1 = await mockAsset1.balanceOf(
@@ -1664,21 +1592,11 @@ describe("Orchestrators", function () {
       void expect(liquidityUpkeepNeeded).to.be.true;
       await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
 
-      expect(await liquidityOrchestrator.currentPhase()).to.equal(1); // SellingLeg
-
-      while ((await liquidityOrchestrator.currentPhase()) === 1n) {
-        [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
-        void expect(liquidityUpkeepNeeded).to.be.true;
-        await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
-      }
-
       expect(await liquidityOrchestrator.currentPhase()).to.equal(2); // BuyingLeg
 
-      while ((await liquidityOrchestrator.currentPhase()) === 2n) {
-        [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
-        void expect(liquidityUpkeepNeeded).to.be.true;
-        await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
-      }
+      [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      void expect(liquidityUpkeepNeeded).to.be.true;
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
 
       expect(await liquidityOrchestrator.currentPhase()).to.equal(3); // FulfillDepositAndRedeem
 
@@ -1966,8 +1884,6 @@ describe("Orchestrators", function () {
       for (const [token, summedShares] of batchedPortfolio_SecondEpoch.entries()) {
         console.log(`Token ${token}: Total Shares Across Vaults = ${summedShares.toString()}`);
       }
-      // Test LiquidityOrchestrator functions
-      await expect(liquidityOrchestrator.updateExecutionMinibatchSize(1)).to.not.be.reverted;
 
       // Check and claim protocol fees
       pendingProtocolFees = await internalStatesOrchestrator.pendingProtocolFees();

@@ -417,10 +417,10 @@ describe("Passive Curator Strategy", function () {
 
       // Verify that orders were built based on the strategy's intent
 
-      let [_sellingTokens, _sellingAmounts, _sellingEstimatedUnderlyingAmounts] =
+      const [_sellingTokens, _sellingAmounts, _sellingEstimatedUnderlyingAmounts] =
         await internalStatesOrchestrator.getOrders(true);
 
-      let [buyingTokens, _buyingAmounts, _buyingEstimatedUnderlyingAmounts] =
+      const [buyingTokens, _buyingAmounts, _buyingEstimatedUnderlyingAmounts] =
         await internalStatesOrchestrator.getOrders(false);
 
       // Should have buying orders for the assets selected by the strategy

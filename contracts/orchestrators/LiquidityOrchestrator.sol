@@ -15,7 +15,6 @@ import "../interfaces/IOrionVault.sol";
 import "../interfaces/IExecutionAdapter.sol";
 import "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-
 /**
  * @title Liquidity Orchestrator
  * @notice Contract that orchestrates liquidity operations
@@ -54,9 +53,6 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, ILiquidityOrche
     /*                               UPKEEP STATE                                 */
     /* -------------------------------------------------------------------------- */
 
-    /// @notice Execution minibatch size
-    uint8 public executionMinibatchSize;
-
     /// @notice Minibatch size for fulfill deposit and redeem processing
     uint8 public minibatchSize;
 
@@ -72,8 +68,6 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, ILiquidityOrche
     /// @notice Buy approval multiplier (multiplier for estimated underlying amount when approving adapters)
     uint8 public buyApprovalMultiplier;
 
-    /// @notice Maximum execution minibatch size
-    uint8 public constant MAX_EXECUTION_MINIBATCH_SIZE = 8;
     /// @notice Maximum minibatch size
     uint8 public constant MAX_MINIBATCH_SIZE = 8;
     /// @notice Maximum buy approval multiplier
@@ -129,7 +123,6 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, ILiquidityOrche
 
         automationRegistry = automationRegistry_;
         currentPhase = LiquidityUpkeepPhase.Idle;
-        executionMinibatchSize = 1;
         minibatchSize = 1;
         currentMinibatchIndex = 0;
         buyApprovalMultiplier = 2;
@@ -138,14 +131,6 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, ILiquidityOrche
     /* -------------------------------------------------------------------------- */
     /*                                OWNER FUNCTIONS                             */
     /* -------------------------------------------------------------------------- */
-
-    /// @inheritdoc ILiquidityOrchestrator
-    function updateExecutionMinibatchSize(uint8 _executionMinibatchSize) external onlyOwner {
-        if (_executionMinibatchSize == 0) revert ErrorsLib.InvalidArguments();
-        if (_executionMinibatchSize > MAX_EXECUTION_MINIBATCH_SIZE) revert ErrorsLib.InvalidArguments();
-        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
-        executionMinibatchSize = _executionMinibatchSize;
-    }
 
     /// @inheritdoc ILiquidityOrchestrator
     function updateMinibatchSize(uint8 _minibatchSize) external onlyOwner {
@@ -315,9 +300,9 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, ILiquidityOrche
     /// @notice Performs the upkeep
     function performUpkeep(bytes calldata) external override onlyAuthorizedTrigger nonReentrant {
         if (currentPhase == LiquidityUpkeepPhase.SellingLeg) {
-            _processMinibatchSell();
+            _processSellLeg();
         } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
-            _processMinibatchBuy();
+            _processBuyLeg();
         } else if (currentPhase == LiquidityUpkeepPhase.FulfillDepositAndRedeem) {
             _processFulfillDepositAndRedeem();
             internalStatesOrchestrator.updateNextUpdateTime();
@@ -331,24 +316,16 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, ILiquidityOrche
     /* -------------------------------------------------------------------------- */
 
     /// @notice Handles the sell action
-    function _processMinibatchSell() internal {
-        uint16 i0 = currentMinibatchIndex * executionMinibatchSize;
-        uint16 i1 = i0 + executionMinibatchSize;
-        ++currentMinibatchIndex;
-
+    function _processSellLeg() internal {
         (
             address[] memory sellingTokens,
             uint256[] memory sellingAmounts,
             uint256[] memory sellingEstimatedUnderlyingAmounts
         ) = internalStatesOrchestrator.getOrders(true);
 
-        if (i1 > sellingTokens.length || i1 == sellingTokens.length) {
-            i1 = uint16(sellingTokens.length);
-            currentPhase = LiquidityUpkeepPhase.BuyingLeg;
-            currentMinibatchIndex = 0;
-        }
+        currentPhase = LiquidityUpkeepPhase.BuyingLeg;
 
-        for (uint16 i = i0; i < i1; ++i) {
+        for (uint16 i = 0; i < sellingTokens.length; ++i) {
             address token = sellingTokens[i];
             if (token == address(underlyingAsset)) continue;
             uint256 amount = sellingAmounts[i];
@@ -357,35 +334,25 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, ILiquidityOrche
     }
 
     /// @notice Handles the buy action
-    function _processMinibatchBuy() internal {
-        uint16 i0 = currentMinibatchIndex * executionMinibatchSize;
-        uint16 i1 = i0 + executionMinibatchSize;
-        ++currentMinibatchIndex;
-
+    function _processBuyLeg() internal {
         (
             address[] memory buyingTokens,
             uint256[] memory buyingAmounts,
             uint256[] memory buyingEstimatedUnderlyingAmounts
         ) = internalStatesOrchestrator.getOrders(false);
 
-        if (i1 > buyingTokens.length || i1 == buyingTokens.length) {
-            i1 = uint16(buyingTokens.length);
-            currentPhase = LiquidityUpkeepPhase.FulfillDepositAndRedeem;
-            currentMinibatchIndex = 0;
-        }
+        currentPhase = LiquidityUpkeepPhase.FulfillDepositAndRedeem;
 
-        for (uint16 i = i0; i < i1; ++i) {
+        for (uint16 i = 0; i < buyingTokens.length; ++i) {
             address token = buyingTokens[i];
             if (token == address(underlyingAsset)) continue;
             uint256 amount = buyingAmounts[i];
             _executeBuy(token, amount, buyingEstimatedUnderlyingAmounts[i]);
         }
 
-        if (i1 == buyingTokens.length) {
-            // slither-disable-next-line reentrancy-no-eth
-            internalStatesOrchestrator.updateBufferAmount(deltaBufferAmount);
-            deltaBufferAmount = 0;
-        }
+        // slither-disable-next-line reentrancy-no-eth
+        internalStatesOrchestrator.updateBufferAmount(deltaBufferAmount);
+        deltaBufferAmount = 0;
     }
 
     /// @notice Executes a sell order
