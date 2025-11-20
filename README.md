@@ -44,12 +44,3 @@ At its core, Orion is building a next-generation infrastructure that democratize
 ## Licences
 
 The license for Orion is the Business Source License 1.1 (`BUSL-1.1`) given in [`LICENSE`](./LICENSE).
-
-## Installation
-
-```bash
-uv venv 
-source .venv/bin/activate
-uv pip install slither-analyzer==0.11.3
-pnpm install
-```
