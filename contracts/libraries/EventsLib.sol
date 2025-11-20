@@ -48,7 +48,7 @@ library EventsLib {
     /// @notice A protocol fee change has been scheduled.
     /// @param vFeeCoefficient The new volume fee coefficient.
     /// @param rsFeeCoefficient The new revenue share fee coefficient.
-    event ProtocolFeeChangeScheduled(uint16 vFeeCoefficient, uint16 rsFeeCoefficient);
+    event ProtocolFeeChangeScheduled(uint16 indexed vFeeCoefficient, uint16 indexed rsFeeCoefficient);
 
     /// @notice The guardian address has been updated.
     /// @param guardian The new guardian address.
