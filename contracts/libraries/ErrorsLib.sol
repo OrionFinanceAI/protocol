@@ -6,7 +6,7 @@ pragma solidity ^0.8.28;
 /// @author Orion Finance
 library ErrorsLib {
     /// @notice Caller is not authorized to perform the requested action.
-    error UnauthorizedAccess();
+    error NotAuthorized();
 
     /// @notice Address parameter is the zero address.
     error ZeroAddress();
@@ -34,9 +34,6 @@ library ErrorsLib {
     /// @notice Token has already been added to the order intent list.
     /// @param token The duplicate token address.
     error TokenAlreadyInOrder(address token);
-
-    /// @notice Caller is not authorized to perform this action.
-    error NotAuthorized();
 
     /// @notice Operation attempted before the required time or condition has been met.
     error TooEarly();

@@ -70,19 +70,11 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     /// @notice Redemption requests queue (R) - mapping of user address to requested [shares] amount
     EnumerableMap.AddressToUintMap private _redeemRequests;
 
-    /// @notice Cached pending deposit amount [assets] - updated incrementally for gas efficiency
-    uint256 private _pendingDeposit;
-
-    /// @notice Cached pending redemption amount [shares] - updated incrementally for gas efficiency
-    uint256 private _pendingRedeem;
-
     /// @notice Pending curator fees [assets]
     uint256 public pendingCuratorFees;
 
     /// @notice Share token decimals
     uint8 public constant SHARE_DECIMALS = 18;
-    /// @notice Maximum number of requests to process per fulfill call
-    uint16 public constant MAX_FULFILL_BATCH_SIZE = 150;
 
     /* -------------------------------------------------------------------------- */
     /*                               CURATOR FEES                                 */
@@ -134,25 +126,25 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
     /// @dev Restricts function to only vault owner
     modifier onlyVaultOwner() {
-        if (msg.sender != vaultOwner) revert ErrorsLib.UnauthorizedAccess();
+        if (msg.sender != vaultOwner) revert ErrorsLib.NotAuthorized();
         _;
     }
 
     /// @dev Restricts function to only vault curator
     modifier onlyCurator() {
-        if (msg.sender != curator) revert ErrorsLib.UnauthorizedAccess();
+        if (msg.sender != curator) revert ErrorsLib.NotAuthorized();
         _;
     }
 
     /// @dev Restricts function to only internal states orchestrator
     modifier onlyInternalStatesOrchestrator() {
-        if (msg.sender != address(internalStatesOrchestrator)) revert ErrorsLib.UnauthorizedAccess();
+        if (msg.sender != address(internalStatesOrchestrator)) revert ErrorsLib.NotAuthorized();
         _;
     }
 
     /// @dev Restricts function to only liquidity orchestrator
     modifier onlyLiquidityOrchestrator() {
-        if (msg.sender != address(liquidityOrchestrator)) revert ErrorsLib.UnauthorizedAccess();
+        if (msg.sender != address(liquidityOrchestrator)) revert ErrorsLib.NotAuthorized();
         _;
     }
 
@@ -190,10 +182,6 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         internalStatesOrchestrator = IInternalStateOrchestrator(config_.internalStatesOrchestrator());
         liquidityOrchestrator = ILiquidityOrchestrator(config_.liquidityOrchestrator());
         curatorIntentDecimals = config_.curatorIntentDecimals();
-
-        _totalAssets = 0;
-        _pendingDeposit = 0;
-        _pendingRedeem = 0;
 
         uint8 underlyingDecimals = IERC20Metadata(address(config_.underlyingAsset())).decimals();
         if (underlyingDecimals > SHARE_DECIMALS) revert ErrorsLib.InvalidUnderlyingDecimals();
@@ -362,7 +350,6 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         (, uint256 currentAmount) = _depositRequests.tryGet(msg.sender);
         // slither-disable-next-line unused-return
         _depositRequests.set(msg.sender, currentAmount + assets);
-        _pendingDeposit += assets;
 
         emit DepositRequest(msg.sender, assets);
     }
@@ -385,7 +372,6 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
             // slither-disable-next-line unused-return
             _depositRequests.set(msg.sender, newAmount);
         }
-        _pendingDeposit -= amount;
 
         // Request funds from liquidity orchestrator
         liquidityOrchestrator.returnDepositFunds(msg.sender, amount);
@@ -411,7 +397,6 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         (, uint256 currentShares) = _redeemRequests.tryGet(msg.sender);
         // slither-disable-next-line unused-return
         _redeemRequests.set(msg.sender, currentShares + shares);
-        _pendingRedeem += shares;
 
         emit RedeemRequest(msg.sender, shares);
     }
@@ -434,7 +419,6 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
             // slither-disable-next-line unused-return
             _redeemRequests.set(msg.sender, newShares);
         }
-        _pendingRedeem -= shares;
 
         // Interactions - return shares to LP.
         IERC20(address(this)).safeTransfer(msg.sender, shares);
@@ -589,13 +573,41 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
 
     /// @inheritdoc IOrionVault
-    function pendingDeposit() external view returns (uint256) {
-        return _pendingDeposit;
+    function pendingDeposit(uint256 fulfillBatchSize) external view returns (uint256) {
+        uint256 length = _depositRequests.length();
+        if (length == 0) {
+            return 0;
+        }
+
+        uint256 batchSize = Math.min(length, fulfillBatchSize);
+        uint256 processableAmount = 0;
+
+        for (uint16 i = 0; i < batchSize; ++i) {
+            // slither-disable-next-line unused-return
+            (, uint256 amount) = _depositRequests.at(i);
+            processableAmount += amount;
+        }
+
+        return processableAmount;
     }
 
     /// @inheritdoc IOrionVault
-    function pendingRedeem() external view returns (uint256) {
-        return _pendingRedeem;
+    function pendingRedeem(uint256 fulfillBatchSize) external view returns (uint256) {
+        uint256 length = _redeemRequests.length();
+        if (length == 0) {
+            return 0;
+        }
+
+        uint256 batchSize = Math.min(length, fulfillBatchSize);
+        uint256 processableShares = 0;
+
+        for (uint16 i = 0; i < batchSize; ++i) {
+            // slither-disable-next-line unused-return
+            (, uint256 shares) = _redeemRequests.at(i);
+            processableShares += shares;
+        }
+
+        return processableShares;
     }
 
     /// @inheritdoc IOrionVault
@@ -609,13 +621,12 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
     /// @inheritdoc IOrionVault
     function fulfillDeposit(uint256 depositTotalAssets) external onlyLiquidityOrchestrator nonReentrant {
-        uint32 length = uint32(_depositRequests.length());
+        uint256 length = _depositRequests.length();
         if (length == 0) {
             return;
         }
 
-        // Process requests in batches (up to MAX_FULFILL_BATCH_SIZE per epoch)
-        uint16 batchSize = length > MAX_FULFILL_BATCH_SIZE ? MAX_FULFILL_BATCH_SIZE : uint16(length);
+        uint256 batchSize = Math.min(length, config.maxFulfillBatchSize());
         uint16 currentEpoch = internalStatesOrchestrator.epochCounter();
 
         // Capture totalSupply snapshot to ensure consistent pricing for all users in this batch
@@ -641,19 +652,16 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
             emit Deposit(address(this), user, currentEpoch, amount, shares);
         }
-
-        _pendingDeposit -= processedAmount;
     }
 
     /// @inheritdoc IOrionVault
     function fulfillRedeem(uint256 redeemTotalAssets) external onlyLiquidityOrchestrator nonReentrant {
-        uint32 length = uint32(_redeemRequests.length());
+        uint256 length = _redeemRequests.length();
         if (length == 0) {
             return;
         }
 
-        // Process requests in batches (up to MAX_FULFILL_BATCH_SIZE per epoch)
-        uint16 batchSize = length > MAX_FULFILL_BATCH_SIZE ? MAX_FULFILL_BATCH_SIZE : uint16(length);
+        uint256 batchSize = Math.min(length, config.maxFulfillBatchSize());
         uint16 currentEpoch = internalStatesOrchestrator.epochCounter();
 
         // Capture totalSupply snapshot to ensure consistent pricing for all users in this batch
@@ -682,7 +690,5 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
             emit Redeem(address(this), user, currentEpoch, underlyingAmount, shares);
         }
-
-        _pendingRedeem -= processedShares;
     }
 }

@@ -1249,7 +1249,7 @@ describe("Orchestrator PerformUpkeep", function () {
       expect(userBalanceOfHurdleHwmVaultAfterCancelRedeem).to.equal(userBalanceOfHurdleHwmVault / 2n);
 
       // Assert that the user's pending redeem amount is updated correctly after cancellation for hurdleHwmVault
-      const pendingRedeemAfterCancel = await hurdleHwmVault.pendingRedeem();
+      const pendingRedeemAfterCancel = await hurdleHwmVault.pendingRedeem(await orionConfig.maxFulfillBatchSize());
       expect(pendingRedeemAfterCancel).to.equal(userBalanceOfHurdleHwmVault / 2n);
 
       console.log("--------------------------------------------------------------------------------------------------");
@@ -1452,7 +1452,7 @@ describe("Orchestrator PerformUpkeep", function () {
 
         // Expected fulfill deposit: totalAssets after volume fee, curator fees, and pending redeem
         // Note: pendingRedeem needs to be converted from shares to assets using convertToAssetsWithPITTotalAssets
-        const pendingRedeemShares = await vault.pendingRedeem();
+        const pendingRedeemShares = await vault.pendingRedeem(await orionConfig.maxFulfillBatchSize());
         const pendingRedeemAssets = await vault.convertToAssetsWithPITTotalAssets(
           pendingRedeemShares,
           expectedFulfillRedeem,
@@ -1505,7 +1505,7 @@ describe("Orchestrator PerformUpkeep", function () {
         // Get the values that were stored in the orchestrator
         const vaultsTotalAssetsForFulfillDeposit =
           await internalStatesOrchestrator.getVaultTotalAssetsForFulfillDeposit(vaultAddress);
-        const pendingDeposit = await vault.pendingDeposit();
+        const pendingDeposit = await vault.pendingDeposit(await orionConfig.maxFulfillBatchSize());
 
         // Reconstruct vaultsTotalAssets: fulfillDeposit + pendingDeposit
         const vaultsTotalAssets = vaultsTotalAssetsForFulfillDeposit + pendingDeposit;
@@ -1704,8 +1704,8 @@ describe("Orchestrator PerformUpkeep", function () {
       for (const { name, vault } of allVaults) {
         const userBalance = await vault.balanceOf(user.address);
         const totalSupply = await vault.totalSupply();
-        const pendingDeposit = await vault.pendingDeposit();
-        const pendingRedeem = await vault.pendingRedeem();
+        const pendingDeposit = await vault.pendingDeposit(await orionConfig.maxFulfillBatchSize());
+        const pendingRedeem = await vault.pendingRedeem(await orionConfig.maxFulfillBatchSize());
 
         // Verify that pending deposits and redemptions are cleared after fulfill
         expect(pendingDeposit).to.equal(0, `${name} vault should have no pending deposits after fulfill`);

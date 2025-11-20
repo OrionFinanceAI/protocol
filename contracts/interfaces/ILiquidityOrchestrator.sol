@@ -93,4 +93,12 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @notice Advances the idle phase
     /// @dev Called by the internal states orchestrator to advance the idle phase
     function advanceIdlePhase() external;
+
+    /// @notice Pauses the contract
+    /// @dev Can only be called by OrionConfig for emergency situations
+    function pause() external;
+
+    /// @notice Unpauses the contract
+    /// @dev Can only be called by OrionConfig after resolving emergency
+    function unpause() external;
 }

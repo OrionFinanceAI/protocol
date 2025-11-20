@@ -212,7 +212,7 @@ describe("Config", function () {
 
       await expect(orionConfig.connect(user).removeWhitelistedAsset(assetAddress)).to.be.revertedWithCustomError(
         orionConfig,
-        "UnauthorizedAccess",
+        "NotAuthorized",
       );
     });
   });
@@ -224,7 +224,7 @@ describe("Config", function () {
 
       await expect(orionConfig.connect(user).addOrionVault(maliciousVault, vaultType)).to.be.revertedWithCustomError(
         orionConfig,
-        "UnauthorizedAccess",
+        "NotAuthorized",
       );
     });
 
@@ -234,7 +234,7 @@ describe("Config", function () {
 
       await expect(orionConfig.connect(owner).addOrionVault(maliciousVault, vaultType)).to.be.revertedWithCustomError(
         orionConfig,
-        "UnauthorizedAccess",
+        "NotAuthorized",
       );
     });
   });
@@ -387,14 +387,14 @@ describe("OrionVault - Base Functionality", function () {
       await vault.connect(user).requestDeposit(depositAmount);
 
       // Verify deposit request was created
-      const pendingDeposits = await vault.pendingDeposit();
+      const pendingDeposits = await vault.pendingDeposit(await orionConfig.maxFulfillBatchSize());
       expect(pendingDeposits).to.equal(depositAmount);
 
       // Cancel the deposit request
       await expect(vault.connect(user).cancelDepositRequest(depositAmount)).to.not.be.reverted;
 
       // Verify deposit request was cancelled
-      const pendingDepositsAfter = await vault.pendingDeposit();
+      const pendingDepositsAfter = await vault.pendingDeposit(await orionConfig.maxFulfillBatchSize());
       expect(pendingDepositsAfter).to.equal(0);
     });
 
@@ -431,7 +431,7 @@ describe("OrionVault - Base Functionality", function () {
       await expect(vault.connect(user).cancelDepositRequest(cancelAmount)).to.not.be.reverted;
 
       // Verify remaining amount
-      const pendingDeposits = await vault.pendingDeposit();
+      const pendingDeposits = await vault.pendingDeposit(await orionConfig.maxFulfillBatchSize());
       expect(pendingDeposits).to.equal(remainingAmount);
     });
   });
@@ -473,23 +473,20 @@ describe("OrionVault - Base Functionality", function () {
 
       await expect(vault.connect(owner).updateCurator(newCurator)).to.be.revertedWithCustomError(
         vault,
-        "UnauthorizedAccess",
+        "NotAuthorized",
       );
     });
 
     it("Should revert when non-owner tries to update curator", async function () {
       const newCurator = other.address;
 
-      await expect(vault.connect(user).updateCurator(newCurator)).to.be.revertedWithCustomError(
-        vault,
-        "UnauthorizedAccess",
-      );
+      await expect(vault.connect(user).updateCurator(newCurator)).to.be.revertedWithCustomError(vault, "NotAuthorized");
     });
 
     it("Should revert when setting curator to zero address", async function () {
       await expect(vault.connect(owner).updateCurator(ethers.ZeroAddress)).to.be.revertedWithCustomError(
         vault,
-        "UnauthorizedAccess",
+        "NotAuthorized",
       );
     });
 
@@ -506,12 +503,12 @@ describe("OrionVault - Base Functionality", function () {
 
   describe("Pending Amounts", function () {
     it("Should return zero pending deposits initially", async function () {
-      const pendingDeposits = await vault.pendingDeposit();
+      const pendingDeposits = await vault.pendingDeposit(await orionConfig.maxFulfillBatchSize());
       expect(pendingDeposits).to.equal(0);
     });
 
     it("Should return zero pending redemptions initially", async function () {
-      const pendingRedeems = await vault.pendingRedeem();
+      const pendingRedeems = await vault.pendingRedeem(await orionConfig.maxFulfillBatchSize());
       expect(pendingRedeems).to.equal(0);
     });
 
@@ -522,7 +519,7 @@ describe("OrionVault - Base Functionality", function () {
       await vault.connect(user).requestDeposit(depositAmount);
 
       // Check pending deposits
-      const pendingDeposits = await vault.pendingDeposit();
+      const pendingDeposits = await vault.pendingDeposit(await orionConfig.maxFulfillBatchSize());
       expect(pendingDeposits).to.equal(depositAmount);
     });
   });
@@ -532,12 +529,12 @@ describe("OrionVault - Base Functionality", function () {
       // Test updateCurator function
       await expect(vault.connect(user).updateCurator(other.address)).to.be.revertedWithCustomError(
         vault,
-        "UnauthorizedAccess",
+        "NotAuthorized",
       );
 
       await expect(vault.connect(curator).updateCurator(other.address)).to.be.revertedWithCustomError(
         vault,
-        "UnauthorizedAccess",
+        "NotAuthorized",
       );
 
       await orionConfig.addWhitelistedCurator(other.address);

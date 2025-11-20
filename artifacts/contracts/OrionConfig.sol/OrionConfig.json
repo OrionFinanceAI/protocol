@@ -84,11 +84,6 @@
     },
     {
       "inputs": [],
-      "name": "UnauthorizedAccess",
-      "type": "error"
-    },
-    {
-      "inputs": [],
       "name": "ZeroAddress",
       "type": "error"
     },
@@ -103,6 +98,32 @@
         }
       ],
       "name": "FeeChangeCooldownDurationUpdated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "guardian",
+          "type": "address"
+        }
+      ],
+      "name": "GuardianUpdated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "maxFulfillBatchSize",
+          "type": "uint256"
+        }
+      ],
+      "name": "MaxFulfillBatchSizeUpdated",
       "type": "event"
     },
     {
@@ -187,12 +208,51 @@
       "inputs": [
         {
           "indexed": true,
+          "internalType": "address",
+          "name": "pauser",
+          "type": "address"
+        }
+      ],
+      "name": "ProtocolPaused",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "unpauser",
+          "type": "address"
+        }
+      ],
+      "name": "ProtocolUnpaused",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
           "internalType": "uint16",
           "name": "riskFreeRate",
           "type": "uint16"
         }
       ],
       "name": "RiskFreeRateUpdated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "vaultOwner",
+          "type": "address"
+        }
+      ],
+      "name": "VaultOwnerRemoved",
       "type": "event"
     },
     {
@@ -413,6 +473,19 @@
     },
     {
       "inputs": [],
+      "name": "guardian",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
       "name": "internalStatesOrchestrator",
       "outputs": [
         {
@@ -566,6 +639,19 @@
     },
     {
       "inputs": [],
+      "name": "maxFulfillBatchSize",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
       "name": "minDepositAmount",
       "outputs": [
         {
@@ -601,6 +687,13 @@
         }
       ],
       "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "pauseAll",
+      "outputs": [],
+      "stateMutability": "nonpayable",
       "type": "function"
     },
     {
@@ -731,6 +824,19 @@
       "inputs": [
         {
           "internalType": "address",
+          "name": "_guardian",
+          "type": "address"
+        }
+      ],
+      "name": "setGuardian",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
           "name": "orchestrator",
           "type": "address"
         }
@@ -749,6 +855,19 @@
         }
       ],
       "name": "setLiquidityOrchestrator",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "size",
+          "type": "uint256"
+        }
+      ],
+      "name": "setMaxFulfillBatchSize",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
@@ -874,6 +993,13 @@
         }
       ],
       "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "unpauseAll",
+      "outputs": [],
+      "stateMutability": "nonpayable",
       "type": "function"
     },
     {

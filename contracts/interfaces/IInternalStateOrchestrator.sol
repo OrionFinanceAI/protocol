@@ -102,4 +102,12 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     /// @notice Get the transparent vaults for the current epoch
     /// @return vaults The array of transparent vault addresses for the current epoch
     function getTransparentVaultsEpoch() external view returns (address[] memory vaults);
+
+    /// @notice Pauses the contract
+    /// @dev Can only be called by OrionConfig for emergency situations
+    function pause() external;
+
+    /// @notice Unpauses the contract
+    /// @dev Can only be called by OrionConfig after resolving emergency
+    function unpause() external;
 }

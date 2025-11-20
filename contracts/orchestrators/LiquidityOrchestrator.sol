@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "../interfaces/ILiquidityOrchestrator.sol";
 import "../interfaces/IOrionConfig.sol";
@@ -24,7 +25,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
  *      - Processing withdrawal requests from LPs;
  *      - Handling slippage and market execution differences from adapter price estimates via liquidity buffer.
  */
-contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, ILiquidityOrchestrator {
+contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiquidityOrchestrator {
     using Math for uint256;
     using SafeERC20 for IERC20;
 
@@ -99,7 +100,7 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, ILiquidityOrche
 
     /// @dev Restricts function to only admin from config
     modifier onlyAdmin() {
-        if (msg.sender != admin) revert ErrorsLib.UnauthorizedAccess();
+        if (msg.sender != admin) revert ErrorsLib.NotAuthorized();
         _;
     }
 
@@ -124,7 +125,6 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, ILiquidityOrche
         automationRegistry = automationRegistry_;
         currentPhase = LiquidityUpkeepPhase.Idle;
         minibatchSize = 1;
-        currentMinibatchIndex = 0;
         buyApprovalMultiplier = 2;
     }
 
@@ -298,7 +298,7 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, ILiquidityOrche
     }
 
     /// @notice Performs the upkeep
-    function performUpkeep(bytes calldata) external override onlyAuthorizedTrigger nonReentrant {
+    function performUpkeep(bytes calldata) external override onlyAuthorizedTrigger nonReentrant whenNotPaused {
         if (currentPhase == LiquidityUpkeepPhase.SellingLeg) {
             _processSellLeg();
         } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
@@ -433,8 +433,9 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, ILiquidityOrche
     ) internal {
         IOrionVault vaultContract = IOrionVault(vault);
 
-        uint256 pendingRedeem = vaultContract.pendingRedeem();
-        uint256 pendingDeposit = vaultContract.pendingDeposit();
+        uint256 maxFulfillBatchSize = config.maxFulfillBatchSize();
+        uint256 pendingRedeem = vaultContract.pendingRedeem(maxFulfillBatchSize);
+        uint256 pendingDeposit = vaultContract.pendingDeposit(maxFulfillBatchSize);
 
         if (pendingRedeem > 0) {
             vaultContract.fulfillRedeem(totalAssetsForRedeem);
@@ -443,5 +444,15 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, ILiquidityOrche
         if (pendingDeposit > 0) {
             vaultContract.fulfillDeposit(totalAssetsForDeposit);
         }
+    }
+
+    /// @inheritdoc ILiquidityOrchestrator
+    function pause() external onlyConfig {
+        _pause();
+    }
+
+    /// @inheritdoc ILiquidityOrchestrator
+    function unpause() external onlyConfig {
+        _unpause();
     }
 }

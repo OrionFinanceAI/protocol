@@ -37,6 +37,10 @@ library EventsLib {
     /// @param newCooldownDuration The new cooldown duration in seconds.
     event FeeChangeCooldownDurationUpdated(uint256 indexed newCooldownDuration);
 
+    /// @notice The maximum fulfill batch size has been updated.
+    /// @param maxFulfillBatchSize The new maximum fulfill batch size.
+    event MaxFulfillBatchSizeUpdated(uint256 indexed maxFulfillBatchSize);
+
     /// @notice A vault fee model change has been scheduled.
     /// @param vault The address of the vault.
     event VaultFeeChangeScheduled(address indexed vault);
@@ -45,6 +49,22 @@ library EventsLib {
     /// @param vFeeCoefficient The new volume fee coefficient.
     /// @param rsFeeCoefficient The new revenue share fee coefficient.
     event ProtocolFeeChangeScheduled(uint16 indexed vFeeCoefficient, uint16 indexed rsFeeCoefficient);
+
+    /// @notice The guardian address has been updated.
+    /// @param guardian The new guardian address.
+    event GuardianUpdated(address indexed guardian);
+
+    /// @notice The protocol has been paused.
+    /// @param pauser The address that triggered the pause.
+    event ProtocolPaused(address indexed pauser);
+
+    /// @notice The protocol has been unpaused.
+    /// @param unpauser The address that triggered the unpause.
+    event ProtocolUnpaused(address indexed unpauser);
+
+    /// @notice A vault owner has been removed from the whitelist.
+    /// @param vaultOwner The address of the vault owner that was removed.
+    event VaultOwnerRemoved(address indexed vaultOwner);
 
     // =======================
     // === Vault Lifecycle ===

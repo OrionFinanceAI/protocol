@@ -48,6 +48,11 @@
       "type": "error"
     },
     {
+      "inputs": [],
+      "name": "NotAuthorized",
+      "type": "error"
+    },
+    {
       "inputs": [
         {
           "internalType": "address",
@@ -56,11 +61,6 @@
         }
       ],
       "name": "SafeERC20FailedOperation",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "UnauthorizedAccess",
       "type": "error"
     },
     {

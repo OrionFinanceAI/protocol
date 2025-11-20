@@ -53,12 +53,38 @@
       "inputs": [
         {
           "indexed": true,
+          "internalType": "address",
+          "name": "guardian",
+          "type": "address"
+        }
+      ],
+      "name": "GuardianUpdated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
           "internalType": "uint16",
           "name": "epochCounter",
           "type": "uint16"
         }
       ],
       "name": "InternalStateProcessed",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "maxFulfillBatchSize",
+          "type": "uint256"
+        }
+      ],
+      "name": "MaxFulfillBatchSizeUpdated",
       "type": "event"
     },
     {
@@ -223,6 +249,32 @@
       "inputs": [
         {
           "indexed": true,
+          "internalType": "address",
+          "name": "pauser",
+          "type": "address"
+        }
+      ],
+      "name": "ProtocolPaused",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "unpauser",
+          "type": "address"
+        }
+      ],
+      "name": "ProtocolUnpaused",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
           "internalType": "uint16",
           "name": "riskFreeRate",
           "type": "uint16"
@@ -242,6 +294,19 @@
         }
       ],
       "name": "VaultFeeChangeScheduled",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "vaultOwner",
+          "type": "address"
+        }
+      ],
+      "name": "VaultOwnerRemoved",
       "type": "event"
     },
     {

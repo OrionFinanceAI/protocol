@@ -373,7 +373,7 @@ describe("TransparentVault - Curator Pipeline", function () {
 
       await expect(transparentVault.connect(other).submitIntent(intent)).to.be.revertedWithCustomError(
         transparentVault,
-        "UnauthorizedAccess",
+        "NotAuthorized",
       );
     });
 

@@ -16,12 +16,12 @@
     },
     {
       "inputs": [],
-      "name": "SystemNotIdle",
+      "name": "NotAuthorized",
       "type": "error"
     },
     {
       "inputs": [],
-      "name": "UnauthorizedAccess",
+      "name": "SystemNotIdle",
       "type": "error"
     },
     {
