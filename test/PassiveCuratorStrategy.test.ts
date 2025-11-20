@@ -416,8 +416,12 @@ describe("Passive Curator Strategy", function () {
       expect(await internalStatesOrchestrator.epochCounter()).to.equal(1); // Epoch incremented
 
       // Verify that orders were built based on the strategy's intent
-      const [_sellingTokens, _sellingAmounts, buyingTokens, _buyingAmounts] =
-        await internalStatesOrchestrator.getOrders();
+
+      let [_sellingTokens, _sellingAmounts, _sellingEstimatedUnderlyingAmounts] =
+        await internalStatesOrchestrator.getOrders(true);
+
+      let [buyingTokens, _buyingAmounts, _buyingEstimatedUnderlyingAmounts] =
+        await internalStatesOrchestrator.getOrders(false);
 
       // Should have buying orders for the assets selected by the strategy
       expect(buyingTokens.length).to.be.greaterThan(0);

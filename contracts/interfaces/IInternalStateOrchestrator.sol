@@ -62,24 +62,17 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     /// @param amount The amount to subtract from pending protocol fees
     function subtractPendingProtocolFees(uint256 amount) external;
 
-    /// @notice Get selling and buying orders
-    /// @return sellingTokens The tokens to sell
-    /// @return sellingAmounts The amounts to sell in shares
-    /// @return buyingTokens The tokens to buy
-    /// @return buyingAmounts The amounts to buy in underlying assets
-    /// @return sellingEstimatedUnderlyingAmounts The estimated underlying amounts to sell
-    /// @return buyingEstimatedUnderlyingAmounts The estimated underlying amounts to buy
-    function getOrders()
+    /// @notice Get orders for a specific leg
+    /// @param isSellLeg True if getting sell leg orders, false if getting buy leg orders
+    /// @return tokens The tokens for the specified leg
+    /// @return amounts The amounts for the specified leg in shares
+    /// @return estimatedUnderlyingAmounts The estimated underlying amounts for the specified leg
+    function getOrders(
+        bool isSellLeg
+    )
         external
         view
-        returns (
-            address[] memory sellingTokens,
-            uint256[] memory sellingAmounts,
-            address[] memory buyingTokens,
-            uint256[] memory buyingAmounts,
-            uint256[] memory sellingEstimatedUnderlyingAmounts,
-            uint256[] memory buyingEstimatedUnderlyingAmounts
-        );
+        returns (address[] memory tokens, uint256[] memory amounts, uint256[] memory estimatedUnderlyingAmounts);
 
     /// @notice Get price for a specific token
     /// @param token The token to get the price of

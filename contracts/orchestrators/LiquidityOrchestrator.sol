@@ -339,11 +339,8 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, ILiquidityOrche
         (
             address[] memory sellingTokens,
             uint256[] memory sellingAmounts,
-            address[] memory buyingTokens,
-            uint256[] memory buyingAmounts,
-            uint256[] memory sellingEstimatedUnderlyingAmounts,
-            uint256[] memory buyingEstimatedUnderlyingAmounts
-        ) = internalStatesOrchestrator.getOrders();
+            uint256[] memory sellingEstimatedUnderlyingAmounts
+        ) = internalStatesOrchestrator.getOrders(true);
 
         if (i1 > sellingTokens.length || i1 == sellingTokens.length) {
             i1 = uint16(sellingTokens.length);
@@ -366,13 +363,10 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, ILiquidityOrche
         ++currentMinibatchIndex;
 
         (
-            address[] memory sellingTokens,
-            uint256[] memory sellingAmounts,
             address[] memory buyingTokens,
             uint256[] memory buyingAmounts,
-            uint256[] memory sellingEstimatedUnderlyingAmounts,
             uint256[] memory buyingEstimatedUnderlyingAmounts
-        ) = internalStatesOrchestrator.getOrders();
+        ) = internalStatesOrchestrator.getOrders(false);
 
         if (i1 > buyingTokens.length || i1 == buyingTokens.length) {
             i1 = uint16(buyingTokens.length);

@@ -93,37 +93,28 @@
       "type": "function"
     },
     {
-      "inputs": [],
+      "inputs": [
+        {
+          "internalType": "bool",
+          "name": "isSellLeg",
+          "type": "bool"
+        }
+      ],
       "name": "getOrders",
       "outputs": [
         {
           "internalType": "address[]",
-          "name": "sellingTokens",
+          "name": "tokens",
           "type": "address[]"
         },
         {
           "internalType": "uint256[]",
-          "name": "sellingAmounts",
-          "type": "uint256[]"
-        },
-        {
-          "internalType": "address[]",
-          "name": "buyingTokens",
-          "type": "address[]"
-        },
-        {
-          "internalType": "uint256[]",
-          "name": "buyingAmounts",
+          "name": "amounts",
           "type": "uint256[]"
         },
         {
           "internalType": "uint256[]",
-          "name": "sellingEstimatedUnderlyingAmounts",
-          "type": "uint256[]"
-        },
-        {
-          "internalType": "uint256[]",
-          "name": "buyingEstimatedUnderlyingAmounts",
+          "name": "estimatedUnderlyingAmounts",
           "type": "uint256[]"
         }
       ],

@@ -1078,14 +1078,11 @@ describe("Orchestrator PerformUpkeep", function () {
       expect(await internalStatesOrchestrator.epochCounter()).to.equal(1); // Epoch incremented
 
       // Check that orders were built
-      let [
-        sellingTokens,
-        sellingAmounts,
-        buyingTokens,
-        buyingAmounts,
-        sellingEstimatedUnderlyingAmounts,
-        buyingEstimatedUnderlyingAmounts,
-      ] = await internalStatesOrchestrator.getOrders();
+      let [sellingTokens, sellingAmounts, sellingEstimatedUnderlyingAmounts] =
+        await internalStatesOrchestrator.getOrders(true);
+
+      let [buyingTokens, buyingAmounts, buyingEstimatedUnderlyingAmounts] =
+        await internalStatesOrchestrator.getOrders(false);
 
       // Check that all amounts are greater than 0
       for (const amount of sellingAmounts) {
@@ -1634,14 +1631,11 @@ describe("Orchestrator PerformUpkeep", function () {
       expect(await internalStatesOrchestrator.epochCounter()).to.equal(2); // Epoch incremented
 
       // Check that orders were built
-      [
-        sellingTokens,
-        sellingAmounts,
-        buyingTokens,
-        buyingAmounts,
-        sellingEstimatedUnderlyingAmounts,
-        buyingEstimatedUnderlyingAmounts,
-      ] = await internalStatesOrchestrator.getOrders();
+      [sellingTokens, sellingAmounts, sellingEstimatedUnderlyingAmounts] =
+        await internalStatesOrchestrator.getOrders(true);
+
+      [buyingTokens, buyingAmounts, buyingEstimatedUnderlyingAmounts] =
+        await internalStatesOrchestrator.getOrders(false);
 
       // Check that all amounts are greater than 0
       for (const amount of sellingAmounts) {

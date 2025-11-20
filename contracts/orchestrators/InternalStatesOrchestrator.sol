@@ -579,116 +579,73 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, IInternalS
     }
 
     /// @inheritdoc IInternalStateOrchestrator
-    function getOrders()
+    function getOrders(
+        bool isSellLeg
+    )
         external
         view
-        returns (
-            address[] memory sellingTokens,
-            uint256[] memory sellingAmounts,
-            address[] memory buyingTokens,
-            uint256[] memory buyingAmounts,
-            uint256[] memory sellingEstimatedUnderlyingAmounts,
-            uint256[] memory buyingEstimatedUnderlyingAmounts
-        )
+        returns (address[] memory tokens, uint256[] memory amounts, uint256[] memory estimatedUnderlyingAmounts)
     {
         if (currentPhase != InternalUpkeepPhase.Idle) revert ErrorsLib.SystemNotIdle();
 
         address[] memory allTokens = _currentEpoch.tokens;
-        (uint16 sellingCount, uint16 buyingCount) = _countOrders(allTokens);
+        uint16 count = _countOrders(allTokens, isSellLeg);
 
-        // Initialize arrays with correct sizes (only for non-zero values)
-        sellingTokens = new address[](sellingCount);
-        sellingAmounts = new uint256[](sellingCount);
-        buyingTokens = new address[](buyingCount);
-        buyingAmounts = new uint256[](buyingCount);
-        sellingEstimatedUnderlyingAmounts = new uint256[](sellingCount);
-        buyingEstimatedUnderlyingAmounts = new uint256[](buyingCount);
-
-        // Populate arrays with non-zero values
-        _populateOrders(
-            allTokens,
-            sellingTokens,
-            sellingAmounts,
-            sellingEstimatedUnderlyingAmounts,
-            buyingTokens,
-            buyingAmounts,
-            buyingEstimatedUnderlyingAmounts
-        );
+        tokens = new address[](count);
+        amounts = new uint256[](count);
+        estimatedUnderlyingAmounts = new uint256[](count);
+        _populateLegOrders(allTokens, tokens, amounts, estimatedUnderlyingAmounts, isSellLeg);
     }
 
     /// @notice Counts the number of non-zero selling and buying orders
     /// @param allTokens Array of all tokens to check
-    /// @return sellingCount Number of tokens with non-zero selling orders
-    /// @return buyingCount Number of tokens with non-zero buying orders
-    function _countOrders(address[] memory allTokens) private view returns (uint16 sellingCount, uint16 buyingCount) {
+    /// @param isSellLeg True if counting sell leg orders, false for buy leg orders
+    /// @return count Number of tokens with non-zero orders
+    function _countOrders(address[] memory allTokens, bool isSellLeg) private view returns (uint16 count) {
         uint16 allTokensLength = uint16(allTokens.length);
 
         for (uint16 i = 0; i < allTokensLength; ++i) {
             address token = allTokens[i];
-            if (_currentEpoch.sellingOrders[token] > 0) {
-                ++sellingCount;
+            if (isSellLeg && _currentEpoch.sellingOrders[token] > 0) {
+                ++count;
             }
-            if (_currentEpoch.buyingOrders[token] > 0) {
-                ++buyingCount;
+            if (!isSellLeg && _currentEpoch.buyingOrders[token] > 0) {
+                ++count;
             }
         }
     }
 
-    /// @notice Populates the order arrays with non-zero values
+    /// @notice Populates the order arrays for a specific leg
     /// @param allTokens Array of all tokens
-    /// @param sellingTokens Array to populate with selling tokens
-    /// @param sellingAmounts Array to populate with selling amounts
-    /// @param sellingEstimatedUnderlyingAmounts Array to populate with selling estimated amounts
-    /// @param buyingTokens Array to populate with buying tokens
-    /// @param buyingAmounts Array to populate with buying amounts
-    /// @param buyingEstimatedUnderlyingAmounts Array to populate with buying estimated amounts
-    function _populateOrders(
+    /// @param tokens Array to populate with tokens
+    /// @param amounts Array to populate with amounts
+    /// @param estimatedUnderlyingAmounts Array to populate with estimated underlying amounts
+    /// @param isSellLeg True if populating sell leg, false for buy leg
+    function _populateLegOrders(
         address[] memory allTokens,
-        address[] memory sellingTokens,
-        uint256[] memory sellingAmounts,
-        uint256[] memory sellingEstimatedUnderlyingAmounts,
-        address[] memory buyingTokens,
-        uint256[] memory buyingAmounts,
-        uint256[] memory buyingEstimatedUnderlyingAmounts
+        address[] memory tokens,
+        uint256[] memory amounts,
+        uint256[] memory estimatedUnderlyingAmounts,
+        bool isSellLeg
     ) private view {
         uint16 allTokensLength = uint16(allTokens.length);
-        uint16 sellingIndex = 0;
-        uint16 buyingIndex = 0;
+        uint16 index = 0;
 
         for (uint16 i = 0; i < allTokensLength; ++i) {
             address token = allTokens[i];
-            uint256 sellingAmount = _currentEpoch.sellingOrders[token];
-            uint256 buyingAmount = _currentEpoch.buyingOrders[token];
+            uint256 amount = isSellLeg ? _currentEpoch.sellingOrders[token] : _currentEpoch.buyingOrders[token];
 
-            if (sellingAmount > 0) {
-                sellingTokens[sellingIndex] = token;
-                sellingAmounts[sellingIndex] = sellingAmount;
+            if (amount > 0) {
+                tokens[index] = token;
+                amounts[index] = amount;
                 // Convert estimated amount from token decimals to underlying decimals
-                uint256 rawEstimatedAmount = sellingAmount.mulDiv(
-                    _currentEpoch.priceArray[token],
-                    priceAdapterPrecision
-                );
-                sellingEstimatedUnderlyingAmounts[sellingIndex] = UtilitiesLib.convertDecimals(
+                uint256 rawEstimatedAmount = amount.mulDiv(_currentEpoch.priceArray[token], priceAdapterPrecision);
+                estimatedUnderlyingAmounts[index] = UtilitiesLib.convertDecimals(
                     rawEstimatedAmount,
                     config.getTokenDecimals(token),
                     underlyingDecimals
                 );
-                ++sellingIndex;
-            }
-            if (buyingAmount > 0) {
-                buyingTokens[buyingIndex] = token;
-                buyingAmounts[buyingIndex] = buyingAmount;
-                // Convert estimated amount from token decimals to underlying decimals
-                uint256 rawEstimatedAmount = buyingAmount.mulDiv(
-                    _currentEpoch.priceArray[token],
-                    priceAdapterPrecision
-                );
-                buyingEstimatedUnderlyingAmounts[buyingIndex] = UtilitiesLib.convertDecimals(
-                    rawEstimatedAmount,
-                    config.getTokenDecimals(token),
-                    underlyingDecimals
-                );
-                ++buyingIndex;
+                ++index;
             }
         }
     }
