@@ -18,9 +18,7 @@ contract WhitelistAccessControl is IOrionAccessControl, Ownable2Step {
     /// @notice Emitted when an address is removed from the whitelist
     event AddressRemovedFromWhitelist(address indexed account);
 
-    constructor(address initialOwner_) Ownable(initialOwner_) {
-        if (initialOwner_ == address(0)) revert ErrorsLib.ZeroAddress();
-    }
+    constructor(address initialOwner_) Ownable(initialOwner_) {}
 
     /// @inheritdoc IOrionAccessControl
     function canRequestDeposit(address sender) external view override returns (bool) {

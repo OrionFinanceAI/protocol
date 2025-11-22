@@ -34,7 +34,6 @@ contract PriceAdapterRegistry is IPriceAdapterRegistry, Ownable2Step {
     /// @param initialOwner_ The address of the initial owner
     /// @param configAddress_ The address of the OrionConfig contract
     constructor(address initialOwner_, address configAddress_) Ownable(initialOwner_) {
-        if (initialOwner_ == address(0)) revert ErrorsLib.ZeroAddress();
         if (configAddress_ == address(0)) revert ErrorsLib.ZeroAddress();
 
         configAddress = configAddress_;
