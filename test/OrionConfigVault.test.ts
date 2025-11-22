@@ -131,7 +131,9 @@ beforeEach(async function () {
   await orionConfig.addWhitelistedCurator(curator.address);
 
   // Create a vault for testing
-  const tx = await transparentVaultFactory.connect(owner).createVault(curator.address, "Test Vault", "TV", 0, 0, 0);
+  const tx = await transparentVaultFactory
+    .connect(owner)
+    .createVault(curator.address, "Test Vault", "TV", 0, 0, 0, ethers.ZeroAddress);
   const receipt = await tx.wait();
   const event = receipt?.logs.find((log) => {
     try {

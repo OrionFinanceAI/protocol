@@ -170,7 +170,15 @@ describe("Redeem Before Deposit Order Verification", function () {
     await orionConfig.addWhitelistedCurator(curator.address);
 
     // Create vault
-    const tx = await transparentVaultFactory.createVault(curator.address, "Test Vault", "TVault", 0, 0, 0);
+    const tx = await transparentVaultFactory.createVault(
+      curator.address,
+      "Test Vault",
+      "TVault",
+      0,
+      0,
+      0,
+      ethers.ZeroAddress,
+    );
     const receipt = await tx.wait();
     const event = receipt?.logs.find((log) => {
       try {

@@ -311,7 +311,7 @@ describe("Orchestrator PerformUpkeep", function () {
 
     const absoluteVaultTx = await transparentVaultFactory
       .connect(owner)
-      .createVault(curator.address, "Absolute Fee Vault", "AFV", 0, 500, 50);
+      .createVault(curator.address, "Absolute Fee Vault", "AFV", 0, 500, 50, ethers.ZeroAddress);
     const absoluteVaultReceipt = await absoluteVaultTx.wait();
     const absoluteVaultEvent = absoluteVaultReceipt?.logs.find((log) => {
       try {
@@ -330,7 +330,7 @@ describe("Orchestrator PerformUpkeep", function () {
 
     const softHurdleVaultTx = await transparentVaultFactory
       .connect(owner)
-      .createVault(curator.address, "Soft Hurdle Vault", "SHV", 1, 1200, 80);
+      .createVault(curator.address, "Soft Hurdle Vault", "SHV", 1, 1200, 80, ethers.ZeroAddress);
     const softHurdleVaultReceipt = await softHurdleVaultTx.wait();
     const softHurdleVaultEvent = softHurdleVaultReceipt?.logs.find((log) => {
       try {
@@ -349,7 +349,7 @@ describe("Orchestrator PerformUpkeep", function () {
 
     const hardHurdleVaultTx = await transparentVaultFactory
       .connect(owner)
-      .createVault(curator.address, "Hard Hurdle Vault", "HHV", 2, 1500, 200);
+      .createVault(curator.address, "Hard Hurdle Vault", "HHV", 2, 1500, 200, ethers.ZeroAddress);
     const hardHurdleVaultReceipt = await hardHurdleVaultTx.wait();
     const hardHurdleVaultEvent = hardHurdleVaultReceipt?.logs.find((log) => {
       try {
@@ -368,7 +368,7 @@ describe("Orchestrator PerformUpkeep", function () {
 
     const highWaterMarkVaultTx = await transparentVaultFactory
       .connect(owner)
-      .createVault(curator.address, "High Water Mark Vault", "HWMV", 3, 800, 150);
+      .createVault(curator.address, "High Water Mark Vault", "HWMV", 3, 800, 150, ethers.ZeroAddress);
     const highWaterMarkVaultReceipt = await highWaterMarkVaultTx.wait();
     const highWaterMarkVaultEvent = highWaterMarkVaultReceipt?.logs.find((log) => {
       try {
@@ -387,7 +387,7 @@ describe("Orchestrator PerformUpkeep", function () {
 
     const hurdleHwmVaultTx = await transparentVaultFactory
       .connect(owner)
-      .createVault(curator.address, "Hurdle HWM Vault", "HHWMV", 4, 2000, 250);
+      .createVault(curator.address, "Hurdle HWM Vault", "HHWMV", 4, 2000, 250, ethers.ZeroAddress);
     const hurdleHwmVaultReceipt = await hurdleHwmVaultTx.wait();
     const hurdleHwmVaultEvent = hurdleHwmVaultReceipt?.logs.find((log) => {
       try {
@@ -409,7 +409,7 @@ describe("Orchestrator PerformUpkeep", function () {
     // Create passive vault with kbestTVL strategy (no curator intents)
     const passiveVaultTx = await transparentVaultFactory
       .connect(owner)
-      .createVault(owner.address, "Passive KBest TVL Vault", "PKTV", 0, 0, 0);
+      .createVault(owner.address, "Passive KBest TVL Vault", "PKTV", 0, 0, 0, ethers.ZeroAddress);
     const passiveVaultReceipt = await passiveVaultTx.wait();
     const passiveVaultEvent = passiveVaultReceipt?.logs.find((log) => {
       try {
@@ -732,7 +732,15 @@ describe("Orchestrator PerformUpkeep", function () {
 
       // Test factory function
       await expect(
-        transparentVaultFactory.createVault(curator.address, "Test Transparent Vault", "TTV", 0, 0, 0),
+        transparentVaultFactory.createVault(
+          curator.address,
+          "Test Transparent Vault",
+          "TTV",
+          0,
+          0,
+          0,
+          ethers.ZeroAddress,
+        ),
       ).to.be.revertedWithCustomError(transparentVaultFactory, "SystemNotIdle");
     });
   });

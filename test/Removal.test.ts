@@ -157,7 +157,7 @@ describe("Whitelist and Vault Removal Flows", function () {
 
     const testVaultTx = await transparentVaultFactory
       .connect(owner)
-      .createVault(curator.address, "Test Vault", "TV", 0, 500, 50);
+      .createVault(curator.address, "Test Vault", "TV", 0, 500, 50, ethers.ZeroAddress);
     const testVaultReceipt = await testVaultTx.wait();
     const testVaultEvent = testVaultReceipt?.logs.find((log) => {
       try {
