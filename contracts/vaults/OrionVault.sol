@@ -10,7 +10,7 @@ import "../interfaces/IOrionConfig.sol";
 import "../interfaces/IOrionVault.sol";
 import "../interfaces/IInternalStateOrchestrator.sol";
 import "../interfaces/ILiquidityOrchestrator.sol";
-import "../interfaces/IAccessControl.sol";
+import "../interfaces/IOrionAccessControl.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -337,7 +337,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     /// @inheritdoc IOrionVault
     function requestDeposit(uint256 assets) external nonReentrant {
         if (depositAccessControl != address(0)) {
-            if (!IAccessControl(depositAccessControl).canRequestDeposit(msg.sender))
+            if (!IOrionAccessControl(depositAccessControl).canRequestDeposit(msg.sender))
                 revert ErrorsLib.DepositNotAllowed();
         }
 

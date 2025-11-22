@@ -2,12 +2,12 @@
 pragma solidity 0.8.28;
 
 /**
- * @title IAccessControl
+ * @title IOrionAccessControl
  * @notice Interface for deposit access control in Orion vaults
  * @author Orion Finance
  * @dev Used to implement KYC, whitelisting, or other compliance requirements
  */
-interface IAccessControl {
+interface IOrionAccessControl {
     /**
      * @notice Check if an address is allowed to request deposits to the vault
      * @param sender Address attempting to deposit

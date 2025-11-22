@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import { IAccessControl } from "../interfaces/IAccessControl.sol";
+import { IOrionAccessControl } from "../interfaces/IOrionAccessControl.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import "@openzeppelin/contracts/access/Ownable2Step.sol";
 /**
  * @title WhitelistAccessControl
- * @notice Implementation of IAccessControl with whitelist-based access
+ * @notice Implementation of IOrionAccessControl with whitelist-based access
  */
-contract WhitelistAccessControl is IAccessControl, Ownable2Step {
+contract WhitelistAccessControl is IOrionAccessControl, Ownable2Step {
     /// @notice Mapping of addresses allowed to deposit
     mapping(address => bool) public whitelist;
 
@@ -22,7 +22,7 @@ contract WhitelistAccessControl is IAccessControl, Ownable2Step {
         if (initialOwner_ == address(0)) revert ErrorsLib.ZeroAddress();
     }
 
-    /// @inheritdoc IAccessControl
+    /// @inheritdoc IOrionAccessControl
     function canRequestDeposit(address sender) external view override returns (bool) {
         return whitelist[sender];
     }

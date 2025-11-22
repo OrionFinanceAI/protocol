@@ -1,7 +1,7 @@
 {
   "_format": "hh-sol-artifact-1",
-  "contractName": "IAccessControl",
-  "sourceName": "contracts/interfaces/IAccessControl.sol",
+  "contractName": "IOrionAccessControl",
+  "sourceName": "contracts/interfaces/IOrionAccessControl.sol",
   "abi": [
     {
       "inputs": [
