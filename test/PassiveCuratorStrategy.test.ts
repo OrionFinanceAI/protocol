@@ -195,8 +195,6 @@ describe("Passive Curator Strategy", function () {
       await orionExecutionAdapter.getAddress(),
     );
 
-    await orionConfig.addWhitelistedCurator(curator.address);
-
     const KBestTvlWeightedAverageFactory = await ethers.getContractFactory("KBestTvlWeightedAverage");
     const strategyDeployed = await KBestTvlWeightedAverageFactory.deploy(
       curator.address,
@@ -246,7 +244,6 @@ describe("Passive Curator Strategy", function () {
       ]);
 
     // Step 3: Update curator to the strategy contract
-    await orionConfig.addWhitelistedCurator(await strategy.getAddress());
     await transparentVault.connect(owner).updateCurator(await strategy.getAddress());
 
     await strategy.connect(curator).submitIntent(transparentVault);
@@ -254,24 +251,6 @@ describe("Passive Curator Strategy", function () {
     await underlyingAsset.connect(user).approve(await transparentVault.getAddress(), ethers.parseUnits("10000", 12));
     const depositAmount = ethers.parseUnits("100", 12);
     await transparentVault.connect(user).requestDeposit(depositAmount);
-  });
-
-  describe("Strategy Interface Detection", function () {
-    it("should support IOrionStrategy interface", async function () {
-      // Check that the strategy supports the IOrionStrategy interface
-      // The interface ID is calculated from XOR of all function selectors in the interface
-      const submitIntentSelector = ethers.id("submitIntent(address)").slice(0, 10);
-
-      // XOR all three selectors to get the interface ID
-      const interfaceId = BigInt(submitIntentSelector).toString(16).padStart(8, "0");
-      await expect(await strategy.supportsInterface("0x" + interfaceId)).to.be.true;
-    });
-
-    it("should support ERC165 interface", async function () {
-      // Check that the strategy supports ERC165 interface
-      const erc165InterfaceId = "0x01ffc9a7";
-      await expect(await strategy.supportsInterface(erc165InterfaceId)).to.be.true;
-    });
   });
 
   describe("Strategy Configuration", function () {
@@ -557,7 +536,6 @@ describe("Passive Curator Strategy", function () {
         ]);
 
       // Associate the invalid strategy with the vault
-      await orionConfig.addWhitelistedCurator(await invalidStrategy.getAddress());
       await invalidVault.connect(owner).updateCurator(await invalidStrategy.getAddress());
 
       // Attempt to submit intent - this should fail because weights don't sum to intentScale

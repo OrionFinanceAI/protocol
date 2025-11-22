@@ -157,10 +157,11 @@ interface IOrionVault is IERC4626 {
     // --------- VAULT OWNER AND CURATOR FUNCTIONS ---------
 
     /// @notice Update the vault curator address
-    /// @param newCurator The new curator address. Must be non-zero.
+    /// @param newCurator The new curator address.
     /// @dev The curator is responsible for setting allocation strategy for the vault's assets.
     ///      This function enables vault owners to change allocation strategies by updating the curator.
-    ///      This is particularly important when curators are smart contracts, not just addresses.
+    ///      Curator can be a smart contract or an address. It is the FULL responsibility of the vault owner
+    ///      to ensure the curator is capable of performing its duties.
     function updateCurator(address newCurator) external;
 
     /// @notice Update the vault whitelist
@@ -184,6 +185,8 @@ interface IOrionVault is IERC4626 {
     /// @notice Set deposit access control contract
     /// @param newDepositAccessControl Address of the new access control contract (address(0) = permissionless)
     /// @dev Only callable by vault owner
+    ///      It is the FULL responsibility of the vault owner
+    ///      to ensure the deposit access control is capable of performing its duties.
     function setDepositAccessControl(address newDepositAccessControl) external;
 
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------

@@ -59,8 +59,6 @@ describe("Minimum Amount DOS Prevention", function () {
     const priceAdapterRegistry = await PriceAdapterRegistryFactory.deploy(owner.address, await config.getAddress());
     await config.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
 
-    await config.addWhitelistedCurator(curator.address);
-
     // Create a vault
     const vaultTx = await vaultFactory.connect(owner).createVault(
       curator.address,

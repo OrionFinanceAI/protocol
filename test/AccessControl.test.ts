@@ -76,9 +76,6 @@ describe("Access Control", function () {
     await orionConfig.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
     await orionConfig.setVaultFactory(await factory.getAddress());
 
-    // Whitelist curator (owner is already whitelisted in constructor)
-    await orionConfig.addWhitelistedCurator(curator.address);
-
     // Deploy WhitelistAccessControl
     const WhitelistAccessControlFactory = await ethers.getContractFactory("WhitelistAccessControl");
     accessControl = (await WhitelistAccessControlFactory.deploy(owner.address)) as unknown as WhitelistAccessControl;
