@@ -209,7 +209,7 @@ describe("Passive Curator Strategy", function () {
     // Step 1: Create a transparent vault with an address (not contract) as curator
     const tx = await transparentVaultFactory
       .connect(owner)
-      .createVault(curator.address, "Test Strategy Vault", "TSV", 0, 0, 0);
+      .createVault(curator.address, "Test Strategy Vault", "TSV", 0, 0, 0, ethers.ZeroAddress);
     const receipt = await tx.wait();
 
     // Find the vault creation event
@@ -520,7 +520,7 @@ describe("Passive Curator Strategy", function () {
       // Create a new vault for this test
       const tx = await transparentVaultFactory
         .connect(owner)
-        .createVault(curator.address, "Invalid Strategy Vault", "ISV", 0, 0, 0);
+        .createVault(curator.address, "Invalid Strategy Vault", "ISV", 0, 0, 0, ethers.ZeroAddress);
       const receipt = await tx.wait();
 
       // Find the vault creation event

@@ -10,6 +10,7 @@ import "../interfaces/IOrionConfig.sol";
 import "../interfaces/IOrionVault.sol";
 import "../interfaces/IInternalStateOrchestrator.sol";
 import "../interfaces/ILiquidityOrchestrator.sol";
+import "../interfaces/IOrionAccessControl.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -53,9 +54,8 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     IInternalStateOrchestrator public internalStatesOrchestrator;
     /// @notice Liquidity orchestrator
     ILiquidityOrchestrator public liquidityOrchestrator;
-
-    /// @notice Decimals for curator intent
-    uint8 public curatorIntentDecimals;
+    /// @notice Deposit access control contract (address(0) = permissionless)
+    address public depositAccessControl;
 
     /// @notice Vault-specific whitelist of assets for intent validation
     /// @dev This is a subset of the protocol whitelist for higher auditability
@@ -163,6 +163,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     /// @param feeType_ The fee type
     /// @param performanceFee_ The performance fee
     /// @param managementFee_ The management fee
+    /// @param depositAccessControl_ The address of the deposit access control contract (address(0) = permissionless)
     constructor(
         address vaultOwner_,
         address curator_,
@@ -171,7 +172,8 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         string memory symbol_,
         uint8 feeType_,
         uint16 performanceFee_,
-        uint16 managementFee_
+        uint16 managementFee_,
+        address depositAccessControl_
     ) ERC20(name_, symbol_) ERC4626(config_.underlyingAsset()) {
         if (curator_ == address(0)) revert ErrorsLib.InvalidAddress();
         if (address(config_) == address(0)) revert ErrorsLib.InvalidAddress();
@@ -181,7 +183,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         config = config_;
         internalStatesOrchestrator = IInternalStateOrchestrator(config_.internalStatesOrchestrator());
         liquidityOrchestrator = ILiquidityOrchestrator(config_.liquidityOrchestrator());
-        curatorIntentDecimals = config_.curatorIntentDecimals();
+        depositAccessControl = depositAccessControl_;
 
         uint8 underlyingDecimals = IERC20Metadata(address(config_.underlyingAsset())).decimals();
         if (underlyingDecimals > SHARE_DECIMALS) revert ErrorsLib.InvalidUnderlyingDecimals();
@@ -334,6 +336,11 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
     /// @inheritdoc IOrionVault
     function requestDeposit(uint256 assets) external nonReentrant {
+        if (depositAccessControl != address(0)) {
+            if (!IOrionAccessControl(depositAccessControl).canRequestDeposit(msg.sender))
+                revert ErrorsLib.DepositNotAllowed();
+        }
+
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         if (isDecommissioning || config.isDecommissionedVault(address(this))) revert ErrorsLib.VaultDecommissioned();
         if (assets == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
@@ -568,6 +575,13 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
         pendingCuratorFees -= amount;
         liquidityOrchestrator.transferCuratorFees(amount);
+    }
+
+    /// @inheritdoc IOrionVault
+    function setDepositAccessControl(address newDepositAccessControl) external onlyVaultOwner {
+        // No extra checks, vault owner has right to fully stop deposits
+        depositAccessControl = newDepositAccessControl;
+        emit DepositAccessControlUpdated(newDepositAccessControl);
     }
 
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------

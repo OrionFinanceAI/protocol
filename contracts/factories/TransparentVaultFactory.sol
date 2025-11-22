@@ -31,6 +31,7 @@ contract TransparentVaultFactory {
     /// @param feeType The fee type
     /// @param performanceFee The performance fee
     /// @param managementFee The management fee
+    /// @param depositAccessControl The address of the deposit access control contract (address(0) = permissionless)
     /// @return vault The address of the new transparent vault
     function createVault(
         address curator,
@@ -38,7 +39,8 @@ contract TransparentVaultFactory {
         string calldata symbol,
         uint8 feeType,
         uint16 performanceFee,
-        uint16 managementFee
+        uint16 managementFee,
+        address depositAccessControl
     ) external returns (address vault) {
         address vaultOwner = msg.sender;
 
@@ -54,7 +56,8 @@ contract TransparentVaultFactory {
             symbol,
             feeType,
             performanceFee,
-            managementFee
+            managementFee,
+            depositAccessControl
         );
         vault = address(transparentVault);
 

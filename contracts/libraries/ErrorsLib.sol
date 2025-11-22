@@ -85,4 +85,7 @@ library ErrorsLib {
     /// @param amount The amount that was provided.
     /// @param minimum The minimum amount required.
     error BelowMinimumRedeem(uint256 amount, uint256 minimum);
+
+    /// @notice Deposit not allowed due to access control restrictions.
+    error DepositNotAllowed();
 }

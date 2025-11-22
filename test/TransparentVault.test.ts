@@ -134,7 +134,9 @@ beforeEach(async function () {
 describe("TransparentVault - Curator Pipeline", function () {
   describe("Vault Creation", function () {
     it("Should create a transparent vault with correct parameters", async function () {
-      const tx = await transparentVaultFactory.connect(owner).createVault(curator.address, "Test Vault", "TV", 0, 0, 0);
+      const tx = await transparentVaultFactory
+        .connect(owner)
+        .createVault(curator.address, "Test Vault", "TV", 0, 0, 0, ethers.ZeroAddress);
       const receipt = await tx.wait();
 
       // Find the vault creation event
@@ -174,6 +176,7 @@ describe("TransparentVault - Curator Pipeline", function () {
         0, // feeType
         0, // performanceFee
         100, // managementFee (1% - valid)
+        ethers.ZeroAddress, // depositAccessControl
       );
       const receipt = await tx.wait();
 
@@ -214,6 +217,7 @@ describe("TransparentVault - Curator Pipeline", function () {
         0, // feeType
         1000, // performanceFee (10% - valid)
         100, // managementFee (1% - valid)
+        ethers.ZeroAddress, // depositAccessControl
       );
       const receipt = await tx.wait();
 
@@ -249,7 +253,9 @@ describe("TransparentVault - Curator Pipeline", function () {
   describe("Curator Operations", function () {
     beforeEach(async function () {
       // Create a vault first
-      const tx = await transparentVaultFactory.connect(owner).createVault(curator.address, "Test Vault", "TV", 0, 0, 0);
+      const tx = await transparentVaultFactory
+        .connect(owner)
+        .createVault(curator.address, "Test Vault", "TV", 0, 0, 0, ethers.ZeroAddress);
       const receipt = await tx.wait();
       const event = receipt?.logs.find((log) => {
         try {
@@ -430,7 +436,7 @@ describe("TransparentVault - Curator Pipeline", function () {
       // 1. Create vault
       const tx = await transparentVaultFactory
         .connect(owner)
-        .createVault(curator.address, "Integration Test Vault", "ITV", 0, 0, 0);
+        .createVault(curator.address, "Integration Test Vault", "ITV", 0, 0, 0, ethers.ZeroAddress);
       const receipt = await tx.wait();
       const event = receipt?.logs.find((log) => {
         try {

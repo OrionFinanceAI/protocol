@@ -117,6 +117,7 @@ describe("Vault Owner Removal - Automatic Decommissioning", function () {
       0, // Absolute fee type
       100, // 1% performance fee
       10, // 0.1% management fee
+      ethers.ZeroAddress, // depositAccessControl
     );
     const receipt = await vaultTx.wait();
     const vaultCreatedEvent = receipt?.logs.find((log) => {

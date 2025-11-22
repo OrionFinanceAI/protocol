@@ -83,6 +83,10 @@ interface IOrionVault is IERC4626 {
     /// @param pendingCuratorFees The total pending curator fees in underlying asset units.
     event CuratorFeesAccrued(uint256 indexed epoch, uint256 indexed feeAmount, uint256 indexed pendingCuratorFees);
 
+    /// @notice The deposit access control contract has been updated.
+    /// @param newDepositAccessControl The new deposit access control contract address (address(0) = permissionless).
+    event DepositAccessControlUpdated(address indexed newDepositAccessControl);
+
     // --------- GETTERS ---------
 
     /// @notice Orion config getter
@@ -176,6 +180,11 @@ interface IOrionVault is IERC4626 {
     /// @notice Claim accrued curator fees
     /// @param amount The amount of curator fees to claim
     function claimCuratorFees(uint256 amount) external;
+
+    /// @notice Set deposit access control contract
+    /// @param newDepositAccessControl Address of the new access control contract (address(0) = permissionless)
+    /// @dev Only callable by vault owner
+    function setDepositAccessControl(address newDepositAccessControl) external;
 
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
 

@@ -39,6 +39,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     /// @param feeType The fee type
     /// @param performanceFee The performance fee
     /// @param managementFee The management fee
+    /// @param depositAccessControl The address of the deposit access control contract (address(0) = permissionless)
     constructor(
         address vaultOwner,
         address curator,
@@ -47,8 +48,21 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
         string memory symbol,
         uint8 feeType,
         uint16 performanceFee,
-        uint16 managementFee
-    ) OrionVault(vaultOwner, curator, configAddress, name, symbol, feeType, performanceFee, managementFee) {
+        uint16 managementFee,
+        address depositAccessControl
+    )
+        OrionVault(
+            vaultOwner,
+            curator,
+            configAddress,
+            name,
+            symbol,
+            feeType,
+            performanceFee,
+            managementFee,
+            depositAccessControl
+        )
+    {
         // slither-disable-next-line unused-return
         _portfolioIntent.set(address(config.underlyingAsset()), uint32(10 ** config.curatorIntentDecimals()));
     }
@@ -78,7 +92,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
         // Validate that all assets in the intent are whitelisted for this vault
         _validateIntentAssets(assets);
         // Validate that the total weight is 100%
-        if (totalWeight != 10 ** curatorIntentDecimals) revert ErrorsLib.InvalidTotalWeight();
+        if (totalWeight != 10 ** config.curatorIntentDecimals()) revert ErrorsLib.InvalidTotalWeight();
 
         emit EventsLib.OrderSubmitted(msg.sender);
     }

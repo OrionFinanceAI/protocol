@@ -145,6 +145,19 @@
         {
           "indexed": true,
           "internalType": "address",
+          "name": "newDepositAccessControl",
+          "type": "address"
+        }
+      ],
+      "name": "DepositAccessControlUpdated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
           "name": "sender",
           "type": "address"
         },
@@ -1011,6 +1024,19 @@
         }
       ],
       "name": "requestRedeem",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "newDepositAccessControl",
+          "type": "address"
+        }
+      ],
+      "name": "setDepositAccessControl",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

@@ -68,6 +68,7 @@ describe("OrionVault Exchange Rate Tests", function () {
       0,
       0,
       0,
+      ethers.ZeroAddress, // depositAccessControl
     );
     await vault.waitForDeployment();
 

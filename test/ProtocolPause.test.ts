@@ -197,9 +197,12 @@ describe("Protocol Pause Functionality", function () {
       0, // feeType: ABSOLUTE
       500, // performanceFee: 5%
       100, // managementFee: 1%
+      ethers.ZeroAddress, // depositAccessControl
     );
 
-    await vaultFactory.connect(admin).createVault(curator.address, "Orion Test Vault", "OTV", 0, 500, 100);
+    await vaultFactory
+      .connect(admin)
+      .createVault(curator.address, "Orion Test Vault", "OTV", 0, 500, 100, ethers.ZeroAddress);
 
     transparentVault = (await ethers.getContractAt(
       "OrionTransparentVault",
