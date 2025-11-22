@@ -52,6 +52,11 @@
       "type": "error"
     },
     {
+      "inputs": [],
+      "name": "DepositNotAllowed",
+      "type": "error"
+    },
+    {
       "inputs": [
         {
           "internalType": "address",
@@ -406,6 +411,19 @@
         }
       ],
       "name": "Deposit",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "newDepositAccessControl",
+          "type": "address"
+        }
+      ],
+      "name": "DepositAccessControlUpdated",
       "type": "event"
     },
     {
@@ -1000,6 +1018,19 @@
     },
     {
       "inputs": [],
+      "name": "depositAccessControl",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
       "name": "feeModel",
       "outputs": [
         {
@@ -1415,6 +1446,19 @@
         }
       ],
       "name": "requestRedeem",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "newDepositAccessControl",
+          "type": "address"
+        }
+      ],
+      "name": "setDepositAccessControl",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

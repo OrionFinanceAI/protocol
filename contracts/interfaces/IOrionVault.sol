@@ -83,6 +83,10 @@ interface IOrionVault is IERC4626 {
     /// @param pendingCuratorFees The total pending curator fees in underlying asset units.
     event CuratorFeesAccrued(uint256 indexed epoch, uint256 indexed feeAmount, uint256 indexed pendingCuratorFees);
 
+    /// @notice The deposit access control contract has been updated.
+    /// @param newDepositAccessControl The new deposit access control contract address (address(0) = permissionless).
+    event DepositAccessControlUpdated(address indexed newDepositAccessControl);
+
     // --------- GETTERS ---------
 
     /// @notice Orion config getter

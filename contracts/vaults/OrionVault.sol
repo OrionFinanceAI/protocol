@@ -10,6 +10,7 @@ import "../interfaces/IOrionConfig.sol";
 import "../interfaces/IOrionVault.sol";
 import "../interfaces/IInternalStateOrchestrator.sol";
 import "../interfaces/ILiquidityOrchestrator.sol";
+import "../interfaces/IAccessControl.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -53,6 +54,8 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     IInternalStateOrchestrator public internalStatesOrchestrator;
     /// @notice Liquidity orchestrator
     ILiquidityOrchestrator public liquidityOrchestrator;
+    /// @notice Deposit access control contract (address(0) = permissionless)
+    address public depositAccessControl;
 
     /// @notice Decimals for curator intent
     uint8 public curatorIntentDecimals;
@@ -163,6 +166,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     /// @param feeType_ The fee type
     /// @param performanceFee_ The performance fee
     /// @param managementFee_ The management fee
+    /// @param depositAccessControl_ The address of the deposit access control contract (address(0) = permissionless)
     constructor(
         address vaultOwner_,
         address curator_,
@@ -171,7 +175,8 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         string memory symbol_,
         uint8 feeType_,
         uint16 performanceFee_,
-        uint16 managementFee_
+        uint16 managementFee_,
+        address depositAccessControl_
     ) ERC20(name_, symbol_) ERC4626(config_.underlyingAsset()) {
         if (curator_ == address(0)) revert ErrorsLib.InvalidAddress();
         if (address(config_) == address(0)) revert ErrorsLib.InvalidAddress();
@@ -182,6 +187,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         internalStatesOrchestrator = IInternalStateOrchestrator(config_.internalStatesOrchestrator());
         liquidityOrchestrator = ILiquidityOrchestrator(config_.liquidityOrchestrator());
         curatorIntentDecimals = config_.curatorIntentDecimals();
+        depositAccessControl = depositAccessControl_;
 
         uint8 underlyingDecimals = IERC20Metadata(address(config_.underlyingAsset())).decimals();
         if (underlyingDecimals > SHARE_DECIMALS) revert ErrorsLib.InvalidUnderlyingDecimals();
@@ -212,6 +218,29 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
             bool inserted = _vaultWhitelistedAssets.add(protocolAssets[i]);
             if (!inserted) revert ErrorsLib.AlreadyRegistered();
         }
+    }
+
+    /// @notice Check if a sender is allowed to deposit based on access control
+    /// @param sender Address attempting to deposit
+    /// @dev address(0) for depositAccessControl means permissionless (no restrictions)
+    /// @dev CRITICAL: Access control contracts MUST NOT revert - they should return false instead
+    function _checkDepositAccess(address sender) internal view {
+        if (depositAccessControl == address(0)) {
+            // Permissionless mode - all deposits allowed
+            return;
+        }
+
+        // Query access control contract
+        bool allowed = IAccessControl(depositAccessControl).canRequestDeposit(sender);
+        if (!allowed) revert ErrorsLib.DepositNotAllowed();
+    }
+
+    /// @notice Set deposit access control contract
+    /// @param newDepositAccessControl Address of the new access control contract (address(0) = permissionless)
+    /// @dev Only callable by vault owner
+    function setDepositAccessControl(address newDepositAccessControl) external onlyVaultOwner {
+        depositAccessControl = newDepositAccessControl;
+        emit DepositAccessControlUpdated(newDepositAccessControl);
     }
 
     /// @inheritdoc IERC4626
@@ -334,6 +363,9 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
     /// @inheritdoc IOrionVault
     function requestDeposit(uint256 assets) external nonReentrant {
+        // Check access control first
+        _checkDepositAccess(msg.sender);
+
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         if (isDecommissioning || config.isDecommissionedVault(address(this))) revert ErrorsLib.VaultDecommissioned();
         if (assets == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());

@@ -145,6 +145,19 @@
         {
           "indexed": true,
           "internalType": "address",
+          "name": "newDepositAccessControl",
+          "type": "address"
+        }
+      ],
+      "name": "DepositAccessControlUpdated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
           "name": "sender",
           "type": "address"
         },
