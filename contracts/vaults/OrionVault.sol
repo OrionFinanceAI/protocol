@@ -625,12 +625,12 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     }
 
     /// @inheritdoc IOrionVault
-    function accrueCuratorFees(uint256 epoch, uint256 feeAmount) external onlyInternalStatesOrchestrator {
+    function accrueCuratorFees(uint256 feeAmount) external onlyInternalStatesOrchestrator {
         if (feeAmount == 0) return;
 
         pendingCuratorFees += feeAmount;
 
-        emit CuratorFeesAccrued(epoch, feeAmount, pendingCuratorFees);
+        emit CuratorFeesAccrued(feeAmount, pendingCuratorFees);
     }
 
     /// @inheritdoc IOrionVault
@@ -641,7 +641,6 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         }
 
         uint256 batchSize = Math.min(length, config.maxFulfillBatchSize());
-        uint16 currentEpoch = internalStatesOrchestrator.epochCounter();
 
         // Capture totalSupply snapshot to ensure consistent pricing for all users in this batch
         uint256 snapshotTotalSupply = totalSupply();
@@ -664,7 +663,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
             _mint(user, shares);
             processedAmount += amount;
 
-            emit Deposit(address(this), user, currentEpoch, amount, shares);
+            emit Deposit(user, user, amount, shares);
         }
     }
 
@@ -676,7 +675,6 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         }
 
         uint256 batchSize = Math.min(length, config.maxFulfillBatchSize());
-        uint16 currentEpoch = internalStatesOrchestrator.epochCounter();
 
         // Capture totalSupply snapshot to ensure consistent pricing for all users in this batch
         uint256 snapshotTotalSupply = totalSupply();
@@ -702,7 +700,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
             // Transfer underlying assets from liquidity orchestrator to the user
             liquidityOrchestrator.transferRedemptionFunds(user, underlyingAmount);
 
-            emit Redeem(address(this), user, currentEpoch, underlyingAmount, shares);
+            emit Redeem(address(this), user, underlyingAmount, shares);
         }
     }
 }

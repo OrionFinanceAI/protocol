@@ -392,7 +392,6 @@ describe("Passive Curator Strategy", function () {
       [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Back to Idle
-      expect(await internalStatesOrchestrator.epochCounter()).to.equal(1); // Epoch incremented
 
       // Verify that orders were built based on the strategy's intent
 

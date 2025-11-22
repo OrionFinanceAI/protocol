@@ -54,6 +54,9 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
     /*                               UPKEEP STATE                                 */
     /* -------------------------------------------------------------------------- */
 
+    /// @notice Counter for tracking processing cycles
+    uint16 public epochCounter;
+    
     /// @notice Minibatch size for fulfill deposit and redeem processing
     uint8 public minibatchSize;
 
@@ -233,7 +236,9 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
 
     /// @inheritdoc ILiquidityOrchestrator
     function advanceIdlePhase() external onlyInternalStatesOrchestrator {
-        currentPhase = LiquidityUpkeepPhase.SellingLeg;
+        if (currentPhase == LiquidityUpkeepPhase.Idle) {
+            currentPhase = LiquidityUpkeepPhase.SellingLeg;
+        }
     }
 
     /* -------------------------------------------------------------------------- */

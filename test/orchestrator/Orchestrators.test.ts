@@ -1005,7 +1005,6 @@ describe("Orchestrators", function () {
       [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Back to Idle
-      expect(await internalStatesOrchestrator.epochCounter()).to.equal(1); // Epoch incremented
 
       // Check that orders were built
       let [sellingTokens, sellingAmounts, sellingEstimatedUnderlyingAmounts] =
@@ -1496,7 +1495,6 @@ describe("Orchestrators", function () {
       [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Back to Idle
-      expect(await internalStatesOrchestrator.epochCounter()).to.equal(2); // Epoch incremented
 
       // Check that orders were built
       [sellingTokens, sellingAmounts, sellingEstimatedUnderlyingAmounts] =
@@ -1976,7 +1974,6 @@ describe("Orchestrators", function () {
       [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Back to Idle
-      expect(await internalStatesOrchestrator.epochCounter()).to.equal(1); // Epoch incremented
 
       // Trigger a price mismatch between measured and execution in a way that benefits the vaults, leading to buffer amount increase.
       const lossAmount1 = ethers.parseUnits("500", underlyingDecimals);
@@ -2198,7 +2195,6 @@ describe("Orchestrators", function () {
       [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(0);
-      expect(await internalStatesOrchestrator.epochCounter()).to.equal(1);
 
       const initialBufferAmount = await internalStatesOrchestrator.bufferAmount();
 
@@ -2269,7 +2265,6 @@ describe("Orchestrators", function () {
       [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(0);
-      expect(await internalStatesOrchestrator.epochCounter()).to.equal(2);
 
       const depositAmount = ethers.parseUnits("1000", underlyingDecimals);
       const bufferAmountBeforeDeposit = await internalStatesOrchestrator.bufferAmount();

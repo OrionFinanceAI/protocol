@@ -86,10 +86,6 @@ library EventsLib {
     /// @param newAutomationRegistry The address of the new automation registry.
     event AutomationRegistryUpdated(address indexed newAutomationRegistry);
 
-    /// @notice An internal state has been processed.
-    /// @param epochCounter The current epoch counter after processing.
-    event InternalStateProcessed(uint16 indexed epochCounter);
-
     // ================================
     // === Liquidity Orchestrator ===
     // ================================
@@ -106,6 +102,10 @@ library EventsLib {
     /// @param asset The address of the asset.
     /// @param adapter The address of the execution adapter.
     event ExecutionAdapterSet(address indexed asset, address indexed adapter);
+
+    /// @notice An internal state has been processed.
+    /// @param epochCounter The current epoch counter.
+    event EpochProcessed(uint16 indexed epochCounter);
 
     /// @notice Enumeration of available vault types.
     enum VaultType {

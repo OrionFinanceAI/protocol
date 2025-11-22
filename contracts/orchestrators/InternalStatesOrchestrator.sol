@@ -77,13 +77,6 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
     /// @notice Maximum epoch duration (2 weeks = 14 days)
     uint32 public constant MAX_EPOCH_DURATION = 14 days;
 
-    /// @notice Action constants for checkUpkeep and performUpkeep
-    bytes4 private constant ACTION_START = bytes4(keccak256("start()"));
-    bytes4 private constant ACTION_PREPROCESS_T_VAULTS = bytes4(keccak256("preprocessTV(uint8)"));
-    bytes4 private constant ACTION_BUFFER = bytes4(keccak256("buffer()"));
-    bytes4 private constant ACTION_POSTPROCESS_T_VAULTS = bytes4(keccak256("postprocessTV(uint8)"));
-    bytes4 private constant ACTION_BUILD_ORDERS = bytes4(keccak256("buildOrders()"));
-
     /* -------------------------------------------------------------------------- */
     /*                                 EPOCH STATE                                */
     /* -------------------------------------------------------------------------- */
@@ -91,20 +84,14 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
     struct EpochState {
         /// @notice Price array - token address to estimated price [shares/assets]
         mapping(address => uint256) priceArray;
-        /// @notice Initial batch portfolio - token address to estimated value [shares]
-        mapping(address => uint256) initialBatchPortfolio;
         /// @notice Total assets - Orion vault address to estimated value [assets]
         mapping(address => uint256) vaultsTotalAssets;
-        /// @notice Final batch portfolio - token address to estimated value [shares]
-        mapping(address => uint256) finalBatchPortfolio;
         /// @notice Total assets for fulfill redeem - vault address to total assets for fulfillRedeem [assets]
         mapping(address => uint256) vaultsTotalAssetsForFulfillRedeem;
         /// @notice Total assets for fulfill deposit - vault address to total assets for fulfillDeposit [assets]
         mapping(address => uint256) vaultsTotalAssetsForFulfillDeposit;
-        /// @notice Selling orders - token address to number of shares that needs to be sold [shares]
-        mapping(address => uint256) sellingOrders;
-        /// @notice Buying orders - token address to number of shares that needs to be bought [shares]
-        mapping(address => uint256) buyingOrders;
+        /// @notice Vault portfolio shares - vault address to token address to shares [shares]
+        mapping(address => mapping(address => uint256)) finalVaultPortfolioShares;
         /// @notice Array of all tokens used in this epoch for iteration
         address[] tokens;
         /// @notice Mapping to track if a token has been added to avoid duplicates
@@ -122,8 +109,6 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
     uint32 public epochDuration;
     /// @notice Timestamp when the next upkeep is allowed
     uint256 private _nextUpdateTime;
-    /// @notice Counter for tracking processing cycles
-    uint16 public epochCounter;
 
     /// @notice Transparent minibatch size
     uint8 public transparentMinibatchSize;
@@ -260,8 +245,6 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
             upkeepNeeded = true;
         } else if (currentPhase == InternalUpkeepPhase.PostprocessingTransparentVaults) {
             upkeepNeeded = true;
-        } else if (currentPhase == InternalUpkeepPhase.BuildingOrders) {
-            upkeepNeeded = true;
         } else {
             upkeepNeeded = false;
         }
@@ -278,14 +261,6 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
             _buffer();
         } else if (currentPhase == InternalUpkeepPhase.PostprocessingTransparentVaults) {
             _postprocessTransparentMinibatch();
-        } else if (currentPhase == InternalUpkeepPhase.BuildingOrders) {
-            _buildOrders();
-
-            currentPhase = InternalUpkeepPhase.Idle;
-            liquidityOrchestrator.advanceIdlePhase();
-
-            ++epochCounter;
-            emit EventsLib.InternalStateProcessed(epochCounter);
         }
     }
     /* solhint-enable code-complexity */
@@ -329,13 +304,8 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
         for (uint16 i = 0; i < _currentEpoch.tokens.length; ++i) {
             address token = _currentEpoch.tokens[i];
             delete _currentEpoch.priceArray[token];
-            delete _currentEpoch.initialBatchPortfolio[token];
-            delete _currentEpoch.finalBatchPortfolio[token];
-            delete _currentEpoch.sellingOrders[token];
-            delete _currentEpoch.buyingOrders[token];
             delete _currentEpoch.tokenExists[token];
         }
-        delete _currentEpoch.tokens;
 
         // Clear vault-specific mappings
         for (uint16 i = 0; i < previousEpochVaults.length; ++i) {
@@ -343,7 +313,14 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
             delete _currentEpoch.vaultsTotalAssets[vault];
             delete _currentEpoch.vaultsTotalAssetsForFulfillRedeem[vault];
             delete _currentEpoch.vaultsTotalAssetsForFulfillDeposit[vault];
+            
+            // Clear vault portfolio shares for all tokens in previous epoch
+            for (uint16 j = 0; j < _currentEpoch.tokens.length; ++j) {
+                address token = _currentEpoch.tokens[j];
+                delete _currentEpoch.finalVaultPortfolioShares[vault][token];
+            }
         }
+        delete _currentEpoch.tokens;
 
         // Build filtered vault lists for this epoch
         _buildTransparentVaultsEpoch();
@@ -379,8 +356,6 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
             for (uint16 j = 0; j < portfolioTokens.length; ++j) {
                 address token = portfolioTokens[j];
                 uint256 shares = sharesPerAsset[j];
-
-                _currentEpoch.initialBatchPortfolio[token] += shares;
 
                 // Get and cache prices if not already cached
                 if (!_currentEpoch.tokenExists[token]) {
@@ -422,7 +397,7 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
             uint256 protocolRevenueShareFee = uint256(activeRsFee).mulDiv(curatorFee, BASIS_POINTS_FACTOR);
             pendingProtocolFees += protocolRevenueShareFee;
             curatorFee -= protocolRevenueShareFee;
-            vault.accrueCuratorFees(epochCounter, curatorFee);
+            vault.accrueCuratorFees(curatorFee);
 
             // STEP 5: WITHDRAWAL EXCHANGE RATE (based on post-fee totalAssets)
             uint256 pendingRedeem = vault.convertToAssetsWithPITTotalAssets(
@@ -497,7 +472,8 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
 
         if (i1 > transparentVaultsEpoch.length || i1 == transparentVaultsEpoch.length) {
             i1 = uint16(transparentVaultsEpoch.length); // Last minibatch, go to next phase.
-            currentPhase = InternalUpkeepPhase.BuildingOrders;
+            currentPhase = InternalUpkeepPhase.Idle;
+            liquidityOrchestrator.advanceIdlePhase();
             currentMinibatchIndex = 0;
         }
 
@@ -533,10 +509,11 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
 
                 portfolio[j] = IOrionTransparentVault.PortfolioPosition({ token: token, shares: value });
 
-                _currentEpoch.finalBatchPortfolio[token] += value;
+                // Store portfolio shares in mapping for LiquidityOrchestrator access
+                _currentEpoch.finalVaultPortfolioShares[address(vault)][token] = value;
+
                 _addTokenIfNotExists(token);
             }
-            vault.updateVaultState(portfolio, finalTotalAssets);
         }
     }
 
@@ -551,26 +528,6 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
         }
     }
 
-    /// @notice Builds selling and buying orders based on portfolio differences
-    /// @dev Compares _finalBatchPortfolio with _initialBatchPortfolio to determine rebalancing needs
-    ///      Orders are stored in _currentEpoch.sellingOrders and _currentEpoch.buyingOrders.
-    function _buildOrders() internal {
-        address[] memory tokens = _currentEpoch.tokens;
-        uint16 length = uint16(tokens.length);
-
-        for (uint16 i = 0; i < length; ++i) {
-            address token = tokens[i];
-            uint256 initialValue = _currentEpoch.initialBatchPortfolio[token];
-            uint256 finalValue = _currentEpoch.finalBatchPortfolio[token];
-
-            if (initialValue > finalValue) {
-                _currentEpoch.sellingOrders[token] = initialValue - finalValue;
-            } else if (finalValue > initialValue) {
-                _currentEpoch.buyingOrders[token] = finalValue - initialValue;
-            }
-        }
-    }
-
     /* -------------------------------------------------------------------------- */
     /*                      LIQUIDITY ORCHESTRATOR FUNCTIONS                      */
     /* -------------------------------------------------------------------------- */
@@ -579,78 +536,6 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
     function updateNextUpdateTime() external onlyLiquidityOrchestrator {
         if (currentPhase != InternalUpkeepPhase.Idle) revert ErrorsLib.SystemNotIdle();
         _nextUpdateTime = block.timestamp + epochDuration;
-    }
-
-    /// @inheritdoc IInternalStateOrchestrator
-    function getOrders(
-        bool isSellLeg
-    )
-        external
-        view
-        returns (address[] memory tokens, uint256[] memory amounts, uint256[] memory estimatedUnderlyingAmounts)
-    {
-        if (currentPhase != InternalUpkeepPhase.Idle) revert ErrorsLib.SystemNotIdle();
-
-        address[] memory allTokens = _currentEpoch.tokens;
-        uint16 count = _countOrders(allTokens, isSellLeg);
-
-        tokens = new address[](count);
-        amounts = new uint256[](count);
-        estimatedUnderlyingAmounts = new uint256[](count);
-        _populateLegOrders(allTokens, tokens, amounts, estimatedUnderlyingAmounts, isSellLeg);
-    }
-
-    /// @notice Counts the number of non-zero selling and buying orders
-    /// @param allTokens Array of all tokens to check
-    /// @param isSellLeg True if counting sell leg orders, false for buy leg orders
-    /// @return count Number of tokens with non-zero orders
-    function _countOrders(address[] memory allTokens, bool isSellLeg) private view returns (uint16 count) {
-        uint16 allTokensLength = uint16(allTokens.length);
-
-        for (uint16 i = 0; i < allTokensLength; ++i) {
-            address token = allTokens[i];
-            if (isSellLeg && _currentEpoch.sellingOrders[token] > 0) {
-                ++count;
-            }
-            if (!isSellLeg && _currentEpoch.buyingOrders[token] > 0) {
-                ++count;
-            }
-        }
-    }
-
-    /// @notice Populates the order arrays for a specific leg
-    /// @param allTokens Array of all tokens
-    /// @param tokens Array to populate with tokens
-    /// @param amounts Array to populate with amounts
-    /// @param estimatedUnderlyingAmounts Array to populate with estimated underlying amounts
-    /// @param isSellLeg True if populating sell leg, false for buy leg
-    function _populateLegOrders(
-        address[] memory allTokens,
-        address[] memory tokens,
-        uint256[] memory amounts,
-        uint256[] memory estimatedUnderlyingAmounts,
-        bool isSellLeg
-    ) private view {
-        uint16 allTokensLength = uint16(allTokens.length);
-        uint16 index = 0;
-
-        for (uint16 i = 0; i < allTokensLength; ++i) {
-            address token = allTokens[i];
-            uint256 amount = isSellLeg ? _currentEpoch.sellingOrders[token] : _currentEpoch.buyingOrders[token];
-
-            if (amount > 0) {
-                tokens[index] = token;
-                amounts[index] = amount;
-                // Convert estimated amount from token decimals to underlying decimals
-                uint256 rawEstimatedAmount = amount.mulDiv(_currentEpoch.priceArray[token], priceAdapterPrecision);
-                estimatedUnderlyingAmounts[index] = UtilitiesLib.convertDecimals(
-                    rawEstimatedAmount,
-                    config.getTokenDecimals(token),
-                    underlyingDecimals
-                );
-                ++index;
-            }
-        }
     }
 
     /// @inheritdoc IInternalStateOrchestrator
@@ -691,6 +576,11 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
     /// @inheritdoc IInternalStateOrchestrator
     function getTransparentVaultsEpoch() external view returns (address[] memory vaults) {
         return transparentVaultsEpoch;
+    }
+
+    /// @inheritdoc IInternalStateOrchestrator
+    function getVaultPortfolioShares(address vault, address token) external view returns (uint256 shares) {
+        return _currentEpoch.finalVaultPortfolioShares[vault][token];
     }
 
     /// @inheritdoc IInternalStateOrchestrator

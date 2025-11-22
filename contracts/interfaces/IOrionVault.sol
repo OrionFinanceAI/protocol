@@ -46,29 +46,14 @@ interface IOrionVault is IERC4626 {
     /// @param managementFee The new management fee in basis points.
     event FeeModelUpdated(uint8 indexed mode, uint16 indexed performanceFee, uint16 indexed managementFee);
 
-    /// @notice A deposit request has been fulfilled.
-    /// @param vault The address of the vault where the deposit was fulfilled.
-    /// @param user The address of the user whose deposit was fulfilled.
-    /// @param epoch The epoch when the deposit was fulfilled.
-    /// @param depositAmount The amount of assets deposited by the user.
-    /// @param sharesMinted The number of shares minted for the user.
-    event Deposit(
-        address indexed vault,
-        address indexed user,
-        uint256 indexed epoch,
-        uint256 depositAmount,
-        uint256 sharesMinted
-    );
     /// @notice A redemption request has been fulfilled.
     /// @param vault The address of the vault where the redemption was fulfilled.
     /// @param user The address of the user whose redemption was fulfilled.
-    /// @param epoch The epoch when the redemption was fulfilled.
     /// @param redeemAmount The amount of assets redeemed by the user.
     /// @param sharesBurned The number of shares burned for the user.
     event Redeem(
         address indexed vault,
         address indexed user,
-        uint256 indexed epoch,
         uint256 redeemAmount,
         uint256 sharesBurned
     );
@@ -77,11 +62,10 @@ interface IOrionVault is IERC4626 {
     /// @param assets The new whitelist of assets.
     event VaultWhitelistUpdated(address[] assets);
 
-    /// @notice Curator fees have been accrued for a specific epoch.
-    /// @param epoch The epoch for which fees were accrued.
+    /// @notice Curator fees have been accrued.
     /// @param feeAmount The amount of fees accrued in underlying asset units.
     /// @param pendingCuratorFees The total pending curator fees in underlying asset units.
-    event CuratorFeesAccrued(uint256 indexed epoch, uint256 indexed feeAmount, uint256 indexed pendingCuratorFees);
+    event CuratorFeesAccrued(uint256 indexed feeAmount, uint256 indexed pendingCuratorFees);
 
     /// @notice The deposit access control contract has been updated.
     /// @param newDepositAccessControl The new deposit access control contract address (address(0) = permissionless).
@@ -221,7 +205,6 @@ interface IOrionVault is IERC4626 {
     function fulfillRedeem(uint256 redeemTotalAssets) external;
 
     /// @notice Accrue curator fees for a specific epoch
-    /// @param epoch The epoch for which to accrue fees
     /// @param feeAmount The amount of curator fees to accrue in underlying asset units
-    function accrueCuratorFees(uint256 epoch, uint256 feeAmount) external;
+    function accrueCuratorFees(uint256 feeAmount) external;
 }

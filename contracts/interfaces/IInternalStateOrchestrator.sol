@@ -13,8 +13,7 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
         Idle,
         PreprocessingTransparentVaults,
         Buffering,
-        PostprocessingTransparentVaults,
-        BuildingOrders
+        PostprocessingTransparentVaults
     }
 
     /// @notice Returns the epoch duration
@@ -28,10 +27,6 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     /// @notice Returns the current upkeep phase
     /// @return The current InternalUpkeepPhase
     function currentPhase() external view returns (InternalUpkeepPhase);
-
-    /// @notice Returns the current epoch counter
-    /// @return The current epoch
-    function epochCounter() external view returns (uint16);
 
     /// @notice Updates the Chainlink Automation Registry address
     /// @param newAutomationRegistry The new automation registry address
@@ -62,18 +57,6 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     /// @param amount The amount to subtract from pending protocol fees
     function subtractPendingProtocolFees(uint256 amount) external;
 
-    /// @notice Get orders for a specific leg
-    /// @param isSellLeg True if getting sell leg orders, false if getting buy leg orders
-    /// @return tokens The tokens for the specified leg
-    /// @return amounts The amounts for the specified leg in shares
-    /// @return estimatedUnderlyingAmounts The estimated underlying amounts for the specified leg
-    function getOrders(
-        bool isSellLeg
-    )
-        external
-        view
-        returns (address[] memory tokens, uint256[] memory amounts, uint256[] memory estimatedUnderlyingAmounts);
-
     /// @notice Get price for a specific token
     /// @param token The token to get the price of
     /// @return price The corresponding price [shares/assets]
@@ -102,6 +85,12 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     /// @notice Get the transparent vaults for the current epoch
     /// @return vaults The array of transparent vault addresses for the current epoch
     function getTransparentVaultsEpoch() external view returns (address[] memory vaults);
+
+    /// @notice Get portfolio shares for a specific vault and token
+    /// @param vault The vault address
+    /// @param token The token address
+    /// @return shares The portfolio shares for the vault-token pair [shares]
+    function getVaultPortfolioShares(address vault, address token) external view returns (uint256 shares);
 
     /// @notice Pauses the contract
     /// @dev Can only be called by OrionConfig for emergency situations
