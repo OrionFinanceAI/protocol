@@ -993,6 +993,19 @@
       "type": "function"
     },
     {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "newDepositAccessControl",
+          "type": "address"
+        }
+      ],
+      "name": "setDepositAccessControl",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
       "inputs": [],
       "name": "symbol",
       "outputs": [

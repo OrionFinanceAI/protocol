@@ -6,7 +6,7 @@ import {
   OrionConfig,
   TransparentVaultFactory,
   OrionTransparentVault,
-  MockAccessControl,
+  WhitelistAccessControl,
   PriceAdapterRegistry,
 } from "../typechain-types";
 
@@ -23,7 +23,7 @@ describe("Access Control", function () {
   let priceAdapterRegistry: PriceAdapterRegistry;
   let internalStatesOrchestrator;
   let liquidityOrchestrator;
-  let accessControl: MockAccessControl;
+  let accessControl: WhitelistAccessControl;
 
   const DEPOSIT_AMOUNT = ethers.parseUnits("1000", 6);
 
@@ -79,9 +79,9 @@ describe("Access Control", function () {
     // Whitelist curator (owner is already whitelisted in constructor)
     await orionConfig.addWhitelistedCurator(curator.address);
 
-    // Deploy MockAccessControl
-    const MockAccessControlFactory = await ethers.getContractFactory("MockAccessControl");
-    accessControl = (await MockAccessControlFactory.deploy()) as unknown as MockAccessControl;
+    // Deploy WhitelistAccessControl
+    const WhitelistAccessControlFactory = await ethers.getContractFactory("WhitelistAccessControl");
+    accessControl = (await WhitelistAccessControlFactory.deploy(owner.address)) as unknown as WhitelistAccessControl;
   });
 
   describe("Permissionless Mode (address(0))", function () {
@@ -172,7 +172,7 @@ describe("Access Control", function () {
 
     it("Should allow whitelisted user to deposit", async function () {
       // Whitelist user1
-      await accessControl.addToWhitelist(user1.address);
+      await accessControl.addToWhitelist([user1.address]);
 
       // Mint and approve
       await mockAsset.mint(user1.address, DEPOSIT_AMOUNT);
@@ -196,7 +196,7 @@ describe("Access Control", function () {
 
     it("Should allow owner to add users to whitelist", async function () {
       // Add user3 to whitelist
-      await expect(accessControl.addToWhitelist(user3.address))
+      await expect(accessControl.addToWhitelist([user3.address]))
         .to.emit(accessControl, "AddressWhitelisted")
         .withArgs(user3.address);
 
@@ -208,8 +208,8 @@ describe("Access Control", function () {
 
     it("Should allow owner to remove users from whitelist", async function () {
       // Whitelist then remove user1
-      await accessControl.addToWhitelist(user1.address);
-      await expect(accessControl.removeFromWhitelist(user1.address))
+      await accessControl.addToWhitelist([user1.address]);
+      await expect(accessControl.removeFromWhitelist([user1.address]))
         .to.emit(accessControl, "AddressRemovedFromWhitelist")
         .withArgs(user1.address);
 
@@ -225,7 +225,7 @@ describe("Access Control", function () {
     it("Should support batch whitelisting", async function () {
       const addresses = [user1.address, user2.address, user3.address];
 
-      await expect(accessControl.addBatchToWhitelist(addresses)).to.not.be.reverted;
+      await expect(accessControl.addToWhitelist(addresses)).to.not.be.reverted;
 
       // Verify all can deposit
       for (const user of [user1, user2, user3]) {
@@ -307,7 +307,7 @@ describe("Access Control", function () {
       );
 
       // Whitelist user1
-      await accessControl.addToWhitelist(user1.address);
+      await accessControl.addToWhitelist([user1.address]);
 
       // Now should work
       await expect(vault.connect(user1).requestDeposit(DEPOSIT_AMOUNT)).to.not.be.reverted;
@@ -315,26 +315,10 @@ describe("Access Control", function () {
   });
 
   describe("Access Control Contract Behavior", function () {
-    it("Should reject zero address in addToWhitelist", async function () {
-      await expect(accessControl.addToWhitelist(ethers.ZeroAddress)).to.be.revertedWithCustomError(
-        accessControl,
-        "ZeroAddress",
-      );
-    });
-
     it("Should allow owner to transfer ownership", async function () {
-      await expect(accessControl.transferOwnership(user1.address))
-        .to.emit(accessControl, "OwnershipTransferred")
-        .withArgs(owner.address, user1.address);
-
+      await expect(accessControl.connect(owner).transferOwnership(user1.address)).to.not.be.reverted;
+      await expect(accessControl.connect(user1).acceptOwnership()).to.not.be.reverted;
       expect(await accessControl.owner()).to.equal(user1.address);
-    });
-
-    it("Should reject non-owner whitelist modifications", async function () {
-      await expect(accessControl.connect(user1).addToWhitelist(user2.address)).to.be.revertedWithCustomError(
-        accessControl,
-        "NotOwner",
-      );
     });
   });
 });

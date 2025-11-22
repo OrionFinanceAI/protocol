@@ -57,9 +57,6 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     /// @notice Deposit access control contract (address(0) = permissionless)
     address public depositAccessControl;
 
-    /// @notice Decimals for curator intent
-    uint8 public curatorIntentDecimals;
-
     /// @notice Vault-specific whitelist of assets for intent validation
     /// @dev This is a subset of the protocol whitelist for higher auditability
     EnumerableSet.AddressSet internal _vaultWhitelistedAssets;
@@ -186,7 +183,6 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         config = config_;
         internalStatesOrchestrator = IInternalStateOrchestrator(config_.internalStatesOrchestrator());
         liquidityOrchestrator = ILiquidityOrchestrator(config_.liquidityOrchestrator());
-        curatorIntentDecimals = config_.curatorIntentDecimals();
         depositAccessControl = depositAccessControl_;
 
         uint8 underlyingDecimals = IERC20Metadata(address(config_.underlyingAsset())).decimals();
@@ -218,29 +214,6 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
             bool inserted = _vaultWhitelistedAssets.add(protocolAssets[i]);
             if (!inserted) revert ErrorsLib.AlreadyRegistered();
         }
-    }
-
-    /// @notice Check if a sender is allowed to deposit based on access control
-    /// @param sender Address attempting to deposit
-    /// @dev address(0) for depositAccessControl means permissionless (no restrictions)
-    /// @dev CRITICAL: Access control contracts MUST NOT revert - they should return false instead
-    function _checkDepositAccess(address sender) internal view {
-        if (depositAccessControl == address(0)) {
-            // Permissionless mode - all deposits allowed
-            return;
-        }
-
-        // Query access control contract
-        bool allowed = IAccessControl(depositAccessControl).canRequestDeposit(sender);
-        if (!allowed) revert ErrorsLib.DepositNotAllowed();
-    }
-
-    /// @notice Set deposit access control contract
-    /// @param newDepositAccessControl Address of the new access control contract (address(0) = permissionless)
-    /// @dev Only callable by vault owner
-    function setDepositAccessControl(address newDepositAccessControl) external onlyVaultOwner {
-        depositAccessControl = newDepositAccessControl;
-        emit DepositAccessControlUpdated(newDepositAccessControl);
     }
 
     /// @inheritdoc IERC4626
@@ -363,8 +336,10 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
     /// @inheritdoc IOrionVault
     function requestDeposit(uint256 assets) external nonReentrant {
-        // Check access control first
-        _checkDepositAccess(msg.sender);
+        if (depositAccessControl != address(0)) {
+            if (!IAccessControl(depositAccessControl).canRequestDeposit(msg.sender))
+                revert ErrorsLib.DepositNotAllowed();
+        }
 
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         if (isDecommissioning || config.isDecommissionedVault(address(this))) revert ErrorsLib.VaultDecommissioned();
@@ -600,6 +575,13 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
         pendingCuratorFees -= amount;
         liquidityOrchestrator.transferCuratorFees(amount);
+    }
+
+    /// @inheritdoc IOrionVault
+    function setDepositAccessControl(address newDepositAccessControl) external onlyVaultOwner {
+        // No extra checks, vault owner has right to fully stop deposits
+        depositAccessControl = newDepositAccessControl;
+        emit DepositAccessControlUpdated(newDepositAccessControl);
     }
 
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------

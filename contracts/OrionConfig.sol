@@ -30,7 +30,7 @@ import "./interfaces/IInternalStateOrchestrator.sol";
  */
 contract OrionConfig is Ownable2Step, IOrionConfig {
     /// @notice Admin address (immutable, set at construction)
-    address public immutable admin;
+    address private immutable ADMIN;
 
     /// @notice Guardian address for emergency pausing
     address public guardian;
@@ -47,7 +47,7 @@ contract OrionConfig is Ownable2Step, IOrionConfig {
     address public priceAdapterRegistry;
 
     /// @notice Decimals for curator intent
-    uint8 public curatorIntentDecimals;
+    uint8 public constant curatorIntentDecimals = 9;
     /// @notice Decimals for price adapter
     uint8 public priceAdapterDecimals;
     /// @notice Risk-free rate in basis points. Same decimals as BASIS_POINTS_FACTOR
@@ -79,7 +79,7 @@ contract OrionConfig is Ownable2Step, IOrionConfig {
     EnumerableSet.AddressSet private decommissionedVaults;
 
     modifier onlyAdmin() {
-        if (msg.sender != admin) revert ErrorsLib.NotAuthorized();
+        if (msg.sender != ADMIN) revert ErrorsLib.NotAuthorized();
         _;
     }
 
@@ -103,10 +103,9 @@ contract OrionConfig is Ownable2Step, IOrionConfig {
     constructor(address initialOwner, address admin_, address underlyingAsset_) Ownable(initialOwner) {
         if (admin_ == address(0)) revert ErrorsLib.ZeroAddress();
         if (underlyingAsset_ == address(0)) revert ErrorsLib.ZeroAddress();
-        admin = admin_;
+        ADMIN = admin_;
         underlyingAsset = IERC20(underlyingAsset_);
 
-        curatorIntentDecimals = 9; // 9 for uint32
         priceAdapterDecimals = 14; // 14 for uint128
         feeChangeCooldownDuration = 7 days; // Default 7 day cooldown
         maxFulfillBatchSize = 150; // Default 150 requests per fulfill call
@@ -215,7 +214,7 @@ contract OrionConfig is Ownable2Step, IOrionConfig {
     /// @dev Can only be called by guardian or admin
     ///      Pauses InternalStatesOrchestrator and LiquidityOrchestrator
     function pauseAll() external {
-        if (msg.sender != guardian && msg.sender != admin) revert ErrorsLib.NotAuthorized();
+        if (msg.sender != guardian && msg.sender != ADMIN) revert ErrorsLib.NotAuthorized();
 
         IInternalStateOrchestrator(internalStatesOrchestrator).pause();
         ILiquidityOrchestrator(liquidityOrchestrator).pause();
@@ -450,5 +449,10 @@ contract OrionConfig is Ownable2Step, IOrionConfig {
     /// @inheritdoc IOrionConfig
     function getTokenDecimals(address token) external view returns (uint8) {
         return tokenDecimals[token];
+    }
+
+    /// @inheritdoc IOrionConfig
+    function admin() external view returns (address) {
+        return ADMIN;
     }
 }

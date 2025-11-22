@@ -181,6 +181,11 @@ interface IOrionVault is IERC4626 {
     /// @param amount The amount of curator fees to claim
     function claimCuratorFees(uint256 amount) external;
 
+    /// @notice Set deposit access control contract
+    /// @param newDepositAccessControl Address of the new access control contract (address(0) = permissionless)
+    /// @dev Only callable by vault owner
+    function setDepositAccessControl(address newDepositAccessControl) external;
+
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
 
     /// @notice Get total pending deposit amount across all users
