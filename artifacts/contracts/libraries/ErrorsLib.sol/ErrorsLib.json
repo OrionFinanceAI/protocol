@@ -57,6 +57,27 @@
       "type": "error"
     },
     {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "asset",
+          "type": "address"
+        },
+        {
+          "internalType": "uint8",
+          "name": "runtimeDecimals",
+          "type": "uint8"
+        },
+        {
+          "internalType": "uint8",
+          "name": "configDecimals",
+          "type": "uint8"
+        }
+      ],
+      "name": "DecimalsMismatch",
+      "type": "error"
+    },
+    {
       "inputs": [],
       "name": "DepositNotAllowed",
       "type": "error"
@@ -134,6 +155,27 @@
       "type": "error"
     },
     {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "asset",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "actual",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "expected",
+          "type": "uint256"
+        }
+      ],
+      "name": "SlippageExceeded",
+      "type": "error"
+    },
+    {
       "inputs": [],
       "name": "SystemNotIdle",
       "type": "error"
@@ -179,10 +221,21 @@
       "inputs": [],
       "name": "ZeroAddress",
       "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "asset",
+          "type": "address"
+        }
+      ],
+      "name": "ZeroTotalAssets",
+      "type": "error"
     }
   ],
-  "bytecode": "0x60556032600b8282823980515f1a607314602657634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f5ffdfea26469706673582212200e862f16bb1a3290bfa9479db1c3e7ead1f2bb3b4859394424550b6fc0e47d4064736f6c634300081c0033",
-  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f5ffdfea26469706673582212200e862f16bb1a3290bfa9479db1c3e7ead1f2bb3b4859394424550b6fc0e47d4064736f6c634300081c0033",
+  "bytecode": "0x60556032600b8282823980515f1a607314602657634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f5ffdfea26469706673582212202098f05ca0bd06b50b34a43f3162582421259a45358a38d114b9ea848a63572764736f6c634300081c0033",
+  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f5ffdfea26469706673582212202098f05ca0bd06b50b34a43f3162582421259a45358a38d114b9ea848a63572764736f6c634300081c0033",
   "linkReferences": {},
   "deployedLinkReferences": {}
 }

@@ -205,6 +205,7 @@ describe("Price Adapter", function () {
   describe("ERC4626 Execution Adapter - Share Accounting", function () {
     let erc4626ExecutionAdapter: OrionAssetERC4626ExecutionAdapter;
     let erc4626Vault: MockERC4626Asset;
+    let mockPriceAdapter: any;
 
     beforeEach(async function () {
       const OrionAssetERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
@@ -222,6 +223,27 @@ describe("Price Adapter", function () {
         "TV",
       )) as unknown as MockERC4626Asset;
       await erc4626Vault.waitForDeployment();
+
+      // Seed vault with assets so totalAssets > 0 for validation
+      const initialDeposit = ethers.parseUnits("100000", 12);
+      await underlyingAsset.mint(owner.address, initialDeposit);
+      await underlyingAsset.approve(await erc4626Vault.getAddress(), initialDeposit);
+      await erc4626Vault.deposit(initialDeposit, owner.address);
+
+      // Deploy mock price adapter
+      const MockPriceAdapterFactory = await ethers.getContractFactory("MockPriceAdapter");
+      mockPriceAdapter = await MockPriceAdapterFactory.deploy();
+      await mockPriceAdapter.waitForDeployment();
+
+      // Whitelist the vault to set decimals in config
+      await orionConfig.addWhitelistedAsset(
+        await erc4626Vault.getAddress(),
+        await mockPriceAdapter.getAddress(),
+        await erc4626ExecutionAdapter.getAddress(),
+      );
+
+      // Set slippage tolerance to avoid uint256.max maxAcceptableSpend
+      await liquidityOrchestrator.setTargetBufferRatio(400); // 4% buffer = 2% slippage
     });
 
     it("should mint exact shares requested via buy(), preventing accounting drift", async function () {

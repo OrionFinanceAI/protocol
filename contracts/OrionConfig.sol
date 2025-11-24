@@ -243,8 +243,6 @@ contract OrionConfig is Ownable2Step, IOrionConfig {
         if (!inserted) revert ErrorsLib.AlreadyRegistered();
 
         // Store token decimals
-        // Note: Assumes ERC20 decimals are immutable (standard-compliant).
-        // Non-standard tokens that allow decimals to change at runtime MUST NOT be whitelisted.
         tokenDecimals[asset] = IERC20Metadata(asset).decimals();
 
         // Register the adapters
@@ -252,6 +250,47 @@ contract OrionConfig is Ownable2Step, IOrionConfig {
         ILiquidityOrchestrator(liquidityOrchestrator).setExecutionAdapter(asset, IExecutionAdapter(executionAdapter));
 
         emit EventsLib.WhitelistedAssetAdded(asset);
+    }
+
+    /// @notice Updates the token decimals for a whitelisted asset
+    /// @param asset The address of the asset to update
+    /// @dev This function allows admin to respond to failing rebalancing due to modified decimals.
+    ///      This is needed for non-standard tokens that allow decimals to change at runtime.
+    ///      Standard-compliant ERC20 tokens have immutable decimals and should never need this.
+    function updateTokenDecimals(address asset) external onlyAdmin {
+        if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+        if (!whitelistedAssets.contains(asset)) revert ErrorsLib.TokenNotWhitelisted(asset);
+
+        // Update stored decimals from current runtime value
+        uint8 newDecimals = IERC20Metadata(asset).decimals();
+        tokenDecimals[asset] = newDecimals;
+
+        emit EventsLib.TokenDecimalsUpdated(asset, newDecimals);
+    }
+
+    /// @notice Emergency function to update execution adapter when LO epoch is stuck in buying leg
+    /// @param asset The address of the asset to update the adapter for
+    /// @param executionAdapter The address of the new execution adapter
+    /// @dev SECURITY: This function can ONLY be called when LiquidityOrchestrator is in BuyingLeg phase.
+    ///      This is a safety mechanism to allow unlocking stuck trades if an adapter breaks during buy leg.
+    ///      It bypasses the usual system idle requirement to enable recovery from stuck epochs.
+    ///      Cannot be called during other phases to prevent abuse.
+    function emergencyUpdateExecutionAdapter(address asset, address executionAdapter) external onlyAdmin {
+        // Verify asset is whitelisted
+        if (!whitelistedAssets.contains(asset)) revert ErrorsLib.TokenNotWhitelisted(asset);
+
+        // SECURITY CHECK: Only allow when LO is in BuyingLeg phase
+        // This ensures the function can only be used to recover from stuck buy operations
+        ILiquidityOrchestrator.LiquidityUpkeepPhase currentPhase = ILiquidityOrchestrator(liquidityOrchestrator)
+            .currentPhase();
+        if (currentPhase != ILiquidityOrchestrator.LiquidityUpkeepPhase.BuyingLeg) {
+            revert ErrorsLib.InvalidState();
+        }
+
+        // Update the execution adapter
+        ILiquidityOrchestrator(liquidityOrchestrator).setExecutionAdapter(asset, IExecutionAdapter(executionAdapter));
+
+        emit EventsLib.ExecutionAdapterSet(asset, executionAdapter);
     }
 
     /// @inheritdoc IOrionConfig

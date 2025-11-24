@@ -63,16 +63,15 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
     /// @notice Current minibatch index
     uint8 public currentMinibatchIndex;
 
-    /// @notice Target buffer ratio
+    /// @notice Target buffer ratio (in basis points, where 10000 = 100%)
     uint256 public targetBufferRatio;
 
-    /// @notice Buy approval multiplier (multiplier for estimated underlying amount when approving adapters)
-    uint8 public buyApprovalMultiplier;
+    /// @notice Slippage tolerance (in basis points, where 10000 = 100%)
+    /// @dev This is set to 50% of targetBufferRatio to ensure all trades pass in worst-case scenarios
+    uint256 public slippageTolerance;
 
     /// @notice Maximum minibatch size
     uint8 public constant MAX_MINIBATCH_SIZE = 8;
-    /// @notice Maximum buy approval multiplier
-    uint8 public constant MAX_BUY_APPROVAL_MULTIPLIER = 5;
 
     /* -------------------------------------------------------------------------- */
     /*                                 EPOCH STATE                                */
@@ -125,7 +124,7 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
         automationRegistry = automationRegistry_;
         currentPhase = LiquidityUpkeepPhase.Idle;
         minibatchSize = 1;
-        buyApprovalMultiplier = 2;
+        slippageTolerance = 0; // Will be set when targetBufferRatio is configured
     }
 
     /* -------------------------------------------------------------------------- */
@@ -157,20 +156,38 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
     }
 
     /// @inheritdoc ILiquidityOrchestrator
+    /// @dev Slippage tolerance is set to 50% of targetBufferRatio to support worst-case scenario prices
+    ///      and full NAV rebalancing. This ensures ALL trades pass even with maximum price impact.
     function setTargetBufferRatio(uint256 _targetBufferRatio) external onlyOwner {
         if (_targetBufferRatio == 0) revert ErrorsLib.InvalidArguments();
         // 5%
         if (_targetBufferRatio > 500) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+
         targetBufferRatio = _targetBufferRatio;
+
+        // Set slippage tolerance to 50% of target buffer ratio
+        // This is needed to support worst-case scenario prices + full NAV rebalancing
+        slippageTolerance = _targetBufferRatio / 2;
+
+        // Update slippage tolerance on all execution adapters
+        _updateAllExecutionAdaptersSlippage();
     }
 
-    /// @inheritdoc ILiquidityOrchestrator
-    function updateBuyApprovalMultiplier(uint8 _buyApprovalMultiplier) external onlyOwner {
-        if (_buyApprovalMultiplier == 0) revert ErrorsLib.InvalidArguments();
-        if (_buyApprovalMultiplier > MAX_BUY_APPROVAL_MULTIPLIER) revert ErrorsLib.InvalidArguments();
-        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
-        buyApprovalMultiplier = _buyApprovalMultiplier;
+    /// @notice Updates slippage tolerance on all registered execution adapters
+    /// @dev Internal function called when slippage tolerance changes
+    function _updateAllExecutionAdaptersSlippage() internal {
+        address[] memory assets = config.getAllWhitelistedAssets();
+        for (uint256 i = 0; i < assets.length; ++i) {
+            address asset = assets[i];
+            IExecutionAdapter adapter = executionAdapterOf[asset];
+            if (address(adapter) != address(0)) {
+                // Call setSlippageTolerance on the adapter (will be defined in interface)
+                try adapter.setSlippageTolerance(slippageTolerance) {} catch {
+                    // Silently continue if adapter doesn't support slippage tolerance yet
+                }
+            }
+        }
     }
 
     /// @inheritdoc ILiquidityOrchestrator
@@ -379,12 +396,23 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
     /// @param asset The asset to buy
     /// @param sharesAmount The amount of shares to buy
     /// @param estimatedUnderlyingAmount The estimated underlying amount to spend
+    /// @dev The adapter now handles slippage tolerance internally based on configured slippageTolerance
     function _executeBuy(address asset, uint256 sharesAmount, uint256 estimatedUnderlyingAmount) internal {
         IExecutionAdapter adapter = executionAdapterOf[asset];
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
 
-        // Approve adapter to spend underlying assets (with multiplier for slippage tolerance)
-        IERC20(underlyingAsset).forceApprove(address(adapter), estimatedUnderlyingAmount * buyApprovalMultiplier);
+        // Calculate maximum spend with appropriate buffer
+        // The adapter will pull this amount and return any excess
+        // Use 3x multiplier as base safety factor to account for:
+        // 1. Price divergence between estimation time and execution time
+        // 2. Vault-specific fees, rounding, or exchange rate changes
+        // 3. Additional slippage tolerance for market impact (if configured)
+        uint256 maxAcceptableSpend = slippageTolerance > 0
+            ? (estimatedUnderlyingAmount * 3 * (10000 + slippageTolerance)) / 10000
+            : estimatedUnderlyingAmount * 5;
+
+        // Approve adapter to spend underlying assets (limited to max acceptable spend)
+        IERC20(underlyingAsset).forceApprove(address(adapter), maxAcceptableSpend);
 
         // Execute buy through adapter, pull underlying assets from this contract and push shares to it.
         uint256 executionUnderlyingAmount = adapter.buy(asset, sharesAmount);

@@ -26,4 +26,9 @@ interface IExecutionAdapter {
     /// @notice Validates that the given asset is compatible with this adapter
     /// @param asset The address of the asset to validate
     function validateExecutionAdapter(address asset) external view;
+
+    /// @notice Sets the slippage tolerance for this adapter
+    /// @param _slippageTolerance The slippage tolerance in basis points (10000 = 100%)
+    /// @dev This function is called by the LiquidityOrchestrator when slippage tolerance is updated
+    function setSlippageTolerance(uint256 _slippageTolerance) external;
 }

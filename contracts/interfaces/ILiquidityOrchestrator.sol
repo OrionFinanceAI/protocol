@@ -39,11 +39,8 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
 
     /// @notice Sets the target buffer ratio
     /// @param _targetBufferRatio The new target buffer ratio
+    /// @dev Also sets slippage tolerance to 50% of targetBufferRatio across all execution adapters
     function setTargetBufferRatio(uint256 _targetBufferRatio) external;
-
-    /// @notice Updates the buy approval multiplier
-    /// @param _buyApprovalMultiplier The new buy approval multiplier
-    function updateBuyApprovalMultiplier(uint8 _buyApprovalMultiplier) external;
 
     /// @notice Claim protocol fees with specified amount
     /// @dev Called by the Owner to claim a specific amount of protocol fees

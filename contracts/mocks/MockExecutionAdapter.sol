@@ -23,4 +23,9 @@ contract MockExecutionAdapter is IExecutionAdapter {
     function validateExecutionAdapter(address) external pure {
         // pass
     }
+
+    /// @inheritdoc IExecutionAdapter
+    function setSlippageTolerance(uint256) external pure {
+        // Mock implementation - does nothing
+    }
 }
