@@ -243,11 +243,6 @@ contract OrionConfig is Ownable2Step, IOrionConfig {
         // Store token decimals
         tokenDecimals[asset] = IERC20Metadata(asset).decimals();
 
-        // TODO: read if address is upgradable, and if it is, add implementation address
-        // to a new mapping, and add the proxy address to
-        // a list so we can check atomically if isUpgradable.
-        // TODO: update implementation address if isUpgradable(asset), include tests.
-
         // Register the adapters
         IPriceAdapterRegistry(priceAdapterRegistry).setPriceAdapter(asset, IPriceAdapter(priceAdapter));
         ILiquidityOrchestrator(liquidityOrchestrator).setExecutionAdapter(asset, IExecutionAdapter(executionAdapter));
