@@ -29,6 +29,9 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
     using Math for uint256;
     using SafeERC20 for IERC20;
 
+    /// @notice Basis points factor
+    uint16 public constant BASIS_POINTS_FACTOR = 10_000;
+
     /* -------------------------------------------------------------------------- */
     /*                                 CONTRACTS                                  */
     /* -------------------------------------------------------------------------- */
@@ -69,13 +72,11 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
     /// @notice Target buffer ratio
     uint256 public targetBufferRatio;
 
-    /// @notice Buy approval multiplier (multiplier for estimated underlying amount when approving adapters)
-    uint8 public buyApprovalMultiplier;
+    /// @notice Slippage tolerance
+    uint256 public slippageTolerance;
 
     /// @notice Maximum minibatch size
     uint8 public constant MAX_MINIBATCH_SIZE = 8;
-    /// @notice Maximum buy approval multiplier
-    uint8 public constant MAX_BUY_APPROVAL_MULTIPLIER = 5;
 
     /* -------------------------------------------------------------------------- */
     /*                                 EPOCH STATE                                */
@@ -128,7 +129,7 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
         automationRegistry = automationRegistry_;
         currentPhase = LiquidityUpkeepPhase.Idle;
         minibatchSize = 1;
-        buyApprovalMultiplier = 2;
+        slippageTolerance = 0;
     }
 
     /* -------------------------------------------------------------------------- */
@@ -165,15 +166,9 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
         // 5%
         if (_targetBufferRatio > 500) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
-        targetBufferRatio = _targetBufferRatio;
-    }
 
-    /// @inheritdoc ILiquidityOrchestrator
-    function updateBuyApprovalMultiplier(uint8 _buyApprovalMultiplier) external onlyOwner {
-        if (_buyApprovalMultiplier == 0) revert ErrorsLib.InvalidArguments();
-        if (_buyApprovalMultiplier > MAX_BUY_APPROVAL_MULTIPLIER) revert ErrorsLib.InvalidArguments();
-        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
-        buyApprovalMultiplier = _buyApprovalMultiplier;
+        targetBufferRatio = _targetBufferRatio;
+        slippageTolerance = _targetBufferRatio / 2;
     }
 
     /// @inheritdoc ILiquidityOrchestrator
@@ -372,7 +367,7 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
         IERC20(asset).forceApprove(address(adapter), sharesAmount);
 
         // Execute sell through adapter, pull shares from this contract and push underlying assets to it.
-        uint256 executionUnderlyingAmount = adapter.sell(asset, sharesAmount);
+        uint256 executionUnderlyingAmount = adapter.sell(asset, sharesAmount, estimatedUnderlyingAmount);
 
         // Clean up approval
         IERC20(asset).forceApprove(address(adapter), 0);
@@ -384,15 +379,19 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
     /// @param asset The asset to buy
     /// @param sharesAmount The amount of shares to buy
     /// @param estimatedUnderlyingAmount The estimated underlying amount to spend
+    /// @dev The adapter handles slippage tolerance internally.
     function _executeBuy(address asset, uint256 sharesAmount, uint256 estimatedUnderlyingAmount) internal {
         IExecutionAdapter adapter = executionAdapterOf[asset];
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
 
-        // Approve adapter to spend underlying assets (with multiplier for slippage tolerance)
-        IERC20(underlyingAsset).forceApprove(address(adapter), estimatedUnderlyingAmount * buyApprovalMultiplier);
+        // Approve adapter to spend underlying assets
+        IERC20(underlyingAsset).forceApprove(
+            address(adapter),
+            estimatedUnderlyingAmount.mulDiv(BASIS_POINTS_FACTOR + slippageTolerance, BASIS_POINTS_FACTOR)
+        );
 
         // Execute buy through adapter, pull underlying assets from this contract and push shares to it.
-        uint256 executionUnderlyingAmount = adapter.buy(asset, sharesAmount);
+        uint256 executionUnderlyingAmount = adapter.buy(asset, sharesAmount, estimatedUnderlyingAmount);
 
         // Clean up approval
         IERC20(underlyingAsset).forceApprove(address(adapter), 0);

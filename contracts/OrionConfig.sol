@@ -235,14 +235,18 @@ contract OrionConfig is Ownable2Step, IOrionConfig {
     function addWhitelistedAsset(address asset, address priceAdapter, address executionAdapter) external onlyOwner {
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
-        // Fail early to avoid owner overwriting adapters of existing asset with malicious ones
-        bool inserted = whitelistedAssets.add(asset);
-        if (!inserted) revert ErrorsLib.AlreadyRegistered();
+        if (!this.isWhitelisted(asset)) {
+            // slither-disable-next-line unused-return
+            whitelistedAssets.add(asset);
+        }
 
         // Store token decimals
-        // Note: Assumes ERC20 decimals are immutable (standard-compliant).
-        // Non-standard tokens that allow decimals to change at runtime MUST NOT be whitelisted.
         tokenDecimals[asset] = IERC20Metadata(asset).decimals();
+
+        // TODO: read if address is upgradable, and if it is, add implementation address
+        // to a new mapping, and add the proxy address to
+        // a list so we can check atomically if isUpgradable.
+        // TODO: update implementation address if isUpgradable(asset), include tests.
 
         // Register the adapters
         IPriceAdapterRegistry(priceAdapterRegistry).setPriceAdapter(asset, IPriceAdapter(priceAdapter));
@@ -396,7 +400,7 @@ contract OrionConfig is Ownable2Step, IOrionConfig {
 
     /// @inheritdoc IOrionConfig
     function completeVaultDecommissioning(address vault) external onlyLiquidityOrchestrator {
-        if (!decommissioningInProgressVaults.contains(vault)) revert ErrorsLib.InvalidAddress();
+        if (!this.isDecommissioningVault(vault)) revert ErrorsLib.InvalidAddress();
 
         bool removedFromEncrypted = encryptedVaults.remove(vault);
         if (!removedFromEncrypted) {

@@ -2,22 +2,27 @@
 pragma solidity 0.8.28;
 
 import { IOrionAccessControl } from "../interfaces/IOrionAccessControl.sol";
-import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import "@openzeppelin/contracts/access/Ownable2Step.sol";
+
 /**
  * @title WhitelistAccessControl
  * @notice Implementation of IOrionAccessControl with whitelist-based access
+ * @author Orion Finance
  */
 contract WhitelistAccessControl is IOrionAccessControl, Ownable2Step {
     /// @notice Mapping of addresses allowed to deposit
     mapping(address => bool) public whitelist;
 
     /// @notice Emitted when an address is added to the whitelist
+    /// @param account The address that was added to the whitelist
     event AddressWhitelisted(address indexed account);
 
     /// @notice Emitted when an address is removed from the whitelist
+    /// @param account The address that was removed from the whitelist
     event AddressRemovedFromWhitelist(address indexed account);
 
+    /// @notice Constructor
+    /// @param initialOwner_ The address of the initial owner
     constructor(address initialOwner_) Ownable(initialOwner_) {}
 
     /// @inheritdoc IOrionAccessControl

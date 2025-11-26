@@ -88,4 +88,10 @@ library ErrorsLib {
 
     /// @notice Deposit not allowed due to access control restrictions.
     error DepositNotAllowed();
+
+    /// @notice Slippage exceeds the configured tolerance.
+    /// @param asset The asset address where slippage was detected.
+    /// @param actual The actual value observed.
+    /// @param expected The expected value.
+    error SlippageExceeded(address asset, uint256 actual, uint256 expected);
 }
