@@ -136,7 +136,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
         address[] calldata tokens,
         uint256[] calldata shares,
         uint256 newTotalAssets
-    ) external onlyInternalStatesOrchestrator {
+    ) external onlyLiquidityOrchestrator {
         _portfolio.clear();
 
         uint16 portfolioLength = uint16(tokens.length);
@@ -145,13 +145,13 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
             _portfolio.set(tokens[i], shares[i]);
         }
 
+        _totalAssets = newTotalAssets;
+
         uint256 currentSharePrice = convertToAssets(10 ** decimals());
 
         if (currentSharePrice > feeModel.highWaterMark) {
             feeModel.highWaterMark = currentSharePrice;
         }
-
-        _totalAssets = newTotalAssets;
 
         // Emit event for tracking state updates
         emit EventsLib.VaultStateUpdated(newTotalAssets);

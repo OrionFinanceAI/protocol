@@ -770,33 +770,300 @@ describe("Orchestrators", function () {
       );
       const bufferDelta = bufferAmountAfter - bufferAmountBefore;
 
+      // Expected Total Assets calculations (asserted after LiquidityOrchestrator completes)
       const absVA = BigInt(ABSOLUTE_VAULT_DEPOSIT) * BigInt(10 ** underlyingDecimals);
       const absProportionalFee = (BigInt(ABSOLUTE_VAULT_DEPOSIT) * bufferDelta) / sumVA;
       const absExpected = absVA - absProportionalFee;
-      const absActual = await absoluteVault.totalAssets();
-      expect(absActual).to.equal(absExpected);
 
       const shVA = BigInt(SOFT_HURDLE_VAULT_DEPOSIT) * BigInt(10 ** underlyingDecimals);
       const shProportionalFee = (BigInt(SOFT_HURDLE_VAULT_DEPOSIT) * bufferDelta) / sumVA;
       const shExpected = shVA - shProportionalFee;
-      const shActual = await softHurdleVault.totalAssets();
-      expect(shActual).to.equal(shExpected);
 
       const hhVA = BigInt(HARD_HURDLE_VAULT_DEPOSIT) * BigInt(10 ** underlyingDecimals);
       const hhProportionalFee = (BigInt(HARD_HURDLE_VAULT_DEPOSIT) * bufferDelta) / sumVA;
       const hhExpected = hhVA - hhProportionalFee;
-      const hhActual = await hardHurdleVault.totalAssets();
-      expect(hhActual).to.equal(hhExpected);
 
       const hwmVA = BigInt(HIGH_WATER_MARK_VAULT_DEPOSIT) * BigInt(10 ** underlyingDecimals);
       const hwmProportionalFee = (BigInt(HIGH_WATER_MARK_VAULT_DEPOSIT) * bufferDelta) / sumVA;
       const hwmExpected = hwmVA - hwmProportionalFee;
-      const hwmActual = await highWaterMarkVault.totalAssets();
-      expect(hwmActual).to.equal(hwmExpected);
 
       const hhwmVA = BigInt(HURDLE_HWM_VAULT_DEPOSIT) * BigInt(10 ** underlyingDecimals);
       const hhwmProportionalFee = (BigInt(HURDLE_HWM_VAULT_DEPOSIT) * bufferDelta) / sumVA;
       const hhwmExpected = hhwmVA - hhwmProportionalFee;
+
+      // ------------------------------------------------------------------------------------------------
+
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Back to Idle
+
+      // Check that orders were built
+      let [sellingTokens, sellingAmounts, sellingEstimatedUnderlyingAmounts] =
+        await internalStatesOrchestrator.getOrders(true);
+
+      let [buyingTokens, buyingAmounts, buyingEstimatedUnderlyingAmounts] =
+        await internalStatesOrchestrator.getOrders(false);
+
+      // Check that all amounts are greater than 0
+      for (const amount of sellingAmounts) {
+        expect(amount).to.be.gt(0);
+      }
+      for (const amount of buyingAmounts) {
+        expect(amount).to.be.gt(0);
+      }
+
+      expect(sellingTokens.length).to.equal(0);
+      expect(sellingEstimatedUnderlyingAmounts.length).to.equal(0);
+      expect(buyingTokens.length).to.equal(4);
+
+      // Simulate gains in the investment universe after orders are built but before LO processes them
+      // This tests price mismatch handling in the first epoch
+      const gainAmount1 = ethers.parseUnits("10000", underlyingDecimals);
+      await underlyingAsset.connect(user).approve(await mockAsset1.getAddress(), gainAmount1);
+      await mockAsset1.connect(user).simulateGains(gainAmount1);
+
+      // First epoch: Process LO completely to update portfolios for comparison
+      // Wait for liquidity orchestrator to process all phases (SellingLeg -> BuyingLeg -> ProcessVaultOperations -> Idle)
+      // This ensures portfolios are updated before we fetch them
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(1); // SellingLeg
+
+      // Process selling leg
+      let [epochUpkeepNeeded, epochPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      void expect(epochUpkeepNeeded).to.be.true;
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(epochPerformData);
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(2); // BuyingLeg
+
+      // Process buying leg
+      // After price increases, the buy will cost more than estimated, triggering slippage error
+      [epochUpkeepNeeded, epochPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      void expect(epochUpkeepNeeded).to.be.true;
+      await expect(liquidityOrchestrator.connect(automationRegistry).performUpkeep(epochPerformData)).to.be.reverted;
+
+      // Here in production a retrigger of the two orchestrators works, assuming the slippage is due to bad timing.
+      // Let's actually use the stateful ISO retry to rebuild the orders taking into account the bad investment universe asset
+      // for this epoch.
+      // TODO: implement this.
+
+      // Retry the buying leg after
+      [epochUpkeepNeeded, epochPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      void expect(epochUpkeepNeeded).to.be.true;
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(epochPerformData);
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(3); // ProcessVaultOperations
+
+      // Process all vault operations in minibatches until Idle
+      while ((await liquidityOrchestrator.currentPhase()) === 3n) {
+        [epochUpkeepNeeded, epochPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+        void expect(epochUpkeepNeeded).to.be.true;
+        await liquidityOrchestrator.connect(automationRegistry).performUpkeep(epochPerformData);
+      }
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
+
+      // Now that the first epoch is complete and portfolios are updated, fetch them and compare
+      // Compute the batched portfolio: sum the share amount of each vault for the same token.
+      // We'll batch all portfolios together from: absoluteVault, softHurdleVault, hardHurdleVault, hurdleHwmVault, passiveVault
+      const vaultPortfolios = [
+        await absoluteVault.getPortfolio(),
+        await softHurdleVault.getPortfolio(),
+        await hardHurdleVault.getPortfolio(),
+        await highWaterMarkVault.getPortfolio(),
+        await hurdleHwmVault.getPortfolio(),
+        await passiveVault.getPortfolio(),
+      ];
+
+      // Map<token, summedShares>
+      const batchedPortfolio = new Map<string, bigint>();
+
+      for (const [tokens, shares] of vaultPortfolios) {
+        for (let i = 0; i < tokens.length; i++) {
+          const token = tokens[i];
+          const share = shares[i];
+          const prevSum = batchedPortfolio.get(token) ?? 0n;
+          batchedPortfolio.set(token, prevSum + share);
+        }
+      }
+
+      // Output batched portfolio
+      console.log("Batched Portfolio Across All Vaults:");
+      for (const [token, summedShares] of batchedPortfolio.entries()) {
+        console.log(`Token ${token}: Total Shares Across Vaults = ${summedShares.toString()}`);
+      }
+
+      // Assert that buying amounts match the batched portfolio (metaportfolio)
+      console.log("Buying Orders vs Batched Portfolio:");
+      for (let i = 0; i < buyingTokens.length; i++) {
+        const token = buyingTokens[i];
+        const buyingAmount = buyingAmounts[i];
+        const batchedAmount = batchedPortfolio.get(token);
+
+        console.log(
+          `Token ${token}: Buying Amount = ${buyingAmount.toString()}, Batched Portfolio = ${batchedAmount?.toString() || "0"}`,
+        );
+
+        expect(buyingAmount).to.equal(batchedAmount);
+      }
+
+      console.log("--------------------------------------------------------------------------------------------------");
+
+      // Second epoch:
+      // Fast forward time to trigger the next upkeep cycle
+      await time.increase(epochDuration + 1n);
+
+      // Process all phases for the second epoch until BuildingOrders
+      // First, trigger the start of the new cycle (should move to PreprocessingTransparentVaults)
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      void expect(_upkeepNeeded).to.be.true;
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
+
+      // Process all vaults in preprocessing phase
+      while ((await internalStatesOrchestrator.currentPhase()) === 1n) {
+        [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+        await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      }
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // Buffering
+
+      // Process Buffering
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
+
+      // Process all vaults in postprocessing phase - continue until we reach building orders phase
+      while ((await internalStatesOrchestrator.currentPhase()) === 3n) {
+        [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+        await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      }
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
+
+      // Build orders for the second epoch
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Back to Idle
+
+      // Get both selling and buying orders for the second epoch
+      const [sellingTokens2, _sellingAmounts2, _sellingEstimatedUnderlyingAmounts2] =
+        await internalStatesOrchestrator.getOrders(true);
+      const [buyingTokens2, buyingAmounts2, _buyingEstimatedUnderlyingAmounts2] =
+        await internalStatesOrchestrator.getOrders(false);
+
+      // Debug: Check if there are orders
+      console.log("Selling tokens count:", sellingTokens2.length);
+      console.log("Buying tokens count:", buyingTokens2.length);
+
+      // Simulate losses to decrease prices - this will cause sell orders to receive less than estimated
+      const lossAmount1 = ethers.parseUnits("500", underlyingDecimals);
+      await mockAsset1.connect(user).simulateLosses(lossAmount1, user.address);
+
+      const lossAmount2 = ethers.parseUnits("530", underlyingDecimals);
+      await mockAsset2.connect(user).simulateLosses(lossAmount2, user.address);
+
+      const lossAmount3 = ethers.parseUnits("50", underlyingDecimals);
+      await mockAsset3.connect(user).simulateLosses(lossAmount3, user.address);
+
+      const decimals1 = await mockAsset1.decimals();
+      const decimals2 = await mockAsset2.decimals();
+      const decimals3 = await mockAsset3.decimals();
+      const currentSharePrice1 = await mockAsset1.convertToAssets(10n ** BigInt(decimals1));
+      const currentSharePrice2 = await mockAsset2.convertToAssets(10n ** BigInt(decimals2));
+      const currentSharePrice3 = await mockAsset3.convertToAssets(10n ** BigInt(decimals3));
+
+      console.log(currentSharePrice1);
+      console.log(currentSharePrice2);
+      console.log(currentSharePrice3);
+
+      // Now check if liquidity orchestrator phase
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(1); // SellingLeg
+
+      let [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      void expect(liquidityUpkeepNeeded).to.be.true;
+
+      // Price decrease for selling orders - sell will receive less than estimated, triggering slippage error
+      // The transaction should revert due to slippage being exceeded
+      await expect(liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData)).to.be
+        .reverted;
+
+      // In conjunction with the failure of the transaction,
+      // test that trying to performupkeep on the internal state orchestrator
+      // (even if its Idle) fails because LO is not idle.
+      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      void expect(_upkeepNeeded).to.be.false;
+
+      // TODO: new implementation here does not work with liqudity injection,
+      // sell leg already processed, cannot go back to ISO, need to read sell leg to skip a specific subset of assets from the buy.
+
+      // Protocol admin injects liquidity to stabilize the protocol and terminate epoch successfully.
+      const liquidityInjectionAmount = ethers.parseUnits("170", underlyingDecimals);
+      await underlyingAsset.mint(user.address, liquidityInjectionAmount);
+      await underlyingAsset.connect(user).approve(await liquidityOrchestrator.getAddress(), liquidityInjectionAmount);
+      await liquidityOrchestrator.connect(user).depositLiquidity(liquidityInjectionAmount);
+
+      const liquidityOrchestratorBalanceAfterInjection = await underlyingAsset.balanceOf(
+        await liquidityOrchestrator.getAddress(),
+      );
+
+      // Get fresh performData for retry after liquidity injection
+      [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+      void expect(liquidityUpkeepNeeded).to.be.true;
+
+      // Retry the performUpkeep call after liquidity injection
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+
+      const liquidityOrchestratorBalance = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
+      console.log("liquidityOrchestratorBalance:", liquidityOrchestratorBalance.toString());
+
+      // Calculate expected cost based on which leg had orders
+      let expectedCost = 0n;
+      expectedCost =
+        (buyingAmounts2[0] * BigInt(Math.round(MOCK_ASSET1_P0 * 10 ** underlyingDecimals))) / 10n ** BigInt(decimals1) +
+        (buyingAmounts2[1] * BigInt(Math.round(MOCK_ASSET2_P0 * 10 ** underlyingDecimals))) / 10n ** BigInt(decimals2) +
+        (buyingAmounts2[2] * BigInt(Math.round(MOCK_ASSET3_P0 * 10 ** underlyingDecimals))) / 10n ** BigInt(decimals3);
+      const actualCost = liquidityOrchestratorBalanceAfterInjection - liquidityOrchestratorBalance;
+
+      console.log("expectedCost:", expectedCost.toString());
+      console.log("actualCost:", actualCost.toString());
+
+      // Use closeTo for approximate equality with tolerance
+      expect(Number(actualCost)).to.be.closeTo(Number(expectedCost), 1e-9 * Number(10n ** BigInt(decimals3)));
+
+      const bufferAmountAfterRebalancing = await internalStatesOrchestrator.bufferAmount();
+
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(3); // ProcessVaultOperations
+
+      // Check balances of investment universe assets in the LO.
+      const liquidityOrchestratorBalanceOfMockAsset1 = await mockAsset1.balanceOf(
+        await liquidityOrchestrator.getAddress(),
+      );
+      const liquidityOrchestratorBalanceOfMockAsset2 = await mockAsset2.balanceOf(
+        await liquidityOrchestrator.getAddress(),
+      );
+      const liquidityOrchestratorBalanceOfMockAsset3 = await mockAsset3.balanceOf(
+        await liquidityOrchestrator.getAddress(),
+      );
+
+      expect(liquidityOrchestratorBalanceOfMockAsset1).to.equal(buyingAmounts2[0]);
+      expect(liquidityOrchestratorBalanceOfMockAsset2).to.equal(buyingAmounts2[1]);
+      expect(liquidityOrchestratorBalanceOfMockAsset3).to.equal(buyingAmounts2[2]);
+
+      while ((await liquidityOrchestrator.currentPhase()) === 3n) {
+        [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
+        void expect(liquidityUpkeepNeeded).to.be.true;
+        await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
+      }
+
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
+
+      // Assert totalAssets() after LiquidityOrchestrator completes (totalAssets is now set at the end of LO)
+      const absActual = await absoluteVault.totalAssets();
+      expect(absActual).to.equal(absExpected);
+
+      const shActual = await softHurdleVault.totalAssets();
+      expect(shActual).to.equal(shExpected);
+
+      const hhActual = await hardHurdleVault.totalAssets();
+      expect(hhActual).to.equal(hhExpected);
+
+      const hwmActual = await highWaterMarkVault.totalAssets();
+      expect(hwmActual).to.equal(hwmExpected);
+
       const hhwmActual = await hurdleHwmVault.totalAssets();
       expect(hhwmActual).to.equal(hhwmExpected);
 
@@ -975,181 +1242,6 @@ describe("Orchestrators", function () {
         expect(actualShares).to.equal(expectedShares!);
       }
 
-      // Compute the batched portfolio: sum the share amount of each vault for the same token.
-      // We'll batch all portfolios together from: absoluteVault, softHurdleVault, hardHurdleVault, hurdleHwmVault, passiveVault
-      const vaultPortfolios = [
-        await absoluteVault.getPortfolio(),
-        await softHurdleVault.getPortfolio(),
-        await hardHurdleVault.getPortfolio(),
-        await highWaterMarkVault.getPortfolio(),
-        await hurdleHwmVault.getPortfolio(),
-        await passiveVault.getPortfolio(),
-      ];
-
-      // Map<token, summedShares>
-      const batchedPortfolio = new Map<string, bigint>();
-
-      for (const [tokens, shares] of vaultPortfolios) {
-        for (let i = 0; i < tokens.length; i++) {
-          const token = tokens[i];
-          const share = shares[i];
-          const prevSum = batchedPortfolio.get(token) ?? 0n;
-          batchedPortfolio.set(token, prevSum + share);
-        }
-      }
-
-      // Output batched portfolio
-      console.log("Batched Portfolio Across All Vaults:");
-      for (const [token, summedShares] of batchedPortfolio.entries()) {
-        console.log(`Token ${token}: Total Shares Across Vaults = ${summedShares.toString()}`);
-      }
-
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Back to Idle
-
-      // Check that orders were built
-      let [sellingTokens, sellingAmounts, sellingEstimatedUnderlyingAmounts] =
-        await internalStatesOrchestrator.getOrders(true);
-
-      let [buyingTokens, buyingAmounts, buyingEstimatedUnderlyingAmounts] =
-        await internalStatesOrchestrator.getOrders(false);
-
-      // Check that all amounts are greater than 0
-      for (const amount of sellingAmounts) {
-        expect(amount).to.be.gt(0);
-      }
-      for (const amount of buyingAmounts) {
-        expect(amount).to.be.gt(0);
-      }
-
-      expect(sellingTokens.length).to.equal(0);
-      expect(sellingEstimatedUnderlyingAmounts.length).to.equal(0);
-      expect(buyingTokens.length).to.equal(4);
-
-      // Assert that buying amounts match the batched portfolio (metaportfolio)
-      console.log("Buying Orders vs Batched Portfolio:");
-      for (let i = 0; i < buyingTokens.length; i++) {
-        const token = buyingTokens[i];
-        const buyingAmount = buyingAmounts[i];
-        const batchedAmount = batchedPortfolio.get(token);
-
-        console.log(
-          `Token ${token}: Buying Amount = ${buyingAmount.toString()}, Batched Portfolio = ${batchedAmount?.toString() || "0"}`,
-        );
-
-        expect(buyingAmount).to.equal(batchedAmount);
-      }
-
-      console.log("--------------------------------------------------------------------------------------------------");
-
-      // Trigger a price mismatch between measured and execution.
-      const gainAmount1 = ethers.parseUnits("500", underlyingDecimals);
-      await underlyingAsset.connect(user).approve(await mockAsset1.getAddress(), gainAmount1);
-      await mockAsset1.connect(user).simulateGains(gainAmount1);
-
-      const gainAmount2 = ethers.parseUnits("530", underlyingDecimals);
-      await underlyingAsset.connect(user).approve(await mockAsset2.getAddress(), gainAmount2);
-      await mockAsset2.connect(user).simulateGains(gainAmount2);
-
-      const gainAmount3 = ethers.parseUnits("50", underlyingDecimals);
-      await underlyingAsset.connect(user).approve(await mockAsset3.getAddress(), gainAmount3);
-      await mockAsset3.connect(user).simulateGains(gainAmount3);
-
-      const decimals1 = await mockAsset1.decimals();
-      const decimals2 = await mockAsset2.decimals();
-      const decimals3 = await mockAsset3.decimals();
-      const currentSharePrice1 = await mockAsset1.convertToAssets(10n ** BigInt(decimals1));
-      const currentSharePrice2 = await mockAsset2.convertToAssets(10n ** BigInt(decimals2));
-      const currentSharePrice3 = await mockAsset3.convertToAssets(10n ** BigInt(decimals3));
-
-      console.log(currentSharePrice1);
-      console.log(currentSharePrice2);
-      console.log(currentSharePrice3);
-
-      // Price increase for buying-only order, at least one buying order expected to fail
-      // due to high mismatch between measured and execution prices.
-
-      // Now check if liquidity orchestrator phase
-      expect(await liquidityOrchestrator.currentPhase()).to.equal(1); // SellingLeg
-
-      // No selling in first epoch.
-
-      let [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
-      void expect(liquidityUpkeepNeeded).to.be.true;
-      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
-
-      expect(await liquidityOrchestrator.currentPhase()).to.equal(2); // BuyingLeg
-
-      // The transaction should revert due to insufficient funds (either balance or allowance)
-      // After price increases, the adapter may not have enough approved or LO may not have enough balance
-      await expect(liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData)).to.be
-        .reverted;
-
-      // In conjunction with the failure of the buy transaction,
-      // test that trying to performupkeep on the internal state orchestrator
-      // (even if its Idle) fails because LO is not idle.
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      void expect(_upkeepNeeded).to.be.false;
-
-      // TODO: new implementation hear does not work with liqudity injection,
-      // sell leg already processed, cannot go back to ISO, need to read sell leg to skip a specific subset of assets from the buy.
-
-      // Protocol admin injects liquidity to stabilize the protocol and terminate epoch successfully.
-      const liquidityInjectionAmount = ethers.parseUnits("170", underlyingDecimals);
-      await underlyingAsset.mint(user.address, liquidityInjectionAmount);
-      await underlyingAsset.connect(user).approve(await liquidityOrchestrator.getAddress(), liquidityInjectionAmount);
-      await liquidityOrchestrator.connect(user).depositLiquidity(liquidityInjectionAmount);
-
-      const liquidityOrchestratorBalanceAfterInjection = await underlyingAsset.balanceOf(
-        await liquidityOrchestrator.getAddress(),
-      );
-
-      // Retry the performUpkeep call after liquidity injection
-      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
-
-      const liquidityOrchestratorBalance = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
-      console.log("liquidityOrchestratorBalance:", liquidityOrchestratorBalance.toString());
-
-      const expectedCost =
-        (buyingAmounts[0] * BigInt(Math.round(MOCK_ASSET1_P0 * 10 ** underlyingDecimals))) / 10n ** BigInt(decimals1) +
-        (buyingAmounts[1] * BigInt(Math.round(MOCK_ASSET2_P0 * 10 ** underlyingDecimals))) / 10n ** BigInt(decimals2) +
-        (buyingAmounts[2] * BigInt(Math.round(MOCK_ASSET3_P0 * 10 ** underlyingDecimals))) / 10n ** BigInt(decimals3);
-      const actualCost = liquidityOrchestratorBalanceAfterInjection - liquidityOrchestratorBalance;
-
-      console.log("expectedCost:", expectedCost.toString());
-      console.log("actualCost:", actualCost.toString());
-
-      // Use closeTo for approximate equality with tolerance
-      expect(Number(actualCost)).to.be.closeTo(Number(expectedCost), 1e-9 * Number(10n ** BigInt(decimals3)));
-
-      const bufferAmountAfterRebalancing = await internalStatesOrchestrator.bufferAmount();
-
-      expect(await liquidityOrchestrator.currentPhase()).to.equal(3); // ProcessVaultOperations
-
-      // Check balances of investment unverse assets in the LO.
-      const liquidityOrchestratorBalanceOfMockAsset1 = await mockAsset1.balanceOf(
-        await liquidityOrchestrator.getAddress(),
-      );
-      const liquidityOrchestratorBalanceOfMockAsset2 = await mockAsset2.balanceOf(
-        await liquidityOrchestrator.getAddress(),
-      );
-      const liquidityOrchestratorBalanceOfMockAsset3 = await mockAsset3.balanceOf(
-        await liquidityOrchestrator.getAddress(),
-      );
-
-      expect(liquidityOrchestratorBalanceOfMockAsset1).to.equal(buyingAmounts[0]);
-      expect(liquidityOrchestratorBalanceOfMockAsset2).to.equal(buyingAmounts[1]);
-      expect(liquidityOrchestratorBalanceOfMockAsset3).to.equal(buyingAmounts[2]);
-
-      while ((await liquidityOrchestrator.currentPhase()) === 3n) {
-        [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
-        void expect(liquidityUpkeepNeeded).to.be.true;
-        await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
-      }
-
-      expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
-
       const userBalanceOfAbsoluteVault = await absoluteVault.balanceOf(user.address);
       expect(userBalanceOfAbsoluteVault).to.equal(
         ethers.parseUnits(ABSOLUTE_VAULT_DEPOSIT.toString(), await absoluteVault.decimals()),
@@ -1219,6 +1311,9 @@ describe("Orchestrators", function () {
 
       // Fast forward time to trigger upkeep
       await time.increase(epochDuration + 1n);
+
+      // TODO: simulate third epoch in which we have a lot of request redeem and a failing sell order, making it necessary to use and
+      // test the "ignore LPs" path.
 
       [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
 
