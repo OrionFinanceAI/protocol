@@ -1095,6 +1095,9 @@ describe("Orchestrators", function () {
       [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
       void expect(_upkeepNeeded).to.be.false;
 
+      // TODO: new implementation hear does not work with liqudity injection,
+      // sell leg already processed, cannot go back to ISO, need to read sell leg to skip a specific subset of assets from the buy.
+
       // Protocol admin injects liquidity to stabilize the protocol and terminate epoch successfully.
       const liquidityInjectionAmount = ethers.parseUnits("170", underlyingDecimals);
       await underlyingAsset.mint(user.address, liquidityInjectionAmount);

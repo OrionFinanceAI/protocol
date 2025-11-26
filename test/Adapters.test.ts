@@ -6,6 +6,7 @@ import {
   InternalStatesOrchestrator,
   LiquidityOrchestrator,
   MockERC4626Asset,
+  MockPriceAdapter,
   MockUnderlyingAsset,
   OrionAssetERC4626ExecutionAdapter,
   OrionAssetERC4626PriceAdapter,
@@ -96,7 +97,7 @@ describe("Price Adapter", function () {
           await priceAdapter.getAddress(),
           await mockExecutionAdapter.getAddress(),
         ),
-      ).to.be.revertedWithCustomError(priceAdapter, "InvalidAdapter");
+      ).to.be.reverted;
     });
 
     it("should revert with InvalidAdapter when trying to whitelist a regular ERC20 token with ERC4626 execution adapter", async function () {
@@ -118,7 +119,7 @@ describe("Price Adapter", function () {
           await mockPriceAdapter.getAddress(),
           await erc4626ExecutionAdapter.getAddress(),
         ),
-      ).to.be.revertedWithCustomError(erc4626ExecutionAdapter, "InvalidAdapter");
+      ).to.be.reverted;
     });
 
     it("should revert with InvalidAdapter when trying to whitelist an ERC4626 with different underlying asset using ERC4626 price adapter", async function () {
@@ -205,7 +206,7 @@ describe("Price Adapter", function () {
   describe("ERC4626 Execution Adapter - Share Accounting", function () {
     let erc4626ExecutionAdapter: OrionAssetERC4626ExecutionAdapter;
     let erc4626Vault: MockERC4626Asset;
-    let mockPriceAdapter: any;
+    let mockPriceAdapter: MockPriceAdapter;
 
     beforeEach(async function () {
       const OrionAssetERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
@@ -269,7 +270,9 @@ describe("Price Adapter", function () {
       const balanceBefore = await erc4626Vault.balanceOf(await liquidityOrchestrator.getAddress());
 
       // Execute buy as LO
-      await erc4626ExecutionAdapter.connect(loSigner).buy(await erc4626Vault.getAddress(), sharesTarget);
+      await erc4626ExecutionAdapter
+        .connect(loSigner)
+        .buy(await erc4626Vault.getAddress(), sharesTarget, underlyingAmount);
 
       // Verify exact shares were minted
       const balanceAfter = await erc4626Vault.balanceOf(await liquidityOrchestrator.getAddress());
@@ -302,7 +305,9 @@ describe("Price Adapter", function () {
       const underlyingBalanceBefore = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
 
       // Execute buy from adapter
-      await erc4626ExecutionAdapter.connect(loSigner).buy(await erc4626Vault.getAddress(), sharesTarget);
+      await erc4626ExecutionAdapter
+        .connect(loSigner)
+        .buy(await erc4626Vault.getAddress(), sharesTarget, underlyingAmount);
 
       const underlyingBalanceAfter = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
 
@@ -341,7 +346,9 @@ describe("Price Adapter", function () {
 
       for (let i = 0; i < numBuys; i++) {
         const balanceBefore = await erc4626Vault.balanceOf(await liquidityOrchestrator.getAddress());
-        await erc4626ExecutionAdapter.connect(loSigner).buy(await erc4626Vault.getAddress(), sharesPerBuy);
+        await erc4626ExecutionAdapter
+          .connect(loSigner)
+          .buy(await erc4626Vault.getAddress(), sharesPerBuy, underlyingPerBuy);
         const balanceAfter = await erc4626Vault.balanceOf(await liquidityOrchestrator.getAddress());
 
         const sharesMinted = balanceAfter - balanceBefore;
@@ -376,7 +383,9 @@ describe("Price Adapter", function () {
 
       // First buy shares via adapter
       await underlyingAsset.connect(loSigner).approve(await erc4626ExecutionAdapter.getAddress(), ethers.MaxUint256);
-      await erc4626ExecutionAdapter.connect(loSigner).buy(await erc4626Vault.getAddress(), sharesAmount);
+      await erc4626ExecutionAdapter
+        .connect(loSigner)
+        .buy(await erc4626Vault.getAddress(), sharesAmount, underlyingAmount);
 
       // Verify we have exact shares
       const shareBalance = await erc4626Vault.balanceOf(await liquidityOrchestrator.getAddress());
@@ -385,8 +394,13 @@ describe("Price Adapter", function () {
       // Now sell those exact shares
       await erc4626Vault.connect(loSigner).approve(await erc4626ExecutionAdapter.getAddress(), sharesAmount);
 
+      // Get the expected underlying amount from previewRedeem
+      const expectedUnderlyingFromRedeem = await erc4626Vault.previewRedeem(sharesAmount);
+
       const underlyingBefore = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
-      await erc4626ExecutionAdapter.connect(loSigner).sell(await erc4626Vault.getAddress(), sharesAmount);
+      await erc4626ExecutionAdapter
+        .connect(loSigner)
+        .sell(await erc4626Vault.getAddress(), sharesAmount, expectedUnderlyingFromRedeem);
       const underlyingAfter = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
 
       // Verify shares were fully redeemed

@@ -24,6 +24,10 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @return The target buffer ratio
     function targetBufferRatio() external view returns (uint256);
 
+    /// @notice Returns the slippage tolerance
+    /// @return The slippage tolerance
+    function slippageTolerance() external view returns (uint256);
+
     /// @notice Updates the minibatch size for fulfill deposit and redeem processing
     /// @param _minibatchSize The new minibatch size
     function updateMinibatchSize(uint8 _minibatchSize) external;
@@ -39,7 +43,8 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
 
     /// @notice Sets the target buffer ratio
     /// @param _targetBufferRatio The new target buffer ratio
-    /// @dev Also sets slippage tolerance to 50% of targetBufferRatio across all execution adapters
+    /// @dev Slippage tolerance is set to 50% of targetBufferRatio to support worst-case scenario prices
+    ///      and full NAV rebalancing. This ensures ALL trades pass even with maximum price impact.
     function setTargetBufferRatio(uint256 _targetBufferRatio) external;
 
     /// @notice Claim protocol fees with specified amount

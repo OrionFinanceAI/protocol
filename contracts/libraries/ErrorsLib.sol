@@ -94,14 +94,4 @@ library ErrorsLib {
     /// @param actual The actual value observed.
     /// @param expected The expected value.
     error SlippageExceeded(address asset, uint256 actual, uint256 expected);
-
-    /// @notice Asset decimals mismatch between runtime and config.
-    /// @param asset The asset address with mismatched decimals.
-    /// @param runtimeDecimals The decimals returned by the asset at runtime.
-    /// @param configDecimals The decimals stored in config.
-    error DecimalsMismatch(address asset, uint8 runtimeDecimals, uint8 configDecimals);
-
-    /// @notice Vault has zero total assets, making operations unsafe.
-    /// @param asset The vault asset address with zero total assets.
-    error ZeroTotalAssets(address asset);
 }

@@ -29,6 +29,9 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
     using Math for uint256;
     using SafeERC20 for IERC20;
 
+    /// @notice Basis points factor
+    uint16 public constant BASIS_POINTS_FACTOR = 10_000;
+
     /* -------------------------------------------------------------------------- */
     /*                                 CONTRACTS                                  */
     /* -------------------------------------------------------------------------- */
@@ -63,11 +66,10 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
     /// @notice Current minibatch index
     uint8 public currentMinibatchIndex;
 
-    /// @notice Target buffer ratio (in basis points, where 10000 = 100%)
+    /// @notice Target buffer ratio
     uint256 public targetBufferRatio;
 
-    /// @notice Slippage tolerance (in basis points, where 10000 = 100%)
-    /// @dev This is set to 50% of targetBufferRatio to ensure all trades pass in worst-case scenarios
+    /// @notice Slippage tolerance
     uint256 public slippageTolerance;
 
     /// @notice Maximum minibatch size
@@ -124,7 +126,7 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
         automationRegistry = automationRegistry_;
         currentPhase = LiquidityUpkeepPhase.Idle;
         minibatchSize = 1;
-        slippageTolerance = 0; // Will be set when targetBufferRatio is configured
+        slippageTolerance = 0;
     }
 
     /* -------------------------------------------------------------------------- */
@@ -156,8 +158,6 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    /// @dev Slippage tolerance is set to 50% of targetBufferRatio to support worst-case scenario prices
-    ///      and full NAV rebalancing. This ensures ALL trades pass even with maximum price impact.
     function setTargetBufferRatio(uint256 _targetBufferRatio) external onlyOwner {
         if (_targetBufferRatio == 0) revert ErrorsLib.InvalidArguments();
         // 5%
@@ -165,29 +165,7 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         targetBufferRatio = _targetBufferRatio;
-
-        // Set slippage tolerance to 50% of target buffer ratio
-        // This is needed to support worst-case scenario prices + full NAV rebalancing
         slippageTolerance = _targetBufferRatio / 2;
-
-        // Update slippage tolerance on all execution adapters
-        _updateAllExecutionAdaptersSlippage();
-    }
-
-    /// @notice Updates slippage tolerance on all registered execution adapters
-    /// @dev Internal function called when slippage tolerance changes
-    function _updateAllExecutionAdaptersSlippage() internal {
-        address[] memory assets = config.getAllWhitelistedAssets();
-        for (uint256 i = 0; i < assets.length; ++i) {
-            address asset = assets[i];
-            IExecutionAdapter adapter = executionAdapterOf[asset];
-            if (address(adapter) != address(0)) {
-                // Call setSlippageTolerance on the adapter (will be defined in interface)
-                try adapter.setSlippageTolerance(slippageTolerance) {} catch {
-                    // Silently continue if adapter doesn't support slippage tolerance yet
-                }
-            }
-        }
     }
 
     /// @inheritdoc ILiquidityOrchestrator
@@ -384,7 +362,7 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
         IERC20(asset).forceApprove(address(adapter), sharesAmount);
 
         // Execute sell through adapter, pull shares from this contract and push underlying assets to it.
-        uint256 executionUnderlyingAmount = adapter.sell(asset, sharesAmount);
+        uint256 executionUnderlyingAmount = adapter.sell(asset, sharesAmount, estimatedUnderlyingAmount);
 
         // Clean up approval
         IERC20(asset).forceApprove(address(adapter), 0);
@@ -396,26 +374,19 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
     /// @param asset The asset to buy
     /// @param sharesAmount The amount of shares to buy
     /// @param estimatedUnderlyingAmount The estimated underlying amount to spend
-    /// @dev The adapter now handles slippage tolerance internally based on configured slippageTolerance
+    /// @dev The adapter handles slippage tolerance internally.
     function _executeBuy(address asset, uint256 sharesAmount, uint256 estimatedUnderlyingAmount) internal {
         IExecutionAdapter adapter = executionAdapterOf[asset];
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
 
-        // Calculate maximum spend with appropriate buffer
-        // The adapter will pull this amount and return any excess
-        // Use 3x multiplier as base safety factor to account for:
-        // 1. Price divergence between estimation time and execution time
-        // 2. Vault-specific fees, rounding, or exchange rate changes
-        // 3. Additional slippage tolerance for market impact (if configured)
-        uint256 maxAcceptableSpend = slippageTolerance > 0
-            ? (estimatedUnderlyingAmount * 3 * (10000 + slippageTolerance)) / 10000
-            : estimatedUnderlyingAmount * 5;
-
-        // Approve adapter to spend underlying assets (limited to max acceptable spend)
-        IERC20(underlyingAsset).forceApprove(address(adapter), maxAcceptableSpend);
+        // Approve adapter to spend underlying assets
+        IERC20(underlyingAsset).forceApprove(
+            address(adapter),
+            estimatedUnderlyingAmount.mulDiv(BASIS_POINTS_FACTOR + slippageTolerance, BASIS_POINTS_FACTOR)
+        );
 
         // Execute buy through adapter, pull underlying assets from this contract and push shares to it.
-        uint256 executionUnderlyingAmount = adapter.buy(asset, sharesAmount);
+        uint256 executionUnderlyingAmount = adapter.buy(asset, sharesAmount, estimatedUnderlyingAmount);
 
         // Clean up approval
         IERC20(underlyingAsset).forceApprove(address(adapter), 0);

@@ -289,25 +289,6 @@
         {
           "indexed": true,
           "internalType": "address",
-          "name": "asset",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint8",
-          "name": "newDecimals",
-          "type": "uint8"
-        }
-      ],
-      "name": "TokenDecimalsUpdated",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
           "name": "vault",
           "type": "address"
         }
@@ -368,8 +349,8 @@
       "type": "event"
     }
   ],
-  "bytecode": "0x60556032600b8282823980515f1a607314602657634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f5ffdfea2646970667358221220df7aba9f9cc5915708aa015b7ee1cc62f501eb1298958e6f304e870e445bec1f64736f6c634300081c0033",
-  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f5ffdfea2646970667358221220df7aba9f9cc5915708aa015b7ee1cc62f501eb1298958e6f304e870e445bec1f64736f6c634300081c0033",
+  "bytecode": "0x60556032600b8282823980515f1a607314602657634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f5ffdfea264697066735822122095229ecc326b36574de77854f45f4cb7a49d8b1d7dc973ba5e0908152f7adf1364736f6c634300081c0033",
+  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f5ffdfea264697066735822122095229ecc326b36574de77854f45f4cb7a49d8b1d7dc973ba5e0908152f7adf1364736f6c634300081c0033",
   "linkReferences": {},
   "deployedLinkReferences": {}
 }

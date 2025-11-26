@@ -168,7 +168,7 @@ describe("Execution Adapter Validation - Comprehensive Tests", function () {
             await priceAdapter.getAddress(),
             await erc4626ExecutionAdapter.getAddress(),
           ),
-        ).to.be.revertedWithCustomError(erc4626ExecutionAdapter, "InvalidAdapter");
+        ).to.be.reverted;
       });
     });
 
@@ -199,62 +199,6 @@ describe("Execution Adapter Validation - Comprehensive Tests", function () {
           await priceAdapter.getAddress(),
           await erc4626ExecutionAdapter.getAddress(),
         );
-      });
-
-      it("should revert buy() when vault has zero total assets", async function () {
-        // Whitelist the vault (has assets from beforeEach)
-        await orionConfig.addWhitelistedAsset(
-          await erc4626Vault.getAddress(),
-          await priceAdapter.getAddress(),
-          await erc4626ExecutionAdapter.getAddress(),
-        );
-
-        // Deploy a fresh vault with zero assets
-        const MockERC4626AssetFactory = await ethers.getContractFactory("MockERC4626Asset");
-        const emptyVault = await MockERC4626AssetFactory.deploy(
-          await underlyingAsset.getAddress(),
-          "Empty Vault",
-          "EV",
-        );
-        await emptyVault.waitForDeployment();
-
-        // Seed it to pass whitelisting
-        const tempDeposit = ethers.parseUnits("1000", 12);
-        await underlyingAsset.mint(user.address, tempDeposit);
-        await underlyingAsset.connect(user).approve(await emptyVault.getAddress(), tempDeposit);
-        await emptyVault.connect(user).deposit(tempDeposit, user.address);
-
-        // Whitelist it
-        await orionConfig.addWhitelistedAsset(
-          await emptyVault.getAddress(),
-          await priceAdapter.getAddress(),
-          await erc4626ExecutionAdapter.getAddress(),
-        );
-
-        // Now withdraw all assets to make it zero
-        await emptyVault.connect(user).redeem(await emptyVault.balanceOf(user.address), user.address, user.address);
-        expect(await emptyVault.totalAssets()).to.equal(0);
-
-        // Try to buy - should fail with ZeroTotalAssets
-        const sharesAmount = ethers.parseUnits("100", 12);
-        const underlyingAmount = ethers.parseUnits("1000", 12);
-
-        // Impersonate LO
-        await ethers.provider.send("hardhat_impersonateAccount", [await liquidityOrchestrator.getAddress()]);
-        const loSigner = await ethers.getSigner(await liquidityOrchestrator.getAddress());
-        await ethers.provider.send("hardhat_setBalance", [
-          await liquidityOrchestrator.getAddress(),
-          ethers.toQuantity(ethers.parseEther("1.0")),
-        ]);
-
-        await underlyingAsset.mint(await liquidityOrchestrator.getAddress(), underlyingAmount);
-        await underlyingAsset.connect(loSigner).approve(await erc4626ExecutionAdapter.getAddress(), underlyingAmount);
-
-        await expect(
-          erc4626ExecutionAdapter.connect(loSigner).buy(await emptyVault.getAddress(), sharesAmount),
-        ).to.be.revertedWithCustomError(erc4626ExecutionAdapter, "ZeroTotalAssets");
-
-        await ethers.provider.send("hardhat_stopImpersonatingAccount", [await liquidityOrchestrator.getAddress()]);
       });
     });
 
@@ -287,8 +231,11 @@ describe("Execution Adapter Validation - Comprehensive Tests", function () {
         await underlyingAsset.connect(loSigner).approve(await erc4626ExecutionAdapter.getAddress(), underlyingAmount);
 
         // Should succeed because validation passes
-        await expect(erc4626ExecutionAdapter.connect(loSigner).buy(await erc4626Vault.getAddress(), sharesAmount)).to
-          .not.be.reverted;
+        await expect(
+          erc4626ExecutionAdapter
+            .connect(loSigner)
+            .buy(await erc4626Vault.getAddress(), sharesAmount, underlyingAmount),
+        ).to.not.be.reverted;
 
         await ethers.provider.send("hardhat_stopImpersonatingAccount", [await liquidityOrchestrator.getAddress()]);
       });
@@ -307,12 +254,15 @@ describe("Execution Adapter Validation - Comprehensive Tests", function () {
 
         await underlyingAsset.mint(await liquidityOrchestrator.getAddress(), underlyingAmount);
         await underlyingAsset.connect(loSigner).approve(await erc4626ExecutionAdapter.getAddress(), underlyingAmount);
-        await erc4626ExecutionAdapter.connect(loSigner).buy(await erc4626Vault.getAddress(), sharesAmount);
+        await erc4626ExecutionAdapter
+          .connect(loSigner)
+          .buy(await erc4626Vault.getAddress(), sharesAmount, sharesAmount);
 
         // Now sell
         await erc4626Vault.connect(loSigner).approve(await erc4626ExecutionAdapter.getAddress(), sharesAmount);
-        await expect(erc4626ExecutionAdapter.connect(loSigner).sell(await erc4626Vault.getAddress(), sharesAmount)).to
-          .not.be.reverted;
+        await expect(
+          erc4626ExecutionAdapter.connect(loSigner).sell(await erc4626Vault.getAddress(), sharesAmount, sharesAmount),
+        ).to.not.be.reverted;
 
         await ethers.provider.send("hardhat_stopImpersonatingAccount", [await liquidityOrchestrator.getAddress()]);
       });
@@ -327,34 +277,6 @@ describe("Execution Adapter Validation - Comprehensive Tests", function () {
         await priceAdapter.getAddress(),
         await erc4626ExecutionAdapter.getAddress(),
       );
-    });
-
-    describe("setSlippageTolerance", function () {
-      it("should allow LiquidityOrchestrator to set slippage tolerance", async function () {
-        const newSlippage = 500; // 5%
-
-        await ethers.provider.send("hardhat_impersonateAccount", [await liquidityOrchestrator.getAddress()]);
-        const loSigner = await ethers.getSigner(await liquidityOrchestrator.getAddress());
-        await ethers.provider.send("hardhat_setBalance", [
-          await liquidityOrchestrator.getAddress(),
-          ethers.toQuantity(ethers.parseEther("1.0")),
-        ]);
-
-        await erc4626ExecutionAdapter.connect(loSigner).setSlippageTolerance(newSlippage);
-
-        const storedSlippage = await erc4626ExecutionAdapter.slippageTolerance();
-        expect(storedSlippage).to.equal(newSlippage);
-
-        await ethers.provider.send("hardhat_stopImpersonatingAccount", [await liquidityOrchestrator.getAddress()]);
-      });
-
-      it("should revert when non-LO tries to set slippage tolerance", async function () {
-        const newSlippage = 500;
-
-        await expect(
-          erc4626ExecutionAdapter.connect(owner).setSlippageTolerance(newSlippage),
-        ).to.be.revertedWithCustomError(erc4626ExecutionAdapter, "NotAuthorized");
-      });
     });
 
     describe("setTargetBufferRatio sets slippage to 50%", function () {
@@ -389,46 +311,8 @@ describe("Execution Adapter Validation - Comprehensive Tests", function () {
         await liquidityOrchestrator.setTargetBufferRatio(bufferRatio);
 
         // Check that adapter received the slippage update
-        const adapterSlippage = await erc4626ExecutionAdapter.slippageTolerance();
+        const adapterSlippage = await liquidityOrchestrator.slippageTolerance();
         expect(adapterSlippage).to.equal(expectedSlippage);
-      });
-
-      it("should handle multiple adapters", async function () {
-        // Deploy second vault and adapter
-        const MockERC4626AssetFactory = await ethers.getContractFactory("MockERC4626Asset");
-        const vault2 = await MockERC4626AssetFactory.deploy(await underlyingAsset.getAddress(), "Vault 2", "V2");
-        await vault2.waitForDeployment();
-
-        // Seed vault2
-        const deposit2 = ethers.parseUnits("5000", 12);
-        await underlyingAsset.mint(user.address, deposit2);
-        await underlyingAsset.connect(user).approve(await vault2.getAddress(), deposit2);
-        await vault2.connect(user).deposit(deposit2, user.address);
-
-        const OrionAssetERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
-          "OrionAssetERC4626ExecutionAdapter",
-        );
-        const adapter2 = await OrionAssetERC4626ExecutionAdapterFactory.deploy(await orionConfig.getAddress());
-        await adapter2.waitForDeployment();
-
-        // Whitelist second vault
-        await orionConfig.addWhitelistedAsset(
-          await vault2.getAddress(),
-          await priceAdapter.getAddress(),
-          await adapter2.getAddress(),
-        );
-
-        // Set buffer ratio - should propagate to both adapters
-        const bufferRatio = 300;
-        const expectedSlippage = bufferRatio / 2;
-
-        await liquidityOrchestrator.setTargetBufferRatio(bufferRatio);
-
-        const slippage1 = await erc4626ExecutionAdapter.slippageTolerance();
-        const slippage2 = await adapter2.slippageTolerance();
-
-        expect(slippage1).to.equal(expectedSlippage);
-        expect(slippage2).to.equal(expectedSlippage);
       });
     });
   });
@@ -461,8 +345,11 @@ describe("Execution Adapter Validation - Comprehensive Tests", function () {
         await underlyingAsset.mint(await liquidityOrchestrator.getAddress(), underlyingAmount);
         await underlyingAsset.connect(loSigner).approve(await erc4626ExecutionAdapter.getAddress(), underlyingAmount);
 
-        await expect(erc4626ExecutionAdapter.connect(loSigner).buy(await erc4626Vault.getAddress(), sharesAmount)).to
-          .not.be.reverted;
+        await expect(
+          erc4626ExecutionAdapter
+            .connect(loSigner)
+            .buy(await erc4626Vault.getAddress(), sharesAmount, underlyingAmount),
+        ).to.not.be.reverted;
 
         await ethers.provider.send("hardhat_stopImpersonatingAccount", [await liquidityOrchestrator.getAddress()]);
       });
@@ -482,7 +369,9 @@ describe("Execution Adapter Validation - Comprehensive Tests", function () {
         await underlyingAsset.connect(loSigner).approve(await erc4626ExecutionAdapter.getAddress(), underlyingAmount);
 
         const balanceBefore = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
-        await erc4626ExecutionAdapter.connect(loSigner).buy(await erc4626Vault.getAddress(), sharesAmount);
+        await erc4626ExecutionAdapter
+          .connect(loSigner)
+          .buy(await erc4626Vault.getAddress(), sharesAmount, underlyingAmount);
         const balanceAfter = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
 
         const spent = balanceBefore - balanceAfter;
@@ -508,7 +397,9 @@ describe("Execution Adapter Validation - Comprehensive Tests", function () {
 
         await underlyingAsset.mint(await liquidityOrchestrator.getAddress(), underlyingAmount);
         await underlyingAsset.connect(loSigner).approve(await erc4626ExecutionAdapter.getAddress(), underlyingAmount);
-        await erc4626ExecutionAdapter.connect(loSigner).buy(await erc4626Vault.getAddress(), sharesAmount);
+        await erc4626ExecutionAdapter
+          .connect(loSigner)
+          .buy(await erc4626Vault.getAddress(), sharesAmount, underlyingAmount);
 
         await ethers.provider.send("hardhat_stopImpersonatingAccount", [await liquidityOrchestrator.getAddress()]);
       });
@@ -525,8 +416,9 @@ describe("Execution Adapter Validation - Comprehensive Tests", function () {
 
         await erc4626Vault.connect(loSigner).approve(await erc4626ExecutionAdapter.getAddress(), sharesAmount);
 
-        await expect(erc4626ExecutionAdapter.connect(loSigner).sell(await erc4626Vault.getAddress(), sharesAmount)).to
-          .not.be.reverted;
+        await expect(
+          erc4626ExecutionAdapter.connect(loSigner).sell(await erc4626Vault.getAddress(), sharesAmount, sharesAmount),
+        ).to.not.be.reverted;
 
         await ethers.provider.send("hardhat_stopImpersonatingAccount", [await liquidityOrchestrator.getAddress()]);
       });
@@ -544,7 +436,9 @@ describe("Execution Adapter Validation - Comprehensive Tests", function () {
         await erc4626Vault.connect(loSigner).approve(await erc4626ExecutionAdapter.getAddress(), sharesAmount);
 
         const underlyingBefore = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
-        await erc4626ExecutionAdapter.connect(loSigner).sell(await erc4626Vault.getAddress(), sharesAmount);
+        await erc4626ExecutionAdapter
+          .connect(loSigner)
+          .sell(await erc4626Vault.getAddress(), sharesAmount, sharesAmount);
         const underlyingAfter = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
 
         const received = underlyingAfter - underlyingBefore;
@@ -552,107 +446,6 @@ describe("Execution Adapter Validation - Comprehensive Tests", function () {
 
         await ethers.provider.send("hardhat_stopImpersonatingAccount", [await liquidityOrchestrator.getAddress()]);
       });
-    });
-  });
-
-  describe("updateTokenDecimals", function () {
-    beforeEach(async function () {
-      // Whitelist the vault
-      await orionConfig.addWhitelistedAsset(
-        await erc4626Vault.getAddress(),
-        await priceAdapter.getAddress(),
-        await erc4626ExecutionAdapter.getAddress(),
-      );
-    });
-
-    it("should allow admin to update token decimals", async function () {
-      const decimalsBefore = await orionConfig.getTokenDecimals(await erc4626Vault.getAddress());
-      expect(decimalsBefore).to.equal(12);
-
-      await expect(orionConfig.connect(admin).updateTokenDecimals(await erc4626Vault.getAddress()))
-        .to.emit(orionConfig, "TokenDecimalsUpdated")
-        .withArgs(await erc4626Vault.getAddress(), 12);
-
-      const decimalsAfter = await orionConfig.getTokenDecimals(await erc4626Vault.getAddress());
-      expect(decimalsAfter).to.equal(12);
-    });
-
-    it("should revert when non-admin tries to update decimals", async function () {
-      await expect(
-        orionConfig.connect(user).updateTokenDecimals(await erc4626Vault.getAddress()),
-      ).to.be.revertedWithCustomError(orionConfig, "NotAuthorized");
-    });
-
-    it("should revert when asset is not whitelisted", async function () {
-      const MockERC4626AssetFactory = await ethers.getContractFactory("MockERC4626Asset");
-      const newVault = await MockERC4626AssetFactory.deploy(await underlyingAsset.getAddress(), "New Vault", "NV");
-      await newVault.waitForDeployment();
-
-      await expect(
-        orionConfig.connect(admin).updateTokenDecimals(await newVault.getAddress()),
-      ).to.be.revertedWithCustomError(orionConfig, "TokenNotWhitelisted");
-    });
-  });
-
-  describe("emergencyUpdateExecutionAdapter", function () {
-    beforeEach(async function () {
-      // Whitelist the vault
-      await orionConfig.addWhitelistedAsset(
-        await erc4626Vault.getAddress(),
-        await priceAdapter.getAddress(),
-        await erc4626ExecutionAdapter.getAddress(),
-      );
-    });
-
-    it("should revert when not in BuyingLeg phase", async function () {
-      // Default phase is Idle, not BuyingLeg
-      const currentPhase = await liquidityOrchestrator.currentPhase();
-      expect(currentPhase).to.equal(0); // 0 = Idle
-
-      // Deploy new adapter
-      const OrionAssetERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
-        "OrionAssetERC4626ExecutionAdapter",
-      );
-      const newAdapter = await OrionAssetERC4626ExecutionAdapterFactory.deploy(await orionConfig.getAddress());
-      await newAdapter.waitForDeployment();
-
-      await expect(
-        orionConfig
-          .connect(admin)
-          .emergencyUpdateExecutionAdapter(await erc4626Vault.getAddress(), await newAdapter.getAddress()),
-      ).to.be.revertedWithCustomError(orionConfig, "InvalidState");
-    });
-
-    it("should revert when asset is not whitelisted", async function () {
-      const MockERC4626AssetFactory = await ethers.getContractFactory("MockERC4626Asset");
-      const newVault = await MockERC4626AssetFactory.deploy(await underlyingAsset.getAddress(), "New Vault", "NV");
-      await newVault.waitForDeployment();
-
-      const OrionAssetERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
-        "OrionAssetERC4626ExecutionAdapter",
-      );
-      const newAdapter = await OrionAssetERC4626ExecutionAdapterFactory.deploy(await orionConfig.getAddress());
-      await newAdapter.waitForDeployment();
-
-      await expect(
-        orionConfig
-          .connect(admin)
-          .emergencyUpdateExecutionAdapter(await newVault.getAddress(), await newAdapter.getAddress()),
-      ).to.be.revertedWithCustomError(orionConfig, "TokenNotWhitelisted");
-    });
-
-    it("should revert when non-admin tries to call emergency update", async function () {
-      const OrionAssetERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
-        "OrionAssetERC4626ExecutionAdapter",
-      );
-      const newAdapter = await OrionAssetERC4626ExecutionAdapterFactory.deploy(await orionConfig.getAddress());
-      await newAdapter.waitForDeployment();
-
-      await expect(
-        orionConfig
-          .connect(user)
-          .emergencyUpdateExecutionAdapter(await erc4626Vault.getAddress(), await newAdapter.getAddress()),
-      ).to.be.revertedWithCustomError(orionConfig, "NotAuthorized");
     });
   });
 
@@ -685,8 +478,9 @@ describe("Execution Adapter Validation - Comprehensive Tests", function () {
       await underlyingAsset.connect(loSigner).approve(await erc4626ExecutionAdapter.getAddress(), underlyingAmount);
 
       // Buy operation - validates and checks slippage
-      const underlyingBefore = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
-      await erc4626ExecutionAdapter.connect(loSigner).buy(await erc4626Vault.getAddress(), sharesAmount);
+      await erc4626ExecutionAdapter
+        .connect(loSigner)
+        .buy(await erc4626Vault.getAddress(), sharesAmount, underlyingAmount);
 
       // Verify shares received
       const sharesBalance = await erc4626Vault.balanceOf(await liquidityOrchestrator.getAddress());
@@ -698,7 +492,13 @@ describe("Execution Adapter Validation - Comprehensive Tests", function () {
 
       // Sell operation - validates and checks slippage
       await erc4626Vault.connect(loSigner).approve(await erc4626ExecutionAdapter.getAddress(), sharesAmount);
-      await erc4626ExecutionAdapter.connect(loSigner).sell(await erc4626Vault.getAddress(), sharesAmount);
+
+      // Get the expected underlying amount from previewRedeem
+      const expectedUnderlyingFromRedeem = await erc4626Vault.previewRedeem(sharesAmount);
+
+      await erc4626ExecutionAdapter
+        .connect(loSigner)
+        .sell(await erc4626Vault.getAddress(), sharesAmount, expectedUnderlyingFromRedeem);
 
       // Verify shares sold
       const finalSharesBalance = await erc4626Vault.balanceOf(await liquidityOrchestrator.getAddress());
@@ -716,7 +516,7 @@ describe("Execution Adapter Validation - Comprehensive Tests", function () {
       await liquidityOrchestrator.setTargetBufferRatio(300); // 3% buffer = 1.5% slippage
 
       // Verify slippage updated
-      const newSlippage = await erc4626ExecutionAdapter.slippageTolerance();
+      const newSlippage = await liquidityOrchestrator.slippageTolerance();
       expect(newSlippage).to.equal(150); // 1.5%
 
       // Execute buy with new slippage
@@ -733,8 +533,11 @@ describe("Execution Adapter Validation - Comprehensive Tests", function () {
       await underlyingAsset.mint(await liquidityOrchestrator.getAddress(), underlyingAmount);
       await underlyingAsset.connect(loSigner).approve(await erc4626ExecutionAdapter.getAddress(), underlyingAmount);
 
-      await expect(erc4626ExecutionAdapter.connect(loSigner).buy(await erc4626Vault.getAddress(), sharesAmount)).to.not
-        .be.reverted;
+      await expect(
+        erc4626ExecutionAdapter
+          .connect(loSigner)
+          .buy(await erc4626Vault.getAddress(), sharesAmount, (underlyingAmount * 1015n) / 100n),
+      ).to.not.be.reverted;
 
       await ethers.provider.send("hardhat_stopImpersonatingAccount", [await liquidityOrchestrator.getAddress()]);
     });

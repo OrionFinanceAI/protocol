@@ -57,27 +57,6 @@
       "type": "error"
     },
     {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "asset",
-          "type": "address"
-        },
-        {
-          "internalType": "uint8",
-          "name": "runtimeDecimals",
-          "type": "uint8"
-        },
-        {
-          "internalType": "uint8",
-          "name": "configDecimals",
-          "type": "uint8"
-        }
-      ],
-      "name": "DecimalsMismatch",
-      "type": "error"
-    },
-    {
       "inputs": [],
       "name": "DepositNotAllowed",
       "type": "error"
@@ -221,21 +200,10 @@
       "inputs": [],
       "name": "ZeroAddress",
       "type": "error"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "asset",
-          "type": "address"
-        }
-      ],
-      "name": "ZeroTotalAssets",
-      "type": "error"
     }
   ],
-  "bytecode": "0x60556032600b8282823980515f1a607314602657634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f5ffdfea26469706673582212202098f05ca0bd06b50b34a43f3162582421259a45358a38d114b9ea848a63572764736f6c634300081c0033",
-  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f5ffdfea26469706673582212202098f05ca0bd06b50b34a43f3162582421259a45358a38d114b9ea848a63572764736f6c634300081c0033",
+  "bytecode": "0x60556032600b8282823980515f1a607314602657634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe730000000000000000000000000000000000000000301460806040525f5ffdfea2646970667358221220d4908ab50e4e3571123ce030634432547183c3d252f95956e0cdaee994b744b964736f6c634300081c0033",
+  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040525f5ffdfea2646970667358221220d4908ab50e4e3571123ce030634432547183c3d252f95956e0cdaee994b744b964736f6c634300081c0033",
   "linkReferences": {},
   "deployedLinkReferences": {}
 }

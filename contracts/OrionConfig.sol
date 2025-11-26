@@ -238,59 +238,24 @@ contract OrionConfig is Ownable2Step, IOrionConfig {
     function addWhitelistedAsset(address asset, address priceAdapter, address executionAdapter) external onlyOwner {
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
-        // Fail early to avoid owner overwriting adapters of existing asset with malicious ones
-        bool inserted = whitelistedAssets.add(asset);
-        if (!inserted) revert ErrorsLib.AlreadyRegistered();
+        if (!this.isWhitelisted(asset)) {
+            // slither-disable-next-line unused-return
+            whitelistedAssets.add(asset);
+        }
 
         // Store token decimals
         tokenDecimals[asset] = IERC20Metadata(asset).decimals();
+
+        // TODO: read if address is upgradable, and if it is, add implementation address
+        // to a new mapping, and add the proxy address to
+        // a list so we can check atomically if isUpgradable.
+        // TODO: update implementation address if isUpgradable(asset), include tests.
 
         // Register the adapters
         IPriceAdapterRegistry(priceAdapterRegistry).setPriceAdapter(asset, IPriceAdapter(priceAdapter));
         ILiquidityOrchestrator(liquidityOrchestrator).setExecutionAdapter(asset, IExecutionAdapter(executionAdapter));
 
         emit EventsLib.WhitelistedAssetAdded(asset);
-    }
-
-    /// @notice Updates the token decimals for a whitelisted asset
-    /// @param asset The address of the asset to update
-    /// @dev This function allows admin to respond to failing rebalancing due to modified decimals.
-    ///      This is needed for non-standard tokens that allow decimals to change at runtime.
-    ///      Standard-compliant ERC20 tokens have immutable decimals and should never need this.
-    function updateTokenDecimals(address asset) external onlyAdmin {
-        if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
-        if (!whitelistedAssets.contains(asset)) revert ErrorsLib.TokenNotWhitelisted(asset);
-
-        // Update stored decimals from current runtime value
-        uint8 newDecimals = IERC20Metadata(asset).decimals();
-        tokenDecimals[asset] = newDecimals;
-
-        emit EventsLib.TokenDecimalsUpdated(asset, newDecimals);
-    }
-
-    /// @notice Emergency function to update execution adapter when LO epoch is stuck in buying leg
-    /// @param asset The address of the asset to update the adapter for
-    /// @param executionAdapter The address of the new execution adapter
-    /// @dev SECURITY: This function can ONLY be called when LiquidityOrchestrator is in BuyingLeg phase.
-    ///      This is a safety mechanism to allow unlocking stuck trades if an adapter breaks during buy leg.
-    ///      It bypasses the usual system idle requirement to enable recovery from stuck epochs.
-    ///      Cannot be called during other phases to prevent abuse.
-    function emergencyUpdateExecutionAdapter(address asset, address executionAdapter) external onlyAdmin {
-        // Verify asset is whitelisted
-        if (!whitelistedAssets.contains(asset)) revert ErrorsLib.TokenNotWhitelisted(asset);
-
-        // SECURITY CHECK: Only allow when LO is in BuyingLeg phase
-        // This ensures the function can only be used to recover from stuck buy operations
-        ILiquidityOrchestrator.LiquidityUpkeepPhase currentPhase = ILiquidityOrchestrator(liquidityOrchestrator)
-            .currentPhase();
-        if (currentPhase != ILiquidityOrchestrator.LiquidityUpkeepPhase.BuyingLeg) {
-            revert ErrorsLib.InvalidState();
-        }
-
-        // Update the execution adapter
-        ILiquidityOrchestrator(liquidityOrchestrator).setExecutionAdapter(asset, IExecutionAdapter(executionAdapter));
-
-        emit EventsLib.ExecutionAdapterSet(asset, executionAdapter);
     }
 
     /// @inheritdoc IOrionConfig
@@ -457,7 +422,7 @@ contract OrionConfig is Ownable2Step, IOrionConfig {
 
     /// @inheritdoc IOrionConfig
     function completeVaultDecommissioning(address vault) external onlyLiquidityOrchestrator {
-        if (!decommissioningInProgressVaults.contains(vault)) revert ErrorsLib.InvalidAddress();
+        if (!this.isDecommissioningVault(vault)) revert ErrorsLib.InvalidAddress();
 
         bool removedFromEncrypted = encryptedVaults.remove(vault);
         if (!removedFromEncrypted) {

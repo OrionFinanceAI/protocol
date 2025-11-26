@@ -35,11 +35,7 @@ contract OrionAssetERC4626PriceAdapter is IPriceAdapter {
 
     /// @inheritdoc IPriceAdapter
     function validatePriceAdapter(address asset) external view {
-        try IERC4626(asset).asset() returns (address vaultUnderlyingAsset) {
-            if (vaultUnderlyingAsset != underlyingAsset) revert ErrorsLib.InvalidAdapter(asset);
-        } catch {
-            revert ErrorsLib.InvalidAdapter(asset);
-        }
+        if (IERC4626(asset).asset() != underlyingAsset) revert ErrorsLib.InvalidAdapter(asset);
     }
 
     /// @notice Returns the raw price of one share of the given ERC4626 vault in underlying asset decimals.
@@ -49,6 +45,8 @@ contract OrionAssetERC4626PriceAdapter is IPriceAdapter {
     function getPriceData(address vaultAsset) external view returns (uint256 price, uint8 decimals) {
         uint8 vaultAssetDecimals = IERC20Metadata(vaultAsset).decimals();
         uint256 oneShare = 10 ** vaultAssetDecimals;
+
+        // Floor rounding here, previewMint uses ceil in execution, buffer to deal with rounding errors.
         uint256 underlyingAssetAmount = IERC4626(vaultAsset).convertToAssets(oneShare);
 
         return (underlyingAssetAmount, underlyingAssetDecimals);

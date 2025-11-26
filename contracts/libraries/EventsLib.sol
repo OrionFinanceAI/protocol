@@ -66,11 +66,6 @@ library EventsLib {
     /// @param vaultOwner The address of the vault owner that was removed.
     event VaultOwnerRemoved(address indexed vaultOwner);
 
-    /// @notice Token decimals have been updated for an asset.
-    /// @param asset The address of the asset whose decimals were updated.
-    /// @param newDecimals The new decimals value.
-    event TokenDecimalsUpdated(address indexed asset, uint8 newDecimals);
-
     // =======================
     // === Vault Lifecycle ===
     // =======================

@@ -10,22 +10,17 @@ contract MockExecutionAdapter is IExecutionAdapter {
     constructor() {}
 
     /// @inheritdoc IExecutionAdapter
-    function buy(address, uint256) external pure returns (uint256 executionUnderlyingAmount) {
+    function buy(address, uint256, uint256) external pure returns (uint256 executionUnderlyingAmount) {
         executionUnderlyingAmount = 1e12;
     }
 
     /// @inheritdoc IExecutionAdapter
-    function sell(address, uint256) external pure returns (uint256 executionUnderlyingAmount) {
+    function sell(address, uint256, uint256) external pure returns (uint256 executionUnderlyingAmount) {
         executionUnderlyingAmount = 1e12;
     }
 
     /// @inheritdoc IExecutionAdapter
     function validateExecutionAdapter(address) external pure {
         // pass
-    }
-
-    /// @inheritdoc IExecutionAdapter
-    function setSlippageTolerance(uint256) external pure {
-        // Mock implementation - does nothing
     }
 }

@@ -14,6 +14,11 @@
           "internalType": "uint256",
           "name": "sharesAmount",
           "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "estimatedUnderlyingAmount",
+          "type": "uint256"
         }
       ],
       "name": "buy",
@@ -38,6 +43,11 @@
           "internalType": "uint256",
           "name": "sharesAmount",
           "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "estimatedUnderlyingAmount",
+          "type": "uint256"
         }
       ],
       "name": "sell",
@@ -48,19 +58,6 @@
           "type": "uint256"
         }
       ],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "_slippageTolerance",
-          "type": "uint256"
-        }
-      ],
-      "name": "setSlippageTolerance",
-      "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
     },
