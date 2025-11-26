@@ -51,10 +51,6 @@ contract OrionAssetERC4626ExecutionAdapter is IExecutionAdapter {
 
     /// @notice Internal validation function that performs compatibility checks
     /// @param asset The address of the asset to validate
-    /// @dev This function validates compatibility checks needed during setup:
-    ///      1. Underlying asset matches expected one (cross-check)
-    ///      2. Target asset implements IERC4626 interface (cross-check)
-    ///      3. Token decimals match config (prevents API adaptation issues)
     function _validateExecutionAdapter(address asset) internal view {
         // 1. Verify asset implements IERC4626 and has correct underlying
         try IERC4626(asset).asset() returns (address underlying) {
@@ -71,9 +67,7 @@ contract OrionAssetERC4626ExecutionAdapter is IExecutionAdapter {
         }
     }
 
-    /// @notice Validates that the given asset is compatible with this adapter
-    /// @param asset The address of the asset to validate
-    /// @dev External interface function that delegates to internal validation
+    /// @inheritdoc IExecutionAdapter
     function validateExecutionAdapter(address asset) external view override {
         _validateExecutionAdapter(asset);
     }
