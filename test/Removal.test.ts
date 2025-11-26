@@ -153,8 +153,6 @@ describe("Whitelist and Vault Removal Flows", function () {
       await orionExecutionAdapter.getAddress(),
     );
 
-    await orionConfig.addWhitelistedCurator(curator.address);
-
     const testVaultTx = await transparentVaultFactory
       .connect(owner)
       .createVault(curator.address, "Test Vault", "TV", 0, 500, 50, ethers.ZeroAddress);

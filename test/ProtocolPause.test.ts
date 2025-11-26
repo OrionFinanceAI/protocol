@@ -168,9 +168,6 @@ describe("Protocol Pause Functionality", function () {
     // NOW we can configure protocol parameters (these check isSystemIdle())
     await config.setMinDepositAmount(MIN_DEPOSIT);
     await config.setMinRedeemAmount(MIN_REDEEM);
-    await config.addWhitelistedCurator(curator.address);
-    // NOTE: Admin is already whitelisted as vault owner in OrionConfig constructor (initialOwner)
-    // NOTE: Underlying asset is already whitelisted in OrionConfig constructor
 
     // Whitelist ERC4626 asset with its adapters
     await config.addWhitelistedAsset(

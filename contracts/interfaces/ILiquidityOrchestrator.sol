@@ -16,6 +16,10 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
         FulfillDepositAndRedeem
     }
 
+    /// @notice Returns the current epoch counter
+    /// @return The current epoch
+    function epochCounter() external view returns (uint16);
+
     /// @notice Returns the current upkeep phase
     /// @return The current LiquidityUpkeepPhase
     function currentPhase() external view returns (LiquidityUpkeepPhase);

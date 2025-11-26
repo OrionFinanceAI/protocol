@@ -112,21 +112,6 @@ interface IOrionConfig {
     /// @return True if the vault owner is whitelisted, false otherwise
     function isWhitelistedVaultOwner(address vaultOwner) external view returns (bool);
 
-    /// @notice Adds a curator to the whitelist
-    /// @dev Can only be called by the contract owner
-    /// @param curator The address of the curator to whitelist
-    function addWhitelistedCurator(address curator) external;
-
-    /// @notice Removes a curator from the whitelist
-    /// @dev Can only be called by the contract owner
-    /// @param curator The address of the curator to remove from whitelist
-    function removeWhitelistedCurator(address curator) external;
-
-    /// @notice Checks if a curator is whitelisted
-    /// @param curator The address of the curator to check
-    /// @return True if the curator is whitelisted, false otherwise
-    function isWhitelistedCurator(address curator) external view returns (bool);
-
     /// @notice Adds a new Orion vault to the protocol registry
     /// @dev Only callable by the vault factories contracts
     /// @param vault The address of the vault to add to the registry

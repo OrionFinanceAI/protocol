@@ -83,8 +83,6 @@ describe("Vault Owner Removal - Automatic Decommissioning", function () {
     // Whitelist vault owners and curators
     await config.addWhitelistedVaultOwner(vaultOwner1.address);
     await config.addWhitelistedVaultOwner(vaultOwner2.address);
-    await config.addWhitelistedCurator(curator1.address);
-    await config.addWhitelistedCurator(curator2.address);
 
     return {
       owner,

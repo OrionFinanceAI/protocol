@@ -6,7 +6,6 @@ import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
 import { IOrionStrategy } from "../interfaces/IOrionStrategy.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
@@ -16,7 +15,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
  *         This contract is designed to fail when submitting intent because weights may not sum to intentScale.
  * @author Orion Finance
  */
-contract KBestTvlWeightedAverageInvalid is IOrionStrategy, Ownable, ERC165 {
+contract KBestTvlWeightedAverageInvalid is IOrionStrategy, Ownable {
     /// @notice The Orion configuration contract
     IOrionConfig public config;
 
@@ -141,11 +140,6 @@ contract KBestTvlWeightedAverageInvalid is IOrionStrategy, Ownable, ERC165 {
     /// @param kNew The new number of assets to pick
     function updateParameters(uint16 kNew) external onlyOwner {
         k = kNew;
-    }
-
-    /// @inheritdoc ERC165
-    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165) returns (bool) {
-        return interfaceId == type(IOrionStrategy).interfaceId || super.supportsInterface(interfaceId);
     }
 }
 

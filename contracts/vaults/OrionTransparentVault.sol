@@ -160,7 +160,6 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
     /// @inheritdoc IOrionVault
     function updateCurator(address newCurator) external onlyVaultOwner {
-        if (!config.isWhitelistedCurator(newCurator)) revert ErrorsLib.NotAuthorized();
         curator = newCurator;
         emit CuratorUpdated(newCurator);
     }
