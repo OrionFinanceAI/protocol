@@ -13,7 +13,8 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
         Idle,
         PreprocessingTransparentVaults,
         Buffering,
-        PostprocessingTransparentVaults
+        PostprocessingTransparentVaults,
+        BuildingOrders
     }
 
     /// @notice Returns the epoch duration
@@ -56,6 +57,18 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     /// @notice Subtracts a specified amount from the pending protocol fees
     /// @param amount The amount to subtract from pending protocol fees
     function subtractPendingProtocolFees(uint256 amount) external;
+
+    /// @notice Get orders for a specific leg
+    /// @param isSellLeg True if getting sell leg orders, false if getting buy leg orders
+    /// @return tokens The tokens for the specified leg
+    /// @return amounts The amounts for the specified leg in shares
+    /// @return estimatedUnderlyingAmounts The estimated underlying amounts for the specified leg
+    function getOrders(
+        bool isSellLeg
+    )
+        external
+        view
+        returns (address[] memory tokens, uint256[] memory amounts, uint256[] memory estimatedUnderlyingAmounts);
 
     /// @notice Get price for a specific token
     /// @param token The token to get the price of

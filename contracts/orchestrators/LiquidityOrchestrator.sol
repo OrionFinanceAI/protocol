@@ -59,7 +59,7 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
 
     /// @notice Counter for tracking processing cycles
     uint16 public epochCounter;
-    
+
     /// @notice Minibatch size for fulfill deposit and redeem processing
     uint8 public minibatchSize;
 
