@@ -90,8 +90,10 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
         mapping(address => uint256) vaultsTotalAssetsForFulfillRedeem;
         /// @notice Total assets for fulfill deposit - vault address to total assets for fulfillDeposit [assets]
         mapping(address => uint256) vaultsTotalAssetsForFulfillDeposit;
-        /// @notice Vault portfolio shares - vault address to token address to shares [shares]
-        mapping(address => mapping(address => uint256)) finalVaultPortfolioShares;
+        /// @notice Array of tokens in each vault's portfolio
+        mapping(address => address[]) vaultPortfolioTokens;
+        /// @notice Array of shares for each vault's portfolio (parallel to vaultPortfolioTokens) [shares]
+        mapping(address => uint256[]) vaultPortfolioShares;
         /// @notice Array of all tokens used in this epoch for iteration
         address[] tokens;
         /// @notice Mapping to track if a token has been added to avoid duplicates
@@ -313,12 +315,8 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
             delete _currentEpoch.vaultsTotalAssets[vault];
             delete _currentEpoch.vaultsTotalAssetsForFulfillRedeem[vault];
             delete _currentEpoch.vaultsTotalAssetsForFulfillDeposit[vault];
-            
-            // Clear vault portfolio shares for all tokens in previous epoch
-            for (uint16 j = 0; j < _currentEpoch.tokens.length; ++j) {
-                address token = _currentEpoch.tokens[j];
-                delete _currentEpoch.finalVaultPortfolioShares[vault][token];
-            }
+            delete _currentEpoch.vaultPortfolioTokens[vault];
+            delete _currentEpoch.vaultPortfolioShares[vault];
         }
         delete _currentEpoch.tokens;
 
@@ -479,12 +477,10 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
 
         for (uint16 i = i0; i < i1; ++i) {
             IOrionTransparentVault vault = IOrionTransparentVault(transparentVaultsEpoch[i]);
+            address vaultAddress = address(vault);
 
             (address[] memory intentTokens, uint32[] memory intentWeights) = vault.getIntent();
-            uint256 finalTotalAssets = _currentEpoch.vaultsTotalAssets[address(vault)];
-
-            IOrionTransparentVault.PortfolioPosition[]
-                memory portfolio = new IOrionTransparentVault.PortfolioPosition[](intentTokens.length);
+            uint256 finalTotalAssets = _currentEpoch.vaultsTotalAssets[vaultAddress];
 
             for (uint16 j = 0; j < intentTokens.length; ++j) {
                 address token = intentTokens[j];
@@ -507,10 +503,8 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
                     config.getTokenDecimals(token)
                 );
 
-                portfolio[j] = IOrionTransparentVault.PortfolioPosition({ token: token, shares: value });
-
-                // Store portfolio shares in mapping for LiquidityOrchestrator access
-                _currentEpoch.finalVaultPortfolioShares[address(vault)][token] = value;
+                _currentEpoch.vaultPortfolioTokens[vaultAddress].push(token);
+                _currentEpoch.vaultPortfolioShares[vaultAddress].push(value);
 
                 _addTokenIfNotExists(token);
             }
@@ -579,8 +573,9 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
     }
 
     /// @inheritdoc IInternalStateOrchestrator
-    function getVaultPortfolioShares(address vault, address token) external view returns (uint256 shares) {
-        return _currentEpoch.finalVaultPortfolioShares[vault][token];
+    function getVaultPortfolio(address vault) external view returns (address[] memory tokens, uint256[] memory shares) {
+        tokens = _currentEpoch.vaultPortfolioTokens[vault];
+        shares = _currentEpoch.vaultPortfolioShares[vault];
     }
 
     /// @inheritdoc IInternalStateOrchestrator

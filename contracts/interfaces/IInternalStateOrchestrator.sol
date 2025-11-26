@@ -86,11 +86,11 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     /// @return vaults The array of transparent vault addresses for the current epoch
     function getTransparentVaultsEpoch() external view returns (address[] memory vaults);
 
-    /// @notice Get portfolio shares for a specific vault and token
+    /// @notice Get portfolio shares for a specific vault
     /// @param vault The vault address
-    /// @param token The token address
-    /// @return shares The portfolio shares for the vault-token pair [shares]
-    function getVaultPortfolioShares(address vault, address token) external view returns (uint256 shares);
+    /// @return tokens The array of token addresses in the vault's portfolio
+    /// @return shares The array of portfolio shares for each token [shares]
+    function getVaultPortfolio(address vault) external view returns (address[] memory tokens, uint256[] memory shares);
 
     /// @notice Pauses the contract
     /// @dev Can only be called by OrionConfig for emergency situations
