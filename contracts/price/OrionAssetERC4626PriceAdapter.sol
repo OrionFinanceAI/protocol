@@ -35,7 +35,11 @@ contract OrionAssetERC4626PriceAdapter is IPriceAdapter {
 
     /// @inheritdoc IPriceAdapter
     function validatePriceAdapter(address asset) external view {
-        if (IERC4626(asset).asset() != underlyingAsset) revert ErrorsLib.InvalidAdapter(asset);
+        try IERC4626(asset).asset() returns (address underlying) {
+            if (underlying != underlyingAsset) revert ErrorsLib.InvalidAdapter(asset);
+        } catch {
+            revert ErrorsLib.InvalidAdapter(asset);
+        }
     }
 
     /// @notice Returns the raw price of one share of the given ERC4626 vault in underlying asset decimals.

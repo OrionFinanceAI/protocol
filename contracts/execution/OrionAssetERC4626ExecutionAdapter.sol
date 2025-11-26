@@ -6,6 +6,7 @@ import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
 import { ILiquidityOrchestrator } from "../interfaces/ILiquidityOrchestrator.sol";
@@ -48,18 +49,33 @@ contract OrionAssetERC4626ExecutionAdapter is IExecutionAdapter {
         liquidityOrchestrator = ILiquidityOrchestrator(config.liquidityOrchestrator());
     }
 
-    /// @notice Validates that the given asset is compatible with this adapter
+    /// @notice Internal validation function that performs compatibility checks
     /// @param asset The address of the asset to validate
     /// @dev This function validates compatibility checks needed during setup:
     ///      1. Underlying asset matches expected one (cross-check)
     ///      2. Target asset implements IERC4626 interface (cross-check)
     ///      3. Token decimals match config (prevents API adaptation issues)
-    function validateExecutionAdapter(address asset) external view override {
+    function _validateExecutionAdapter(address asset) internal view {
         // 1. Verify asset implements IERC4626 and has correct underlying
-        if (IERC4626(asset).asset() != address(underlyingAssetToken)) revert ErrorsLib.InvalidAdapter(asset);
+        try IERC4626(asset).asset() returns (address underlying) {
+            if (underlying != address(underlyingAssetToken)) revert ErrorsLib.InvalidAdapter(asset);
+        } catch {
+            revert ErrorsLib.InvalidAdapter(asset);
+        }
 
         // 2. Verify tokenDecimals match between runtime and config
-        if (IERC20Metadata(asset).decimals() != config.getTokenDecimals(asset)) revert ErrorsLib.InvalidAdapter(asset);
+        try IERC20Metadata(asset).decimals() returns (uint8 decimals) {
+            if (decimals != config.getTokenDecimals(asset)) revert ErrorsLib.InvalidAdapter(asset);
+        } catch {
+            revert ErrorsLib.InvalidAdapter(asset);
+        }
+    }
+
+    /// @notice Validates that the given asset is compatible with this adapter
+    /// @param asset The address of the asset to validate
+    /// @dev External interface function that delegates to internal validation
+    function validateExecutionAdapter(address asset) external view override {
+        _validateExecutionAdapter(asset);
     }
 
     /// @inheritdoc IExecutionAdapter
@@ -70,7 +86,7 @@ contract OrionAssetERC4626ExecutionAdapter is IExecutionAdapter {
     ) external override onlyLiquidityOrchestrator returns (uint256 receivedUnderlyingAmount) {
         if (sharesAmount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(vaultAsset);
         // Atomically validate all order generation assumptions
-        this.validateExecutionAdapter(vaultAsset);
+        _validateExecutionAdapter(vaultAsset);
 
         IERC4626 vault = IERC4626(vaultAsset);
 
@@ -97,7 +113,7 @@ contract OrionAssetERC4626ExecutionAdapter is IExecutionAdapter {
     ) external override onlyLiquidityOrchestrator returns (uint256 spentUnderlyingAmount) {
         if (sharesAmount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(vaultAsset);
         // Atomically validate all order generation assumptions
-        this.validateExecutionAdapter(vaultAsset);
+        _validateExecutionAdapter(vaultAsset);
 
         IERC4626 vault = IERC4626(vaultAsset);
 

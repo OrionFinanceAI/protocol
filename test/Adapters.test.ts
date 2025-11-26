@@ -97,7 +97,7 @@ describe("Price Adapter", function () {
           await priceAdapter.getAddress(),
           await mockExecutionAdapter.getAddress(),
         ),
-      ).to.be.reverted;
+      ).to.be.revertedWithCustomError(priceAdapter, "InvalidAdapter");
     });
 
     it("should revert with InvalidAdapter when trying to whitelist a regular ERC20 token with ERC4626 execution adapter", async function () {
@@ -119,7 +119,7 @@ describe("Price Adapter", function () {
           await mockPriceAdapter.getAddress(),
           await erc4626ExecutionAdapter.getAddress(),
         ),
-      ).to.be.reverted;
+      ).to.be.revertedWithCustomError(erc4626ExecutionAdapter, "InvalidAdapter");
     });
 
     it("should revert with InvalidAdapter when trying to whitelist an ERC4626 with different underlying asset using ERC4626 price adapter", async function () {
