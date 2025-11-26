@@ -249,8 +249,8 @@ describe("Redeem Before Deposit Order Verification", function () {
 
       // Phase D: Verify totalAssets calculations reflect correct order
       const vaultAddress = await vault.getAddress();
-      const totalAssetsForRedeem = await internalStatesOrchestrator.getVaultTotalAssetsForFulfillRedeem(vaultAddress);
-      const totalAssetsForDeposit = await internalStatesOrchestrator.getVaultTotalAssetsForFulfillDeposit(vaultAddress);
+      const [totalAssetsForRedeem, totalAssetsForDeposit] =
+        await internalStatesOrchestrator.getVaultTotalAssetsAll(vaultAddress);
 
       // CRITICAL ASSERTION: Redeem uses higher totalAssets (before deposit impact)
       expect(totalAssetsForRedeem).to.be.gt(totalAssetsForDeposit);
@@ -345,7 +345,7 @@ describe("Redeem Before Deposit Order Verification", function () {
       // Formula: shares = assets * (totalSupply + 10^decimalsOffset) / (totalAssets + 1)
       // Query the actual totalAssetsForDeposit to match Solidity rounding
       const vaultAddress = await vault.getAddress();
-      const totalAssetsForDeposit = await internalStatesOrchestrator.getVaultTotalAssetsForFulfillDeposit(vaultAddress);
+      const [, totalAssetsForDeposit] = await internalStatesOrchestrator.getVaultTotalAssetsAll(vaultAddress);
       const decimalsOffset = 12n;
       const totalSupplyAfterRedeem = ethers.parseUnits("10", 18);
       const virtualSupply = totalSupplyAfterRedeem + 10n ** decimalsOffset;
@@ -380,8 +380,8 @@ describe("Redeem Before Deposit Order Verification", function () {
 
       // When there are no redemptions, both totalAssets should be equal
       const vaultAddress = await vault.getAddress();
-      const totalAssetsForRedeem = await internalStatesOrchestrator.getVaultTotalAssetsForFulfillRedeem(vaultAddress);
-      const totalAssetsForDeposit = await internalStatesOrchestrator.getVaultTotalAssetsForFulfillDeposit(vaultAddress);
+      const [totalAssetsForRedeem, totalAssetsForDeposit] =
+        await internalStatesOrchestrator.getVaultTotalAssetsAll(vaultAddress);
 
       expect(totalAssetsForRedeem).to.equal(totalAssetsForDeposit);
 

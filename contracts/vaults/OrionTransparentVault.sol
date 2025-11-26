@@ -133,15 +133,16 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
     /// @inheritdoc IOrionTransparentVault
     function updateVaultState(
-        PortfolioPosition[] calldata portfolio,
+        address[] calldata tokens,
+        uint256[] calldata shares,
         uint256 newTotalAssets
     ) external onlyInternalStatesOrchestrator {
         _portfolio.clear();
 
-        uint16 portfolioLength = uint16(portfolio.length);
+        uint16 portfolioLength = uint16(tokens.length);
         for (uint16 i = 0; i < portfolioLength; ++i) {
             // slither-disable-next-line unused-return
-            _portfolio.set(portfolio[i].token, portfolio[i].shares);
+            _portfolio.set(tokens[i], shares[i]);
         }
 
         uint256 currentSharePrice = convertToAssets(10 ** decimals());

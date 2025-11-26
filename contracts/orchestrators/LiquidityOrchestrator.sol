@@ -289,7 +289,7 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
             upkeepNeeded = true;
         } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
             upkeepNeeded = true;
-        } else if (currentPhase == LiquidityUpkeepPhase.FulfillDepositAndRedeem) {
+        } else if (currentPhase == LiquidityUpkeepPhase.ProcessVaultOperations) {
             upkeepNeeded = true;
         } else {
             upkeepNeeded = false;
@@ -303,8 +303,8 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
             _processSellLeg();
         } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
             _processBuyLeg();
-        } else if (currentPhase == LiquidityUpkeepPhase.FulfillDepositAndRedeem) {
-            _processFulfillDepositAndRedeem();
+        } else if (currentPhase == LiquidityUpkeepPhase.ProcessVaultOperations) {
+            _processVaultOperations();
             internalStatesOrchestrator.updateNextUpdateTime();
         }
 
@@ -341,7 +341,7 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
             uint256[] memory buyingEstimatedUnderlyingAmounts
         ) = internalStatesOrchestrator.getOrders(false);
 
-        currentPhase = LiquidityUpkeepPhase.FulfillDepositAndRedeem;
+        currentPhase = LiquidityUpkeepPhase.ProcessVaultOperations;
 
         for (uint16 i = 0; i < buyingTokens.length; ++i) {
             address token = buyingTokens[i];
@@ -399,8 +399,8 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
         deltaBufferAmount += int256(estimatedUnderlyingAmount) - int256(executionUnderlyingAmount);
     }
 
-    /// @notice Handles the fulfill deposit and redeem actions
-    function _processFulfillDepositAndRedeem() internal {
+    /// @notice Handles the vault operations
+    function _processVaultOperations() internal {
         // Process transparent vaults
         address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
 
@@ -416,10 +416,13 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
 
         for (uint16 i = i0; i < i1; ++i) {
             address vault = transparentVaults[i];
-            uint256 totalAssetsForDeposit = internalStatesOrchestrator.getVaultTotalAssetsForFulfillDeposit(vault);
-            uint256 totalAssetsForRedeem = internalStatesOrchestrator.getVaultTotalAssetsForFulfillRedeem(vault);
+            (
+                uint256 totalAssetsForRedeem,
+                uint256 totalAssetsForDeposit,
+                uint256 finalTotalAssets
+            ) = internalStatesOrchestrator.getVaultTotalAssetsAll(vault);
 
-            _processVaultDepositAndRedeem(vault, totalAssetsForDeposit, totalAssetsForRedeem);
+            _processSingleVaultOperations(vault, totalAssetsForDeposit, totalAssetsForRedeem, finalTotalAssets);
             if (config.isDecommissioningVault(vault)) {
                 config.completeVaultDecommissioning(vault);
             }
@@ -430,12 +433,13 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
     /// @param vault The vault address
     /// @param totalAssetsForDeposit The total assets for deposit operations
     /// @param totalAssetsForRedeem The total assets for redeem operations
-    function _processVaultDepositAndRedeem(
+    function _processSingleVaultOperations(
         address vault,
         uint256 totalAssetsForDeposit,
-        uint256 totalAssetsForRedeem
+        uint256 totalAssetsForRedeem,
+        uint256 finalTotalAssets
     ) internal {
-        IOrionVault vaultContract = IOrionVault(vault);
+        IOrionTransparentVault vaultContract = IOrionTransparentVault(vault);
 
         uint256 maxFulfillBatchSize = config.maxFulfillBatchSize();
         uint256 pendingRedeem = vaultContract.pendingRedeem(maxFulfillBatchSize);
@@ -448,6 +452,9 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
         if (pendingDeposit > 0) {
             vaultContract.fulfillDeposit(totalAssetsForDeposit);
         }
+
+        (address[] memory tokens, uint256[] memory shares) = internalStatesOrchestrator.getVaultPortfolio(vault);
+        vaultContract.updateVaultState(tokens, shares, finalTotalAssets);
     }
 
     /// @inheritdoc ILiquidityOrchestrator

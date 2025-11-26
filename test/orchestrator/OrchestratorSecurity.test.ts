@@ -38,7 +38,7 @@
  *
  *    b) InvalidState Phase Order Enforcement
  *       - Tests that executing phases out of order reverts with InvalidState
- *       - Correct order: Idle → SellingLeg → BuyingLeg → FulfillDepositAndRedeem → Idle
+ *       - Correct order: Idle → SellingLeg → BuyingLeg → ProcessVaultOperations → Idle
  *       - Example: Cannot call processBuy when in SellingLeg phase
  *       - Enforces strict phase progression to maintain system integrity
  *
@@ -54,7 +54,7 @@
  *       - Prevents revert-based attacks that try to skip phases
  *
  *    e) Cross-Phase Malicious Payload Protection - BuyingLeg
- *       - Tests that malicious payload for processBuy is ignored in FulfillDepositAndRedeem phase
+ *       - Tests that malicious payload for processBuy is ignored in ProcessVaultOperations phase
  *       - Validates strict phase boundaries
  *       - Ensures fulfill phase cannot be bypassed
  *

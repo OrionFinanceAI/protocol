@@ -80,15 +80,14 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     /// @dev Can only be called by the Liquidity Orchestrator
     function updateBufferAmount(int256 deltaAmount) external;
 
-    /// @notice Get total assets for fulfill redeem for a specific vault
+    /// @notice Get all vault total assets values
     /// @param vault The vault address
-    /// @return totalAssets The total assets for fulfill redeem
-    function getVaultTotalAssetsForFulfillRedeem(address vault) external view returns (uint256 totalAssets);
-
-    /// @notice Get total assets for fulfill deposit for a specific vault
-    /// @param vault The vault address
-    /// @return totalAssets The total assets for fulfill deposit
-    function getVaultTotalAssetsForFulfillDeposit(address vault) external view returns (uint256 totalAssets);
+    /// @return totalAssetsForRedeem The total assets for fulfill redeem
+    /// @return totalAssetsForDeposit The total assets for fulfill deposit
+    /// @return totalAssets The final total assets for state update
+    function getVaultTotalAssetsAll(
+        address vault
+    ) external view returns (uint256 totalAssetsForRedeem, uint256 totalAssetsForDeposit, uint256 totalAssets);
 
     /// @notice Get the list of tokens for the current epoch
     /// @return tokens The array of token addresses used in the current epoch

@@ -674,13 +674,14 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
     }
 
     /// @inheritdoc IInternalStateOrchestrator
-    function getVaultTotalAssetsForFulfillRedeem(address vault) external view returns (uint256 totalAssets) {
-        return _currentEpoch.vaultsTotalAssetsForFulfillRedeem[vault];
-    }
-
-    /// @inheritdoc IInternalStateOrchestrator
-    function getVaultTotalAssetsForFulfillDeposit(address vault) external view returns (uint256 totalAssets) {
-        return _currentEpoch.vaultsTotalAssetsForFulfillDeposit[vault];
+    function getVaultTotalAssetsAll(
+        address vault
+    ) external view returns (uint256 totalAssetsForRedeem, uint256 totalAssetsForDeposit, uint256 totalAssets) {
+        return (
+            _currentEpoch.vaultsTotalAssetsForFulfillRedeem[vault],
+            _currentEpoch.vaultsTotalAssetsForFulfillDeposit[vault],
+            _currentEpoch.vaultsTotalAssets[vault]
+        );
     }
 
     /// @inheritdoc IInternalStateOrchestrator

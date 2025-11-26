@@ -715,8 +715,10 @@ describe("Orchestrators", function () {
       ]) {
         const pendingCuratorFees = await v.pendingCuratorFees();
         expect(pendingCuratorFees).to.equal(0);
-        expect(await internalStatesOrchestrator.getVaultTotalAssetsForFulfillDeposit(await v.getAddress())).to.equal(0);
-        expect(await internalStatesOrchestrator.getVaultTotalAssetsForFulfillRedeem(await v.getAddress())).to.equal(0);
+        const [, totalAssetsForDeposit] = await internalStatesOrchestrator.getVaultTotalAssetsAll(await v.getAddress());
+        const [totalAssetsForRedeem, ,] = await internalStatesOrchestrator.getVaultTotalAssetsAll(await v.getAddress());
+        expect(totalAssetsForDeposit).to.equal(0);
+        expect(totalAssetsForRedeem).to.equal(0);
       }
 
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // Buffering
@@ -1123,7 +1125,7 @@ describe("Orchestrators", function () {
 
       const bufferAmountAfterRebalancing = await internalStatesOrchestrator.bufferAmount();
 
-      expect(await liquidityOrchestrator.currentPhase()).to.equal(3); // FulfillDepositAndRedeem
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(3); // ProcessVaultOperations
 
       // Check balances of investment unverse assets in the LO.
       const liquidityOrchestratorBalanceOfMockAsset1 = await mockAsset1.balanceOf(
@@ -1404,10 +1406,7 @@ describe("Orchestrators", function () {
         const expectedFulfillDeposit = expectedFulfillRedeem - pendingRedeemAssets;
 
         // Get actual values from orchestrator
-        const actualFulfillRedeem = await internalStatesOrchestrator.getVaultTotalAssetsForFulfillRedeem(
-          await vault.getAddress(),
-        );
-        const actualFulfillDeposit = await internalStatesOrchestrator.getVaultTotalAssetsForFulfillDeposit(
+        const [actualFulfillRedeem, actualFulfillDeposit] = await internalStatesOrchestrator.getVaultTotalAssetsAll(
           await vault.getAddress(),
         );
 
@@ -1446,8 +1445,8 @@ describe("Orchestrators", function () {
         const vault = await ethers.getContractAt("OrionTransparentVault", vaultAddress);
 
         // Get the values that were stored in the orchestrator
-        const vaultsTotalAssetsForFulfillDeposit =
-          await internalStatesOrchestrator.getVaultTotalAssetsForFulfillDeposit(vaultAddress);
+        const [, vaultsTotalAssetsForFulfillDeposit] =
+          await internalStatesOrchestrator.getVaultTotalAssetsAll(vaultAddress);
         const pendingDeposit = await vault.pendingDeposit(await orionConfig.maxFulfillBatchSize());
 
         // Reconstruct vaultsTotalAssets: fulfillDeposit + pendingDeposit
@@ -1538,16 +1537,10 @@ describe("Orchestrators", function () {
       // Assess vaultsTotalAssetsForFulfillRedeem for all vaults
       console.log("\n=== VAULTS TOTAL ASSETS FOR FULFILL REDEEM ===");
       for (const vaultAddress of transparentVaultsEpoch) {
-        const totalAssetsForRedeem = await internalStatesOrchestrator.getVaultTotalAssetsForFulfillRedeem(vaultAddress);
+        const [totalAssetsForRedeem, totalAssetsForDeposit] =
+          await internalStatesOrchestrator.getVaultTotalAssetsAll(vaultAddress);
         console.log(`Vault ${vaultAddress}: Total Assets for Fulfill Redeem = ${totalAssetsForRedeem.toString()}`);
         expect(totalAssetsForRedeem).to.be.gte(0);
-      }
-
-      // Assess vaultsTotalAssetsForFulfillDeposit for all vaults
-      console.log("\n=== VAULTS TOTAL ASSETS FOR FULFILL DEPOSIT ===");
-      for (const vaultAddress of transparentVaultsEpoch) {
-        const totalAssetsForDeposit =
-          await internalStatesOrchestrator.getVaultTotalAssetsForFulfillDeposit(vaultAddress);
         console.log(`Vault ${vaultAddress}: Total Assets for Fulfill Deposit = ${totalAssetsForDeposit.toString()}`);
         expect(totalAssetsForDeposit).to.be.gte(0);
       }
@@ -1604,7 +1597,7 @@ describe("Orchestrators", function () {
       void expect(liquidityUpkeepNeeded).to.be.true;
       await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
 
-      expect(await liquidityOrchestrator.currentPhase()).to.equal(3); // FulfillDepositAndRedeem
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(3); // ProcessVaultOperations
 
       [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
       void expect(liquidityUpkeepNeeded).to.be.true;
@@ -1646,7 +1639,7 @@ describe("Orchestrators", function () {
 
         console.log(`${assetName}: ${liquidityOrchestratorBalance.toString()}`);
 
-        // Note: At this point, FulfillDepositAndRedeem has completed, so bought assets
+        // Note: At this point, ProcessVaultOperations has completed, so bought assets
         // have been distributed to vaults. The LO balance represents what's left over
         // after distribution, which depends on the complex interaction between:
         // - Initial holdings
@@ -2227,7 +2220,7 @@ describe("Orchestrators", function () {
         await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
       }
 
-      expect(await liquidityOrchestrator.currentPhase()).to.equal(3); // FulfillDepositAndRedeem
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(3); // ProcessVaultOperations
 
       while ((await liquidityOrchestrator.currentPhase()) === 3n) {
         [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");

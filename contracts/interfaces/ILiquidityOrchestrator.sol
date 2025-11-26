@@ -13,7 +13,7 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
         Idle,
         SellingLeg,
         BuyingLeg,
-        FulfillDepositAndRedeem
+        ProcessVaultOperations
     }
 
     /// @notice Returns the current epoch counter

@@ -14,7 +14,7 @@ interface IExecutionAdapter {
     /// @notice Validates that the given asset is compatible with this adapter
     /// @param asset The address of the asset to validate
     function validateExecutionAdapter(address asset) external view;
-    
+
     /// @notice Executes a sell operation by converting asset shares to underlying assets
     /// @param asset The address of the asset to sell
     /// @param sharesAmount The amount of shares to sell

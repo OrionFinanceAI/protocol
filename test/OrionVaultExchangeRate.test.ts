@@ -143,7 +143,7 @@ describe("OrionVault Exchange Rate Tests", function () {
       await vault.connect(impersonatedLiquidityOrchestrator).fulfillDeposit(0);
 
       // Update vault state with the new total assets
-      await vault.connect(impersonatedInternalStatesOrchestrator).updateVaultState([], depositAmount);
+      await vault.connect(impersonatedInternalStatesOrchestrator).updateVaultState([], [], depositAmount);
 
       // Check exchange rate
       const shares = await vault.balanceOf(lp1.address);
@@ -167,7 +167,7 @@ describe("OrionVault Exchange Rate Tests", function () {
       const impersonatedInternalStatesOrchestrator1 = await impersonateOrchestrator(internalStatesOrchestratorAddress);
       const impersonatedLiquidityOrchestrator1 = await impersonateOrchestrator(liquidityOrchestratorAddress);
       await vault.connect(impersonatedLiquidityOrchestrator1).fulfillDeposit(0);
-      await vault.connect(impersonatedInternalStatesOrchestrator1).updateVaultState([], deposit1);
+      await vault.connect(impersonatedInternalStatesOrchestrator1).updateVaultState([], [], deposit1);
 
       // Second deposit
       await underlyingAsset.connect(lp2).approve(await vault.getAddress(), deposit2);
@@ -175,7 +175,7 @@ describe("OrionVault Exchange Rate Tests", function () {
       const impersonatedInternalStatesOrchestrator2 = await impersonateOrchestrator(internalStatesOrchestratorAddress);
       const impersonatedLiquidityOrchestrator2 = await impersonateOrchestrator(liquidityOrchestratorAddress);
       await vault.connect(impersonatedLiquidityOrchestrator2).fulfillDeposit(deposit1);
-      await vault.connect(impersonatedInternalStatesOrchestrator2).updateVaultState([], deposit1 + deposit2);
+      await vault.connect(impersonatedInternalStatesOrchestrator2).updateVaultState([], [], deposit1 + deposit2);
 
       // Check exchange rates
       const shares1 = await vault.balanceOf(lp1.address);
@@ -201,7 +201,7 @@ describe("OrionVault Exchange Rate Tests", function () {
       const impersonatedInternalStatesOrchestrator = await impersonateOrchestrator(internalStatesOrchestratorAddress);
       const impersonatedLiquidityOrchestrator = await impersonateOrchestrator(liquidityOrchestratorAddress);
       await vault.connect(impersonatedLiquidityOrchestrator).fulfillDeposit(0);
-      await vault.connect(impersonatedInternalStatesOrchestrator).updateVaultState([], depositAmount);
+      await vault.connect(impersonatedInternalStatesOrchestrator).updateVaultState([], [], depositAmount);
 
       const shares = await vault.balanceOf(lp1.address);
 
@@ -225,7 +225,7 @@ describe("OrionVault Exchange Rate Tests", function () {
       const impersonatedInternalStatesOrchestrator = await impersonateOrchestrator(internalStatesOrchestratorAddress);
       const impersonatedLiquidityOrchestrator = await impersonateOrchestrator(liquidityOrchestratorAddress);
       await vault.connect(impersonatedLiquidityOrchestrator).fulfillDeposit(0);
-      await vault.connect(impersonatedInternalStatesOrchestrator).updateVaultState([], depositAmount);
+      await vault.connect(impersonatedInternalStatesOrchestrator).updateVaultState([], [], depositAmount);
 
       // Test various conversion amounts
       const testAmounts = [
@@ -259,7 +259,7 @@ describe("OrionVault Exchange Rate Tests", function () {
       const impersonatedInternalStatesOrchestrator1 = await impersonateOrchestrator(internalStatesOrchestratorAddress);
       const impersonatedLiquidityOrchestrator1 = await impersonateOrchestrator(liquidityOrchestratorAddress);
       await vault.connect(impersonatedLiquidityOrchestrator1).fulfillDeposit(0);
-      await vault.connect(impersonatedInternalStatesOrchestrator1).updateVaultState([], initialDeposit);
+      await vault.connect(impersonatedInternalStatesOrchestrator1).updateVaultState([], [], initialDeposit);
 
       const initialShares = await vault.balanceOf(lp1.address);
       const initialAssets = await vault.convertToAssets(initialShares);
@@ -272,7 +272,7 @@ describe("OrionVault Exchange Rate Tests", function () {
       const impersonatedInternalStatesOrchestrator2 = await impersonateOrchestrator(internalStatesOrchestratorAddress);
       await vault
         .connect(impersonatedInternalStatesOrchestrator2)
-        .updateVaultState([], initialDeposit + donationAmount);
+        .updateVaultState([], [], initialDeposit + donationAmount);
 
       /* ── 3. Post‑donation balances ────────────────────────────────────────── */
       const sharesAfterDonation = await vault.balanceOf(lp1.address);
@@ -319,7 +319,7 @@ describe("OrionVault Exchange Rate Tests", function () {
       const impersonatedInternalStatesOrchestrator1 = await impersonateOrchestrator(internalStatesOrchestratorAddress);
       const impersonatedLiquidityOrchestrator1 = await impersonateOrchestrator(liquidityOrchestratorAddress);
       await vault.connect(impersonatedLiquidityOrchestrator1).fulfillDeposit(0);
-      await vault.connect(impersonatedInternalStatesOrchestrator1).updateVaultState([], deposit1 + deposit2);
+      await vault.connect(impersonatedInternalStatesOrchestrator1).updateVaultState([], [], deposit1 + deposit2);
 
       const shares1Before = await vault.balanceOf(lp1.address);
       const shares2Before = await vault.balanceOf(lp2.address);
@@ -332,7 +332,9 @@ describe("OrionVault Exchange Rate Tests", function () {
 
       // Update total assets to include the donation
       const impersonatedInternalStatesOrchestrator2 = await impersonateOrchestrator(internalStatesOrchestratorAddress);
-      await vault.connect(impersonatedInternalStatesOrchestrator2).updateVaultState([], deposit1 + deposit2 + donation);
+      await vault
+        .connect(impersonatedInternalStatesOrchestrator2)
+        .updateVaultState([], [], deposit1 + deposit2 + donation);
 
       const shares1After = await vault.balanceOf(lp1.address);
       const shares2After = await vault.balanceOf(lp2.address);
@@ -363,7 +365,7 @@ describe("OrionVault Exchange Rate Tests", function () {
       const impersonatedInternalStatesOrchestrator = await impersonateOrchestrator(internalStatesOrchestratorAddress);
       const impersonatedLiquidityOrchestrator = await impersonateOrchestrator(liquidityOrchestratorAddress);
       await vault.connect(impersonatedLiquidityOrchestrator).fulfillDeposit(0);
-      await vault.connect(impersonatedInternalStatesOrchestrator).updateVaultState([], tinyDeposit);
+      await vault.connect(impersonatedInternalStatesOrchestrator).updateVaultState([], [], tinyDeposit);
 
       const shares = await vault.balanceOf(lp1.address);
       const assets = await vault.convertToAssets(shares);
@@ -385,7 +387,7 @@ describe("OrionVault Exchange Rate Tests", function () {
       const impersonatedInternalStatesOrchestrator = await impersonateOrchestrator(internalStatesOrchestratorAddress);
       const impersonatedLiquidityOrchestrator = await impersonateOrchestrator(liquidityOrchestratorAddress);
       await vault.connect(impersonatedLiquidityOrchestrator).fulfillDeposit(0);
-      await vault.connect(impersonatedInternalStatesOrchestrator).updateVaultState([], depositAmount);
+      await vault.connect(impersonatedInternalStatesOrchestrator).updateVaultState([], [], depositAmount);
 
       // Test precision with various amounts
       const testAmounts = [
@@ -421,7 +423,7 @@ describe("OrionVault Exchange Rate Tests", function () {
       const impersonatedInternalStatesOrchestrator1 = await impersonateOrchestrator(internalStatesOrchestratorAddress);
       const impersonatedLiquidityOrchestrator1 = await impersonateOrchestrator(liquidityOrchestratorAddress);
       await vault.connect(impersonatedLiquidityOrchestrator1).fulfillDeposit(0);
-      await vault.connect(impersonatedInternalStatesOrchestrator1).updateVaultState([], deposit1);
+      await vault.connect(impersonatedInternalStatesOrchestrator1).updateVaultState([], [], deposit1);
 
       const shares1 = await vault.balanceOf(lp1.address);
       const assets1 = await vault.convertToAssets(shares1);
@@ -432,7 +434,7 @@ describe("OrionVault Exchange Rate Tests", function () {
       const impersonatedInternalStatesOrchestrator2 = await impersonateOrchestrator(internalStatesOrchestratorAddress);
       const impersonatedLiquidityOrchestrator2 = await impersonateOrchestrator(liquidityOrchestratorAddress);
       await vault.connect(impersonatedLiquidityOrchestrator2).fulfillDeposit(deposit1);
-      await vault.connect(impersonatedInternalStatesOrchestrator2).updateVaultState([], deposit1 + deposit2);
+      await vault.connect(impersonatedInternalStatesOrchestrator2).updateVaultState([], [], deposit1 + deposit2);
 
       const shares2 = await vault.balanceOf(lp2.address);
       const assets2 = await vault.convertToAssets(shares2);
@@ -443,7 +445,9 @@ describe("OrionVault Exchange Rate Tests", function () {
       const impersonatedInternalStatesOrchestrator3 = await impersonateOrchestrator(internalStatesOrchestratorAddress);
       const impersonatedLiquidityOrchestrator3 = await impersonateOrchestrator(liquidityOrchestratorAddress);
       await vault.connect(impersonatedLiquidityOrchestrator3).fulfillDeposit(deposit1 + deposit2);
-      await vault.connect(impersonatedInternalStatesOrchestrator3).updateVaultState([], deposit1 + deposit2 + deposit3);
+      await vault
+        .connect(impersonatedInternalStatesOrchestrator3)
+        .updateVaultState([], [], deposit1 + deposit2 + deposit3);
 
       const shares3 = await vault.balanceOf(lp3.address);
       const assets3 = await vault.convertToAssets(shares3);
@@ -466,7 +470,7 @@ describe("OrionVault Exchange Rate Tests", function () {
       const impersonatedInternalStatesOrchestrator = await impersonateOrchestrator(internalStatesOrchestratorAddress);
       const impersonatedLiquidityOrchestrator = await impersonateOrchestrator(liquidityOrchestratorAddress);
       await vault.connect(impersonatedLiquidityOrchestrator).fulfillDeposit(0);
-      await vault.connect(impersonatedInternalStatesOrchestrator).updateVaultState([], depositAmount);
+      await vault.connect(impersonatedInternalStatesOrchestrator).updateVaultState([], [], depositAmount);
 
       // Test monotonicity: larger inputs should produce larger outputs
       const amount1 = ethers.parseUnits("100", 6);
@@ -493,7 +497,7 @@ describe("OrionVault Exchange Rate Tests", function () {
       const impersonatedInternalStatesOrchestrator = await impersonateOrchestrator(internalStatesOrchestratorAddress);
       const impersonatedLiquidityOrchestrator = await impersonateOrchestrator(liquidityOrchestratorAddress);
       await vault.connect(impersonatedLiquidityOrchestrator).fulfillDeposit(0);
-      await vault.connect(impersonatedInternalStatesOrchestrator).updateVaultState([], depositAmount);
+      await vault.connect(impersonatedInternalStatesOrchestrator).updateVaultState([], [], depositAmount);
 
       // Test proportional relationships
       const baseAmount = ethers.parseUnits("100", 6);
