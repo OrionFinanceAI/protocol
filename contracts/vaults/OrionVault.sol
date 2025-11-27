@@ -372,10 +372,15 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
         // Update internal state
         uint256 newAmount = currentAmount - amount;
+
         if (newAmount == 0) {
             // slither-disable-next-line unused-return
             _depositRequests.remove(msg.sender);
         } else {
+            // Avoid dust deposit requests by rejecting cancellations with small reminders.
+            uint256 minDeposit = config.minDepositAmount();
+            if (newAmount < minDeposit) revert ErrorsLib.BelowMinimumDeposit(newAmount, minDeposit);
+
             // slither-disable-next-line unused-return
             _depositRequests.set(msg.sender, newAmount);
         }
@@ -423,6 +428,10 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
             // slither-disable-next-line unused-return
             _redeemRequests.remove(msg.sender);
         } else {
+            // Avoid dust redeem requests by rejecting cancellations with small reminders.
+            uint256 minRedeem = config.minRedeemAmount();
+            if (newShares < minRedeem) revert ErrorsLib.BelowMinimumRedeem(newShares, minRedeem);
+
             // slither-disable-next-line unused-return
             _redeemRequests.set(msg.sender, newShares);
         }
