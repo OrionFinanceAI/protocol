@@ -654,11 +654,17 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         // Capture totalSupply snapshot to ensure consistent pricing for all users in this batch
         uint256 snapshotTotalSupply = totalSupply();
 
+        address[] memory users = new address[](batchSize);
+        uint256[] memory amounts = new uint256[](batchSize);
+        for (uint256 i = 0; i < batchSize; ++i) {
+            (users[i], amounts[i]) = _depositRequests.at(i);
+        }
+
         // Process requests in batch
         uint256 processedAmount = 0;
-        for (uint16 i = 0; i < batchSize; ++i) {
-            // Get request by index (index 0 since we remove as we go)
-            (address user, uint256 amount) = _depositRequests.at(0);
+        for (uint256 i = 0; i < batchSize; ++i) {
+            address user = users[i];
+            uint256 amount = amounts[i];
 
             // slither-disable-next-line unused-return
             _depositRequests.remove(user);
@@ -688,28 +694,35 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         // Capture totalSupply snapshot to ensure consistent pricing for all users in this batch
         uint256 snapshotTotalSupply = totalSupply();
 
+        // Collect all keys to process first to avoid swap-and-pop reordering issues
+        address[] memory users = new address[](batchSize);
+        uint256[] memory shares = new uint256[](batchSize);
+        for (uint256 i = 0; i < batchSize; ++i) {
+            (users[i], shares[i]) = _redeemRequests.at(i);
+        }
+
         // Process requests in batch
         uint256 processedShares = 0;
-        for (uint16 i = 0; i < batchSize; ++i) {
-            // Get request by index (index 0 since we remove as we go)
-            (address user, uint256 shares) = _redeemRequests.at(0);
+        for (uint256 i = 0; i < batchSize; ++i) {
+            address user = users[i];
+            uint256 userShares = shares[i];
 
             // slither-disable-next-line unused-return
             _redeemRequests.remove(user);
 
             uint256 underlyingAmount = _convertToAssetsWithPITTotalAssets(
-                shares,
+                userShares,
                 redeemTotalAssets,
                 snapshotTotalSupply,
                 Math.Rounding.Floor
             );
-            _burn(address(this), shares);
-            processedShares += shares;
+            _burn(address(this), userShares);
+            processedShares += userShares;
 
             // Transfer underlying assets from liquidity orchestrator to the user
             liquidityOrchestrator.transferRedemptionFunds(user, underlyingAmount);
 
-            emit Redeem(address(this), user, underlyingAmount, shares);
+            emit Redeem(address(this), user, underlyingAmount, userShares);
         }
     }
 }
