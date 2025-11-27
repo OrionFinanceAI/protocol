@@ -22,6 +22,7 @@ protocol-ops/
 protocol-costs/
 reports/
 docs/
+.cursor/
 # files
 *.env
 *.log

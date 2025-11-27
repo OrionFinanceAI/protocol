@@ -241,6 +241,26 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
         return (vFeeCoefficient, rsFeeCoefficient);
     }
 
+    /// @inheritdoc IInternalStateOrchestrator
+    function resetPhase(InternalUpkeepPhase targetPhase) external onlyOwner {
+        ILiquidityOrchestrator.LiquidityUpkeepPhase loPhase = liquidityOrchestrator.currentPhase();
+
+        // Validate target phase based on LO phase
+        if (targetPhase == InternalUpkeepPhase.PreprocessingTransparentVaults) {
+            if (loPhase == ILiquidityOrchestrator.LiquidityUpkeepPhase.SellingLeg) {
+                _handleStart();
+            }
+        } else if (targetPhase == InternalUpkeepPhase.PostprocessingTransparentVaults) {
+            if (
+                loPhase == ILiquidityOrchestrator.LiquidityUpkeepPhase.SellingLeg ||
+                loPhase == ILiquidityOrchestrator.LiquidityUpkeepPhase.BuyingLeg
+            ) {
+                currentPhase = InternalUpkeepPhase.PostprocessingTransparentVaults;
+                currentMinibatchIndex = 0;
+            }
+        }
+    }
+
     /* solhint-disable code-complexity */
     /// @notice Checks if upkeep is needed based on time interval
     /// @dev https://docs.chain.link/chainlink-automation/reference/automation-interfaces
@@ -308,9 +328,6 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
 
     /// @notice Updates the next update time and resets the previous epoch state variables
     function _handleStart() internal {
-        // Validate current phase
-        if (!_shouldTriggerUpkeep() || !config.isSystemIdle()) revert ErrorsLib.TooEarly();
-
         // Save previous epoch's vault list before clearing to properly reset vault-specific mappings
         address[] memory previousEpochVaults = new address[](transparentVaultsEpoch.length);
         for (uint16 i = 0; i < transparentVaultsEpoch.length; ++i) {
@@ -346,6 +363,7 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
 
         if (transparentVaultsEpoch.length > 0) {
             currentPhase = InternalUpkeepPhase.PreprocessingTransparentVaults;
+            currentMinibatchIndex = 0;
         }
     }
 
