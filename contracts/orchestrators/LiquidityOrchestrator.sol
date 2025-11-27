@@ -412,6 +412,8 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
             i1 = uint16(transparentVaults.length);
             currentPhase = LiquidityUpkeepPhase.Idle;
             currentMinibatchIndex = 0;
+            emit EventsLib.EpochProcessed(epochCounter);
+            ++epochCounter;
         }
 
         for (uint16 i = i0; i < i1; ++i) {
