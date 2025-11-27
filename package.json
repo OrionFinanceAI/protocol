@@ -27,7 +27,6 @@
     "prettier:check": "prettier --check \"**/*.{js,json,md,sol,ts,yml}\"",
     "prettier:write": "prettier --write \"**/*.{js,json,md,sol,ts,yml}\"",
     "slither": "slither . --filter-paths 'lib|node_modules|dependencies|contracts/mocks' --fail-medium",
-    "verify": "hardhat run protocol-ops/verify.ts --network sepolia",
     "verify:vault": "hardhat run protocol-ops/verify-vault.ts --network sepolia"
   },
   "devDependencies": {
