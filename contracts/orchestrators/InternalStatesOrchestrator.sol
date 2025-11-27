@@ -135,6 +135,9 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
     /// @notice Buffer amount [assets]
     uint256 public bufferAmount;
 
+    /// @notice Flag to determine if LP processing should be performed
+    bool public processLP;
+
     /// @dev Restricts function to only owner or automation registry
     modifier onlyAuthorizedTrigger() {
         if (msg.sender != owner() && msg.sender != automationRegistry) {
@@ -284,7 +287,20 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
     }
 
     /// @notice Performs state reading and estimation operations
-    function performUpkeep(bytes calldata) external override onlyAuthorizedTrigger nonReentrant whenNotPaused {
+    /// @dev Can be called statelessly (in any phase).
+    ///      Payload format: abi.encode(bool processLP, address[] excludedAssets)
+    ///      - processLP: used only by preprocessing
+    ///      - excludedAssets: used only by postprocessing
+    function performUpkeep(
+        bytes calldata performData
+    ) external override onlyAuthorizedTrigger nonReentrant whenNotPaused {
+        bool newProcessLP = true;
+        address[] memory excludedAssets = new address[](0);
+        if (performData.length > 0) {
+            (newProcessLP, excludedAssets) = abi.decode(performData, (bool, address[]));
+        }
+        processLP = newProcessLP;
+
         if (config.isSystemIdle() && _shouldTriggerUpkeep()) {
             _handleStart();
         } else if (currentPhase == InternalUpkeepPhase.PreprocessingTransparentVaults) {
@@ -292,7 +308,7 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
         } else if (currentPhase == InternalUpkeepPhase.Buffering) {
             _buffer();
         } else if (currentPhase == InternalUpkeepPhase.PostprocessingTransparentVaults) {
-            _postprocessTransparentMinibatch();
+            _postprocessTransparentMinibatch(excludedAssets);
         } else if (currentPhase == InternalUpkeepPhase.BuildingOrders) {
             _buildOrders();
 
@@ -438,18 +454,20 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
             curatorFee -= protocolRevenueShareFee;
             vault.accrueCuratorFees(curatorFee);
 
-            // STEP 5: WITHDRAWAL EXCHANGE RATE (based on post-fee totalAssets)
-            uint256 pendingRedeem = vault.convertToAssetsWithPITTotalAssets(
-                vault.pendingRedeem(maxFulfillBatchSize),
-                totalAssets,
-                Math.Rounding.Floor
-            );
+            if (processLP) {
+                // STEP 5: WITHDRAWAL EXCHANGE RATE (based on post-fee totalAssets)
+                uint256 pendingRedeem = vault.convertToAssetsWithPITTotalAssets(
+                    vault.pendingRedeem(maxFulfillBatchSize),
+                    totalAssets,
+                    Math.Rounding.Floor
+                );
 
-            // STEP 6: DEPOSIT PROCESSING (add deposits, subtract withdrawals)
-            totalAssets -= pendingRedeem;
-            uint256 pendingDeposit = vault.pendingDeposit(maxFulfillBatchSize);
-            _currentEpoch.vaultsTotalAssetsForFulfillDeposit[address(vault)] = totalAssets;
-            totalAssets += pendingDeposit;
+                // STEP 6: DEPOSIT PROCESSING (add deposits, subtract withdrawals)
+                totalAssets -= pendingRedeem;
+                uint256 pendingDeposit = vault.pendingDeposit(maxFulfillBatchSize);
+                _currentEpoch.vaultsTotalAssetsForFulfillDeposit[address(vault)] = totalAssets;
+                totalAssets += pendingDeposit;
+            }
             _currentEpoch.vaultsTotalAssets[address(vault)] = totalAssets;
         }
     }
@@ -504,7 +522,8 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
     }
 
     /// @notice Postprocesses minibatch of transparent vaults
-    function _postprocessTransparentMinibatch() internal {
+    /// @param excludedAssets List of assets to exclude from processing
+    function _postprocessTransparentMinibatch(address[] memory excludedAssets) internal {
         uint16 i0 = currentMinibatchIndex * transparentMinibatchSize;
         uint16 i1 = i0 + transparentMinibatchSize;
         ++currentMinibatchIndex;
@@ -521,6 +540,16 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
 
             (address[] memory intentTokens, uint32[] memory intentWeights) = vault.getIntent();
             uint256 finalTotalAssets = _currentEpoch.vaultsTotalAssets[vaultAddress];
+
+            // TODO: use excludedAssets to reinterpret intentTokens and
+            // intentWeights maintaining accounting correctness, also based on current
+            // LO phase read here, forcing the value of the excluded asset to be th same as the initial (no trades).
+            // Based on the phase, the reinterpretation of the intent is different.
+            // LiquidityOrchestrator is selling: this means we are underleveraged by the amount we cannot sell,
+            // (totalAssets - illiquidPosition(s)) * intent / sumActiveIntentWeights
+            // LiquidityOrchestrator is buying: this means we have extra underlying asset in the portfolio.
+            // Important: this has to be performed per vault,
+            // and direction of batched trade != direction of single trades.
 
             for (uint16 j = 0; j < intentTokens.length; ++j) {
                 address token = intentTokens[j];

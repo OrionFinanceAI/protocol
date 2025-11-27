@@ -58,6 +58,10 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     /// @return The current buffer amount
     function bufferAmount() external view returns (uint256);
 
+    /// @notice Returns whether LP processing should be performed
+    /// @return True if LP processing should be performed
+    function processLP() external view returns (bool);
+
     /// @notice Subtracts a specified amount from the pending protocol fees
     /// @param amount The amount to subtract from pending protocol fees
     function subtractPendingProtocolFees(uint256 amount) external;
