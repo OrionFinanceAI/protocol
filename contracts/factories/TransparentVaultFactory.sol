@@ -70,6 +70,7 @@ contract TransparentVaultFactory {
             feeType,
             performanceFee,
             managementFee,
+            depositAccessControl,
             EventsLib.VaultType.Transparent
         );
     }

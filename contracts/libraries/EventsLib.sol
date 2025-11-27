@@ -122,6 +122,7 @@ library EventsLib {
     /// @param feeType The fee type of the vault.
     /// @param performanceFee The performance fee of the vault.
     /// @param managementFee The management fee of the vault.
+    /// @param depositAccessControl The address of the deposit access control contract (address(0) = permissionless).
     /// @param vaultType The type of vault that was created (Transparent or Encrypted).
     event OrionVaultCreated(
         address indexed vault,
@@ -132,6 +133,7 @@ library EventsLib {
         uint8 feeType,
         uint16 performanceFee,
         uint16 managementFee,
+        address depositAccessControl,
         VaultType vaultType
     );
 }
