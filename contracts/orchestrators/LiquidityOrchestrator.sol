@@ -425,9 +425,6 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
             ) = internalStatesOrchestrator.getVaultTotalAssetsAll(vault);
 
             _processSingleVaultOperations(vault, totalAssetsForDeposit, totalAssetsForRedeem, finalTotalAssets);
-            if (config.isDecommissioningVault(vault)) {
-                config.completeVaultDecommissioning(vault);
-            }
         }
     }
 
@@ -457,6 +454,17 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
 
         (address[] memory tokens, uint256[] memory shares) = internalStatesOrchestrator.getVaultPortfolio(vault);
         vaultContract.updateVaultState(tokens, shares, finalTotalAssets);
+
+        if (config.isDecommissioningVault(vault)) {
+            for (uint16 i = 0; i < tokens.length; ++i) {
+                if (tokens[i] == address(underlyingAsset)) {
+                    if (shares[i] == finalTotalAssets) {
+                        config.completeVaultDecommissioning(vault);
+                        break;
+                    }
+                }
+            }
+        }
     }
 
     /// @inheritdoc ILiquidityOrchestrator
