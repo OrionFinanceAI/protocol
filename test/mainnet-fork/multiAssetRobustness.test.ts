@@ -407,7 +407,7 @@ describe("Multi-Asset Robustness Tests", function () {
               0, // feeType: Absolute
               0, // performanceFee: 0%
               0, // managementFee: 0%
-              ethers.ZeroAddress
+              ethers.ZeroAddress,
             );
             const receipt = await tx.wait();
 
