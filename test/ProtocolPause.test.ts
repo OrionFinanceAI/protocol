@@ -1,5 +1,6 @@
 /**
  * ProtocolPause.test.ts
+import "@openzeppelin/hardhat-upgrades";
  *
  * This file contains comprehensive tests for the protocol-wide pause functionality
  * implemented via OpenZeppelin's Pausable contract.
@@ -45,16 +46,16 @@
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
+import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 
 import {
   MockUnderlyingAsset,
   MockERC4626Asset,
   OrionAssetERC4626ExecutionAdapter,
-  OrionConfig,
-  InternalStatesOrchestrator,
-  LiquidityOrchestrator,
-  OrionTransparentVault,
-  TransparentVaultFactory,
+  OrionConfigUpgradeable,
+  InternalStatesOrchestratorUpgradeable,
+  LiquidityOrchestratorUpgradeable,
+  OrionTransparentVaultUpgradeable,
 } from "../typechain-types";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
 
@@ -63,10 +64,10 @@ describe("Protocol Pause Functionality", function () {
   let underlyingAsset: MockUnderlyingAsset;
   let erc4626Asset: MockERC4626Asset;
   let adapter: OrionAssetERC4626ExecutionAdapter;
-  let config: OrionConfig;
-  let internalStatesOrchestrator: InternalStatesOrchestrator;
-  let liquidityOrchestrator: LiquidityOrchestrator;
-  let transparentVault: OrionTransparentVault;
+  let config: OrionConfigUpgradeable;
+  let internalStatesOrchestrator: InternalStatesOrchestratorUpgradeable;
+  let liquidityOrchestrator: LiquidityOrchestratorUpgradeable;
+  let transparentVault: OrionTransparentVaultUpgradeable;
 
   // Signers
   let admin: SignerWithAddress;
@@ -86,63 +87,17 @@ describe("Protocol Pause Functionality", function () {
     // Get signers
     [admin, guardian, curator, user1, user2, automationRegistry] = await ethers.getSigners();
 
-    // Deploy mock underlying asset (USDC)
-    const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
-    underlyingAsset = await MockUnderlyingAssetFactory.deploy(6); // decimals
+    // Deploy upgradeable protocol
+    const deployed = await deployUpgradeableProtocol(admin, admin, undefined, automationRegistry);
+
+    underlyingAsset = deployed.underlyingAsset;
+    config = deployed.orionConfig;
+    internalStatesOrchestrator = deployed.internalStatesOrchestrator;
+    liquidityOrchestrator = deployed.liquidityOrchestrator;
 
     // Mint tokens to users
     await underlyingAsset.mint(user1.address, INITIAL_SUPPLY);
     await underlyingAsset.mint(user2.address, INITIAL_SUPPLY);
-
-    // Deploy OrionConfig
-    const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
-    const configDeployed = await OrionConfigFactory.deploy(
-      admin.address, // initialOwner
-      admin.address, // admin
-      await underlyingAsset.getAddress(), // underlyingAsset
-    );
-    await configDeployed.waitForDeployment();
-    config = configDeployed as unknown as OrionConfig;
-
-    // Deploy LiquidityOrchestrator FIRST
-    const LiquidityOrchestratorFactory = await ethers.getContractFactory("LiquidityOrchestrator");
-    const liquidityOrchestratorDeployed = await LiquidityOrchestratorFactory.deploy(
-      admin.address, // owner
-      await config.getAddress(),
-      automationRegistry.address,
-    );
-    await liquidityOrchestratorDeployed.waitForDeployment();
-    liquidityOrchestrator = liquidityOrchestratorDeployed as unknown as LiquidityOrchestrator;
-
-    // Register LiquidityOrchestrator in config BEFORE deploying InternalStatesOrchestrator
-    // (InternalStatesOrchestrator constructor reads liquidityOrchestrator from config)
-    await config.setLiquidityOrchestrator(await liquidityOrchestrator.getAddress());
-
-    // NOW deploy InternalStatesOrchestrator (it will read liquidityOrchestrator from config)
-    const InternalStatesOrchestratorFactory = await ethers.getContractFactory("InternalStatesOrchestrator");
-    const internalStatesOrchestratorDeployed = await InternalStatesOrchestratorFactory.deploy(
-      admin.address, // owner
-      await config.getAddress(),
-      automationRegistry.address,
-    );
-    await internalStatesOrchestratorDeployed.waitForDeployment();
-    internalStatesOrchestrator = internalStatesOrchestratorDeployed as unknown as InternalStatesOrchestrator;
-
-    // Register InternalStatesOrchestrator in config
-    await config.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
-
-    // Link orchestrators to each other
-    await liquidityOrchestrator.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
-
-    // Deploy PriceAdapterRegistry
-    const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistry");
-    const priceAdapterRegistryDeployed = await PriceAdapterRegistryFactory.deploy(
-      admin.address,
-      await config.getAddress(),
-    );
-    await priceAdapterRegistryDeployed.waitForDeployment();
-
-    await config.setPriceAdapterRegistry(await priceAdapterRegistryDeployed.getAddress());
 
     // Deploy ERC4626 Asset (e.g., sDAI)
     const MockERC4626AssetFactory = await ethers.getContractFactory("MockERC4626Asset");
@@ -179,12 +134,8 @@ describe("Protocol Pause Functionality", function () {
     // Set guardian
     await config.setGuardian(guardian.address);
 
-    // Deploy vault factory
-    const TransparentVaultFactoryFactory = await ethers.getContractFactory("TransparentVaultFactory");
-    const vaultFactoryDeployed = await TransparentVaultFactoryFactory.deploy(await config.getAddress());
-    await vaultFactoryDeployed.waitForDeployment();
-    const vaultFactory = vaultFactoryDeployed as unknown as TransparentVaultFactory;
-    await config.setVaultFactory(await vaultFactory.getAddress());
+    // Get vault factory from deployed protocol
+    const vaultFactory = deployed.transparentVaultFactory;
 
     // Create vault via factory (automatically registers it)
     const vaultAddress = await vaultFactory.connect(admin).createVault.staticCall(
@@ -202,9 +153,9 @@ describe("Protocol Pause Functionality", function () {
       .createVault(curator.address, "Orion Test Vault", "OTV", 0, 500, 100, ethers.ZeroAddress);
 
     transparentVault = (await ethers.getContractAt(
-      "OrionTransparentVault",
+      "OrionTransparentVaultUpgradeable",
       vaultAddress,
-    )) as unknown as OrionTransparentVault;
+    )) as unknown as OrionTransparentVaultUpgradeable;
 
     // Provide liquidity to the protocol
     const liquidityAmount = ethers.parseUnits("100000", 6); // 100k USDC

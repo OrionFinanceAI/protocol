@@ -1,23 +1,25 @@
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
+import "@openzeppelin/hardhat-upgrades";
 import { ethers } from "hardhat";
 import { time } from "@nomicfoundation/hardhat-toolbox/network-helpers";
+import { deployUpgradeableProtocol } from "../helpers/deployUpgradeable";
 
 import {
-  OrionConfig,
-  InternalStatesOrchestrator,
-  LiquidityOrchestrator,
-  TransparentVaultFactory,
-  OrionTransparentVault,
+  OrionConfigUpgradeable,
+  InternalStatesOrchestratorUpgradeable,
+  LiquidityOrchestratorUpgradeable,
+  TransparentVaultFactoryUpgradeable,
+  OrionTransparentVaultUpgradeable,
   MockUnderlyingAsset,
 } from "../../typechain-types";
 
 describe("Orchestrators - zero deposits and zero intents", function () {
-  let orionConfig: OrionConfig;
-  let internalStatesOrchestrator: InternalStatesOrchestrator;
-  let liquidityOrchestrator: LiquidityOrchestrator;
-  let transparentVaultFactory: TransparentVaultFactory;
-  let transparentVault: OrionTransparentVault;
+  let orionConfig: OrionConfigUpgradeable;
+  let internalStatesOrchestrator: InternalStatesOrchestratorUpgradeable;
+  let liquidityOrchestrator: LiquidityOrchestratorUpgradeable;
+  let transparentVaultFactory: TransparentVaultFactoryUpgradeable;
+  let transparentVault: OrionTransparentVaultUpgradeable;
   let underlyingAsset: MockUnderlyingAsset;
 
   let owner: SignerWithAddress;
@@ -28,50 +30,16 @@ describe("Orchestrators - zero deposits and zero intents", function () {
   beforeEach(async function () {
     [owner, curator, automationRegistry, user] = await ethers.getSigners();
 
-    const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
-    const underlyingAssetDeployed = await MockUnderlyingAssetFactory.deploy(12);
-    await underlyingAssetDeployed.waitForDeployment();
-    underlyingAsset = underlyingAssetDeployed as unknown as MockUnderlyingAsset;
+    // Deploy upgradeable protocol
+    const deployed = await deployUpgradeableProtocol(owner, user, undefined, automationRegistry);
 
-    const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
-    const orionConfigDeployed = await OrionConfigFactory.deploy(
-      owner.address,
-      user.address, // admin
-      await underlyingAsset.getAddress(),
-    );
-    await orionConfigDeployed.waitForDeployment();
-    orionConfig = orionConfigDeployed as unknown as OrionConfig;
+    underlyingAsset = deployed.underlyingAsset;
+    orionConfig = deployed.orionConfig;
+    internalStatesOrchestrator = deployed.internalStatesOrchestrator;
+    liquidityOrchestrator = deployed.liquidityOrchestrator;
+    transparentVaultFactory = deployed.transparentVaultFactory;
 
-    const LiquidityOrchestratorFactory = await ethers.getContractFactory("LiquidityOrchestrator");
-    const liquidityOrchestratorDeployed = await LiquidityOrchestratorFactory.deploy(
-      owner.address,
-      await orionConfig.getAddress(),
-      automationRegistry.address,
-    );
-    await liquidityOrchestratorDeployed.waitForDeployment();
-    liquidityOrchestrator = liquidityOrchestratorDeployed as unknown as LiquidityOrchestrator;
-
-    await orionConfig.setLiquidityOrchestrator(await liquidityOrchestrator.getAddress());
-
-    const InternalStatesOrchestratorFactory = await ethers.getContractFactory("InternalStatesOrchestrator");
-    const internalStatesOrchestratorDeployed = await InternalStatesOrchestratorFactory.deploy(
-      owner.address,
-      await orionConfig.getAddress(),
-      automationRegistry.address,
-    );
-    await internalStatesOrchestratorDeployed.waitForDeployment();
-    internalStatesOrchestrator = internalStatesOrchestratorDeployed as unknown as InternalStatesOrchestrator;
-
-    await orionConfig.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
-
-    const TransparentVaultFactoryFactory = await ethers.getContractFactory("TransparentVaultFactory");
-    const transparentVaultFactoryDeployed = await TransparentVaultFactoryFactory.deploy(await orionConfig.getAddress());
-    await transparentVaultFactoryDeployed.waitForDeployment();
-    transparentVaultFactory = transparentVaultFactoryDeployed as unknown as TransparentVaultFactory;
-
-    await orionConfig.setVaultFactory(await transparentVaultFactory.getAddress());
-
-    await liquidityOrchestrator.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
+    // Configure protocol
     await liquidityOrchestrator.setTargetBufferRatio(100); // 1%
 
     // Create transparent vault (no intent submitted)
@@ -90,9 +58,9 @@ describe("Orchestrators - zero deposits and zero intents", function () {
     const parsedEvent = transparentVaultFactory.interface.parseLog(ev!);
     const tvAddress = parsedEvent?.args[0];
     transparentVault = (await ethers.getContractAt(
-      "OrionTransparentVault",
+      "OrionTransparentVaultUpgradeable",
       tvAddress,
-    )) as unknown as OrionTransparentVault;
+    )) as unknown as OrionTransparentVaultUpgradeable;
 
     // Mint underlying assets to user for potential deposits
     await underlyingAsset.mint(user.address, ethers.parseUnits("10000", 12));

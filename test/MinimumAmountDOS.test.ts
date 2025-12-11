@@ -1,8 +1,9 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
+import "@openzeppelin/hardhat-upgrades";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
-import { TransparentVaultFactory } from "../typechain-types";
+import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 
 /**
  * @title Minimum Amount DOS Prevention Tests
@@ -19,45 +20,14 @@ describe("Minimum Amount DOS Prevention", function () {
   async function deployFixture() {
     const [owner, curator, attacker, user1, user2, automationRegistry] = await ethers.getSigners();
 
-    // Deploy mock USDC (6 decimals)
-    const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
-    const usdc = await MockUnderlyingAssetFactory.deploy(6);
-    await usdc.waitForDeployment();
+    // Deploy upgradeable protocol using helper
+    const deployed = await deployUpgradeableProtocol(owner, owner);
 
-    // Deploy OrionConfig
-    const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
-    const config = await OrionConfigFactory.deploy(owner.address, owner.address, await usdc.getAddress());
-
-    // Deploy orchestrators
-    const InternalStatesOrchestratorFactory = await ethers.getContractFactory("InternalStatesOrchestrator");
-    const internalStatesOrchestrator = await InternalStatesOrchestratorFactory.deploy(
-      owner.address,
-      await config.getAddress(),
-      automationRegistry.address,
-    );
-
-    const LiquidityOrchestratorFactory = await ethers.getContractFactory("LiquidityOrchestrator");
-    const liquidityOrchestrator = await LiquidityOrchestratorFactory.deploy(
-      owner.address,
-      await config.getAddress(),
-      automationRegistry.address,
-    );
-
-    // Set orchestrators in config
-    await config.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
-    await config.setLiquidityOrchestrator(await liquidityOrchestrator.getAddress());
-
-    // Deploy vault factory
-    const TransparentVaultFactoryContract = await ethers.getContractFactory("TransparentVaultFactory");
-    const vaultFactoryDeployed = await TransparentVaultFactoryContract.deploy(await config.getAddress());
-    await vaultFactoryDeployed.waitForDeployment();
-    const vaultFactory = vaultFactoryDeployed as unknown as TransparentVaultFactory;
-    await config.setVaultFactory(await vaultFactory.getAddress());
-
-    // Deploy price adapter registry
-    const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistry");
-    const priceAdapterRegistry = await PriceAdapterRegistryFactory.deploy(owner.address, await config.getAddress());
-    await config.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
+    const usdc = deployed.underlyingAsset;
+    const config = deployed.orionConfig;
+    const internalStatesOrchestrator = deployed.internalStatesOrchestrator;
+    const liquidityOrchestrator = deployed.liquidityOrchestrator;
+    const vaultFactory = deployed.transparentVaultFactory;
 
     // Create a vault
     const vaultTx = await vaultFactory.connect(owner).createVault(
@@ -79,7 +49,8 @@ describe("Minimum Amount DOS Prevention", function () {
     });
     const parsedLog = vaultCreatedEvent ? vaultFactory.interface.parseLog(vaultCreatedEvent) : null;
     const vaultAddress = parsedLog?.args[0];
-    const vault = await ethers.getContractAt("OrionTransparentVault", vaultAddress);
+    const VaultFactory = await ethers.getContractFactory("OrionTransparentVaultUpgradeable");
+    const vault = VaultFactory.attach(vaultAddress);
 
     // Mint USDC to users
     await usdc.mint(attacker.address, USER_BALANCE);

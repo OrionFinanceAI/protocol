@@ -1,5 +1,6 @@
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
+import "@openzeppelin/hardhat-upgrades";
 import { ethers } from "hardhat";
 
 import {
@@ -7,16 +8,17 @@ import {
   MockERC4626Asset,
   MockPriceAdapter,
   MockExecutionAdapter,
-  OrionConfig,
-  InternalStatesOrchestrator,
-  LiquidityOrchestrator,
-  TransparentVaultFactory,
-  PriceAdapterRegistry,
-  OrionTransparentVault,
+  OrionConfigUpgradeable,
+  InternalStatesOrchestratorUpgradeable,
+  LiquidityOrchestratorUpgradeable,
+  TransparentVaultFactoryUpgradeable,
+  PriceAdapterRegistryUpgradeable,
+  OrionTransparentVaultUpgradeable,
 } from "../typechain-types";
+import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 
-let transparentVaultFactory: TransparentVaultFactory;
-let orionConfig: OrionConfig;
+let transparentVaultFactory: TransparentVaultFactoryUpgradeable;
+let orionConfig: OrionConfigUpgradeable;
 let underlyingAsset: MockUnderlyingAsset;
 let mockAsset1: MockERC4626Asset;
 let mockAsset2: MockERC4626Asset;
@@ -24,21 +26,27 @@ let mockPriceAdapter1: MockPriceAdapter;
 let mockPriceAdapter2: MockPriceAdapter;
 let mockExecutionAdapter1: MockExecutionAdapter;
 let mockExecutionAdapter2: MockExecutionAdapter;
-let priceAdapterRegistry: PriceAdapterRegistry;
-let internalStatesOrchestrator: InternalStatesOrchestrator;
-let liquidityOrchestrator: LiquidityOrchestrator;
-let vault: OrionTransparentVault;
+let _priceAdapterRegistry: PriceAdapterRegistryUpgradeable;
+let _internalStatesOrchestrator: InternalStatesOrchestratorUpgradeable;
+let _liquidityOrchestrator: LiquidityOrchestratorUpgradeable;
+let vault: OrionTransparentVaultUpgradeable;
 
 let owner: SignerWithAddress, curator: SignerWithAddress, other: SignerWithAddress, user: SignerWithAddress;
 
 beforeEach(async function () {
   [owner, curator, other, user] = await ethers.getSigners();
 
-  const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
-  const underlyingAssetDeployed = await MockUnderlyingAssetFactory.deploy(6);
-  await underlyingAssetDeployed.waitForDeployment();
-  underlyingAsset = underlyingAssetDeployed as unknown as MockUnderlyingAsset;
+  // Deploy upgradeable protocol using helper
+  const deployed = await deployUpgradeableProtocol(owner, other);
 
+  underlyingAsset = deployed.underlyingAsset;
+  orionConfig = deployed.orionConfig;
+  _priceAdapterRegistry = deployed.priceAdapterRegistry;
+  _internalStatesOrchestrator = deployed.internalStatesOrchestrator;
+  _liquidityOrchestrator = deployed.liquidityOrchestrator;
+  transparentVaultFactory = deployed.transparentVaultFactory;
+
+  // Deploy additional mock ERC4626 assets for testing
   const MockERC4626AssetFactory = await ethers.getContractFactory("MockERC4626Asset");
   const mockAsset1Deployed = await MockERC4626AssetFactory.deploy(
     await underlyingAsset.getAddress(),
@@ -56,39 +64,7 @@ beforeEach(async function () {
   await mockAsset2Deployed.waitForDeployment();
   mockAsset2 = mockAsset2Deployed as unknown as MockERC4626Asset;
 
-  // Deploy OrionConfig
-  const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
-  const orionConfigDeployed = await OrionConfigFactory.deploy(
-    owner.address,
-    other.address, // admin
-    await underlyingAsset.getAddress(),
-  );
-  await orionConfigDeployed.waitForDeployment();
-  orionConfig = orionConfigDeployed as unknown as OrionConfig;
-
-  const TransparentVaultFactoryFactory = await ethers.getContractFactory("TransparentVaultFactory");
-  const transparentVaultFactoryDeployed = await TransparentVaultFactoryFactory.deploy(await orionConfig.getAddress());
-  await transparentVaultFactoryDeployed.waitForDeployment();
-  transparentVaultFactory = transparentVaultFactoryDeployed as unknown as TransparentVaultFactory;
-
-  const InternalStatesOrchestratorFactory = await ethers.getContractFactory("InternalStatesOrchestrator");
-  const internalStatesOrchestratorDeployed = await InternalStatesOrchestratorFactory.deploy(
-    owner.address,
-    await orionConfig.getAddress(),
-    await other.address,
-  );
-  await internalStatesOrchestratorDeployed.waitForDeployment();
-  internalStatesOrchestrator = internalStatesOrchestratorDeployed as unknown as InternalStatesOrchestrator;
-
-  const LiquidityOrchestratorFactory = await ethers.getContractFactory("LiquidityOrchestrator");
-  const liquidityOrchestratorDeployed = await LiquidityOrchestratorFactory.deploy(
-    owner.address,
-    await orionConfig.getAddress(),
-    await other.address,
-  );
-  await liquidityOrchestratorDeployed.waitForDeployment();
-  liquidityOrchestrator = liquidityOrchestratorDeployed as unknown as LiquidityOrchestrator;
-
+  // Deploy mock adapters for testing
   const MockPriceAdapterFactory = await ethers.getContractFactory("MockPriceAdapter");
   mockPriceAdapter1 = (await MockPriceAdapterFactory.deploy()) as unknown as MockPriceAdapter;
   await mockPriceAdapter1.waitForDeployment();
@@ -103,18 +79,7 @@ beforeEach(async function () {
   mockExecutionAdapter2 = (await MockExecutionAdapterFactory.deploy()) as unknown as MockExecutionAdapter;
   await mockExecutionAdapter2.waitForDeployment();
 
-  const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistry");
-  const priceAdapterRegistryDeployed = await PriceAdapterRegistryFactory.deploy(
-    owner.address,
-    await orionConfig.getAddress(),
-  );
-  await priceAdapterRegistryDeployed.waitForDeployment();
-  priceAdapterRegistry = priceAdapterRegistryDeployed as unknown as PriceAdapterRegistry;
-
-  await orionConfig.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
-  await orionConfig.setLiquidityOrchestrator(await liquidityOrchestrator.getAddress());
-  await orionConfig.setVaultFactory(await transparentVaultFactory.getAddress());
-  await orionConfig.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
+  // Configure protocol
   await orionConfig.setProtocolRiskFreeRate(0.0423 * 10_000);
 
   await orionConfig.addWhitelistedAsset(
@@ -143,7 +108,10 @@ beforeEach(async function () {
   });
   const parsedEvent = transparentVaultFactory.interface.parseLog(event!);
   const vaultAddress = parsedEvent?.args[0];
-  vault = (await ethers.getContractAt("OrionTransparentVault", vaultAddress)) as unknown as OrionTransparentVault;
+  vault = (await ethers.getContractAt(
+    "OrionTransparentVaultUpgradeable",
+    vaultAddress,
+  )) as unknown as OrionTransparentVaultUpgradeable;
 
   // Give user some underlying assets for testing
   await underlyingAsset.mint(user.address, ethers.parseUnits("10000", 6));

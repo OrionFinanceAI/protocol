@@ -1,5 +1,6 @@
 /**
  * @title ERC4626 Vault Compatibility Test Suite
+import "@openzeppelin/hardhat-upgrades";
  * @notice Comprehensive testing of ERC4626 vault compatibility with Orion protocol
  * @dev Tests multiple protocols: Morpho, Yearn v3, Beefy Finance
  *
@@ -31,11 +32,9 @@ import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { ethers } from "hardhat";
 import { expect } from "chai";
 import {
-  OrionConfig,
-  InternalStatesOrchestrator,
-  LiquidityOrchestrator,
-  TransparentVaultFactory,
-  PriceAdapterRegistry,
+  OrionConfigUpgradeable,
+  TransparentVaultFactoryUpgradeable,
+  PriceAdapterRegistryUpgradeable,
   OrionAssetERC4626PriceAdapter,
   OrionAssetERC4626ExecutionAdapter,
 } from "../../typechain-types";
@@ -46,11 +45,11 @@ describe("Mainnet Fork: ERC4626 Vault Compatibility", function () {
   let admin: SignerWithAddress;
   let other: SignerWithAddress;
 
-  let orionConfig: OrionConfig;
-  let transparentVaultFactory: TransparentVaultFactory;
+  let orionConfig: OrionConfigUpgradeable;
+  let transparentVaultFactory: TransparentVaultFactoryUpgradeable;
   let internalStatesOrchestrator: InternalStatesOrchestrator;
   let liquidityOrchestrator: LiquidityOrchestrator;
-  let priceAdapterRegistry: PriceAdapterRegistry;
+  let priceAdapterRegistry: PriceAdapterRegistryUpgradeable;
   let priceAdapter: OrionAssetERC4626PriceAdapter;
   let executionAdapter: OrionAssetERC4626ExecutionAdapter;
 
@@ -177,14 +176,14 @@ describe("Mainnet Fork: ERC4626 Vault Compatibility", function () {
     const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
     const orionConfigDeployed = await OrionConfigFactory.deploy(owner.address, admin.address, USDC_ADDRESS);
     await orionConfigDeployed.waitForDeployment();
-    orionConfig = orionConfigDeployed as unknown as OrionConfig;
+    orionConfig = orionConfigDeployed as unknown as OrionConfigUpgradeable;
     console.log(`OrionConfig deployed at: ${await orionConfig.getAddress()}`);
 
     // Deploy TransparentVaultFactory
     const TransparentVaultFactoryFactory = await ethers.getContractFactory("TransparentVaultFactory");
     const transparentVaultFactoryDeployed = await TransparentVaultFactoryFactory.deploy(await orionConfig.getAddress());
     await transparentVaultFactoryDeployed.waitForDeployment();
-    transparentVaultFactory = transparentVaultFactoryDeployed as unknown as TransparentVaultFactory;
+    transparentVaultFactory = transparentVaultFactoryDeployed as unknown as TransparentVaultFactoryUpgradeable;
 
     // Deploy Orchestrators
     const InternalStatesOrchestratorFactory = await ethers.getContractFactory("InternalStatesOrchestrator");
@@ -211,7 +210,7 @@ describe("Mainnet Fork: ERC4626 Vault Compatibility", function () {
       await orionConfig.getAddress(),
     );
     await priceAdapterRegistryDeployed.waitForDeployment();
-    priceAdapterRegistry = priceAdapterRegistryDeployed as unknown as PriceAdapterRegistry;
+    priceAdapterRegistry = priceAdapterRegistryDeployed as unknown as PriceAdapterRegistryUpgradeable;
 
     // Deploy ERC4626 Adapters
     const PriceAdapterFactory = await ethers.getContractFactory("OrionAssetERC4626PriceAdapter");

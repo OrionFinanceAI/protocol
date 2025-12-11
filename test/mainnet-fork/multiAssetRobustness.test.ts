@@ -1,5 +1,6 @@
 /**
  * @title Multi-Asset Robustness Test Suite
+import "@openzeppelin/hardhat-upgrades";
  * @notice Comprehensive testing of protocol functionality across different underlying assets
  * @dev Tests all core functions on both Sepolia and Mainnet with 6 different assets
  *
@@ -37,12 +38,12 @@ import { ethers } from "hardhat";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
 import { expect } from "chai";
 import {
-  OrionConfig,
+  OrionConfigUpgradeable,
   InternalStatesOrchestrator,
   LiquidityOrchestrator,
-  TransparentVaultFactory,
-  PriceAdapterRegistry,
-  OrionTransparentVault,
+  TransparentVaultFactoryUpgradeable,
+  PriceAdapterRegistryUpgradeable,
+  OrionTransparentVaultUpgradeable,
   MockUnderlyingAsset,
   MockERC4626Asset,
   MockPriceAdapter,
@@ -171,12 +172,12 @@ describe("Multi-Asset Robustness Tests", function () {
           let automationRegistry: SignerWithAddress;
 
           // Protocol contracts
-          let orionConfig: OrionConfig;
-          let transparentVaultFactory: TransparentVaultFactory;
+          let orionConfig: OrionConfigUpgradeable;
+          let transparentVaultFactory: TransparentVaultFactoryUpgradeable;
           let internalStatesOrchestrator: InternalStatesOrchestrator;
           let liquidityOrchestrator: LiquidityOrchestrator;
-          let priceAdapterRegistry: PriceAdapterRegistry;
-          let vault: OrionTransparentVault;
+          let priceAdapterRegistry: PriceAdapterRegistryUpgradeable;
+          let vault: OrionTransparentVaultUpgradeable;
 
           // Mock contracts (for testing)
           let underlyingAsset: MockUnderlyingAsset;
@@ -327,14 +328,14 @@ describe("Multi-Asset Robustness Tests", function () {
               owner.address,
               admin.address,
               await underlyingAsset.getAddress(),
-            )) as unknown as OrionConfig;
+            )) as unknown as OrionConfigUpgradeable;
 
             // Deploy PriceAdapterRegistry
             const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistry");
             priceAdapterRegistry = (await PriceAdapterRegistryFactory.deploy(
               owner.address,
               await orionConfig.getAddress(),
-            )) as unknown as PriceAdapterRegistry;
+            )) as unknown as PriceAdapterRegistryUpgradeable;
 
             // Deploy LiquidityOrchestrator
             const LiquidityOrchestratorFactory = await ethers.getContractFactory("LiquidityOrchestrator");
@@ -359,7 +360,7 @@ describe("Multi-Asset Robustness Tests", function () {
             const TransparentVaultFactoryFactory = await ethers.getContractFactory("TransparentVaultFactory");
             transparentVaultFactory = (await TransparentVaultFactoryFactory.deploy(
               await orionConfig.getAddress(),
-            )) as unknown as TransparentVaultFactory;
+            )) as unknown as TransparentVaultFactoryUpgradeable;
 
             // Configure OrionConfig
             await orionConfig.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
@@ -432,9 +433,9 @@ describe("Multi-Asset Robustness Tests", function () {
             const vaultAddress = parsedEvent?.args[0];
 
             vault = (await ethers.getContractAt(
-              "OrionTransparentVault",
+              "OrionTransparentVaultUpgradeable",
               vaultAddress,
-            )) as unknown as OrionTransparentVault;
+            )) as unknown as OrionTransparentVaultUpgradeable;
 
             // Submit curator intent (100% underlying to keep it simple)
             await vault.connect(curator).submitIntent([

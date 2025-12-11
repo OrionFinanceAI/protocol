@@ -1,5 +1,6 @@
 /**
  * OrchestratorSecurity.test.ts
+import "@openzeppelin/hardhat-upgrades";
  *
  * This file contains security-focused tests for orchestrator protection against malicious payloads
  * and invalid state transitions. It was extracted from the original Orchestrators.test.ts file.
@@ -90,17 +91,18 @@ import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
+import { deployUpgradeableProtocol } from "../helpers/deployUpgradeable";
 
 import {
   MockUnderlyingAsset,
   MockERC4626Asset,
   OrionAssetERC4626ExecutionAdapter,
-  OrionConfig,
-  InternalStatesOrchestrator,
-  LiquidityOrchestrator,
-  TransparentVaultFactory,
-  OrionTransparentVault,
-  PriceAdapterRegistry,
+  OrionConfigUpgradeable,
+  InternalStatesOrchestratorUpgradeable,
+  LiquidityOrchestratorUpgradeable,
+  TransparentVaultFactoryUpgradeable,
+  OrionTransparentVaultUpgradeable,
+  PriceAdapterRegistryUpgradeable,
   OrionAssetERC4626PriceAdapter,
   KBestTvlWeightedAverage,
 } from "../../typechain-types";
@@ -114,24 +116,24 @@ describe("Orchestrator Security", function () {
   const HURDLE_HWM_VAULT_DEPOSIT = 150;
   const PASSIVE_VAULT_DEPOSIT = 100;
 
-  let transparentVaultFactory: TransparentVaultFactory;
-  let orionConfig: OrionConfig;
+  let transparentVaultFactory: TransparentVaultFactoryUpgradeable;
+  let orionConfig: OrionConfigUpgradeable;
   let underlyingAsset: MockUnderlyingAsset;
   let mockAsset1: MockERC4626Asset;
   let mockAsset2: MockERC4626Asset;
   let mockAsset3: MockERC4626Asset;
   let orionPriceAdapter: OrionAssetERC4626PriceAdapter;
   let orionExecutionAdapter: OrionAssetERC4626ExecutionAdapter;
-  let priceAdapterRegistry: PriceAdapterRegistry;
-  let internalStatesOrchestrator: InternalStatesOrchestrator;
-  let liquidityOrchestrator: LiquidityOrchestrator;
-  let absoluteVault: OrionTransparentVault;
-  let highWaterMarkVault: OrionTransparentVault;
-  let softHurdleVault: OrionTransparentVault;
-  let hardHurdleVault: OrionTransparentVault;
-  let hurdleHwmVault: OrionTransparentVault;
+  let _priceAdapterRegistry: PriceAdapterRegistryUpgradeable;
+  let internalStatesOrchestrator: InternalStatesOrchestratorUpgradeable;
+  let liquidityOrchestrator: LiquidityOrchestratorUpgradeable;
+  let absoluteVault: OrionTransparentVaultUpgradeable;
+  let highWaterMarkVault: OrionTransparentVaultUpgradeable;
+  let softHurdleVault: OrionTransparentVaultUpgradeable;
+  let hardHurdleVault: OrionTransparentVaultUpgradeable;
+  let hurdleHwmVault: OrionTransparentVaultUpgradeable;
   let kbestTvlStrategy: KBestTvlWeightedAverage;
-  let passiveVault: OrionTransparentVault;
+  let passiveVault: OrionTransparentVaultUpgradeable;
 
   let underlyingDecimals: number;
 
@@ -145,6 +147,7 @@ describe("Orchestrator Security", function () {
 
     underlyingDecimals = 12;
 
+    // Deploy mock underlying asset first
     const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
     const underlyingAssetDeployed = await MockUnderlyingAssetFactory.deploy(underlyingDecimals);
     await underlyingAssetDeployed.waitForDeployment();
@@ -203,14 +206,14 @@ describe("Orchestrator Security", function () {
     await mockAsset2.connect(user).simulateLosses(ethers.parseUnits("30", underlyingDecimals), user.address);
     await mockAsset3.connect(user).simulateGains(ethers.parseUnits("60", underlyingDecimals));
 
-    const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
-    const orionConfigDeployed = await OrionConfigFactory.deploy(
-      owner.address,
-      user.address, // admin
-      await underlyingAsset.getAddress(),
-    );
-    await orionConfigDeployed.waitForDeployment();
-    orionConfig = orionConfigDeployed as unknown as OrionConfig;
+    // Deploy upgradeable protocol
+    const deployed = await deployUpgradeableProtocol(owner, user, underlyingAsset, automationRegistry);
+
+    orionConfig = deployed.orionConfig;
+    _priceAdapterRegistry = deployed.priceAdapterRegistry;
+    internalStatesOrchestrator = deployed.internalStatesOrchestrator;
+    liquidityOrchestrator = deployed.liquidityOrchestrator;
+    transparentVaultFactory = deployed.transparentVaultFactory;
 
     // Deploy KBestTvlWeightedAverage strategy with k=2
     const KBestTvlWeightedAverageFactory = await ethers.getContractFactory("KBestTvlWeightedAverage");
@@ -222,49 +225,13 @@ describe("Orchestrator Security", function () {
     await kbestTvlStrategyDeployed.waitForDeployment();
     kbestTvlStrategy = kbestTvlStrategyDeployed as unknown as KBestTvlWeightedAverage;
 
-    const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistry");
-    const priceAdapterRegistryDeployed = await PriceAdapterRegistryFactory.deploy(
-      owner.address,
-      await orionConfig.getAddress(),
-    );
-    await priceAdapterRegistryDeployed.waitForDeployment();
-    priceAdapterRegistry = priceAdapterRegistryDeployed as unknown as PriceAdapterRegistry;
-
     const OrionAssetERC4626PriceAdapterFactory = await ethers.getContractFactory("OrionAssetERC4626PriceAdapter");
     orionPriceAdapter = (await OrionAssetERC4626PriceAdapterFactory.deploy(
       await orionConfig.getAddress(),
     )) as unknown as OrionAssetERC4626PriceAdapter;
     await orionPriceAdapter.waitForDeployment();
 
-    const TransparentVaultFactoryFactory = await ethers.getContractFactory("TransparentVaultFactory");
-    const transparentVaultFactoryDeployed = await TransparentVaultFactoryFactory.deploy(await orionConfig.getAddress());
-    await transparentVaultFactoryDeployed.waitForDeployment();
-    transparentVaultFactory = transparentVaultFactoryDeployed as unknown as TransparentVaultFactory;
-
-    const LiquidityOrchestratorFactory = await ethers.getContractFactory("LiquidityOrchestrator");
-    const liquidityOrchestratorDeployed = await LiquidityOrchestratorFactory.deploy(
-      owner.address,
-      await orionConfig.getAddress(),
-      automationRegistry.address,
-    );
-    await liquidityOrchestratorDeployed.waitForDeployment();
-    liquidityOrchestrator = liquidityOrchestratorDeployed as unknown as LiquidityOrchestrator;
-
-    await orionConfig.setLiquidityOrchestrator(await liquidityOrchestrator.getAddress());
-    await orionConfig.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
-
-    const InternalStatesOrchestratorFactory = await ethers.getContractFactory("InternalStatesOrchestrator");
-    const internalStatesOrchestratorDeployed = await InternalStatesOrchestratorFactory.deploy(
-      owner.address,
-      await orionConfig.getAddress(),
-      automationRegistry.address,
-    );
-    await internalStatesOrchestratorDeployed.waitForDeployment();
-    internalStatesOrchestrator = internalStatesOrchestratorDeployed as unknown as InternalStatesOrchestrator;
-
-    await orionConfig.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
-    await orionConfig.setVaultFactory(await transparentVaultFactory.getAddress());
-
+    // Configure protocol
     await internalStatesOrchestrator.connect(owner).updateProtocolFees(10, 1000);
 
     await expect(internalStatesOrchestrator.connect(owner).updateProtocolFees(51, 0)).to.be.revertedWithCustomError(
@@ -276,8 +243,6 @@ describe("Orchestrator Security", function () {
       internalStatesOrchestrator,
       "InvalidArguments",
     );
-
-    await liquidityOrchestrator.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
 
     await expect(liquidityOrchestrator.setTargetBufferRatio(0)).to.be.revertedWithCustomError(
       liquidityOrchestrator,
@@ -335,9 +300,9 @@ describe("Orchestrator Security", function () {
     const absoluteVaultParsedEvent = transparentVaultFactory.interface.parseLog(absoluteVaultEvent!);
     const absoluteVaultAddress = absoluteVaultParsedEvent?.args[0];
     absoluteVault = (await ethers.getContractAt(
-      "OrionTransparentVault",
+      "OrionTransparentVaultUpgradeable",
       absoluteVaultAddress,
-    )) as unknown as OrionTransparentVault;
+    )) as unknown as OrionTransparentVaultUpgradeable;
 
     const softHurdleVaultTx = await transparentVaultFactory
       .connect(owner)
@@ -354,9 +319,9 @@ describe("Orchestrator Security", function () {
     const softHurdleVaultParsedEvent = transparentVaultFactory.interface.parseLog(softHurdleVaultEvent!);
     const softHurdleVaultAddress = softHurdleVaultParsedEvent?.args[0];
     softHurdleVault = (await ethers.getContractAt(
-      "OrionTransparentVault",
+      "OrionTransparentVaultUpgradeable",
       softHurdleVaultAddress,
-    )) as unknown as OrionTransparentVault;
+    )) as unknown as OrionTransparentVaultUpgradeable;
 
     const hardHurdleVaultTx = await transparentVaultFactory
       .connect(owner)
@@ -373,9 +338,9 @@ describe("Orchestrator Security", function () {
     const hardHurdleVaultParsedEvent = transparentVaultFactory.interface.parseLog(hardHurdleVaultEvent!);
     const hardHurdleVaultAddress = hardHurdleVaultParsedEvent?.args[0];
     hardHurdleVault = (await ethers.getContractAt(
-      "OrionTransparentVault",
+      "OrionTransparentVaultUpgradeable",
       hardHurdleVaultAddress,
-    )) as unknown as OrionTransparentVault;
+    )) as unknown as OrionTransparentVaultUpgradeable;
 
     const highWaterMarkVaultTx = await transparentVaultFactory
       .connect(owner)
@@ -392,9 +357,9 @@ describe("Orchestrator Security", function () {
     const highWaterMarkVaultParsedEvent = transparentVaultFactory.interface.parseLog(highWaterMarkVaultEvent!);
     const highWaterMarkVaultAddress = highWaterMarkVaultParsedEvent?.args[0];
     highWaterMarkVault = (await ethers.getContractAt(
-      "OrionTransparentVault",
+      "OrionTransparentVaultUpgradeable",
       highWaterMarkVaultAddress,
-    )) as unknown as OrionTransparentVault;
+    )) as unknown as OrionTransparentVaultUpgradeable;
 
     const hurdleHwmVaultTx = await transparentVaultFactory
       .connect(owner)
@@ -411,9 +376,9 @@ describe("Orchestrator Security", function () {
     const hurdleHwmVaultParsedEvent = transparentVaultFactory.interface.parseLog(hurdleHwmVaultEvent!);
     const hurdleHwmVaultAddress = hurdleHwmVaultParsedEvent?.args[0];
     hurdleHwmVault = (await ethers.getContractAt(
-      "OrionTransparentVault",
+      "OrionTransparentVaultUpgradeable",
       hurdleHwmVaultAddress,
-    )) as unknown as OrionTransparentVault;
+    )) as unknown as OrionTransparentVaultUpgradeable;
 
     // Create passive vault with kbestTVL strategy (no curator intents)
     const passiveVaultTx = await transparentVaultFactory
@@ -431,9 +396,9 @@ describe("Orchestrator Security", function () {
     const passiveVaultParsedEvent = transparentVaultFactory.interface.parseLog(passiveVaultEvent!);
     const passiveVaultAddress = passiveVaultParsedEvent?.args[0];
     passiveVault = (await ethers.getContractAt(
-      "OrionTransparentVault",
+      "OrionTransparentVaultUpgradeable",
       passiveVaultAddress,
-    )) as unknown as OrionTransparentVault;
+    )) as unknown as OrionTransparentVaultUpgradeable;
 
     await passiveVault.connect(owner).updateCurator(await kbestTvlStrategy.getAddress());
 
