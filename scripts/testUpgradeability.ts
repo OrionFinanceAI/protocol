@@ -236,8 +236,16 @@ async function main() {
   const receipt = await createVaultTx.wait();
 
   // Get vault address from event
-  const vaultCreatedEvent = receipt.logs.find((log: any) => log.fragment && log.fragment.name === "OrionVaultCreated");
-  const vaultAddress = vaultCreatedEvent.args[0];
+  const vaultCreatedEvent = receipt.logs.find((log: unknown) => {
+    const parsed = log as { fragment?: { name?: string }; args?: string[] };
+    return parsed.fragment && parsed.fragment.name === "OrionVaultCreated";
+  }) as { args: string[] } | undefined;
+
+  if (!vaultCreatedEvent || !vaultCreatedEvent.args[0]) {
+    throw new Error("OrionVaultCreated event not found or invalid");
+  }
+
+  const vaultAddress: string = vaultCreatedEvent.args[0];
   console.log(`✅ Vault Created (BeaconProxy): ${vaultAddress}`);
 
   // Connect to vault

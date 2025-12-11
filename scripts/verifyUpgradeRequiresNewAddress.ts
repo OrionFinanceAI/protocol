@@ -1,5 +1,4 @@
 import { ethers, upgrades } from "hardhat";
-import { expect } from "chai";
 import "@openzeppelin/hardhat-upgrades";
 
 /**
@@ -62,8 +61,9 @@ async function main() {
       console.log("   ⚠️  WARNING: Implementation address unchanged!");
       console.log("   ℹ️  OpenZeppelin reuses same implementation (no actual upgrade occurred)");
     }
-  } catch (error: any) {
-    console.log(`   ❌ Upgrade failed: ${error.message}`);
+  } catch (error: unknown) {
+    const err = error as { message?: string };
+    console.log(`   ❌ Upgrade failed: ${err.message || String(error)}`);
   }
 
   // Now upgrade to actual V2 implementation
@@ -121,8 +121,9 @@ async function main() {
       console.log("   ℹ️  No validation prevents upgrading to same implementation");
       console.log("   ℹ️  This is a no-op upgrade (no actual change occurred)");
     }
-  } catch (error: any) {
-    console.log(`   ❌ Beacon upgrade failed: ${error.message}`);
+  } catch (error: unknown) {
+    const err = error as { message?: string };
+    console.log(`   ❌ Beacon upgrade failed: ${err.message || String(error)}`);
   }
 
   // Now upgrade to actual V2 implementation
