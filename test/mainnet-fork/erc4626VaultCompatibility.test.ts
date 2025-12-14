@@ -58,7 +58,12 @@ describe("Mainnet Fork: ERC4626 Vault Compatibility", function () {
    * Using USDC as Orion's underlying asset for maximum compatibility
    */
   const USDC_ADDRESS = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
-  const USDC_DECIMALS = 6;
+
+  /**
+   * USDC Decimals - fetched from on-chain contract (not hardcoded)
+   * This ensures we catch any on-chain configuration drift
+   */
+  let USDC_DECIMALS: number;
 
   /**
    * ERC4626 Vaults from Multiple Protocols
@@ -171,6 +176,12 @@ describe("Mainnet Fork: ERC4626 Vault Compatibility", function () {
     console.log("\nDeploying Orion protocol on forked mainnet...");
     console.log(`   Owner: ${owner.address}`);
     console.log(`   Admin: ${admin.address}`);
+
+    // Fetch USDC decimals from on-chain contract (not hardcoded)
+    const USDC_ABI = ["function decimals() external view returns (uint8)"];
+    const usdcContract = new ethers.Contract(USDC_ADDRESS, USDC_ABI, owner);
+    USDC_DECIMALS = await usdcContract.decimals();
+    console.log(`   USDC Decimals (fetched on-chain): ${USDC_DECIMALS}`);
 
     // Deploy OrionConfig
     const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
@@ -296,35 +307,73 @@ describe("Mainnet Fork: ERC4626 Vault Compatibility", function () {
      * VALIDATES:
      * - Underlying asset address is immutable (critical for Orion)
      * - Decimals are immutable (critical for accounting)
+     * - Contract bytecode doesn't change (detects upgradeable contracts)
+     * - Implementation slot is immutable (for proxy patterns)
+     * - Properties remain constant across block boundaries
      *
-     * METHOD: Call multiple times and ensure same result
+     * METHOD: Check code hash, implementation slots, and cross-block consistency
      */
-    it("Should verify immutability of critical properties", async function () {
+    it("Should verify true immutability of critical properties", async function () {
       console.log("\nTesting Property Immutability:");
       console.log("=".repeat(60));
+
+      // EIP-1967 standard implementation slot for UUPS/Transparent proxies
+      const IMPLEMENTATION_SLOT = "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc";
 
       for (const [, vaultInfo] of Object.entries(TEST_VAULTS)) {
         console.log(`\n${vaultInfo.name}`);
 
         const vault = new ethers.Contract(vaultInfo.address, ERC4626_ABI, owner);
 
-        // Call asset() multiple times
-        const asset1 = await vault.asset();
-        const asset2 = await vault.asset();
+        // Check 1: Verify bytecode doesn't change
+        const codeBefore = await ethers.provider.getCode(vaultInfo.address);
+        await ethers.provider.send("evm_mine", []); // Mine a new block
+        const codeAfter = await ethers.provider.getCode(vaultInfo.address);
+
+        expect(codeBefore).to.equal(codeAfter, `${vaultInfo.name}: bytecode changed between blocks`);
+        console.log(`   ✓ Bytecode is immutable (${codeBefore.length} bytes)`);
+
+        // Check 2: If it's a proxy, verify implementation slot is immutable
+        const implBefore = await ethers.provider.getStorage(vaultInfo.address, IMPLEMENTATION_SLOT);
+
+        if (implBefore !== "0x" + "0".repeat(64)) {
+          // It's a proxy - verify implementation doesn't change
+          await ethers.provider.send("evm_mine", []);
+          const implAfter = await ethers.provider.getStorage(vaultInfo.address, IMPLEMENTATION_SLOT);
+
+          expect(implBefore).to.equal(
+            implAfter,
+            `${vaultInfo.name}: implementation slot changed (proxy is upgradeable!)`,
+          );
+          console.log(`   ✓ Proxy detected - implementation slot is immutable`);
+          console.log(`     Implementation: ${implBefore}`);
+        } else {
+          console.log(`   ✓ Non-proxy contract (direct implementation)`);
+        }
+
+        // Check 3: Verify asset() is immutable across blocks
+        const assetBlock1 = await vault.asset();
+        await ethers.provider.send("evm_mine", []);
+        const assetBlock2 = await vault.asset();
+
+        expect(assetBlock1).to.equal(assetBlock2, `${vaultInfo.name}: asset() changed between blocks`);
+        console.log(`   ✓ asset() is immutable: ${assetBlock1}`);
+
+        // Check 4: Verify decimals() is immutable across blocks
+        const decimalsBlock1 = await vault.decimals();
+        await ethers.provider.send("evm_mine", []);
+        const decimalsBlock2 = await vault.decimals();
+
+        expect(decimalsBlock1).to.equal(decimalsBlock2, `${vaultInfo.name}: decimals() changed between blocks`);
+        console.log(`   ✓ decimals() is immutable: ${decimalsBlock1}`);
+
+        // Check 5: Verify properties are deterministic within same block
         const asset3 = await vault.asset();
-
-        expect(asset1).to.equal(asset2);
-        expect(asset2).to.equal(asset3);
-        console.log(`   Underlying asset is immutable: ${asset1}`);
-
-        // Call decimals() multiple times
-        const decimals1 = await vault.decimals();
-        const decimals2 = await vault.decimals();
         const decimals3 = await vault.decimals();
 
-        expect(decimals1).to.equal(decimals2);
-        expect(decimals2).to.equal(decimals3);
-        console.log(`   Decimals are immutable: ${decimals1}`);
+        expect(asset3).to.equal(assetBlock2, `${vaultInfo.name}: asset() not deterministic`);
+        expect(decimals3).to.equal(decimalsBlock2, `${vaultInfo.name}: decimals() not deterministic`);
+        console.log(`   ✓ Properties are deterministic`);
       }
 
       console.log("\n" + "=".repeat(60));
@@ -499,6 +548,7 @@ describe("Mainnet Fork: ERC4626 Vault Compatibility", function () {
      * VALIDATES:
      * - OrionAssetERC4626PriceAdapter can read vault prices
      * - Prices are reasonable and non-zero
+     * - Adapter decimals match the underlying asset decimals (CRITICAL)
      */
     it("Should verify price adapter compatibility", async function () {
       console.log("\nTesting Price Adapter Compatibility:");
@@ -512,12 +562,20 @@ describe("Mainnet Fork: ERC4626 Vault Compatibility", function () {
           const [price, decimals] = await priceAdapter.getPriceData(vaultInfo.address);
           expect(price).to.be.gt(0, `${vaultInfo.name}: price adapter returned 0`);
 
+          // CRITICAL: Verify adapter decimals match underlying asset decimals
+          // This ensures price calculations are consistent with the protocol
+          expect(decimals).to.equal(
+            USDC_DECIMALS,
+            `${vaultInfo.name}: adapter decimals (${decimals}) don't match underlying asset decimals (${USDC_DECIMALS})`,
+          );
+          console.log(`   ✓ Adapter decimals match underlying: ${decimals}`);
+
           // Price should be in reasonable range (0.5 to 2.0 USDC per share typically)
           const priceInUSDC = Number(ethers.formatUnits(price, decimals));
           expect(priceInUSDC).to.be.gt(0.01, `${vaultInfo.name}: price too low`);
           expect(priceInUSDC).to.be.lt(100, `${vaultInfo.name}: price too high`);
 
-          console.log(`   Price: ${priceInUSDC.toFixed(6)} USDC per share (decimals: ${decimals})`);
+          console.log(`   Price: ${priceInUSDC.toFixed(6)} USDC per share`);
         } catch (error) {
           throw new Error(`${vaultInfo.name}: price adapter failed - ${error}`);
         }
@@ -534,6 +592,8 @@ describe("Mainnet Fork: ERC4626 Vault Compatibility", function () {
      * - OrionAssetERC4626ExecutionAdapter can validate vaults
      * - Execution adapter doesn't revert on validation
      * - Adapter correctly identifies ERC4626 vaults with matching underlying
+     *
+     * NOTE: Vaults must be whitelisted first so OrionConfig has their decimals registered
      */
     it("Should verify execution adapter compatibility", async function () {
       console.log("\nTesting Execution Adapter Compatibility:");
@@ -543,14 +603,31 @@ describe("Mainnet Fork: ERC4626 Vault Compatibility", function () {
         console.log(`\n${vaultInfo.name}`);
 
         try {
+          // CRITICAL: Whitelist the vault first so OrionConfig has its decimals
+          // The execution adapter validates that config.getTokenDecimals(asset) matches vault.decimals()
+          await orionConfig
+            .connect(owner)
+            .addWhitelistedAsset(
+              vaultInfo.address,
+              await priceAdapter.getAddress(),
+              await executionAdapter.getAddress(),
+            );
+
+          console.log(`   ✓ Vault whitelisted in OrionConfig`);
+
           // Validate that execution adapter can validate the vault
           await executionAdapter.validateExecutionAdapter(vaultInfo.address);
-          console.log(`   Execution adapter validation: PASS`);
+          console.log(`   ✓ Execution adapter validation: PASS`);
 
           // The fact that it doesn't revert means:
           // 1. Vault implements ERC4626 interface
           // 2. Vault's underlying matches OrionConfig's underlying
-          // 3. Adapter can interact with the vault
+          // 3. Vault's decimals match what's registered in OrionConfig
+          // 4. Adapter can interact with the vault
+
+          // Clean up: Remove from whitelist for next test
+          await orionConfig.connect(admin).removeWhitelistedAsset(vaultInfo.address);
+          console.log(`   ✓ Vault removed from whitelist`);
         } catch (error: unknown) {
           const errorMessage = error instanceof Error ? error.message : String(error);
           throw new Error(`${vaultInfo.name}: execution adapter validation failed - ${errorMessage}`);

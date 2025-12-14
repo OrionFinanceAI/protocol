@@ -16,6 +16,7 @@ import {
   OrionTransparentVaultUpgradeable,
 } from "../typechain-types";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
+import { impersonateAccount, setBalance } from "@nomicfoundation/hardhat-network-helpers";
 
 let transparentVaultFactory: TransparentVaultFactoryUpgradeable;
 let orionConfig: OrionConfigUpgradeable;
@@ -390,6 +391,117 @@ describe("OrionVault - Base Functionality", function () {
         vault,
         "InsufficientAmount",
       );
+    });
+  });
+
+  describe("Redeem Request Cancellation", function () {
+    beforeEach(async function () {
+      // Setup: Give user shares by depositing and fulfilling
+      const depositAmount = ethers.parseUnits("1000", 6);
+
+      // Mint and approve underlying asset for user
+      await underlyingAsset.mint(user.address, depositAmount);
+      await underlyingAsset.connect(user).approve(await vault.getAddress(), depositAmount);
+
+      // Request deposit
+      await vault.connect(user).requestDeposit(depositAmount);
+
+      // Fund the LiquidityOrchestrator so it can fulfill the deposit (use admin 'other')
+      await underlyingAsset.mint(other.address, depositAmount);
+      await underlyingAsset.connect(other).approve(await _liquidityOrchestrator.getAddress(), depositAmount);
+      await _liquidityOrchestrator.connect(other).depositLiquidity(depositAmount);
+
+      // Impersonate LiquidityOrchestrator to fulfill deposit (gives user shares)
+      const loAddress = await _liquidityOrchestrator.getAddress();
+      await impersonateAccount(loAddress);
+      await setBalance(loAddress, ethers.parseEther("1"));
+      const loSigner = await ethers.getSigner(loAddress);
+
+      await vault.connect(loSigner).fulfillDeposit(depositAmount);
+    });
+
+    it("Should revert when cancelling redeem request with zero amount", async function () {
+      await expect(vault.connect(user).cancelRedeemRequest(0)).to.be.revertedWithCustomError(
+        vault,
+        "AmountMustBeGreaterThanZero",
+      );
+    });
+
+    it("Should revert when cancelling more than requested redeem amount", async function () {
+      const userShares = await vault.balanceOf(user.address);
+      expect(userShares).to.be.gt(0n, "User should have shares after deposit fulfillment");
+
+      // Use half of user's shares for redeem, then try to cancel double that amount
+      const redeemAmount = userShares / 2n;
+      const cancelAmount = redeemAmount * 2n;
+
+      // Approve vault to transfer shares
+      await vault.connect(user).approve(await vault.getAddress(), redeemAmount);
+
+      // Request redeem
+      await vault.connect(user).requestRedeem(redeemAmount);
+
+      // Try to cancel more than requested
+      await expect(vault.connect(user).cancelRedeemRequest(cancelAmount)).to.be.revertedWithCustomError(
+        vault,
+        "InsufficientAmount",
+      );
+    });
+
+    it("Should allow user to cancel redeem request", async function () {
+      const userSharesBefore = await vault.balanceOf(user.address);
+      expect(userSharesBefore).to.be.gt(0n, "User should have shares after deposit fulfillment");
+
+      // Use half of user's shares for the test
+      const redeemAmount = userSharesBefore / 2n;
+
+      // Approve vault to transfer shares
+      await vault.connect(user).approve(await vault.getAddress(), redeemAmount);
+
+      // Request redeem
+      await vault.connect(user).requestRedeem(redeemAmount);
+
+      // Verify redeem request was created
+      const pendingRedeems = await vault.pendingRedeem(await orionConfig.maxFulfillBatchSize());
+      expect(pendingRedeems).to.be.gte(redeemAmount);
+
+      // User should have fewer shares (locked in pending redeem)
+      const sharesAfterRequest = await vault.balanceOf(user.address);
+      expect(sharesAfterRequest).to.equal(userSharesBefore - redeemAmount);
+
+      // Cancel the redeem request
+      await expect(vault.connect(user).cancelRedeemRequest(redeemAmount)).to.not.be.reverted;
+
+      // Verify shares were returned to user
+      const sharesAfterCancel = await vault.balanceOf(user.address);
+      expect(sharesAfterCancel).to.equal(userSharesBefore);
+    });
+
+    it("Should allow partial cancellation of redeem request", async function () {
+      const userSharesBefore = await vault.balanceOf(user.address);
+      expect(userSharesBefore).to.be.gt(0n, "User should have shares after deposit fulfillment");
+
+      // Use half of user's shares, cancel 30% of that
+      const redeemAmount = userSharesBefore / 2n;
+      const cancelAmount = (redeemAmount * 3n) / 10n; // 30% of redeem amount
+      const remainingRedeem = redeemAmount - cancelAmount;
+
+      // Approve vault to transfer shares
+      await vault.connect(user).approve(await vault.getAddress(), redeemAmount);
+
+      // Request redeem
+      await vault.connect(user).requestRedeem(redeemAmount);
+
+      // Cancel partial amount
+      await expect(vault.connect(user).cancelRedeemRequest(cancelAmount)).to.not.be.reverted;
+
+      // Verify partial shares were returned
+      const sharesAfterPartialCancel = await vault.balanceOf(user.address);
+      expect(sharesAfterPartialCancel).to.equal(userSharesBefore - remainingRedeem);
+
+      // Verify pending redeems reflects the remaining amount
+      const pendingRedeems = await vault.pendingRedeem(await orionConfig.maxFulfillBatchSize());
+      expect(pendingRedeems).to.be.gte(remainingRedeem);
     });
   });
 
