@@ -15,14 +15,6 @@ interface IOrionTransparentVault is IOrionVault {
         uint32 weight;
     }
 
-    /// @dev Struct representing a token and its shares in a portfolio.
-    /// @param token The address of the ERC20 token.
-    /// @param shares The number of shares per asset (uint256 for portfolio shares).
-    struct PortfolioPosition {
-        address token;
-        uint256 shares;
-    }
-
     /// @notice Submit a plaintext portfolio intent.
     /// @param intent IntentPosition structs array containing the tokens and plaintext weights.
     function submitIntent(IntentPosition[] calldata intent) external;
