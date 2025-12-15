@@ -46,42 +46,21 @@ interface IOrionVault is IERC4626 {
     /// @param managementFee The new management fee in basis points.
     event FeeModelUpdated(uint8 indexed mode, uint16 indexed performanceFee, uint16 indexed managementFee);
 
-    /// @notice A deposit request has been fulfilled.
-    /// @param vault The address of the vault where the deposit was fulfilled.
-    /// @param user The address of the user whose deposit was fulfilled.
-    /// @param epoch The epoch when the deposit was fulfilled.
-    /// @param depositAmount The amount of assets deposited by the user.
-    /// @param sharesMinted The number of shares minted for the user.
-    event Deposit(
-        address indexed vault,
-        address indexed user,
-        uint256 indexed epoch,
-        uint256 depositAmount,
-        uint256 sharesMinted
-    );
     /// @notice A redemption request has been fulfilled.
     /// @param vault The address of the vault where the redemption was fulfilled.
     /// @param user The address of the user whose redemption was fulfilled.
-    /// @param epoch The epoch when the redemption was fulfilled.
     /// @param redeemAmount The amount of assets redeemed by the user.
     /// @param sharesBurned The number of shares burned for the user.
-    event Redeem(
-        address indexed vault,
-        address indexed user,
-        uint256 indexed epoch,
-        uint256 redeemAmount,
-        uint256 sharesBurned
-    );
+    event Redeem(address indexed vault, address indexed user, uint256 indexed redeemAmount, uint256 sharesBurned);
 
     /// @notice The vault whitelist has been updated.
     /// @param assets The new whitelist of assets.
     event VaultWhitelistUpdated(address[] assets);
 
-    /// @notice Curator fees have been accrued for a specific epoch.
-    /// @param epoch The epoch for which fees were accrued.
+    /// @notice Curator fees have been accrued.
     /// @param feeAmount The amount of fees accrued in underlying asset units.
     /// @param pendingCuratorFees The total pending curator fees in underlying asset units.
-    event CuratorFeesAccrued(uint256 indexed epoch, uint256 indexed feeAmount, uint256 indexed pendingCuratorFees);
+    event CuratorFeesAccrued(uint256 indexed feeAmount, uint256 indexed pendingCuratorFees);
 
     /// @notice The deposit access control contract has been updated.
     /// @param newDepositAccessControl The new deposit access control contract address (address(0) = permissionless).
@@ -157,10 +136,11 @@ interface IOrionVault is IERC4626 {
     // --------- VAULT OWNER AND CURATOR FUNCTIONS ---------
 
     /// @notice Update the vault curator address
-    /// @param newCurator The new curator address. Must be non-zero.
+    /// @param newCurator The new curator address.
     /// @dev The curator is responsible for setting allocation strategy for the vault's assets.
     ///      This function enables vault owners to change allocation strategies by updating the curator.
-    ///      This is particularly important when curators are smart contracts, not just addresses.
+    ///      Curator can be a smart contract or an address. It is the FULL responsibility of the vault owner
+    ///      to ensure the curator is capable of performing its duties.
     function updateCurator(address newCurator) external;
 
     /// @notice Update the vault whitelist
@@ -184,6 +164,8 @@ interface IOrionVault is IERC4626 {
     /// @notice Set deposit access control contract
     /// @param newDepositAccessControl Address of the new access control contract (address(0) = permissionless)
     /// @dev Only callable by vault owner
+    ///      It is the FULL responsibility of the vault owner
+    ///      to ensure the deposit access control is capable of performing its duties.
     function setDepositAccessControl(address newDepositAccessControl) external;
 
     /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
@@ -218,7 +200,6 @@ interface IOrionVault is IERC4626 {
     function fulfillRedeem(uint256 redeemTotalAssets) external;
 
     /// @notice Accrue curator fees for a specific epoch
-    /// @param epoch The epoch for which to accrue fees
     /// @param feeAmount The amount of curator fees to accrue in underlying asset units
-    function accrueCuratorFees(uint256 epoch, uint256 feeAmount) external;
+    function accrueCuratorFees(uint256 feeAmount) external;
 }

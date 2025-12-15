@@ -15,14 +15,6 @@ interface IOrionTransparentVault is IOrionVault {
         uint32 weight;
     }
 
-    /// @dev Struct representing a token and its shares in a portfolio.
-    /// @param token The address of the ERC20 token.
-    /// @param shares The number of shares per asset (uint256 for portfolio shares).
-    struct PortfolioPosition {
-        address token;
-        uint256 shares;
-    }
-
     /// @notice Submit a plaintext portfolio intent.
     /// @param intent IntentPosition structs array containing the tokens and plaintext weights.
     function submitIntent(IntentPosition[] calldata intent) external;
@@ -42,9 +34,8 @@ interface IOrionTransparentVault is IOrionVault {
     ///      Clears the previous portfolio and replaces it with the new one.
     ///      Updates the high watermark if the current share price exceeds it.
     ///      The system maintains a single global high watermark shared across all LPs.
-    ///      Emits a VaultStateUpdated event.
-    /// @param portfolio Array of PortfolioPosition structs
-    ///        It contains the new portfolio token addresses and plaintext number of shares per asset.
+    /// @param tokens Array of token addresses in the portfolio
+    /// @param shares Array of shares per asset (parallel to tokens array)
     /// @param newTotalAssets The new total assets value for the vault
-    function updateVaultState(PortfolioPosition[] calldata portfolio, uint256 newTotalAssets) external;
+    function updateVaultState(address[] calldata tokens, uint256[] calldata shares, uint256 newTotalAssets) external;
 }

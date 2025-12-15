@@ -29,10 +29,6 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     /// @return The current InternalUpkeepPhase
     function currentPhase() external view returns (InternalUpkeepPhase);
 
-    /// @notice Returns the current epoch counter
-    /// @return The current epoch
-    function epochCounter() external view returns (uint16);
-
     /// @notice Updates the Chainlink Automation Registry address
     /// @param newAutomationRegistry The new automation registry address
     function updateAutomationRegistry(address newAutomationRegistry) external;
@@ -84,15 +80,14 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     /// @dev Can only be called by the Liquidity Orchestrator
     function updateBufferAmount(int256 deltaAmount) external;
 
-    /// @notice Get total assets for fulfill redeem for a specific vault
+    /// @notice Get all vault total assets values
     /// @param vault The vault address
-    /// @return totalAssets The total assets for fulfill redeem
-    function getVaultTotalAssetsForFulfillRedeem(address vault) external view returns (uint256 totalAssets);
-
-    /// @notice Get total assets for fulfill deposit for a specific vault
-    /// @param vault The vault address
-    /// @return totalAssets The total assets for fulfill deposit
-    function getVaultTotalAssetsForFulfillDeposit(address vault) external view returns (uint256 totalAssets);
+    /// @return totalAssetsForRedeem The total assets for fulfill redeem
+    /// @return totalAssetsForDeposit The total assets for fulfill deposit
+    /// @return totalAssets The final total assets for state update
+    function getVaultTotalAssetsAll(
+        address vault
+    ) external view returns (uint256 totalAssetsForRedeem, uint256 totalAssetsForDeposit, uint256 totalAssets);
 
     /// @notice Get the list of tokens for the current epoch
     /// @return tokens The array of token addresses used in the current epoch
@@ -102,6 +97,12 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     /// @notice Get the transparent vaults for the current epoch
     /// @return vaults The array of transparent vault addresses for the current epoch
     function getTransparentVaultsEpoch() external view returns (address[] memory vaults);
+
+    /// @notice Get portfolio shares for a specific vault
+    /// @param vault The vault address
+    /// @return tokens The array of token addresses in the vault's portfolio
+    /// @return shares The array of portfolio shares for each token [shares]
+    function getVaultPortfolio(address vault) external view returns (address[] memory tokens, uint256[] memory shares);
 
     /// @notice Pauses the contract
     /// @dev Can only be called by OrionConfig for emergency situations

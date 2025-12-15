@@ -77,38 +77,35 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
     /// @notice Maximum epoch duration (2 weeks = 14 days)
     uint32 public constant MAX_EPOCH_DURATION = 14 days;
 
-    /// @notice Action constants for checkUpkeep and performUpkeep
-    bytes4 private constant ACTION_START = bytes4(keccak256("start()"));
-    bytes4 private constant ACTION_PREPROCESS_T_VAULTS = bytes4(keccak256("preprocessTV(uint8)"));
-    bytes4 private constant ACTION_BUFFER = bytes4(keccak256("buffer()"));
-    bytes4 private constant ACTION_POSTPROCESS_T_VAULTS = bytes4(keccak256("postprocessTV(uint8)"));
-    bytes4 private constant ACTION_BUILD_ORDERS = bytes4(keccak256("buildOrders()"));
-
     /* -------------------------------------------------------------------------- */
     /*                                 EPOCH STATE                                */
     /* -------------------------------------------------------------------------- */
     /// @notice Struct to hold epoch state data
     struct EpochState {
-        /// @notice Price array - token address to estimated price [shares/assets]
-        mapping(address => uint256) priceArray;
-        /// @notice Initial batch portfolio - token address to estimated value [shares]
-        mapping(address => uint256) initialBatchPortfolio;
-        /// @notice Total assets - Orion vault address to estimated value [assets]
-        mapping(address => uint256) vaultsTotalAssets;
-        /// @notice Final batch portfolio - token address to estimated value [shares]
-        mapping(address => uint256) finalBatchPortfolio;
-        /// @notice Total assets for fulfill redeem - vault address to total assets for fulfillRedeem [assets]
-        mapping(address => uint256) vaultsTotalAssetsForFulfillRedeem;
-        /// @notice Total assets for fulfill deposit - vault address to total assets for fulfillDeposit [assets]
-        mapping(address => uint256) vaultsTotalAssetsForFulfillDeposit;
-        /// @notice Selling orders - token address to number of shares that needs to be sold [shares]
-        mapping(address => uint256) sellingOrders;
-        /// @notice Buying orders - token address to number of shares that needs to be bought [shares]
-        mapping(address => uint256) buyingOrders;
         /// @notice Array of all tokens used in this epoch for iteration
         address[] tokens;
         /// @notice Mapping to track if a token has been added to avoid duplicates
         mapping(address => bool) tokenExists;
+        /// @notice Price array - token address to estimated price [shares/assets]
+        mapping(address => uint256) priceArray;
+        /// @notice Total assets - Orion vault address to estimated value [assets]
+        mapping(address => uint256) vaultsTotalAssets;
+        /// @notice Total assets for fulfill redeem - vault address to total assets for fulfillRedeem [assets]
+        mapping(address => uint256) vaultsTotalAssetsForFulfillRedeem;
+        /// @notice Total assets for fulfill deposit - vault address to total assets for fulfillDeposit [assets]
+        mapping(address => uint256) vaultsTotalAssetsForFulfillDeposit;
+        /// @notice Array of tokens in each vault's portfolio
+        mapping(address => address[]) vaultPortfolioTokens;
+        /// @notice Array of shares for each vault's portfolio (parallel to vaultPortfolioTokens) [shares]
+        mapping(address => uint256[]) vaultPortfolioShares;
+        /// @notice Initial batch portfolio - token address to estimated value [shares]
+        mapping(address => uint256) initialBatchPortfolio;
+        /// @notice Final batch portfolio - token address to estimated value [shares]
+        mapping(address => uint256) finalBatchPortfolio;
+        /// @notice Selling orders - token address to number of shares that needs to be sold [shares]
+        mapping(address => uint256) sellingOrders;
+        /// @notice Buying orders - token address to number of shares that needs to be bought [shares]
+        mapping(address => uint256) buyingOrders;
     }
 
     /// @notice Current epoch state
@@ -122,8 +119,6 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
     uint32 public epochDuration;
     /// @notice Timestamp when the next upkeep is allowed
     uint256 private _nextUpdateTime;
-    /// @notice Counter for tracking processing cycles
-    uint16 public epochCounter;
 
     /// @notice Transparent minibatch size
     uint8 public transparentMinibatchSize;
@@ -283,9 +278,6 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
 
             currentPhase = InternalUpkeepPhase.Idle;
             liquidityOrchestrator.advanceIdlePhase();
-
-            ++epochCounter;
-            emit EventsLib.InternalStateProcessed(epochCounter);
         }
     }
     /* solhint-enable code-complexity */
@@ -316,9 +308,6 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
 
     /// @notice Updates the next update time and resets the previous epoch state variables
     function _handleStart() internal {
-        // Validate current phase
-        if (!_shouldTriggerUpkeep() || !config.isSystemIdle()) revert ErrorsLib.TooEarly();
-
         // Save previous epoch's vault list before clearing to properly reset vault-specific mappings
         address[] memory previousEpochVaults = new address[](transparentVaultsEpoch.length);
         for (uint16 i = 0; i < transparentVaultsEpoch.length; ++i) {
@@ -329,13 +318,13 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
         for (uint16 i = 0; i < _currentEpoch.tokens.length; ++i) {
             address token = _currentEpoch.tokens[i];
             delete _currentEpoch.priceArray[token];
+            delete _currentEpoch.tokenExists[token];
+
             delete _currentEpoch.initialBatchPortfolio[token];
             delete _currentEpoch.finalBatchPortfolio[token];
             delete _currentEpoch.sellingOrders[token];
             delete _currentEpoch.buyingOrders[token];
-            delete _currentEpoch.tokenExists[token];
         }
-        delete _currentEpoch.tokens;
 
         // Clear vault-specific mappings
         for (uint16 i = 0; i < previousEpochVaults.length; ++i) {
@@ -343,13 +332,18 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
             delete _currentEpoch.vaultsTotalAssets[vault];
             delete _currentEpoch.vaultsTotalAssetsForFulfillRedeem[vault];
             delete _currentEpoch.vaultsTotalAssetsForFulfillDeposit[vault];
+
+            delete _currentEpoch.vaultPortfolioTokens[vault];
+            delete _currentEpoch.vaultPortfolioShares[vault];
         }
+        delete _currentEpoch.tokens;
 
         // Build filtered vault lists for this epoch
         _buildTransparentVaultsEpoch();
 
         if (transparentVaultsEpoch.length > 0) {
             currentPhase = InternalUpkeepPhase.PreprocessingTransparentVaults;
+            currentMinibatchIndex = 0;
         }
     }
 
@@ -422,7 +416,7 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
             uint256 protocolRevenueShareFee = uint256(activeRsFee).mulDiv(curatorFee, BASIS_POINTS_FACTOR);
             pendingProtocolFees += protocolRevenueShareFee;
             curatorFee -= protocolRevenueShareFee;
-            vault.accrueCuratorFees(epochCounter, curatorFee);
+            vault.accrueCuratorFees(curatorFee);
 
             // STEP 5: WITHDRAWAL EXCHANGE RATE (based on post-fee totalAssets)
             uint256 pendingRedeem = vault.convertToAssetsWithPITTotalAssets(
@@ -436,6 +430,7 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
             uint256 pendingDeposit = vault.pendingDeposit(maxFulfillBatchSize);
             _currentEpoch.vaultsTotalAssetsForFulfillDeposit[address(vault)] = totalAssets;
             totalAssets += pendingDeposit;
+
             _currentEpoch.vaultsTotalAssets[address(vault)] = totalAssets;
         }
     }
@@ -503,12 +498,10 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
 
         for (uint16 i = i0; i < i1; ++i) {
             IOrionTransparentVault vault = IOrionTransparentVault(transparentVaultsEpoch[i]);
+            address vaultAddress = address(vault);
 
             (address[] memory intentTokens, uint32[] memory intentWeights) = vault.getIntent();
-            uint256 finalTotalAssets = _currentEpoch.vaultsTotalAssets[address(vault)];
-
-            IOrionTransparentVault.PortfolioPosition[]
-                memory portfolio = new IOrionTransparentVault.PortfolioPosition[](intentTokens.length);
+            uint256 finalTotalAssets = _currentEpoch.vaultsTotalAssets[vaultAddress];
 
             for (uint16 j = 0; j < intentTokens.length; ++j) {
                 address token = intentTokens[j];
@@ -531,12 +524,13 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
                     config.getTokenDecimals(token)
                 );
 
-                portfolio[j] = IOrionTransparentVault.PortfolioPosition({ token: token, shares: value });
+                _currentEpoch.vaultPortfolioTokens[vaultAddress].push(token);
+                _currentEpoch.vaultPortfolioShares[vaultAddress].push(value);
 
                 _currentEpoch.finalBatchPortfolio[token] += value;
+
                 _addTokenIfNotExists(token);
             }
-            vault.updateVaultState(portfolio, finalTotalAssets);
         }
     }
 
@@ -679,18 +673,25 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
     }
 
     /// @inheritdoc IInternalStateOrchestrator
-    function getVaultTotalAssetsForFulfillRedeem(address vault) external view returns (uint256 totalAssets) {
-        return _currentEpoch.vaultsTotalAssetsForFulfillRedeem[vault];
-    }
-
-    /// @inheritdoc IInternalStateOrchestrator
-    function getVaultTotalAssetsForFulfillDeposit(address vault) external view returns (uint256 totalAssets) {
-        return _currentEpoch.vaultsTotalAssetsForFulfillDeposit[vault];
+    function getVaultTotalAssetsAll(
+        address vault
+    ) external view returns (uint256 totalAssetsForRedeem, uint256 totalAssetsForDeposit, uint256 totalAssets) {
+        return (
+            _currentEpoch.vaultsTotalAssetsForFulfillRedeem[vault],
+            _currentEpoch.vaultsTotalAssetsForFulfillDeposit[vault],
+            _currentEpoch.vaultsTotalAssets[vault]
+        );
     }
 
     /// @inheritdoc IInternalStateOrchestrator
     function getTransparentVaultsEpoch() external view returns (address[] memory vaults) {
         return transparentVaultsEpoch;
+    }
+
+    /// @inheritdoc IInternalStateOrchestrator
+    function getVaultPortfolio(address vault) external view returns (address[] memory tokens, uint256[] memory shares) {
+        tokens = _currentEpoch.vaultPortfolioTokens[vault];
+        shares = _currentEpoch.vaultPortfolioShares[vault];
     }
 
     /// @inheritdoc IInternalStateOrchestrator

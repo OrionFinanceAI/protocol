@@ -372,10 +372,15 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
 
         // Update internal state
         uint256 newAmount = currentAmount - amount;
+
         if (newAmount == 0) {
             // slither-disable-next-line unused-return
             _depositRequests.remove(msg.sender);
         } else {
+            // Avoid dust deposit requests by rejecting cancellations with small reminders.
+            uint256 minDeposit = config.minDepositAmount();
+            if (newAmount < minDeposit) revert ErrorsLib.BelowMinimumDeposit(newAmount, minDeposit);
+
             // slither-disable-next-line unused-return
             _depositRequests.set(msg.sender, newAmount);
         }
@@ -423,6 +428,10 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
             // slither-disable-next-line unused-return
             _redeemRequests.remove(msg.sender);
         } else {
+            // Avoid dust redeem requests by rejecting cancellations with small reminders.
+            uint256 minRedeem = config.minRedeemAmount();
+            if (newShares < minRedeem) revert ErrorsLib.BelowMinimumRedeem(newShares, minRedeem);
+
             // slither-disable-next-line unused-return
             _redeemRequests.set(msg.sender, newShares);
         }
@@ -625,12 +634,12 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     }
 
     /// @inheritdoc IOrionVault
-    function accrueCuratorFees(uint256 epoch, uint256 feeAmount) external onlyInternalStatesOrchestrator {
+    function accrueCuratorFees(uint256 feeAmount) external onlyInternalStatesOrchestrator {
         if (feeAmount == 0) return;
 
         pendingCuratorFees += feeAmount;
 
-        emit CuratorFeesAccrued(epoch, feeAmount, pendingCuratorFees);
+        emit CuratorFeesAccrued(feeAmount, pendingCuratorFees);
     }
 
     /// @inheritdoc IOrionVault
@@ -641,16 +650,21 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         }
 
         uint256 batchSize = Math.min(length, config.maxFulfillBatchSize());
-        uint16 currentEpoch = internalStatesOrchestrator.epochCounter();
 
         // Capture totalSupply snapshot to ensure consistent pricing for all users in this batch
         uint256 snapshotTotalSupply = totalSupply();
 
+        address[] memory users = new address[](batchSize);
+        uint256[] memory amounts = new uint256[](batchSize);
+        for (uint256 i = 0; i < batchSize; ++i) {
+            (users[i], amounts[i]) = _depositRequests.at(i);
+        }
+
         // Process requests in batch
         uint256 processedAmount = 0;
-        for (uint16 i = 0; i < batchSize; ++i) {
-            // Get request by index (index 0 since we remove as we go)
-            (address user, uint256 amount) = _depositRequests.at(0);
+        for (uint256 i = 0; i < batchSize; ++i) {
+            address user = users[i];
+            uint256 amount = amounts[i];
 
             // slither-disable-next-line unused-return
             _depositRequests.remove(user);
@@ -664,7 +678,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
             _mint(user, shares);
             processedAmount += amount;
 
-            emit Deposit(address(this), user, currentEpoch, amount, shares);
+            emit Deposit(user, user, amount, shares);
         }
     }
 
@@ -676,33 +690,39 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         }
 
         uint256 batchSize = Math.min(length, config.maxFulfillBatchSize());
-        uint16 currentEpoch = internalStatesOrchestrator.epochCounter();
 
         // Capture totalSupply snapshot to ensure consistent pricing for all users in this batch
         uint256 snapshotTotalSupply = totalSupply();
 
+        // Collect all keys to process first to avoid swap-and-pop reordering issues
+        address[] memory users = new address[](batchSize);
+        uint256[] memory shares = new uint256[](batchSize);
+        for (uint256 i = 0; i < batchSize; ++i) {
+            (users[i], shares[i]) = _redeemRequests.at(i);
+        }
+
         // Process requests in batch
         uint256 processedShares = 0;
-        for (uint16 i = 0; i < batchSize; ++i) {
-            // Get request by index (index 0 since we remove as we go)
-            (address user, uint256 shares) = _redeemRequests.at(0);
+        for (uint256 i = 0; i < batchSize; ++i) {
+            address user = users[i];
+            uint256 userShares = shares[i];
 
             // slither-disable-next-line unused-return
             _redeemRequests.remove(user);
 
             uint256 underlyingAmount = _convertToAssetsWithPITTotalAssets(
-                shares,
+                userShares,
                 redeemTotalAssets,
                 snapshotTotalSupply,
                 Math.Rounding.Floor
             );
-            _burn(address(this), shares);
-            processedShares += shares;
+            _burn(address(this), userShares);
+            processedShares += userShares;
 
             // Transfer underlying assets from liquidity orchestrator to the user
             liquidityOrchestrator.transferRedemptionFunds(user, underlyingAmount);
 
-            emit Redeem(address(this), user, currentEpoch, underlyingAmount, shares);
+            emit Redeem(address(this), user, underlyingAmount, userShares);
         }
     }
 }

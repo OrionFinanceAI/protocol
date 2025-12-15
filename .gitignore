@@ -22,6 +22,7 @@ protocol-ops/
 protocol-costs/
 reports/
 docs/
+.cursor/
 # files
 *.env
 *.log
@@ -42,14 +43,5 @@ rust-fhe/target/
 diagram.mmd
 
 # Artifacts
-artifacts/@openzeppelin/
-artifacts/@chainlink/
-artifacts/build-info/
-artifacts/lib/
-artifacts/fhevm/
-artifacts/@fhevm/
-artifacts/hardhat/
-
-!artifacts/contracts/**/*.json
-artifacts/contracts/**/*.dbg.json
+artifacts/
 

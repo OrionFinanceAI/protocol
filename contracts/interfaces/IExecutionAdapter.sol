@@ -11,19 +11,29 @@ pragma solidity ^0.8.28;
  *      The underlying token is defined in the OrionConfig contract and serves as the protocol's base asset.
  */
 interface IExecutionAdapter {
+    /// @notice Validates that the given asset is compatible with this adapter
+    /// @param asset The address of the asset to validate
+    function validateExecutionAdapter(address asset) external view;
+
     /// @notice Executes a sell operation by converting asset shares to underlying assets
     /// @param asset The address of the asset to sell
     /// @param sharesAmount The amount of shares to sell
+    /// @param estimatedUnderlyingAmount The estimated underlying amount to receive
     /// @return executionUnderlyingAmount The actual execution underlying amount received
-    function sell(address asset, uint256 sharesAmount) external returns (uint256 executionUnderlyingAmount);
+    function sell(
+        address asset,
+        uint256 sharesAmount,
+        uint256 estimatedUnderlyingAmount
+    ) external returns (uint256 executionUnderlyingAmount);
 
     /// @notice Executes a buy operation by converting underlying assets to asset shares
     /// @param asset The address of the asset to buy
     /// @param sharesAmount The amount of shares to buy
+    /// @param estimatedUnderlyingAmount The estimated underlying amount to spend
     /// @return executionUnderlyingAmount The actual execution underlying amount spent
-    function buy(address asset, uint256 sharesAmount) external returns (uint256 executionUnderlyingAmount);
-
-    /// @notice Validates that the given asset is compatible with this adapter
-    /// @param asset The address of the asset to validate
-    function validateExecutionAdapter(address asset) external view;
+    function buy(
+        address asset,
+        uint256 sharesAmount,
+        uint256 estimatedUnderlyingAmount
+    ) external returns (uint256 executionUnderlyingAmount);
 }

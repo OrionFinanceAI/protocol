@@ -101,9 +101,6 @@ describe("Fee Cooldown Mechanism", function () {
     if (!(await config.isWhitelistedVaultOwner(owner.address))) {
       await config.addWhitelistedVaultOwner(owner.address);
     }
-    if (!(await config.isWhitelistedCurator(curator.address))) {
-      await config.addWhitelistedCurator(curator.address);
-    }
 
     const vaultTx = await vaultFactory
       .connect(owner)

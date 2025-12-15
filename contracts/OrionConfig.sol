@@ -67,7 +67,6 @@ contract OrionConfig is Ownable2Step, IOrionConfig {
     using EnumerableSet for EnumerableSet.AddressSet;
     EnumerableSet.AddressSet private whitelistedAssets;
     EnumerableSet.AddressSet private whitelistedVaultOwners;
-    EnumerableSet.AddressSet private whitelistedCurators;
 
     /// @notice Mapping of token address to its decimals
     mapping(address => uint8) public tokenDecimals;
@@ -118,8 +117,6 @@ contract OrionConfig is Ownable2Step, IOrionConfig {
 
         // slither-disable-next-line unused-return
         whitelistedVaultOwners.add(initialOwner);
-        // slither-disable-next-line unused-return
-        whitelistedCurators.add(initialOwner);
     }
 
     // === Protocol Configuration ===
@@ -238,13 +235,12 @@ contract OrionConfig is Ownable2Step, IOrionConfig {
     function addWhitelistedAsset(address asset, address priceAdapter, address executionAdapter) external onlyOwner {
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
-        // Fail early to avoid owner overwriting adapters of existing asset with malicious ones
-        bool inserted = whitelistedAssets.add(asset);
-        if (!inserted) revert ErrorsLib.AlreadyRegistered();
+        if (!this.isWhitelisted(asset)) {
+            // slither-disable-next-line unused-return
+            whitelistedAssets.add(asset);
+        }
 
         // Store token decimals
-        // Note: Assumes ERC20 decimals are immutable (standard-compliant).
-        // Non-standard tokens that allow decimals to change at runtime MUST NOT be whitelisted.
         tokenDecimals[asset] = IERC20Metadata(asset).decimals();
 
         // Register the adapters
@@ -340,25 +336,6 @@ contract OrionConfig is Ownable2Step, IOrionConfig {
         return whitelistedVaultOwners.contains(vaultOwner);
     }
 
-    /// @inheritdoc IOrionConfig
-    function addWhitelistedCurator(address curator) external onlyOwner {
-        bool inserted = whitelistedCurators.add(curator);
-        if (!inserted) revert ErrorsLib.AlreadyRegistered();
-    }
-
-    /// @inheritdoc IOrionConfig
-    function removeWhitelistedCurator(address curator) external onlyOwner {
-        if (!this.isWhitelistedCurator(curator)) revert ErrorsLib.InvalidAddress();
-
-        bool removed = whitelistedCurators.remove(curator);
-        if (!removed) revert ErrorsLib.InvalidAddress();
-    }
-
-    /// @inheritdoc IOrionConfig
-    function isWhitelistedCurator(address curator) external view returns (bool) {
-        return whitelistedCurators.contains(curator);
-    }
-
     // === Orion Vaults ===
 
     /// @inheritdoc IOrionConfig
@@ -418,7 +395,7 @@ contract OrionConfig is Ownable2Step, IOrionConfig {
 
     /// @inheritdoc IOrionConfig
     function completeVaultDecommissioning(address vault) external onlyLiquidityOrchestrator {
-        if (!decommissioningInProgressVaults.contains(vault)) revert ErrorsLib.InvalidAddress();
+        if (!this.isDecommissioningVault(vault)) revert ErrorsLib.InvalidAddress();
 
         bool removedFromEncrypted = encryptedVaults.remove(vault);
         if (!removedFromEncrypted) {

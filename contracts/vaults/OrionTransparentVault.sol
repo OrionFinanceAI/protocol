@@ -133,24 +133,25 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
     /// @inheritdoc IOrionTransparentVault
     function updateVaultState(
-        PortfolioPosition[] calldata portfolio,
+        address[] calldata tokens,
+        uint256[] calldata shares,
         uint256 newTotalAssets
-    ) external onlyInternalStatesOrchestrator {
+    ) external onlyLiquidityOrchestrator {
         _portfolio.clear();
 
-        uint16 portfolioLength = uint16(portfolio.length);
+        uint16 portfolioLength = uint16(tokens.length);
         for (uint16 i = 0; i < portfolioLength; ++i) {
             // slither-disable-next-line unused-return
-            _portfolio.set(portfolio[i].token, portfolio[i].shares);
+            _portfolio.set(tokens[i], shares[i]);
         }
+
+        _totalAssets = newTotalAssets;
 
         uint256 currentSharePrice = convertToAssets(10 ** decimals());
 
         if (currentSharePrice > feeModel.highWaterMark) {
             feeModel.highWaterMark = currentSharePrice;
         }
-
-        _totalAssets = newTotalAssets;
 
         // Emit event for tracking state updates
         emit EventsLib.VaultStateUpdated(newTotalAssets);
@@ -160,7 +161,6 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
     /// @inheritdoc IOrionVault
     function updateCurator(address newCurator) external onlyVaultOwner {
-        if (!config.isWhitelistedCurator(newCurator)) revert ErrorsLib.NotAuthorized();
         curator = newCurator;
         emit CuratorUpdated(newCurator);
     }

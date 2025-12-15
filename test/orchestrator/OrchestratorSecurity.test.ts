@@ -38,7 +38,7 @@
  *
  *    b) InvalidState Phase Order Enforcement
  *       - Tests that executing phases out of order reverts with InvalidState
- *       - Correct order: Idle → SellingLeg → BuyingLeg → FulfillDepositAndRedeem → Idle
+ *       - Correct order: Idle → SellingLeg → BuyingLeg → ProcessVaultOperations → Idle
  *       - Example: Cannot call processBuy when in SellingLeg phase
  *       - Enforces strict phase progression to maintain system integrity
  *
@@ -54,7 +54,7 @@
  *       - Prevents revert-based attacks that try to skip phases
  *
  *    e) Cross-Phase Malicious Payload Protection - BuyingLeg
- *       - Tests that malicious payload for processBuy is ignored in FulfillDepositAndRedeem phase
+ *       - Tests that malicious payload for processBuy is ignored in ProcessVaultOperations phase
  *       - Validates strict phase boundaries
  *       - Ensures fulfill phase cannot be bypassed
  *
@@ -320,8 +320,6 @@ describe("Orchestrator Security", function () {
 
     await orionConfig.setProtocolRiskFreeRate(0.0423 * 10_000);
 
-    await orionConfig.addWhitelistedCurator(curator.address);
-
     const absoluteVaultTx = await transparentVaultFactory
       .connect(owner)
       .createVault(curator.address, "Absolute Fee Vault", "AFV", 0, 500, 50, ethers.ZeroAddress);
@@ -416,8 +414,6 @@ describe("Orchestrator Security", function () {
       "OrionTransparentVault",
       hurdleHwmVaultAddress,
     )) as unknown as OrionTransparentVault;
-
-    await orionConfig.addWhitelistedCurator(await kbestTvlStrategy.getAddress());
 
     // Create passive vault with kbestTVL strategy (no curator intents)
     const passiveVaultTx = await transparentVaultFactory

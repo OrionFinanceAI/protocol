@@ -29,6 +29,9 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
     using Math for uint256;
     using SafeERC20 for IERC20;
 
+    /// @notice Basis points factor
+    uint16 public constant BASIS_POINTS_FACTOR = 10_000;
+
     /* -------------------------------------------------------------------------- */
     /*                                 CONTRACTS                                  */
     /* -------------------------------------------------------------------------- */
@@ -54,6 +57,9 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
     /*                               UPKEEP STATE                                 */
     /* -------------------------------------------------------------------------- */
 
+    /// @notice Counter for tracking processing cycles
+    uint16 public epochCounter;
+
     /// @notice Minibatch size for fulfill deposit and redeem processing
     uint8 public minibatchSize;
 
@@ -66,13 +72,11 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
     /// @notice Target buffer ratio
     uint256 public targetBufferRatio;
 
-    /// @notice Buy approval multiplier (multiplier for estimated underlying amount when approving adapters)
-    uint8 public buyApprovalMultiplier;
+    /// @notice Slippage tolerance
+    uint256 public slippageTolerance;
 
     /// @notice Maximum minibatch size
     uint8 public constant MAX_MINIBATCH_SIZE = 8;
-    /// @notice Maximum buy approval multiplier
-    uint8 public constant MAX_BUY_APPROVAL_MULTIPLIER = 5;
 
     /* -------------------------------------------------------------------------- */
     /*                                 EPOCH STATE                                */
@@ -125,7 +129,7 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
         automationRegistry = automationRegistry_;
         currentPhase = LiquidityUpkeepPhase.Idle;
         minibatchSize = 1;
-        buyApprovalMultiplier = 2;
+        slippageTolerance = 0;
     }
 
     /* -------------------------------------------------------------------------- */
@@ -162,15 +166,9 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
         // 5%
         if (_targetBufferRatio > 500) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
-        targetBufferRatio = _targetBufferRatio;
-    }
 
-    /// @inheritdoc ILiquidityOrchestrator
-    function updateBuyApprovalMultiplier(uint8 _buyApprovalMultiplier) external onlyOwner {
-        if (_buyApprovalMultiplier == 0) revert ErrorsLib.InvalidArguments();
-        if (_buyApprovalMultiplier > MAX_BUY_APPROVAL_MULTIPLIER) revert ErrorsLib.InvalidArguments();
-        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
-        buyApprovalMultiplier = _buyApprovalMultiplier;
+        targetBufferRatio = _targetBufferRatio;
+        slippageTolerance = _targetBufferRatio / 2;
     }
 
     /// @inheritdoc ILiquidityOrchestrator
@@ -289,7 +287,7 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
             upkeepNeeded = true;
         } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
             upkeepNeeded = true;
-        } else if (currentPhase == LiquidityUpkeepPhase.FulfillDepositAndRedeem) {
+        } else if (currentPhase == LiquidityUpkeepPhase.ProcessVaultOperations) {
             upkeepNeeded = true;
         } else {
             upkeepNeeded = false;
@@ -303,8 +301,8 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
             _processSellLeg();
         } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
             _processBuyLeg();
-        } else if (currentPhase == LiquidityUpkeepPhase.FulfillDepositAndRedeem) {
-            _processFulfillDepositAndRedeem();
+        } else if (currentPhase == LiquidityUpkeepPhase.ProcessVaultOperations) {
+            _processVaultOperations();
             internalStatesOrchestrator.updateNextUpdateTime();
         }
 
@@ -341,7 +339,7 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
             uint256[] memory buyingEstimatedUnderlyingAmounts
         ) = internalStatesOrchestrator.getOrders(false);
 
-        currentPhase = LiquidityUpkeepPhase.FulfillDepositAndRedeem;
+        currentPhase = LiquidityUpkeepPhase.ProcessVaultOperations;
 
         for (uint16 i = 0; i < buyingTokens.length; ++i) {
             address token = buyingTokens[i];
@@ -367,7 +365,7 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
         IERC20(asset).forceApprove(address(adapter), sharesAmount);
 
         // Execute sell through adapter, pull shares from this contract and push underlying assets to it.
-        uint256 executionUnderlyingAmount = adapter.sell(asset, sharesAmount);
+        uint256 executionUnderlyingAmount = adapter.sell(asset, sharesAmount, estimatedUnderlyingAmount);
 
         // Clean up approval
         IERC20(asset).forceApprove(address(adapter), 0);
@@ -379,15 +377,19 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
     /// @param asset The asset to buy
     /// @param sharesAmount The amount of shares to buy
     /// @param estimatedUnderlyingAmount The estimated underlying amount to spend
+    /// @dev The adapter handles slippage tolerance internally.
     function _executeBuy(address asset, uint256 sharesAmount, uint256 estimatedUnderlyingAmount) internal {
         IExecutionAdapter adapter = executionAdapterOf[asset];
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
 
-        // Approve adapter to spend underlying assets (with multiplier for slippage tolerance)
-        IERC20(underlyingAsset).forceApprove(address(adapter), estimatedUnderlyingAmount * buyApprovalMultiplier);
+        // Approve adapter to spend underlying assets
+        IERC20(underlyingAsset).forceApprove(
+            address(adapter),
+            estimatedUnderlyingAmount.mulDiv(BASIS_POINTS_FACTOR + slippageTolerance, BASIS_POINTS_FACTOR)
+        );
 
         // Execute buy through adapter, pull underlying assets from this contract and push shares to it.
-        uint256 executionUnderlyingAmount = adapter.buy(asset, sharesAmount);
+        uint256 executionUnderlyingAmount = adapter.buy(asset, sharesAmount, estimatedUnderlyingAmount);
 
         // Clean up approval
         IERC20(underlyingAsset).forceApprove(address(adapter), 0);
@@ -395,8 +397,8 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
         deltaBufferAmount += int256(estimatedUnderlyingAmount) - int256(executionUnderlyingAmount);
     }
 
-    /// @notice Handles the fulfill deposit and redeem actions
-    function _processFulfillDepositAndRedeem() internal {
+    /// @notice Handles the vault operations
+    function _processVaultOperations() internal {
         // Process transparent vaults
         address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
 
@@ -408,17 +410,19 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
             i1 = uint16(transparentVaults.length);
             currentPhase = LiquidityUpkeepPhase.Idle;
             currentMinibatchIndex = 0;
+            emit EventsLib.EpochProcessed(epochCounter);
+            ++epochCounter;
         }
 
         for (uint16 i = i0; i < i1; ++i) {
             address vault = transparentVaults[i];
-            uint256 totalAssetsForDeposit = internalStatesOrchestrator.getVaultTotalAssetsForFulfillDeposit(vault);
-            uint256 totalAssetsForRedeem = internalStatesOrchestrator.getVaultTotalAssetsForFulfillRedeem(vault);
+            (
+                uint256 totalAssetsForRedeem,
+                uint256 totalAssetsForDeposit,
+                uint256 finalTotalAssets
+            ) = internalStatesOrchestrator.getVaultTotalAssetsAll(vault);
 
-            _processVaultDepositAndRedeem(vault, totalAssetsForDeposit, totalAssetsForRedeem);
-            if (config.isDecommissioningVault(vault)) {
-                config.completeVaultDecommissioning(vault);
-            }
+            _processSingleVaultOperations(vault, totalAssetsForDeposit, totalAssetsForRedeem, finalTotalAssets);
         }
     }
 
@@ -426,12 +430,13 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
     /// @param vault The vault address
     /// @param totalAssetsForDeposit The total assets for deposit operations
     /// @param totalAssetsForRedeem The total assets for redeem operations
-    function _processVaultDepositAndRedeem(
+    function _processSingleVaultOperations(
         address vault,
         uint256 totalAssetsForDeposit,
-        uint256 totalAssetsForRedeem
+        uint256 totalAssetsForRedeem,
+        uint256 finalTotalAssets
     ) internal {
-        IOrionVault vaultContract = IOrionVault(vault);
+        IOrionTransparentVault vaultContract = IOrionTransparentVault(vault);
 
         uint256 maxFulfillBatchSize = config.maxFulfillBatchSize();
         uint256 pendingRedeem = vaultContract.pendingRedeem(maxFulfillBatchSize);
@@ -443,6 +448,20 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
 
         if (pendingDeposit > 0) {
             vaultContract.fulfillDeposit(totalAssetsForDeposit);
+        }
+
+        (address[] memory tokens, uint256[] memory shares) = internalStatesOrchestrator.getVaultPortfolio(vault);
+        vaultContract.updateVaultState(tokens, shares, finalTotalAssets);
+
+        if (config.isDecommissioningVault(vault)) {
+            for (uint16 i = 0; i < tokens.length; ++i) {
+                if (tokens[i] == address(underlyingAsset)) {
+                    if (shares[i] == finalTotalAssets) {
+                        config.completeVaultDecommissioning(vault);
+                        break;
+                    }
+                }
+            }
         }
     }
 
