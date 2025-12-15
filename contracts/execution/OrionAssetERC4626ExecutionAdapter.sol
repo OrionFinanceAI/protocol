@@ -133,8 +133,8 @@ contract OrionAssetERC4626ExecutionAdapter is IExecutionAdapter {
         // Mint exact shares. Vault will pull the required underlying amount
         // This guarantees sharesAmount shares are minted.
         spentUnderlyingAmount = vault.mint(sharesAmount, address(this));
-
-        if (spentUnderlyingAmount != previewedUnderlyingAmount) revert ErrorsLib.ExecutionFailed(vaultAsset);
+        // Some ERC4626 implementations may leave dust in the adapter;
+        // we accept that, as target shares are minted.
 
         // Clean up approval
         underlyingAssetToken.forceApprove(vaultAsset, 0);
