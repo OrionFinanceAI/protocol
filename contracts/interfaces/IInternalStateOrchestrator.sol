@@ -46,10 +46,6 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     /// @param _rsFeeCoefficient The new revenue share fee coefficient
     function updateProtocolFees(uint16 _vFeeCoefficient, uint16 _rsFeeCoefficient) external;
 
-    /// @notice Resets the ISO phase to allow reprocessing even when system is not idle
-    /// @param targetPhase The target InternalUpkeepPhase to set
-    function resetPhase(InternalUpkeepPhase targetPhase) external;
-
     /// @notice Returns the pending protocol fees
     /// @return The pending protocol fees
     function pendingProtocolFees() external view returns (uint256);
@@ -57,10 +53,6 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     /// @notice Returns the current buffer amount
     /// @return The current buffer amount
     function bufferAmount() external view returns (uint256);
-
-    /// @notice Returns whether LP processing should be performed
-    /// @return True if LP processing should be performed
-    function processLP() external view returns (bool);
 
     /// @notice Subtracts a specified amount from the pending protocol fees
     /// @param amount The amount to subtract from pending protocol fees

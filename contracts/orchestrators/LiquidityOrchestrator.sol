@@ -231,9 +231,7 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
 
     /// @inheritdoc ILiquidityOrchestrator
     function advanceIdlePhase() external onlyInternalStatesOrchestrator {
-        if (currentPhase == LiquidityUpkeepPhase.Idle) {
-            currentPhase = LiquidityUpkeepPhase.SellingLeg;
-        }
+        currentPhase = LiquidityUpkeepPhase.SellingLeg;
     }
 
     /* -------------------------------------------------------------------------- */
@@ -440,18 +438,16 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
     ) internal {
         IOrionTransparentVault vaultContract = IOrionTransparentVault(vault);
 
-        if (internalStatesOrchestrator.processLP()) {
-            uint256 maxFulfillBatchSize = config.maxFulfillBatchSize();
-            uint256 pendingRedeem = vaultContract.pendingRedeem(maxFulfillBatchSize);
-            uint256 pendingDeposit = vaultContract.pendingDeposit(maxFulfillBatchSize);
+        uint256 maxFulfillBatchSize = config.maxFulfillBatchSize();
+        uint256 pendingRedeem = vaultContract.pendingRedeem(maxFulfillBatchSize);
+        uint256 pendingDeposit = vaultContract.pendingDeposit(maxFulfillBatchSize);
 
-            if (pendingRedeem > 0) {
-                vaultContract.fulfillRedeem(totalAssetsForRedeem);
-            }
+        if (pendingRedeem > 0) {
+            vaultContract.fulfillRedeem(totalAssetsForRedeem);
+        }
 
-            if (pendingDeposit > 0) {
-                vaultContract.fulfillDeposit(totalAssetsForDeposit);
-            }
+        if (pendingDeposit > 0) {
+            vaultContract.fulfillDeposit(totalAssetsForDeposit);
         }
 
         (address[] memory tokens, uint256[] memory shares) = internalStatesOrchestrator.getVaultPortfolio(vault);
