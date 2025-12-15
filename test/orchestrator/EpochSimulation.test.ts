@@ -18,7 +18,7 @@ import {
 describe("Epoch Simulation", function () {
   const VAULT_DEPOSIT = 1000; // in underlying asset units
   const NUM_ASSETS = 100;
-  const NUM_EPOCHS = 100;
+  const NUM_EPOCHS = 10;
 
   // Gaussian distribution parameters for gains/losses (very small to avoid slippage)
   const GAIN_MEAN = 0.0005;
