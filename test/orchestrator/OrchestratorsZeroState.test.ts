@@ -9,7 +9,7 @@ import {
   OrionConfigUpgradeable,
   InternalStatesOrchestratorUpgradeable,
   LiquidityOrchestratorUpgradeable,
-  TransparentVaultFactoryUpgradeable,
+  TransparentVaultFactory,
   OrionTransparentVaultUpgradeable,
   MockUnderlyingAsset,
 } from "../../typechain-types";
@@ -18,7 +18,7 @@ describe("Orchestrators - zero deposits and zero intents", function () {
   let orionConfig: OrionConfigUpgradeable;
   let internalStatesOrchestrator: InternalStatesOrchestratorUpgradeable;
   let liquidityOrchestrator: LiquidityOrchestratorUpgradeable;
-  let transparentVaultFactory: TransparentVaultFactoryUpgradeable;
+  let transparentVaultFactory: TransparentVaultFactory;
   let transparentVault: OrionTransparentVaultUpgradeable;
   let underlyingAsset: MockUnderlyingAsset;
 

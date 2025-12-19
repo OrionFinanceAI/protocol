@@ -12,14 +12,14 @@ import {
   OrionConfigUpgradeable,
   InternalStatesOrchestratorUpgradeable,
   LiquidityOrchestratorUpgradeable,
-  TransparentVaultFactoryUpgradeable,
+  TransparentVaultFactory,
   OrionTransparentVaultUpgradeable,
   PriceAdapterRegistryUpgradeable,
   OrionAssetERC4626PriceAdapter,
 } from "../typechain-types";
 
 describe("Whitelist and Vault Removal Flows", function () {
-  let transparentVaultFactory: TransparentVaultFactoryUpgradeable;
+  let transparentVaultFactory: TransparentVaultFactory;
   let orionConfig: OrionConfigUpgradeable;
   let underlyingAsset: MockUnderlyingAsset;
   let mockAsset1: MockERC4626Asset;

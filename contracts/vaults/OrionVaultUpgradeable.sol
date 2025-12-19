@@ -188,9 +188,6 @@ abstract contract OrionVaultUpgradeable is Initializable, ERC4626Upgradeable, Re
         __ERC4626_init(config_.underlyingAsset());
         __ReentrancyGuard_init();
 
-        if (curator_ == address(0)) revert ErrorsLib.InvalidAddress();
-        if (address(config_) == address(0)) revert ErrorsLib.InvalidAddress();
-
         vaultOwner = vaultOwner_;
         curator = curator_;
         config = config_;

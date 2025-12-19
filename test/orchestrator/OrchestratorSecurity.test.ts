@@ -99,7 +99,7 @@ import {
   OrionConfigUpgradeable,
   InternalStatesOrchestratorUpgradeable,
   LiquidityOrchestratorUpgradeable,
-  TransparentVaultFactoryUpgradeable,
+  TransparentVaultFactory,
   OrionTransparentVaultUpgradeable,
   PriceAdapterRegistryUpgradeable,
   OrionAssetERC4626PriceAdapter,
@@ -115,7 +115,7 @@ describe("Orchestrator Security", function () {
   const HURDLE_HWM_VAULT_DEPOSIT = 150;
   const PASSIVE_VAULT_DEPOSIT = 100;
 
-  let transparentVaultFactory: TransparentVaultFactoryUpgradeable;
+  let transparentVaultFactory: TransparentVaultFactory;
   let orionConfig: OrionConfigUpgradeable;
   let underlyingAsset: MockUnderlyingAsset;
   let mockAsset1: MockERC4626Asset;

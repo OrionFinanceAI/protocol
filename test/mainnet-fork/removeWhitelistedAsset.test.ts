@@ -51,7 +51,7 @@ import {
   OrionConfig,
   InternalStatesOrchestrator,
   LiquidityOrchestrator,
-  TransparentVaultFactoryUpgradeable,
+  TransparentVaultFactory,
   OrionTransparentVaultUpgradeable,
   PriceAdapterRegistryUpgradeable,
   OrionAssetERC4626PriceAdapter,
@@ -66,7 +66,7 @@ describe("Mainnet Fork: removeWhitelistedAsset DoS Test", function () {
   let other: SignerWithAddress;
 
   let orionConfig: OrionConfig;
-  let transparentVaultFactory: TransparentVaultFactoryUpgradeable;
+  let transparentVaultFactory: TransparentVaultFactory;
   let internalStatesOrchestrator: InternalStatesOrchestrator;
   let liquidityOrchestrator: LiquidityOrchestrator;
   let priceAdapterRegistry: PriceAdapterRegistryUpgradeable;
@@ -114,7 +114,7 @@ describe("Mainnet Fork: removeWhitelistedAsset DoS Test", function () {
     const TransparentVaultFactoryFactory = await ethers.getContractFactory("TransparentVaultFactory");
     const transparentVaultFactoryDeployed = await TransparentVaultFactoryFactory.deploy(await orionConfig.getAddress());
     await transparentVaultFactoryDeployed.waitForDeployment();
-    transparentVaultFactory = transparentVaultFactoryDeployed as unknown as TransparentVaultFactoryUpgradeable;
+    transparentVaultFactory = transparentVaultFactoryDeployed as unknown as TransparentVaultFactory;
     console.log(`✓ TransparentVaultFactory deployed`);
 
     // ===== 3. Deploy Orchestrators =====

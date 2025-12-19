@@ -5,7 +5,7 @@ import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import {
   MockUnderlyingAsset,
   OrionConfigUpgradeable,
-  TransparentVaultFactoryUpgradeable,
+  TransparentVaultFactory,
   OrionTransparentVaultUpgradeable,
   WhitelistAccessControl,
   PriceAdapterRegistryUpgradeable,
@@ -21,7 +21,7 @@ describe("Access Control", function () {
 
   let mockAsset: MockUnderlyingAsset;
   let _orionConfig: OrionConfigUpgradeable;
-  let factory: TransparentVaultFactoryUpgradeable;
+  let factory: TransparentVaultFactory;
   let _priceAdapterRegistry: PriceAdapterRegistryUpgradeable;
   let _internalStatesOrchestrator;
   let _liquidityOrchestrator;

@@ -12,7 +12,7 @@ import {
   OrionConfigUpgradeable,
   InternalStatesOrchestratorUpgradeable,
   LiquidityOrchestratorUpgradeable,
-  TransparentVaultFactoryUpgradeable,
+  TransparentVaultFactory,
   OrionTransparentVaultUpgradeable,
   PriceAdapterRegistryUpgradeable,
   OrionAssetERC4626PriceAdapter,
@@ -21,7 +21,7 @@ import {
 } from "../typechain-types";
 
 describe("Passive Curator Strategy", function () {
-  let transparentVaultFactory: TransparentVaultFactoryUpgradeable;
+  let transparentVaultFactory: TransparentVaultFactory;
   let orionConfig: OrionConfigUpgradeable;
   let underlyingAsset: MockUnderlyingAsset;
   let mockAsset1: MockERC4626Asset;

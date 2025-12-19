@@ -9,7 +9,7 @@ import {
   OrionTransparentVaultUpgradeable,
   InternalStatesOrchestratorUpgradeable,
   LiquidityOrchestratorUpgradeable,
-  TransparentVaultFactoryUpgradeable,
+  TransparentVaultFactory,
 } from "../typechain-types";
 
 /**
@@ -57,7 +57,7 @@ describe("Vault Owner Removal - Automatic Decommissioning", function () {
   }
 
   async function createVault(
-    vaultFactory: TransparentVaultFactoryUpgradeable,
+    vaultFactory: TransparentVaultFactory,
     _config: OrionConfigUpgradeable,
     vaultOwner: Signer,
     curator: Signer,

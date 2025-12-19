@@ -6,7 +6,7 @@ import {
   PriceAdapterRegistryUpgradeable,
   InternalStatesOrchestratorUpgradeable,
   LiquidityOrchestratorUpgradeable,
-  TransparentVaultFactoryUpgradeable,
+  TransparentVaultFactory,
   OrionTransparentVaultUpgradeable,
   MockUnderlyingAsset,
   UpgradeableBeacon,
@@ -20,7 +20,7 @@ export interface UpgradeableProtocolContracts {
   priceAdapterRegistry: PriceAdapterRegistryUpgradeable;
   internalStatesOrchestrator: InternalStatesOrchestratorUpgradeable;
   liquidityOrchestrator: LiquidityOrchestratorUpgradeable;
-  transparentVaultFactory: TransparentVaultFactoryUpgradeable;
+  transparentVaultFactory: TransparentVaultFactory;
   vaultBeacon: UpgradeableBeacon;
   underlyingAsset: MockUnderlyingAsset;
 }
@@ -33,7 +33,7 @@ export interface UpgradeableProtocolContracts {
  * - PriceAdapterRegistryUpgradeable (UUPS)
  * - InternalStatesOrchestratorUpgradeable (UUPS)
  * - LiquidityOrchestratorUpgradeable (UUPS)
- * - TransparentVaultFactoryUpgradeable (UUPS)
+ * - TransparentVaultFactory (UUPS)
  * - UpgradeableBeacon for vaults
  *
  * @param owner Protocol owner address
@@ -109,13 +109,13 @@ export async function deployUpgradeableProtocol(
   const vaultBeacon = await BeaconFactory.deploy(await vaultImpl.getAddress(), owner.address);
   await vaultBeacon.waitForDeployment();
 
-  // 7. Deploy TransparentVaultFactoryUpgradeable (UUPS)
-  const TransparentVaultFactoryFactory = await ethers.getContractFactory("TransparentVaultFactoryUpgradeable");
+  // 7. Deploy TransparentVaultFactory (UUPS)
+  const TransparentVaultFactoryFactory = await ethers.getContractFactory("TransparentVaultFactory");
   const transparentVaultFactory = (await upgrades.deployProxy(
     TransparentVaultFactoryFactory,
     [owner.address, await orionConfig.getAddress(), await vaultBeacon.getAddress()],
     { initializer: "initialize", kind: "uups" },
-  )) as unknown as TransparentVaultFactoryUpgradeable;
+  )) as unknown as TransparentVaultFactory;
   await transparentVaultFactory.waitForDeployment();
 
   // 8. Configure OrionConfig with remaining deployed contracts

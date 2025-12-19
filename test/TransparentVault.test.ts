@@ -10,11 +10,11 @@ import {
   MockPriceAdapter,
   MockExecutionAdapter,
   OrionConfigUpgradeable,
-  TransparentVaultFactoryUpgradeable,
+  TransparentVaultFactory,
   OrionTransparentVaultUpgradeable,
 } from "../typechain-types";
 
-let transparentVaultFactory: TransparentVaultFactoryUpgradeable;
+let transparentVaultFactory: TransparentVaultFactory;
 let orionConfig: OrionConfigUpgradeable;
 let underlyingAsset: MockUnderlyingAsset;
 let mockAsset1: MockERC4626Asset;

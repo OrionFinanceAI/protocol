@@ -32,7 +32,7 @@ import { ethers } from "hardhat";
 import { expect } from "chai";
 import {
   OrionConfigUpgradeable,
-  TransparentVaultFactoryUpgradeable,
+  TransparentVaultFactory,
   PriceAdapterRegistryUpgradeable,
   InternalStatesOrchestrator,
   LiquidityOrchestrator,
@@ -47,7 +47,7 @@ describe("Mainnet Fork: ERC4626 Vault Compatibility", function () {
   let other: SignerWithAddress;
 
   let orionConfig: OrionConfigUpgradeable;
-  let transparentVaultFactory: TransparentVaultFactoryUpgradeable;
+  let transparentVaultFactory: TransparentVaultFactory;
   let internalStatesOrchestrator: InternalStatesOrchestrator;
   let liquidityOrchestrator: LiquidityOrchestrator;
   let priceAdapterRegistry: PriceAdapterRegistryUpgradeable;
@@ -195,7 +195,7 @@ describe("Mainnet Fork: ERC4626 Vault Compatibility", function () {
     const TransparentVaultFactoryFactory = await ethers.getContractFactory("TransparentVaultFactory");
     const transparentVaultFactoryDeployed = await TransparentVaultFactoryFactory.deploy(await orionConfig.getAddress());
     await transparentVaultFactoryDeployed.waitForDeployment();
-    transparentVaultFactory = transparentVaultFactoryDeployed as unknown as TransparentVaultFactoryUpgradeable;
+    transparentVaultFactory = transparentVaultFactoryDeployed as unknown as TransparentVaultFactory;
 
     // Deploy Orchestrators
     const InternalStatesOrchestratorFactory = await ethers.getContractFactory("InternalStatesOrchestrator");

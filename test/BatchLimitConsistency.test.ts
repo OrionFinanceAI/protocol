@@ -5,7 +5,7 @@ import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import {
   MockUnderlyingAsset,
   OrionConfigUpgradeable,
-  TransparentVaultFactoryUpgradeable,
+  TransparentVaultFactory,
   OrionTransparentVaultUpgradeable,
   LiquidityOrchestratorUpgradeable,
 } from "../typechain-types";
@@ -78,7 +78,7 @@ describe("Batch Limit Consistency - Critical Accounting Fix", function () {
 
   let underlyingAsset: MockUnderlyingAsset;
   let orionConfig: OrionConfigUpgradeable;
-  let transparentVaultFactory: TransparentVaultFactoryUpgradeable;
+  let transparentVaultFactory: TransparentVaultFactory;
   let vault: OrionTransparentVaultUpgradeable;
   let liquidityOrchestrator: LiquidityOrchestratorUpgradeable;
 
