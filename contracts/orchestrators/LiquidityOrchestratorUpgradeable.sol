@@ -28,6 +28,7 @@ import "@openzeppelin/contracts/utils/math/SafeCast.sol";
  *      - Executing actual buy and sell orders on investment universe;
  *      - Processing withdrawal requests from LPs;
  *      - Handling slippage and market execution differences from adapter price estimates via liquidity buffer.
+ * @custom:security-contact security@orionfinance.ai
  */
 contract LiquidityOrchestratorUpgradeable is
     Initializable,

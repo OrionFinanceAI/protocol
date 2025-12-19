@@ -7,6 +7,7 @@ import "./IOrionConfig.sol";
 /// @title IInternalStateOrchestrator
 /// @notice Interface for the internal state orchestrator
 /// @author Orion Finance
+/// @custom:security-contact security@orionfinance.ai
 interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     /// @notice Upkeep phase
     enum InternalUpkeepPhase {

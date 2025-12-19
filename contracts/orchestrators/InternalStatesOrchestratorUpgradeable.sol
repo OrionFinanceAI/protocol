@@ -28,6 +28,7 @@ import { UtilitiesLib } from "../libraries/UtilitiesLib.sol";
  *      - Updating vault states;
  *      - Computing state estimations for Liquidity Orchestrator;
  *      - Trigger the Liquidity Orchestrator.
+ * @custom:security-contact security@orionfinance.ai
  */
 contract InternalStatesOrchestratorUpgradeable is
     Initializable,

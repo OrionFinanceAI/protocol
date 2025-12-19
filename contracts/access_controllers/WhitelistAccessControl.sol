@@ -8,6 +8,7 @@ import "@openzeppelin/contracts/access/Ownable2Step.sol";
  * @title WhitelistAccessControl
  * @notice Implementation of IOrionAccessControl with whitelist-based access
  * @author Orion Finance
+ * @custom:security-contact security@orionfinance.ai
  */
 contract WhitelistAccessControl is IOrionAccessControl, Ownable2Step {
     /// @notice Mapping of addresses allowed to deposit

@@ -12,6 +12,7 @@ import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
  * @author Orion Finance
  * @dev This adapter assumes that the target vault and the Orion protocol use the same underlying asset.
  *      It is not safe to use this adapter with vaults that are based on a different asset.
+ * @custom:security-contact security@orionfinance.ai
  */
 contract OrionAssetERC4626PriceAdapter is IPriceAdapter {
     /// @notice Orion Config contract address

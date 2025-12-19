@@ -9,6 +9,7 @@ pragma solidity ^0.8.28;
  *      and various asset types (ERC-4626 vaults, ERC-20 tokens, etc.). All buy/sell operations use
  *      the Orion underlying token as the base currency, regardless of the token standard of the target asset.
  *      The underlying token is defined in the OrionConfig contract and serves as the protocol's base asset.
+ * @custom:security-contact security@orionfinance.ai
  */
 interface IExecutionAdapter {
     /// @notice Validates that the given asset is compatible with this adapter

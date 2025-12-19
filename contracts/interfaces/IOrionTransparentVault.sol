@@ -6,6 +6,7 @@ import "./IOrionVault.sol";
 /// @title IOrionTransparentVault
 /// @notice Interface for the Orion transparent vault
 /// @author Orion Finance
+/// @custom:security-contact security@orionfinance.ai
 interface IOrionTransparentVault is IOrionVault {
     /// @dev Struct representing a token and its weight in an intent.
     /// @param token The address of the ERC20 token.

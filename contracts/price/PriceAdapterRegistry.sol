@@ -14,6 +14,7 @@ import "@openzeppelin/contracts/access/Ownable2Step.sol";
  * @notice A registry contract that manages price adapters for different assets in the Orion protocol.
  * @author Orion Finance
  * @dev This contract allows the configuration of price adapters for various assets in the investment universe.
+ * @custom:security-contact security@orionfinance.ai
  */
 contract PriceAdapterRegistry is IPriceAdapterRegistry, Ownable2Step {
     /// @notice Orion Config contract address

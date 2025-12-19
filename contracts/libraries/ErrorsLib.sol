@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 /// @title ErrorsLib
 /// @notice Centralized library for reusable custom errors across the protocol.
 /// @author Orion Finance
+/// @custom:security-contact security@orionfinance.ai
 library ErrorsLib {
     /// @notice Caller is not authorized to perform the requested action.
     error NotAuthorized();

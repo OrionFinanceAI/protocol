@@ -13,6 +13,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
  * @title KBestTvlWeightedAverage
  * @notice This strategy selects the top K ERC4626 assets based on their TVL and allocates them proportionally.
  * @author Orion Finance
+ * @custom:security-contact security@orionfinance.ai
  */
 contract KBestTvlWeightedAverage is IOrionStrategy, Ownable2Step {
     /// @notice The Orion configuration contract

@@ -24,6 +24,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
  *      - Executing actual buy and sell orders on investment universe;
  *      - Processing withdrawal requests from LPs;
  *      - Handling slippage and market execution differences from adapter price estimates via liquidity buffer.
+ * @custom:security-contact security@orionfinance.ai
  */
 contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiquidityOrchestrator {
     using Math for uint256;

@@ -7,6 +7,7 @@ import "./IExecutionAdapter.sol";
 /// @title ILiquidityOrchestrator
 /// @notice Interface for the liquidity orchestrator
 /// @author Orion Finance
+/// @custom:security-contact security@orionfinance.ai
 interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @notice Upkeep phase enum for liquidity orchestration
     enum LiquidityUpkeepPhase {

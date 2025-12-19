@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 /// @title EventsLib
 /// @notice Centralized library of events emitted throughout the Orion protocol.
 /// @author Orion Finance
+/// @custom:security-contact security@orionfinance.ai
 library EventsLib {
     // ============================
     // === Orion Config Events ===

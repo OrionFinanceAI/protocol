@@ -6,6 +6,7 @@ pragma solidity ^0.8.28;
  * @notice Library for utility functions
  * @author Orion Finance
  * @dev This library provides utility functions for common operations.
+ * @custom:security-contact security@orionfinance.ai
  */
 library UtilitiesLib {
     /**

@@ -16,6 +16,7 @@ import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
  * @notice Upgradeable version of PriceAdapterRegistry using UUPS pattern
  * @author Orion Finance
  * @dev This contract allows the configuration of price adapters for various assets in the investment universe.
+ * @custom:security-contact security@orionfinance.ai
  */
 contract PriceAdapterRegistryUpgradeable is
     Initializable,
