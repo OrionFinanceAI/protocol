@@ -455,10 +455,6 @@ contract OrionConfigUpgradeable is Initializable, Ownable2StepUpgradeable, UUPSU
     // solhint-disable-next-line no-empty-blocks, use-natspec
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
-    /**
-     * @dev Storage gap to allow for future upgrades
-     * Total storage slots reserved: 50
-     * This allows adding new state variables in future versions without breaking storage layout
-     */
+    /// @dev Storage gap to allow for future upgrades
     uint256[50] private __gap;
 }

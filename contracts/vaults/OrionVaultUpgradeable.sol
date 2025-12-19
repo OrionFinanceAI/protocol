@@ -739,9 +739,6 @@ abstract contract OrionVaultUpgradeable is Initializable, ERC4626Upgradeable, Re
         }
     }
 
-    /**
-     * @dev Storage gap to allow for future upgrades
-     * Total storage slots reserved: 50
-     */
+    /// @dev Storage gap to allow for future upgrades
     uint256[50] private __gap;
 }

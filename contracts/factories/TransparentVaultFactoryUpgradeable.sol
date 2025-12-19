@@ -114,9 +114,6 @@ contract TransparentVaultFactoryUpgradeable is Initializable, OwnableUpgradeable
     // solhint-disable-next-line no-empty-blocks, use-natspec
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
-    /**
-     * @dev Storage gap to allow for future upgrades
-     * Total storage slots reserved: 49 (50 - 1 for vaultBeacon)
-     */
-    uint256[49] private __gap;
+    /// @dev Storage gap to allow for future upgrades
+    uint256[50] private __gap;
 }

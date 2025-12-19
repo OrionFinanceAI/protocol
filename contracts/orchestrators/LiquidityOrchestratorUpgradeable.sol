@@ -510,9 +510,6 @@ contract LiquidityOrchestratorUpgradeable is
     // solhint-disable-next-line no-empty-blocks, use-natspec
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
-    /**
-     * @dev Storage gap to allow for future upgrades
-     * Total storage slots reserved: 50
-     */
+    /// @dev Storage gap to allow for future upgrades
     uint256[50] private __gap;
 }
