@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import "@openzeppelin/contracts/access/Ownable2Step.sol";
+import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "./interfaces/IOrionConfig.sol";
 import "./interfaces/IOrionVault.sol";
 import "./interfaces/IOrionTransparentVault.sol";
@@ -25,12 +27,16 @@ import "./interfaces/IInternalStateOrchestrator.sol";
  *     ╚═════╝ ╚═╝  ╚═╝╚═╝ ╚═════╝ ╚═╝  ╚═══╝    ╚═╝     ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝
  *
  * @title OrionConfig
- * @notice This contract is responsible for configuring the Orion protocol.
+ * @notice Configuration contract for Orion protocol using UUPS upgradeable pattern
  * @author Orion Finance
+ * @custom:security-contact security@orionfinance.ai
  */
-contract OrionConfig is Ownable2Step, IOrionConfig {
-    /// @notice Admin address (immutable, set at construction)
-    address private immutable ADMIN;
+contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable, IOrionConfig {
+    using EnumerableSet for EnumerableSet.AddressSet;
+
+    /// @notice Admin address
+    // solhint-disable-next-line var-name-mixedcase
+    address private ADMIN;
 
     /// @notice Guardian address for emergency pausing
     address public guardian;
@@ -64,7 +70,6 @@ contract OrionConfig is Ownable2Step, IOrionConfig {
     uint256 public maxFulfillBatchSize;
 
     // Vault-specific configuration
-    using EnumerableSet for EnumerableSet.AddressSet;
     EnumerableSet.AddressSet private whitelistedAssets;
     EnumerableSet.AddressSet private whitelistedVaultOwners;
 
@@ -92,16 +97,28 @@ contract OrionConfig is Ownable2Step, IOrionConfig {
         _;
     }
 
-    /// @notice The constructor sets the underlying asset for the protocol
+    /// @notice Constructor that disables initializers for the implementation contract
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    /// @notice Initializer function (replaces constructor)
     /// @param initialOwner The address that will own this contract
     /// @param admin_ The address that will have admin privileges
     /// @param underlyingAsset_ The address of the underlying asset contract
     /// @dev The underlying asset is automatically added to the investment universe whitelist because:
     /// @dev - Curators may decide to be underleveraged in their active positions;
     /// @dev - removeWhitelistedAsset could trigger forced liquidations.
-    constructor(address initialOwner, address admin_, address underlyingAsset_) Ownable(initialOwner) {
+    function initialize(address initialOwner, address admin_, address underlyingAsset_) public initializer {
+        if (initialOwner == address(0)) revert ErrorsLib.ZeroAddress();
         if (admin_ == address(0)) revert ErrorsLib.ZeroAddress();
         if (underlyingAsset_ == address(0)) revert ErrorsLib.ZeroAddress();
+
+        __Ownable_init(initialOwner);
+        __Ownable2Step_init();
+        __UUPSUpgradeable_init();
+
         ADMIN = admin_;
         underlyingAsset = IERC20(underlyingAsset_);
 
@@ -432,4 +449,13 @@ contract OrionConfig is Ownable2Step, IOrionConfig {
     function admin() external view returns (address) {
         return ADMIN;
     }
+
+    /// @notice Authorizes an upgrade to a new implementation
+    /// @dev This function is required by UUPS and can only be called by the owner
+    /// @param newImplementation The address of the new implementation contract
+    // solhint-disable-next-line no-empty-blocks, use-natspec
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+
+    /// @dev Storage gap to allow for future upgrades
+    uint256[50] private __gap;
 }

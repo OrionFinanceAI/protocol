@@ -19,7 +19,6 @@ import { EventsLib } from "../libraries/EventsLib.sol";
  * @custom:security-contact security@orionfinance.ai
  */
 contract TransparentVaultFactory is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable {
-
     /// @notice Orion Config contract address
     IOrionConfig public config;
 

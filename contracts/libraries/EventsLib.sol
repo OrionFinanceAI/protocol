@@ -138,7 +138,6 @@ library EventsLib {
         VaultType vaultType
     );
 
-
     /// @notice The vault beacon has been updated.
     /// @param newBeacon The address of the new vault beacon.
     event VaultBeaconUpdated(address indexed newBeacon);
