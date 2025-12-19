@@ -2,12 +2,12 @@ import { ethers, upgrades } from "hardhat";
 import "@openzeppelin/hardhat-upgrades";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import {
-  OrionConfigUpgradeable,
-  PriceAdapterRegistryUpgradeable,
-  InternalStatesOrchestratorUpgradeable,
-  LiquidityOrchestratorUpgradeable,
+  OrionConfig,
+  PriceAdapterRegistry,
+  InternalStatesOrchestrator,
+  LiquidityOrchestrator,
   TransparentVaultFactory,
-  OrionTransparentVaultUpgradeable,
+  OrionTransparentVault,
   MockUnderlyingAsset,
   UpgradeableBeacon,
 } from "../../typechain-types";
@@ -16,10 +16,10 @@ import {
  * Deployment result containing all upgradeable protocol contracts
  */
 export interface UpgradeableProtocolContracts {
-  orionConfig: OrionConfigUpgradeable;
-  priceAdapterRegistry: PriceAdapterRegistryUpgradeable;
-  internalStatesOrchestrator: InternalStatesOrchestratorUpgradeable;
-  liquidityOrchestrator: LiquidityOrchestratorUpgradeable;
+  orionConfig: OrionConfig;
+  priceAdapterRegistry: PriceAdapterRegistry;
+  internalStatesOrchestrator: InternalStatesOrchestrator;
+  liquidityOrchestrator: LiquidityOrchestrator;
   transparentVaultFactory: TransparentVaultFactory;
   vaultBeacon: UpgradeableBeacon;
   underlyingAsset: MockUnderlyingAsset;
@@ -29,10 +29,10 @@ export interface UpgradeableProtocolContracts {
  * Deploy complete upgradeable protocol infrastructure
  *
  * This deploys:
- * - OrionConfigUpgradeable (UUPS)
- * - PriceAdapterRegistryUpgradeable (UUPS)
- * - InternalStatesOrchestratorUpgradeable (UUPS)
- * - LiquidityOrchestratorUpgradeable (UUPS)
+ * - OrionConfig (UUPS)
+ * - PriceAdapterRegistry (UUPS)
+ * - InternalStatesOrchestrator (UUPS)
+ * - LiquidityOrchestrator (UUPS)
  * - TransparentVaultFactory (UUPS)
  * - UpgradeableBeacon for vaults
  *
@@ -55,58 +55,61 @@ export async function deployUpgradeableProtocol(
   let underlying = underlyingAsset;
   if (!underlying) {
     const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
-    underlying = await MockUnderlyingAssetFactory.deploy(6); // USDC-like with 6 decimals
+    underlying = (await MockUnderlyingAssetFactory.deploy(6)) as unknown as MockUnderlyingAsset; // USDC-like with 6 decimals
     await underlying.waitForDeployment();
   }
 
-  // 1. Deploy OrionConfigUpgradeable (UUPS)
-  const OrionConfigFactory = await ethers.getContractFactory("OrionConfigUpgradeable");
+  // 1. Deploy OrionConfig (UUPS)
+  const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
   const orionConfig = (await upgrades.deployProxy(
     OrionConfigFactory,
     [owner.address, admin.address, await underlying.getAddress()],
     { initializer: "initialize", kind: "uups" },
-  )) as unknown as OrionConfigUpgradeable;
+  )) as unknown as OrionConfig;
   await orionConfig.waitForDeployment();
 
-  // 2. Deploy PriceAdapterRegistryUpgradeable (UUPS)
-  const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistryUpgradeable");
+  // 2. Deploy PriceAdapterRegistry (UUPS)
+  const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistry");
   const priceAdapterRegistry = (await upgrades.deployProxy(
     PriceAdapterRegistryFactory,
     [owner.address, await orionConfig.getAddress()],
     { initializer: "initialize", kind: "uups" },
-  )) as unknown as PriceAdapterRegistryUpgradeable;
+  )) as unknown as PriceAdapterRegistry;
   await priceAdapterRegistry.waitForDeployment();
 
-  // 3. Deploy LiquidityOrchestratorUpgradeable (UUPS) - MUST be before InternalStatesOrchestrator
-  const LiquidityOrchestratorFactory = await ethers.getContractFactory("LiquidityOrchestratorUpgradeable");
+  // 3. Deploy LiquidityOrchestrator (UUPS) - MUST be before InternalStatesOrchestrator
+  const LiquidityOrchestratorFactory = await ethers.getContractFactory("LiquidityOrchestrator");
   const liquidityOrchestrator = (await upgrades.deployProxy(
     LiquidityOrchestratorFactory,
     [owner.address, await orionConfig.getAddress(), automationReg.address],
     { initializer: "initialize", kind: "uups" },
-  )) as unknown as LiquidityOrchestratorUpgradeable;
+  )) as unknown as LiquidityOrchestrator;
   await liquidityOrchestrator.waitForDeployment();
 
   // 4. Set LiquidityOrchestrator in config BEFORE deploying InternalStatesOrchestrator
   await orionConfig.setLiquidityOrchestrator(await liquidityOrchestrator.getAddress());
 
-  // 5. Deploy InternalStatesOrchestratorUpgradeable (UUPS) - reads liquidityOrchestrator from config
-  const InternalStatesOrchestratorFactory = await ethers.getContractFactory("InternalStatesOrchestratorUpgradeable");
+  // 5. Deploy InternalStatesOrchestrator (UUPS) - reads liquidityOrchestrator from config
+  const InternalStatesOrchestratorFactory = await ethers.getContractFactory("InternalStatesOrchestrator");
   const internalStatesOrchestrator = (await upgrades.deployProxy(
     InternalStatesOrchestratorFactory,
     [owner.address, await orionConfig.getAddress(), automationReg.address],
     { initializer: "initialize", kind: "uups" },
-  )) as unknown as InternalStatesOrchestratorUpgradeable;
+  )) as unknown as InternalStatesOrchestrator;
   await internalStatesOrchestrator.waitForDeployment();
 
   // 6. Deploy UpgradeableBeacon for vaults
-  const VaultImplFactory = await ethers.getContractFactory("OrionTransparentVaultUpgradeable");
+  const VaultImplFactory = await ethers.getContractFactory("OrionTransparentVault");
   const vaultImpl = await VaultImplFactory.deploy();
   await vaultImpl.waitForDeployment();
 
   const BeaconFactory = await ethers.getContractFactory(
     "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol:UpgradeableBeacon",
   );
-  const vaultBeacon = await BeaconFactory.deploy(await vaultImpl.getAddress(), owner.address);
+  const vaultBeacon = (await BeaconFactory.deploy(
+    await vaultImpl.getAddress(),
+    owner.address,
+  )) as unknown as UpgradeableBeacon;
   await vaultBeacon.waitForDeployment();
 
   // 7. Deploy TransparentVaultFactory (UUPS)
@@ -144,7 +147,7 @@ export async function deployUpgradeableProtocol(
  * @param vaultAddress Address of the vault BeaconProxy
  * @returns Vault contract instance
  */
-export async function attachToVault(vaultAddress: string): Promise<OrionTransparentVaultUpgradeable> {
-  const VaultFactory = await ethers.getContractFactory("OrionTransparentVaultUpgradeable");
-  return VaultFactory.attach(vaultAddress) as unknown as OrionTransparentVaultUpgradeable;
+export async function attachToVault(vaultAddress: string): Promise<OrionTransparentVault> {
+  const VaultFactory = await ethers.getContractFactory("OrionTransparentVault");
+  return VaultFactory.attach(vaultAddress) as unknown as OrionTransparentVault;
 }
