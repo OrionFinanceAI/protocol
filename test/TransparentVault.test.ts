@@ -113,7 +113,7 @@ describe("TransparentVault - Curator Pipeline", function () {
 
       // Get the vault contract
       transparentVault = (await ethers.getContractAt(
-        "OrionTransparentVaultUpgradeable",
+        "OrionTransparentVault",
         vaultAddress,
       )) as unknown as OrionTransparentVaultUpgradeable;
 
@@ -149,7 +149,7 @@ describe("TransparentVault - Curator Pipeline", function () {
       const parsedEvent = transparentVaultFactory.interface.parseLog(event!);
       const vaultAddress = parsedEvent?.args[0];
       const testVault = (await ethers.getContractAt(
-        "OrionTransparentVaultUpgradeable",
+        "OrionTransparentVault",
         vaultAddress,
       )) as unknown as OrionTransparentVaultUpgradeable;
 
@@ -190,7 +190,7 @@ describe("TransparentVault - Curator Pipeline", function () {
       const parsedEvent = transparentVaultFactory.interface.parseLog(event!);
       const vaultAddress = parsedEvent?.args[0];
       const testVault = (await ethers.getContractAt(
-        "OrionTransparentVaultUpgradeable",
+        "OrionTransparentVault",
         vaultAddress,
       )) as unknown as OrionTransparentVaultUpgradeable;
 
@@ -224,7 +224,7 @@ describe("TransparentVault - Curator Pipeline", function () {
       const parsedEvent = transparentVaultFactory.interface.parseLog(event!);
       const vaultAddress = parsedEvent?.args[0];
       transparentVault = (await ethers.getContractAt(
-        "OrionTransparentVaultUpgradeable",
+        "OrionTransparentVault",
         vaultAddress,
       )) as unknown as OrionTransparentVaultUpgradeable;
     });
@@ -405,7 +405,7 @@ describe("TransparentVault - Curator Pipeline", function () {
       const parsedEvent = transparentVaultFactory.interface.parseLog(event!);
       const vaultAddress = parsedEvent?.args[0];
       transparentVault = (await ethers.getContractAt(
-        "OrionTransparentVaultUpgradeable",
+        "OrionTransparentVault",
         vaultAddress,
       )) as unknown as OrionTransparentVaultUpgradeable;
 

@@ -152,7 +152,7 @@ describe("Protocol Pause Functionality", function () {
       .createVault(curator.address, "Orion Test Vault", "OTV", 0, 500, 100, ethers.ZeroAddress);
 
     transparentVault = (await ethers.getContractAt(
-      "OrionTransparentVaultUpgradeable",
+      "OrionTransparentVault",
       vaultAddress,
     )) as unknown as OrionTransparentVaultUpgradeable;
 

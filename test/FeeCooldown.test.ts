@@ -79,7 +79,7 @@ describe("Fee Cooldown Mechanism", function () {
     const parsedLog = vaultCreatedEvent ? vaultFactory.interface.parseLog(vaultCreatedEvent) : null;
     const vaultAddress = parsedLog?.args[0];
     return (await ethers.getContractAt(
-      "OrionTransparentVaultUpgradeable",
+      "OrionTransparentVault",
       vaultAddress,
     )) as unknown as OrionTransparentVaultUpgradeable;
   }

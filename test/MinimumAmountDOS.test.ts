@@ -49,7 +49,7 @@ describe("Minimum Amount DOS Prevention", function () {
     });
     const parsedLog = vaultCreatedEvent ? vaultFactory.interface.parseLog(vaultCreatedEvent) : null;
     const vaultAddress = parsedLog?.args[0];
-    const VaultFactory = await ethers.getContractFactory("OrionTransparentVaultUpgradeable");
+    const VaultFactory = await ethers.getContractFactory("OrionTransparentVault");
     const vault = VaultFactory.attach(vaultAddress);
 
     // Mint USDC to users

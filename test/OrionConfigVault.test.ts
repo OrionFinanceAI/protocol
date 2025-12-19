@@ -110,7 +110,7 @@ beforeEach(async function () {
   const parsedEvent = transparentVaultFactory.interface.parseLog(event!);
   const vaultAddress = parsedEvent?.args[0];
   vault = (await ethers.getContractAt(
-    "OrionTransparentVaultUpgradeable",
+    "OrionTransparentVault",
     vaultAddress,
   )) as unknown as OrionTransparentVaultUpgradeable;
 

@@ -58,7 +58,7 @@ describe("Orchestrators - zero deposits and zero intents", function () {
     const parsedEvent = transparentVaultFactory.interface.parseLog(ev!);
     const tvAddress = parsedEvent?.args[0];
     transparentVault = (await ethers.getContractAt(
-      "OrionTransparentVaultUpgradeable",
+      "OrionTransparentVault",
       tvAddress,
     )) as unknown as OrionTransparentVaultUpgradeable;
 

@@ -128,7 +128,7 @@ describe("Whitelist and Vault Removal Flows", function () {
     const testVaultParsedEvent = transparentVaultFactory.interface.parseLog(testVaultEvent!);
     const testVaultAddress = testVaultParsedEvent?.args[0];
     testVault = (await ethers.getContractAt(
-      "OrionTransparentVaultUpgradeable",
+      "OrionTransparentVault",
       testVaultAddress,
     )) as unknown as OrionTransparentVaultUpgradeable;
 

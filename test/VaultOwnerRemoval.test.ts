@@ -84,7 +84,7 @@ describe("Vault Owner Removal - Automatic Decommissioning", function () {
     });
     const parsedLog = vaultCreatedEvent ? vaultFactory.interface.parseLog(vaultCreatedEvent) : null;
     const vaultAddress = parsedLog?.args[0];
-    const vaultContract = await ethers.getContractAt("OrionTransparentVaultUpgradeable", vaultAddress);
+    const vaultContract = await ethers.getContractAt("OrionTransparentVault", vaultAddress);
     return vaultContract as unknown as OrionTransparentVaultUpgradeable;
   }
 

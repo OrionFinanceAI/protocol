@@ -59,7 +59,7 @@ describe("Batch Limit Accounting Fix", function () {
     });
     const parsedLog = vaultCreatedEvent ? vaultFactory.interface.parseLog(vaultCreatedEvent) : null;
     const vaultAddress = parsedLog?.args[0];
-    const vaultContract = await ethers.getContractAt("OrionTransparentVaultUpgradeable", vaultAddress);
+    const vaultContract = await ethers.getContractAt("OrionTransparentVault", vaultAddress);
     const vault = vaultContract as unknown as OrionTransparentVaultUpgradeable;
 
     // Fund users with USDC and approve vault

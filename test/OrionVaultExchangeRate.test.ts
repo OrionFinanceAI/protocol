@@ -56,7 +56,7 @@ describe("OrionVault Exchange Rate Tests", function () {
     const parsedEvent = factory.interface.parseLog(event!);
     const vaultAddress = parsedEvent?.args[0];
 
-    const vault = await ethers.getContractAt("OrionTransparentVaultUpgradeable", vaultAddress);
+    const vault = await ethers.getContractAt("OrionTransparentVault", vaultAddress);
 
     // Mint underlying assets to all participants
     await underlyingAsset.mint(lp1.address, ethers.parseUnits("1000000000000", 6));

@@ -128,7 +128,7 @@ describe("Batch Limit Consistency - Critical Accounting Fix", function () {
     const vaultAddress = parsedEvent?.args[0];
 
     vault = (await ethers.getContractAt(
-      "OrionTransparentVaultUpgradeable",
+      "OrionTransparentVault",
       vaultAddress,
     )) as unknown as OrionTransparentVaultUpgradeable;
 

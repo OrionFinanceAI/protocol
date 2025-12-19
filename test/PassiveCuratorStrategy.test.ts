@@ -188,7 +188,7 @@ describe("Passive Curator Strategy", function () {
     void expect(vaultAddress).to.not.equal(ethers.ZeroAddress);
 
     transparentVault = (await ethers.getContractAt(
-      "OrionTransparentVaultUpgradeable",
+      "OrionTransparentVault",
       vaultAddress,
     )) as unknown as OrionTransparentVaultUpgradeable;
 
@@ -479,7 +479,7 @@ describe("Passive Curator Strategy", function () {
       void expect(vaultAddress).to.not.equal(ethers.ZeroAddress);
 
       const invalidVault = (await ethers.getContractAt(
-        "OrionTransparentVaultUpgradeable",
+        "OrionTransparentVault",
         vaultAddress,
       )) as unknown as OrionTransparentVaultUpgradeable;
 

@@ -298,7 +298,7 @@ describe("Mainnet Fork: removeWhitelistedAsset DoS Test", function () {
 
         // Get vault contract instance
         const vault = (await ethers.getContractAt(
-          "OrionTransparentVaultUpgradeable",
+          "OrionTransparentVault",
           vaultAddress,
         )) as unknown as OrionTransparentVaultUpgradeable;
 

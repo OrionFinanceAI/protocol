@@ -276,7 +276,7 @@ describe("Orchestrator Configuration", function () {
     const absoluteVaultParsedEvent = transparentVaultFactory.interface.parseLog(absoluteVaultEvent!);
     const absoluteVaultAddress = absoluteVaultParsedEvent?.args[0];
     absoluteVault = (await ethers.getContractAt(
-      "OrionTransparentVaultUpgradeable",
+      "OrionTransparentVault",
       absoluteVaultAddress,
     )) as unknown as OrionTransparentVaultUpgradeable;
 
@@ -295,7 +295,7 @@ describe("Orchestrator Configuration", function () {
     const softHurdleVaultParsedEvent = transparentVaultFactory.interface.parseLog(softHurdleVaultEvent!);
     const softHurdleVaultAddress = softHurdleVaultParsedEvent?.args[0];
     softHurdleVault = (await ethers.getContractAt(
-      "OrionTransparentVaultUpgradeable",
+      "OrionTransparentVault",
       softHurdleVaultAddress,
     )) as unknown as OrionTransparentVaultUpgradeable;
 
@@ -314,7 +314,7 @@ describe("Orchestrator Configuration", function () {
     const hardHurdleVaultParsedEvent = transparentVaultFactory.interface.parseLog(hardHurdleVaultEvent!);
     const hardHurdleVaultAddress = hardHurdleVaultParsedEvent?.args[0];
     hardHurdleVault = (await ethers.getContractAt(
-      "OrionTransparentVaultUpgradeable",
+      "OrionTransparentVault",
       hardHurdleVaultAddress,
     )) as unknown as OrionTransparentVaultUpgradeable;
 
@@ -333,7 +333,7 @@ describe("Orchestrator Configuration", function () {
     const highWaterMarkVaultParsedEvent = transparentVaultFactory.interface.parseLog(highWaterMarkVaultEvent!);
     const highWaterMarkVaultAddress = highWaterMarkVaultParsedEvent?.args[0];
     highWaterMarkVault = (await ethers.getContractAt(
-      "OrionTransparentVaultUpgradeable",
+      "OrionTransparentVault",
       highWaterMarkVaultAddress,
     )) as unknown as OrionTransparentVaultUpgradeable;
 
@@ -352,7 +352,7 @@ describe("Orchestrator Configuration", function () {
     const hurdleHwmVaultParsedEvent = transparentVaultFactory.interface.parseLog(hurdleHwmVaultEvent!);
     const hurdleHwmVaultAddress = hurdleHwmVaultParsedEvent?.args[0];
     hurdleHwmVault = (await ethers.getContractAt(
-      "OrionTransparentVaultUpgradeable",
+      "OrionTransparentVault",
       hurdleHwmVaultAddress,
     )) as unknown as OrionTransparentVaultUpgradeable;
 
@@ -372,7 +372,7 @@ describe("Orchestrator Configuration", function () {
     const passiveVaultParsedEvent = transparentVaultFactory.interface.parseLog(passiveVaultEvent!);
     const passiveVaultAddress = passiveVaultParsedEvent?.args[0];
     passiveVault = (await ethers.getContractAt(
-      "OrionTransparentVaultUpgradeable",
+      "OrionTransparentVault",
       passiveVaultAddress,
     )) as unknown as OrionTransparentVaultUpgradeable;
 

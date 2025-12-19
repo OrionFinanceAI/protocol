@@ -76,7 +76,7 @@ describe("Access Control", function () {
       const vaultAddress = parsedEvent?.args[0];
 
       vault = (await ethers.getContractAt(
-        "OrionTransparentVaultUpgradeable",
+        "OrionTransparentVault",
         vaultAddress,
       )) as unknown as OrionTransparentVaultUpgradeable;
     });
@@ -130,7 +130,7 @@ describe("Access Control", function () {
       const vaultAddress = parsedEvent?.args[0];
 
       vault = (await ethers.getContractAt(
-        "OrionTransparentVaultUpgradeable",
+        "OrionTransparentVault",
         vaultAddress,
       )) as unknown as OrionTransparentVaultUpgradeable;
     });
@@ -226,7 +226,7 @@ describe("Access Control", function () {
       const vaultAddress = parsedEvent?.args[0];
 
       vault = (await ethers.getContractAt(
-        "OrionTransparentVaultUpgradeable",
+        "OrionTransparentVault",
         vaultAddress,
       )) as unknown as OrionTransparentVaultUpgradeable;
     });
