@@ -1,6 +1,5 @@
 /**
  * OrchestratorSecurity.test.ts
-import "@openzeppelin/hardhat-upgrades";
  *
  * This file contains security-focused tests for orchestrator protection against malicious payloads
  * and invalid state transitions. It was extracted from the original Orchestrators.test.ts file.

@@ -1,6 +1,5 @@
 /**
  * @title ERC4626 Vault Compatibility Test Suite
-import "@openzeppelin/hardhat-upgrades";
  * @notice Comprehensive testing of ERC4626 vault compatibility with Orion protocol
  * @dev Tests multiple protocols: Morpho, Yearn v3, Beefy Finance
  *

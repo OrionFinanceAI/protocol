@@ -36,10 +36,11 @@ contract TransparentVaultFactoryUpgradeable is Initializable, OwnableUpgradeable
     /// @param configAddress The address of the OrionConfig contract
     /// @param vaultBeaconAddress The address of the UpgradeableBeacon for vaults
     function initialize(address initialOwner, address configAddress, address vaultBeaconAddress) public initializer {
+        if (initialOwner == address(0)) revert ErrorsLib.ZeroAddress();
+        if (configAddress == address(0) || vaultBeaconAddress == address(0)) revert ErrorsLib.ZeroAddress();
+
         __Ownable_init(initialOwner);
         __UUPSUpgradeable_init();
-
-        if (configAddress == address(0) || vaultBeaconAddress == address(0)) revert ErrorsLib.ZeroAddress();
 
         config = IOrionConfig(configAddress);
         vaultBeacon = UpgradeableBeacon(vaultBeaconAddress);

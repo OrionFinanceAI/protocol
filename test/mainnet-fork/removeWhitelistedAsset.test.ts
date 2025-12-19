@@ -1,6 +1,5 @@
 /**
  * @title Mainnet Fork DoS Vulnerability Test
-import "@openzeppelin/hardhat-upgrades";
  * @notice Tests the removeWhitelistedAsset DoS vulnerability using real Morpho vaults from Ethereum mainnet
  *
  * @dev SETUP INSTRUCTIONS FOR OTHER DEVELOPERS:

@@ -47,6 +47,7 @@ contract PriceAdapterRegistryUpgradeable is
     /// @param initialOwner_ The address of the initial owner
     /// @param configAddress_ The address of the OrionConfig contract
     function initialize(address initialOwner_, address configAddress_) public initializer {
+        if (initialOwner_ == address(0)) revert ErrorsLib.ZeroAddress();
         if (configAddress_ == address(0)) revert ErrorsLib.ZeroAddress();
 
         __Ownable_init(initialOwner_);

@@ -1,6 +1,5 @@
 /**
  * OrchestratorConfiguration.test.ts
-import "@openzeppelin/hardhat-upgrades";
  *
  * This file contains configuration management and access control tests for orchestrators.
  * It was extracted from the original Orchestrators.test.ts file.

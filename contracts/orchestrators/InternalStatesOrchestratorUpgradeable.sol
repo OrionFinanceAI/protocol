@@ -179,16 +179,16 @@ contract InternalStatesOrchestratorUpgradeable is
     /// @param config_ The address of the OrionConfig contract
     /// @param automationRegistry_ The address of the Chainlink Automation Registry
     function initialize(address initialOwner, address config_, address automationRegistry_) public initializer {
-        // Add parent initializers
+        if (initialOwner == address(0)) revert ErrorsLib.ZeroAddress();
+        if (config_ == address(0)) revert ErrorsLib.ZeroAddress();
+        if (automationRegistry_ == address(0)) revert ErrorsLib.ZeroAddress();
+
         __Ownable_init(initialOwner);
         __Ownable2Step_init();
         __ReentrancyGuard_init();
         __Pausable_init();
         __UUPSUpgradeable_init();
 
-        // Keep existing constructor body exactly as-is
-        if (config_ == address(0)) revert ErrorsLib.ZeroAddress();
-        if (automationRegistry_ == address(0)) revert ErrorsLib.ZeroAddress();
         config = IOrionConfig(config_);
         registry = IPriceAdapterRegistry(config.priceAdapterRegistry());
         intentFactor = 10 ** config.curatorIntentDecimals();

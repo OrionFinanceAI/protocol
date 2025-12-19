@@ -138,6 +138,7 @@ contract LiquidityOrchestratorUpgradeable is
     /// @param config_ The address of the OrionConfig contract
     /// @param automationRegistry_ The address of the Chainlink Automation Registry
     function initialize(address initialOwner, address config_, address automationRegistry_) public initializer {
+        if (initialOwner == address(0)) revert ErrorsLib.ZeroAddress();
         if (config_ == address(0)) revert ErrorsLib.ZeroAddress();
         if (automationRegistry_ == address(0)) revert ErrorsLib.ZeroAddress();
 

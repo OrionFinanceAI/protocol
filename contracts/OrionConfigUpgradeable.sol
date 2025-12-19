@@ -111,6 +111,7 @@ contract OrionConfigUpgradeable is Initializable, Ownable2StepUpgradeable, UUPSU
     /// @dev - Curators may decide to be underleveraged in their active positions;
     /// @dev - removeWhitelistedAsset could trigger forced liquidations.
     function initialize(address initialOwner, address admin_, address underlyingAsset_) public initializer {
+        if (initialOwner == address(0)) revert ErrorsLib.ZeroAddress();
         if (admin_ == address(0)) revert ErrorsLib.ZeroAddress();
         if (underlyingAsset_ == address(0)) revert ErrorsLib.ZeroAddress();
 

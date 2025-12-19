@@ -1,6 +1,5 @@
 /**
  * @title Multi-Asset Robustness Test Suite
-import "@openzeppelin/hardhat-upgrades";
  * @notice Comprehensive testing of protocol functionality across different underlying assets
  * @dev Tests all core functions on both Sepolia and Mainnet with 6 different assets
  *

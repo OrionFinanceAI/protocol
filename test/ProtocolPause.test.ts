@@ -1,6 +1,5 @@
 /**
  * ProtocolPause.test.ts
-import "@openzeppelin/hardhat-upgrades";
  *
  * This file contains comprehensive tests for the protocol-wide pause functionality
  * implemented via OpenZeppelin's Pausable contract.
