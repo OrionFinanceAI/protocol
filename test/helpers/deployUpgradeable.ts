@@ -9,6 +9,7 @@ import {
   TransparentVaultFactoryUpgradeable,
   OrionTransparentVaultUpgradeable,
   MockUnderlyingAsset,
+  UpgradeableBeacon,
 } from "../../typechain-types";
 
 /**
@@ -20,7 +21,7 @@ export interface UpgradeableProtocolContracts {
   internalStatesOrchestrator: InternalStatesOrchestratorUpgradeable;
   liquidityOrchestrator: LiquidityOrchestratorUpgradeable;
   transparentVaultFactory: TransparentVaultFactoryUpgradeable;
-  vaultBeacon: unknown; // UpgradeableBeacon instance
+  vaultBeacon: UpgradeableBeacon;
   underlyingAsset: MockUnderlyingAsset;
 }
 
@@ -97,7 +98,7 @@ export async function deployUpgradeableProtocol(
   )) as unknown as InternalStatesOrchestratorUpgradeable;
   await internalStatesOrchestrator.waitForDeployment();
 
-  // 5. Deploy UpgradeableBeacon for vaults
+  // 6. Deploy UpgradeableBeacon for vaults
   const VaultImplFactory = await ethers.getContractFactory("OrionTransparentVaultUpgradeable");
   const vaultImpl = await VaultImplFactory.deploy();
   await vaultImpl.waitForDeployment();
@@ -108,7 +109,7 @@ export async function deployUpgradeableProtocol(
   const vaultBeacon = await BeaconFactory.deploy(await vaultImpl.getAddress(), owner.address);
   await vaultBeacon.waitForDeployment();
 
-  // 6. Deploy TransparentVaultFactoryUpgradeable (UUPS)
+  // 7. Deploy TransparentVaultFactoryUpgradeable (UUPS)
   const TransparentVaultFactoryFactory = await ethers.getContractFactory("TransparentVaultFactoryUpgradeable");
   const transparentVaultFactory = (await upgrades.deployProxy(
     TransparentVaultFactoryFactory,
@@ -117,13 +118,13 @@ export async function deployUpgradeableProtocol(
   )) as unknown as TransparentVaultFactoryUpgradeable;
   await transparentVaultFactory.waitForDeployment();
 
-  // 7. Configure OrionConfig with remaining deployed contracts
+  // 8. Configure OrionConfig with remaining deployed contracts
   await orionConfig.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
   await orionConfig.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
   // Note: LiquidityOrchestrator was already set before InternalStatesOrchestrator deployment
   await orionConfig.setVaultFactory(await transparentVaultFactory.getAddress());
 
-  // 8. Link orchestrators (LiquidityOrchestrator needs InternalStatesOrchestrator reference)
+  // 9. Link orchestrators (LiquidityOrchestrator needs InternalStatesOrchestrator reference)
   await liquidityOrchestrator.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
 
   return {

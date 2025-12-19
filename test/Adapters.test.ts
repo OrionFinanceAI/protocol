@@ -41,11 +41,12 @@ describe("Price Adapter", function () {
     _internalStatesOrchestrator = deployed.internalStatesOrchestrator;
     liquidityOrchestrator = deployed.liquidityOrchestrator;
 
-    // Deploy additional mock asset for testing (different from underlying)
+    // Deploy a regular ERC20 (not ERC4626) for adapter validation tests
     const MockERC20AssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
     const mockAsset1Deployed = await MockERC20AssetFactory.deploy(10);
     await mockAsset1Deployed.waitForDeployment();
-    mockAsset1 = mockAsset1Deployed as unknown as MockERC4626Asset;
+    // Note: This is intentionally a plain ERC20 to test adapter rejection
+    mockAsset1 = mockAsset1Deployed as unknown as MockERC4626Asset; // Used to test InvalidAdapter errors
 
     // Deploy price adapter for tests
     const OrionAssetERC4626PriceAdapterFactory = await ethers.getContractFactory("OrionAssetERC4626PriceAdapter");

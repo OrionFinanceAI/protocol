@@ -224,8 +224,8 @@ abstract contract OrionVaultUpgradeable is Initializable, ERC4626Upgradeable, Re
     function _initializeVaultWhitelist() internal {
         address[] memory protocolAssets = config.getAllWhitelistedAssets();
         for (uint256 i = 0; i < protocolAssets.length; ++i) {
-            bool inserted = _vaultWhitelistedAssets.add(protocolAssets[i]);
-            if (!inserted) revert ErrorsLib.AlreadyRegistered();
+            // slither-disable-next-line unused-return
+            _vaultWhitelistedAssets.add(protocolAssets[i]);
         }
     }
 

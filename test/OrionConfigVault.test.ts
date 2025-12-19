@@ -418,6 +418,9 @@ describe("OrionVault - Base Functionality", function () {
       const loSigner = await ethers.getSigner(loAddress);
 
       await vault.connect(loSigner).fulfillDeposit(depositAmount);
+
+      // Stop impersonation
+      await ethers.provider.send("hardhat_stopImpersonatingAccount", [loAddress]);
     });
 
     it("Should revert when cancelling redeem request with zero amount", async function () {

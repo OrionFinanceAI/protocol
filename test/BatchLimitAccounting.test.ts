@@ -28,8 +28,7 @@ describe("Batch Limit Accounting Fix", function () {
     const allSigners = await ethers.getSigners();
     const owner = allSigners[0];
     const curator = allSigners[1];
-    const automationRegistry = allSigners[2];
-    const users = allSigners.slice(3); // Remaining signers for testing
+    const users = allSigners.slice(2); // Remaining signers for testing
 
     // Deploy upgradeable protocol using helper
     const deployed = await deployUpgradeableProtocol(owner, owner);
@@ -72,7 +71,6 @@ describe("Batch Limit Accounting Fix", function () {
     return {
       owner,
       curator,
-      automationRegistry,
       users,
       usdc,
       config,

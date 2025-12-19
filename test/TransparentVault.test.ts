@@ -10,11 +10,8 @@ import {
   MockPriceAdapter,
   MockExecutionAdapter,
   OrionConfigUpgradeable,
-  InternalStatesOrchestratorUpgradeable,
-  LiquidityOrchestratorUpgradeable,
   TransparentVaultFactoryUpgradeable,
   OrionTransparentVaultUpgradeable,
-  PriceAdapterRegistryUpgradeable,
 } from "../typechain-types";
 
 let transparentVaultFactory: TransparentVaultFactoryUpgradeable;
@@ -26,9 +23,6 @@ let mockPriceAdapter1: MockPriceAdapter;
 let mockPriceAdapter2: MockPriceAdapter;
 let mockExecutionAdapter1: MockExecutionAdapter;
 let mockExecutionAdapter2: MockExecutionAdapter;
-let _priceAdapterRegistry: PriceAdapterRegistryUpgradeable;
-let _internalStatesOrchestrator: InternalStatesOrchestratorUpgradeable;
-let _liquidityOrchestrator: LiquidityOrchestratorUpgradeable;
 let transparentVault: OrionTransparentVaultUpgradeable;
 
 let owner: SignerWithAddress, curator: SignerWithAddress, other: SignerWithAddress;
@@ -62,9 +56,6 @@ beforeEach(async function () {
   const deployed = await deployUpgradeableProtocol(owner, other, underlyingAsset);
 
   orionConfig = deployed.orionConfig;
-  _priceAdapterRegistry = deployed.priceAdapterRegistry;
-  _internalStatesOrchestrator = deployed.internalStatesOrchestrator;
-  _liquidityOrchestrator = deployed.liquidityOrchestrator;
   transparentVaultFactory = deployed.transparentVaultFactory;
 
   const MockPriceAdapterFactory = await ethers.getContractFactory("MockPriceAdapter");
