@@ -120,6 +120,10 @@ describe("Batch Limit Consistency - Critical Accounting Fix", function () {
       }
     });
 
+    if (!event) {
+      throw new Error("OrionVaultCreated event not found");
+    }
+
     const parsedEvent = transparentVaultFactory.interface.parseLog(event!);
     const vaultAddress = parsedEvent?.args[0];
 

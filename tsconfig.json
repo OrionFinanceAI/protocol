@@ -8,6 +8,6 @@
     "outDir": "dist"
   },
   "files": ["./hardhat.config.ts"],
-  "include": ["src/**/*.ts", "test/**/*.ts", "scripts/**/*.ts"], // should get rid of scripts(directory)& section here, after upgradable contracts are tested for migration
+  "include": ["src/**/*.ts", "test/**/*.ts"],
   "exclude": ["**/*.js", "node_modules", "lib/fhevm-solidity"]
 }

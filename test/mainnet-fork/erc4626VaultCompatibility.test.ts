@@ -35,6 +35,8 @@ import {
   OrionConfigUpgradeable,
   TransparentVaultFactoryUpgradeable,
   PriceAdapterRegistryUpgradeable,
+  InternalStatesOrchestrator,
+  LiquidityOrchestrator,
   OrionAssetERC4626PriceAdapter,
   OrionAssetERC4626ExecutionAdapter,
 } from "../../typechain-types";

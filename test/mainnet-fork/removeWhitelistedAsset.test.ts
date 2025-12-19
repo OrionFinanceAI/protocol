@@ -49,7 +49,7 @@ import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { ethers } from "hardhat";
 import { expect } from "chai";
 import {
-  OrionConfigUpgradeable,
+  OrionConfig,
   InternalStatesOrchestrator,
   LiquidityOrchestrator,
   TransparentVaultFactoryUpgradeable,
@@ -66,7 +66,7 @@ describe("Mainnet Fork: removeWhitelistedAsset DoS Test", function () {
   let curator: SignerWithAddress;
   let other: SignerWithAddress;
 
-  let orionConfig: OrionConfigUpgradeable;
+  let orionConfig: OrionConfig;
   let transparentVaultFactory: TransparentVaultFactoryUpgradeable;
   let internalStatesOrchestrator: InternalStatesOrchestrator;
   let liquidityOrchestrator: LiquidityOrchestrator;
@@ -107,7 +107,7 @@ describe("Mainnet Fork: removeWhitelistedAsset DoS Test", function () {
     const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
     const orionConfigDeployed = await OrionConfigFactory.deploy(owner.address, admin.address, USDC_ADDRESS);
     await orionConfigDeployed.waitForDeployment();
-    orionConfig = orionConfigDeployed as unknown as OrionConfigUpgradeable;
+    orionConfig = orionConfigDeployed as OrionConfig;
     console.log(`✓ OrionConfig deployed at: ${await orionConfig.getAddress()}`);
 
     // ===== 2. Deploy TransparentVaultFactory =====

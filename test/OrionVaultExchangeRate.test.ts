@@ -49,6 +49,10 @@ describe("OrionVault Exchange Rate Tests", function () {
       }
     });
 
+    if (!event) {
+      throw new Error("OrionVaultCreated event not found in transaction receipt");
+    }
+
     const parsedEvent = factory.interface.parseLog(event!);
     const vaultAddress = parsedEvent?.args[0];
 

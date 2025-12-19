@@ -18,6 +18,8 @@ import "../interfaces/IOrionVault.sol";
 import "../interfaces/IExecutionAdapter.sol";
 import "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/utils/math/SafeCast.sol";
+
 /**
  * @title Liquidity Orchestrator
  * @notice Contract that orchestrates liquidity operations
@@ -37,6 +39,7 @@ contract LiquidityOrchestratorUpgradeable is
 {
     using Math for uint256;
     using SafeERC20 for IERC20;
+    using SafeCast for uint256;
 
     /// @notice Basis points factor
     uint16 public constant BASIS_POINTS_FACTOR = 10_000;
@@ -394,7 +397,7 @@ contract LiquidityOrchestratorUpgradeable is
         // Clean up approval
         IERC20(asset).forceApprove(address(adapter), 0);
 
-        deltaBufferAmount += int256(executionUnderlyingAmount) - int256(estimatedUnderlyingAmount);
+        deltaBufferAmount += executionUnderlyingAmount.toInt256() - estimatedUnderlyingAmount.toInt256();
     }
 
     /// @notice Executes a buy order
@@ -418,7 +421,7 @@ contract LiquidityOrchestratorUpgradeable is
         // Clean up approval
         IERC20(underlyingAsset).forceApprove(address(adapter), 0);
 
-        deltaBufferAmount += int256(estimatedUnderlyingAmount) - int256(executionUnderlyingAmount);
+        deltaBufferAmount += estimatedUnderlyingAmount.toInt256() - executionUnderlyingAmount.toInt256();
     }
 
     /// @notice Handles the vault operations

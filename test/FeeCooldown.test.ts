@@ -57,7 +57,7 @@ describe("Fee Cooldown Mechanism", function () {
     feeType: number,
     performanceFee: number,
     managementFee: number,
-  ): Promise<OrionTransparentVault> {
+  ): Promise<OrionTransparentVaultUpgradeable> {
     const { vaultFactory, owner, curator, config } = fixture;
 
     // Whitelist owner if not already whitelisted
