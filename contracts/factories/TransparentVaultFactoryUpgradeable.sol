@@ -106,6 +106,7 @@ contract TransparentVaultFactoryUpgradeable is Initializable, OwnableUpgradeable
     function setVaultBeacon(address newVaultBeacon) external onlyOwner {
         if (newVaultBeacon == address(0)) revert ErrorsLib.ZeroAddress();
         vaultBeacon = UpgradeableBeacon(newVaultBeacon);
+        emit EventsLib.VaultBeaconUpdated(newVaultBeacon);
     }
 
     /// @notice Authorizes an upgrade to a new implementation

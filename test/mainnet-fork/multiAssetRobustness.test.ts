@@ -38,12 +38,12 @@ import { ethers } from "hardhat";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
 import { expect } from "chai";
 import {
-  OrionConfigUpgradeable,
+  OrionConfig,
   InternalStatesOrchestrator,
   LiquidityOrchestrator,
-  TransparentVaultFactoryUpgradeable,
-  PriceAdapterRegistryUpgradeable,
-  OrionTransparentVaultUpgradeable,
+  TransparentVaultFactory,
+  PriceAdapterRegistry,
+  OrionTransparentVault,
   MockUnderlyingAsset,
   MockERC4626Asset,
   MockPriceAdapter,
@@ -172,12 +172,12 @@ describe("Multi-Asset Robustness Tests", function () {
           let automationRegistry: SignerWithAddress;
 
           // Protocol contracts
-          let orionConfig: OrionConfigUpgradeable;
-          let transparentVaultFactory: TransparentVaultFactoryUpgradeable;
+          let orionConfig: OrionConfig;
+          let transparentVaultFactory: TransparentVaultFactory;
           let internalStatesOrchestrator: InternalStatesOrchestrator;
           let liquidityOrchestrator: LiquidityOrchestrator;
-          let priceAdapterRegistry: PriceAdapterRegistryUpgradeable;
-          let vault: OrionTransparentVaultUpgradeable;
+          let priceAdapterRegistry: PriceAdapterRegistry;
+          let vault: OrionTransparentVault;
 
           // Mock contracts (for testing)
           let underlyingAsset: MockUnderlyingAsset;
@@ -328,14 +328,14 @@ describe("Multi-Asset Robustness Tests", function () {
               owner.address,
               admin.address,
               await underlyingAsset.getAddress(),
-            )) as unknown as OrionConfigUpgradeable;
+            )) as unknown as OrionConfig;
 
             // Deploy PriceAdapterRegistry
             const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistry");
             priceAdapterRegistry = (await PriceAdapterRegistryFactory.deploy(
               owner.address,
               await orionConfig.getAddress(),
-            )) as unknown as PriceAdapterRegistryUpgradeable;
+            )) as unknown as PriceAdapterRegistry;
 
             // Deploy LiquidityOrchestrator
             const LiquidityOrchestratorFactory = await ethers.getContractFactory("LiquidityOrchestrator");
@@ -360,7 +360,7 @@ describe("Multi-Asset Robustness Tests", function () {
             const TransparentVaultFactoryFactory = await ethers.getContractFactory("TransparentVaultFactory");
             transparentVaultFactory = (await TransparentVaultFactoryFactory.deploy(
               await orionConfig.getAddress(),
-            )) as unknown as TransparentVaultFactoryUpgradeable;
+            )) as unknown as TransparentVaultFactory;
 
             // Configure OrionConfig
             await orionConfig.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
@@ -435,7 +435,7 @@ describe("Multi-Asset Robustness Tests", function () {
             vault = (await ethers.getContractAt(
               "OrionTransparentVaultUpgradeable",
               vaultAddress,
-            )) as unknown as OrionTransparentVaultUpgradeable;
+            )) as unknown as OrionTransparentVault;
 
             // Submit curator intent (100% underlying to keep it simple)
             await vault.connect(curator).submitIntent([
