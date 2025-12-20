@@ -1,6 +1,6 @@
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
-import { ethers } from "hardhat";
+import { ethers, upgrades } from "hardhat";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
 
 import {
@@ -25,11 +25,6 @@ describe("Orchestrators", function () {
   const HIGH_WATER_MARK_VAULT_DEPOSIT = 75;
   const HURDLE_HWM_VAULT_DEPOSIT = 150;
   const PASSIVE_VAULT_DEPOSIT = 100;
-
-  // Expected price factors for mock assets after gains/losses (logged)
-  const MOCK_ASSET1_P0 = 1.55;
-  const MOCK_ASSET2_P0 = 1.5;
-  const MOCK_ASSET3_P0 = 1.055;
 
   let transparentVaultFactory: TransparentVaultFactory;
   let orionConfig: OrionConfig;
@@ -121,13 +116,12 @@ describe("Orchestrators", function () {
     await mockAsset3.connect(user).simulateGains(ethers.parseUnits("60", underlyingDecimals));
 
     const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
-    const orionConfigDeployed = await OrionConfigFactory.deploy(
-      owner.address,
-      user.address, // admin
-      await underlyingAsset.getAddress(),
-    );
-    await orionConfigDeployed.waitForDeployment();
-    orionConfig = orionConfigDeployed as unknown as OrionConfig;
+    orionConfig = (await upgrades.deployProxy(
+      OrionConfigFactory,
+      [owner.address, user.address, await underlyingAsset.getAddress()], // owner, admin, underlyingAsset
+      { initializer: "initialize", kind: "uups" },
+    )) as unknown as OrionConfig;
+    await orionConfig.waitForDeployment();
 
     // Deploy KBestTvlWeightedAverage strategy with k=2
     const KBestTvlWeightedAverageFactory = await ethers.getContractFactory("KBestTvlWeightedAverage");
@@ -140,12 +134,12 @@ describe("Orchestrators", function () {
     kbestTvlStrategy = kbestTvlStrategyDeployed as unknown as KBestTvlWeightedAverage;
 
     const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistry");
-    const priceAdapterRegistryDeployed = await PriceAdapterRegistryFactory.deploy(
-      owner.address,
-      await orionConfig.getAddress(),
-    );
-    await priceAdapterRegistryDeployed.waitForDeployment();
-    priceAdapterRegistry = priceAdapterRegistryDeployed as unknown as PriceAdapterRegistry;
+    priceAdapterRegistry = (await upgrades.deployProxy(
+      PriceAdapterRegistryFactory,
+      [owner.address, await orionConfig.getAddress()],
+      { initializer: "initialize", kind: "uups" },
+    )) as unknown as PriceAdapterRegistry;
+    await priceAdapterRegistry.waitForDeployment();
 
     const OrionAssetERC4626PriceAdapterFactory = await ethers.getContractFactory("OrionAssetERC4626PriceAdapter");
     orionPriceAdapter = (await OrionAssetERC4626PriceAdapterFactory.deploy(
@@ -153,31 +147,43 @@ describe("Orchestrators", function () {
     )) as unknown as OrionAssetERC4626PriceAdapter;
     await orionPriceAdapter.waitForDeployment();
 
+    // Deploy UpgradeableBeacon for vaults
+    const VaultImplFactory = await ethers.getContractFactory("OrionTransparentVault");
+    const vaultImpl = await VaultImplFactory.deploy();
+    await vaultImpl.waitForDeployment();
+
+    const BeaconFactory = await ethers.getContractFactory(
+      "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol:UpgradeableBeacon",
+    );
+    const vaultBeacon = await BeaconFactory.deploy(await vaultImpl.getAddress(), owner.address);
+    await vaultBeacon.waitForDeployment();
+
     const TransparentVaultFactoryFactory = await ethers.getContractFactory("TransparentVaultFactory");
-    const transparentVaultFactoryDeployed = await TransparentVaultFactoryFactory.deploy(await orionConfig.getAddress());
-    await transparentVaultFactoryDeployed.waitForDeployment();
-    transparentVaultFactory = transparentVaultFactoryDeployed as unknown as TransparentVaultFactory;
+    transparentVaultFactory = (await upgrades.deployProxy(
+      TransparentVaultFactoryFactory,
+      [owner.address, await orionConfig.getAddress(), await vaultBeacon.getAddress()],
+      { initializer: "initialize", kind: "uups" },
+    )) as unknown as TransparentVaultFactory;
+    await transparentVaultFactory.waitForDeployment();
 
     const LiquidityOrchestratorFactory = await ethers.getContractFactory("LiquidityOrchestrator");
-    const liquidityOrchestratorDeployed = await LiquidityOrchestratorFactory.deploy(
-      owner.address,
-      await orionConfig.getAddress(),
-      automationRegistry.address,
-    );
-    await liquidityOrchestratorDeployed.waitForDeployment();
-    liquidityOrchestrator = liquidityOrchestratorDeployed as unknown as LiquidityOrchestrator;
+    liquidityOrchestrator = (await upgrades.deployProxy(
+      LiquidityOrchestratorFactory,
+      [owner.address, await orionConfig.getAddress(), automationRegistry.address],
+      { initializer: "initialize", kind: "uups" },
+    )) as unknown as LiquidityOrchestrator;
+    await liquidityOrchestrator.waitForDeployment();
 
     await orionConfig.setLiquidityOrchestrator(await liquidityOrchestrator.getAddress());
     await orionConfig.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
 
     const InternalStatesOrchestratorFactory = await ethers.getContractFactory("InternalStatesOrchestrator");
-    const internalStatesOrchestratorDeployed = await InternalStatesOrchestratorFactory.deploy(
-      owner.address,
-      await orionConfig.getAddress(),
-      automationRegistry.address,
-    );
-    await internalStatesOrchestratorDeployed.waitForDeployment();
-    internalStatesOrchestrator = internalStatesOrchestratorDeployed as unknown as InternalStatesOrchestrator;
+    internalStatesOrchestrator = (await upgrades.deployProxy(
+      InternalStatesOrchestratorFactory,
+      [owner.address, await orionConfig.getAddress(), automationRegistry.address],
+      { initializer: "initialize", kind: "uups" },
+    )) as unknown as InternalStatesOrchestrator;
+    await internalStatesOrchestrator.waitForDeployment();
 
     await orionConfig.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
     await orionConfig.setVaultFactory(await transparentVaultFactory.getAddress());
