@@ -233,7 +233,7 @@ describe("Multi-Asset Robustness Tests", function () {
               )) as unknown as MockUnderlyingAsset;
 
               // Deploy protocol
-              await deployUpgradeableProtocol();
+              await deployProtocol();
               console.log(`   ✓ Deployed protocol contracts`);
 
               // Deploy vault
@@ -320,7 +320,7 @@ describe("Multi-Asset Robustness Tests", function () {
           /**
            * Deploy protocol contracts
            */
-          async function deployUpgradeableProtocol() {
+          async function deployProtocol() {
             // Deploy OrionConfig
             const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
             orionConfig = (await OrionConfigFactory.deploy(

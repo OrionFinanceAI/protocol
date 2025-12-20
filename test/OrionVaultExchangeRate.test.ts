@@ -52,7 +52,7 @@ describe("OrionVault Exchange Rate Tests", function () {
       throw new Error("OrionVaultCreated event not found in transaction receipt");
     }
 
-    const parsedEvent = factory.interface.parseLog(event!);
+    const parsedEvent = factory.interface.parseLog(event);
     const vaultAddress = parsedEvent?.args[0];
 
     const vault = await ethers.getContractAt("OrionTransparentVault", vaultAddress);

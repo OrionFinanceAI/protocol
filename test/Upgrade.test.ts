@@ -9,6 +9,9 @@ import {
   TransparentVaultFactory,
   UpgradeableBeacon,
   MockUnderlyingAsset,
+  PriceAdapterRegistry,
+  InternalStatesOrchestrator,
+  LiquidityOrchestrator,
 } from "../typechain-types";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 
@@ -97,7 +100,9 @@ describe("Upgrade Tests", function () {
 
       // Attempt upgrade as non-owner (should fail)
       const OrionConfigV2Factory = await ethers.getContractFactory("OrionConfigV2");
-      await expect(upgrades.upgradeProxy(proxyAddress, OrionConfigV2Factory.connect(user))).to.be.reverted;
+      await expect(
+        upgrades.upgradeProxy(proxyAddress, OrionConfigV2Factory.connect(user)),
+      ).to.be.revertedWithCustomError(orionConfig, "OwnableUnauthorizedAccount");
     });
 
     it("Should consume storage gap slots correctly", async function () {
@@ -150,15 +155,27 @@ describe("Upgrade Tests", function () {
         ethers.ZeroAddress, // depositAccessControl
       );
       const receipt1 = await tx1.wait();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const vault1Address = receipt1?.logs.find((log: any) => log.fragment?.name === "OrionVaultCreated")?.args?.[0];
+      const vault1Event = receipt1?.logs.find((log) => {
+        try {
+          return vaultFactory.interface.parseLog(log)?.name === "OrionVaultCreated";
+        } catch {
+          return false;
+        }
+      });
+      const vault1Address = vault1Event ? vaultFactory.interface.parseLog(vault1Event)?.args[0] : undefined;
 
       const tx2 = await vaultFactory
         .connect(owner)
         .createVault(curator.address, "Test Vault 2", "TV2", 0, 0, 0, ethers.ZeroAddress);
       const receipt2 = await tx2.wait();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const vault2Address = receipt2?.logs.find((log: any) => log.fragment?.name === "OrionVaultCreated")?.args?.[0];
+      const vault2Event = receipt2?.logs.find((log) => {
+        try {
+          return vaultFactory.interface.parseLog(log)?.name === "OrionVaultCreated";
+        } catch {
+          return false;
+        }
+      });
+      const vault2Address = vault2Event ? vaultFactory.interface.parseLog(vault2Event)?.args[0] : undefined;
 
       // Attach to vaults
       const VaultFactory = await ethers.getContractFactory("OrionTransparentVault");
@@ -446,9 +463,14 @@ describe("Upgrade Tests", function () {
         .connect(owner)
         .createVault(curator.address, "Pre-upgrade Vault", "PRE", 0, 0, 0, ethers.ZeroAddress);
       const receipt1 = await tx1.wait();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const vault1Address = (receipt1?.logs.find((log: any) => log.fragment?.name === "OrionVaultCreated") as any)
-        ?.args?.[0];
+      const vault1Event = receipt1?.logs.find((log) => {
+        try {
+          return vaultFactory.interface.parseLog(log)?.name === "OrionVaultCreated";
+        } catch {
+          return false;
+        }
+      });
+      const vault1Address = vault1Event ? vaultFactory.interface.parseLog(vault1Event)?.args[0] : undefined;
 
       // Upgrade factory via UUPS
       const FactoryFactory = await ethers.getContractFactory("TransparentVaultFactory");
@@ -480,9 +502,14 @@ describe("Upgrade Tests", function () {
         .connect(owner)
         .createVault(curator.address, "Post-upgrade Vault", "POST", 0, 0, 0, ethers.ZeroAddress);
       const receipt2 = await tx2.wait();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const vault2Address = (receipt2?.logs.find((log: any) => log.fragment?.name === "OrionVaultCreated") as any)
-        ?.args?.[0];
+      const vault2Event = receipt2?.logs.find((log) => {
+        try {
+          return upgradedFactory.interface.parseLog(log)?.name === "OrionVaultCreated";
+        } catch {
+          return false;
+        }
+      });
+      const vault2Address = vault2Event ? upgradedFactory.interface.parseLog(vault2Event)?.args[0] : undefined;
 
       // Attach to vaults
       const VaultV1Factory = await ethers.getContractFactory("OrionTransparentVault");
@@ -501,6 +528,129 @@ describe("Upgrade Tests", function () {
       // Test V2 functionality
       await vault2V2.connect(owner).setVaultDescription("Created via upgraded factory");
       expect(await vault2V2.vaultDescription()).to.equal("Created via upgraded factory");
+    });
+  });
+
+  describe("Direct upgradeToAndCall", function () {
+    let orionConfig: OrionConfig;
+    let priceAdapterRegistry: PriceAdapterRegistry;
+    let internalStatesOrchestrator: InternalStatesOrchestrator;
+    let liquidityOrchestrator: LiquidityOrchestrator;
+    let transparentVaultFactory: TransparentVaultFactory;
+
+    beforeEach(async function () {
+      const deployed = await deployUpgradeableProtocol(owner, admin);
+      orionConfig = deployed.orionConfig;
+      priceAdapterRegistry = deployed.priceAdapterRegistry;
+      internalStatesOrchestrator = deployed.internalStatesOrchestrator;
+      liquidityOrchestrator = deployed.liquidityOrchestrator;
+      transparentVaultFactory = deployed.transparentVaultFactory;
+    });
+
+    it("Should cover OrionConfig._authorizeUpgrade via direct upgradeToAndCall", async function () {
+      const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
+      const newImpl = await OrionConfigFactory.deploy();
+      await newImpl.waitForDeployment();
+
+      // Call upgradeToAndCall directly, executing _authorizeUpgrade
+      await orionConfig.connect(owner).upgradeToAndCall(await newImpl.getAddress(), "0x");
+
+      expect(await orionConfig.owner()).to.equal(owner.address);
+    });
+
+    it("Should cover OrionConfig._authorizeUpgrade revert on non-owner", async function () {
+      const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
+      const newImpl = await OrionConfigFactory.deploy();
+      await newImpl.waitForDeployment();
+
+      // Non-owner should fail
+      await expect(
+        orionConfig.connect(user).upgradeToAndCall(await newImpl.getAddress(), "0x"),
+      ).to.be.revertedWithCustomError(orionConfig, "OwnableUnauthorizedAccount");
+    });
+
+    it("Should cover PriceAdapterRegistry._authorizeUpgrade via direct upgradeToAndCall", async function () {
+      const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistry");
+      const newImpl = await PriceAdapterRegistryFactory.deploy();
+      await newImpl.waitForDeployment();
+
+      // Call upgradeToAndCall directly, executing _authorizeUpgrade
+      await priceAdapterRegistry.connect(owner).upgradeToAndCall(await newImpl.getAddress(), "0x");
+
+      expect(await priceAdapterRegistry.owner()).to.equal(owner.address);
+    });
+
+    it("Should cover PriceAdapterRegistry._authorizeUpgrade revert on non-owner", async function () {
+      const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistry");
+      const newImpl = await PriceAdapterRegistryFactory.deploy();
+      await newImpl.waitForDeployment();
+
+      await expect(
+        priceAdapterRegistry.connect(user).upgradeToAndCall(await newImpl.getAddress(), "0x"),
+      ).to.be.revertedWithCustomError(priceAdapterRegistry, "OwnableUnauthorizedAccount");
+    });
+
+    it("Should cover InternalStatesOrchestrator._authorizeUpgrade via direct upgradeToAndCall", async function () {
+      const InternalStatesOrchestratorFactory = await ethers.getContractFactory("InternalStatesOrchestrator");
+      const newImpl = await InternalStatesOrchestratorFactory.deploy();
+      await newImpl.waitForDeployment();
+
+      // Call upgradeToAndCall directly, executing _authorizeUpgrade
+      await internalStatesOrchestrator.connect(owner).upgradeToAndCall(await newImpl.getAddress(), "0x");
+
+      expect(await internalStatesOrchestrator.owner()).to.equal(owner.address);
+    });
+
+    it("Should cover InternalStatesOrchestrator._authorizeUpgrade revert on non-owner", async function () {
+      const InternalStatesOrchestratorFactory = await ethers.getContractFactory("InternalStatesOrchestrator");
+      const newImpl = await InternalStatesOrchestratorFactory.deploy();
+      await newImpl.waitForDeployment();
+
+      await expect(
+        internalStatesOrchestrator.connect(user).upgradeToAndCall(await newImpl.getAddress(), "0x"),
+      ).to.be.revertedWithCustomError(internalStatesOrchestrator, "OwnableUnauthorizedAccount");
+    });
+
+    it("Should cover LiquidityOrchestrator._authorizeUpgrade via direct upgradeToAndCall", async function () {
+      const LiquidityOrchestratorFactory = await ethers.getContractFactory("LiquidityOrchestrator");
+      const newImpl = await LiquidityOrchestratorFactory.deploy();
+      await newImpl.waitForDeployment();
+
+      // Call upgradeToAndCall directly, executing _authorizeUpgrade
+      await liquidityOrchestrator.connect(owner).upgradeToAndCall(await newImpl.getAddress(), "0x");
+
+      expect(await liquidityOrchestrator.owner()).to.equal(owner.address);
+    });
+
+    it("Should cover LiquidityOrchestrator._authorizeUpgrade revert on non-owner", async function () {
+      const LiquidityOrchestratorFactory = await ethers.getContractFactory("LiquidityOrchestrator");
+      const newImpl = await LiquidityOrchestratorFactory.deploy();
+      await newImpl.waitForDeployment();
+
+      await expect(
+        liquidityOrchestrator.connect(user).upgradeToAndCall(await newImpl.getAddress(), "0x"),
+      ).to.be.revertedWithCustomError(liquidityOrchestrator, "OwnableUnauthorizedAccount");
+    });
+
+    it("Should cover TransparentVaultFactory._authorizeUpgrade via direct upgradeToAndCall", async function () {
+      const TransparentVaultFactoryFactory = await ethers.getContractFactory("TransparentVaultFactory");
+      const newImpl = await TransparentVaultFactoryFactory.deploy();
+      await newImpl.waitForDeployment();
+
+      // Call upgradeToAndCall directly, executing _authorizeUpgrade
+      await transparentVaultFactory.connect(owner).upgradeToAndCall(await newImpl.getAddress(), "0x");
+
+      expect(await transparentVaultFactory.owner()).to.equal(owner.address);
+    });
+
+    it("Should cover TransparentVaultFactory._authorizeUpgrade revert on non-owner", async function () {
+      const TransparentVaultFactoryFactory = await ethers.getContractFactory("TransparentVaultFactory");
+      const newImpl = await TransparentVaultFactoryFactory.deploy();
+      await newImpl.waitForDeployment();
+
+      await expect(
+        transparentVaultFactory.connect(user).upgradeToAndCall(await newImpl.getAddress(), "0x"),
+      ).to.be.revertedWithCustomError(transparentVaultFactory, "OwnableUnauthorizedAccount");
     });
   });
 });

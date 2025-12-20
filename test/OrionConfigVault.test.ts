@@ -492,9 +492,45 @@ describe("OrionVault - Base Functionality", function () {
       const sharesAfterPartialCancel = await vault.balanceOf(user.address);
       expect(sharesAfterPartialCancel).to.equal(userSharesBefore - remainingRedeem);
 
-      // Verify pending redeems reflects the remaining amount
+      // Verify pending redeems matches the remaining amount for this single request
       const pendingRedeems = await vault.pendingRedeem(await orionConfig.maxFulfillBatchSize());
-      expect(pendingRedeems).to.be.gte(remainingRedeem);
+      expect(pendingRedeems).to.equal(remainingRedeem);
+    });
+
+    it("Should revert when caller has no pending redeem request", async function () {
+      // User has shares from beforeEach but has NOT opened a redeem request yet
+      const userShares = await vault.balanceOf(user.address);
+      expect(userShares).to.be.gt(0n, "User should have shares after deposit fulfillment");
+
+      const cancelAmount = userShares / 2n;
+      await expect(vault.connect(user).cancelRedeemRequest(cancelAmount)).to.be.revertedWithCustomError(
+        vault,
+        "InsufficientAmount",
+      );
+    });
+
+    it("Should revert when a different account attempts to cancel someone else's redeem", async function () {
+      const userSharesBefore = await vault.balanceOf(user.address);
+      expect(userSharesBefore).to.be.gt(0n, "User should have shares after deposit fulfillment");
+
+      const redeemAmount = userSharesBefore / 2n;
+
+      await vault.connect(user).approve(await vault.getAddress(), redeemAmount);
+
+      await vault.connect(user).requestRedeem(redeemAmount);
+
+      // Verify user's redeem request exists
+      const pendingRedeems = await vault.pendingRedeem(await orionConfig.maxFulfillBatchSize());
+      expect(pendingRedeems).to.be.gte(redeemAmount);
+
+      await expect(vault.connect(other).cancelRedeemRequest(redeemAmount)).to.be.revertedWithCustomError(
+        vault,
+        "InsufficientAmount",
+      );
+
+      // Verify user's redeem request is still intact
+      const pendingRedeemsAfter = await vault.pendingRedeem(await orionConfig.maxFulfillBatchSize());
+      expect(pendingRedeemsAfter).to.equal(pendingRedeems);
     });
   });
 
