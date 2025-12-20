@@ -2,9 +2,10 @@
 pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "../interfaces/IOrionConfig.sol";
 import "../interfaces/IOrionVault.sol";
@@ -38,7 +39,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
  * 4. Portfolio Weights (w_0) [shares] – current allocation in share units for stateless TVL estimation
  * 5. Curator Intent (w_1) [%] – target allocation in percentage of total supply
  */
-abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
+abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGuardUpgradeable, IOrionVault {
     using Math for uint256;
     using SafeERC20 for IERC20;
     using EnumerableMap for EnumerableMap.AddressToUintMap;
@@ -154,7 +155,13 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         _;
     }
 
-    /// @notice Constructor
+    /// @notice Constructor that disables initializers for the implementation contract
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    /// @notice Initialize the vault
     /// @param vaultOwner_ The address of the vault owner
     /// @param curator_ The address of the vault curator
     /// @param config_ The address of the OrionConfig contract
@@ -164,7 +171,8 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     /// @param performanceFee_ The performance fee
     /// @param managementFee_ The management fee
     /// @param depositAccessControl_ The address of the deposit access control contract (address(0) = permissionless)
-    constructor(
+    // solhint-disable-next-line func-name-mixedcase, use-natspec
+    function __OrionVault_init(
         address vaultOwner_,
         address curator_,
         IOrionConfig config_,
@@ -174,9 +182,11 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         uint16 performanceFee_,
         uint16 managementFee_,
         address depositAccessControl_
-    ) ERC20(name_, symbol_) ERC4626(config_.underlyingAsset()) {
-        if (curator_ == address(0)) revert ErrorsLib.InvalidAddress();
-        if (address(config_) == address(0)) revert ErrorsLib.InvalidAddress();
+    ) internal onlyInitializing {
+        // Initialize parent contracts
+        __ERC20_init(name_, symbol_);
+        __ERC4626_init(config_.underlyingAsset());
+        __ReentrancyGuard_init();
 
         vaultOwner = vaultOwner_;
         curator = curator_;
@@ -211,18 +221,18 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     function _initializeVaultWhitelist() internal {
         address[] memory protocolAssets = config.getAllWhitelistedAssets();
         for (uint256 i = 0; i < protocolAssets.length; ++i) {
-            bool inserted = _vaultWhitelistedAssets.add(protocolAssets[i]);
-            if (!inserted) revert ErrorsLib.AlreadyRegistered();
+            // slither-disable-next-line unused-return
+            _vaultWhitelistedAssets.add(protocolAssets[i]);
         }
     }
 
     /// @inheritdoc IERC4626
-    function deposit(uint256, address) public pure override(ERC4626, IERC4626) returns (uint256) {
+    function deposit(uint256, address) public pure override(ERC4626Upgradeable, IERC4626) returns (uint256) {
         revert SynchronousCallDisabled();
     }
 
     /// @inheritdoc IERC4626
-    function mint(uint256, address) public pure override(ERC4626, IERC4626) returns (uint256) {
+    function mint(uint256, address) public pure override(ERC4626Upgradeable, IERC4626) returns (uint256) {
         revert SynchronousCallDisabled();
     }
 
@@ -231,7 +241,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
         uint256 shares,
         address receiver,
         address owner
-    ) public override(ERC4626, IERC4626) nonReentrant returns (uint256) {
+    ) public override(ERC4626Upgradeable, IERC4626) nonReentrant returns (uint256) {
         // Only allow synchronous redemption for decommissioned vaults
         if (!config.isDecommissionedVault(address(this))) revert SynchronousCallDisabled();
 
@@ -259,19 +269,19 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
     }
 
     /// @inheritdoc IERC4626
-    function withdraw(uint256, address, address) public pure override(ERC4626, IERC4626) returns (uint256) {
+    function withdraw(uint256, address, address) public pure override(ERC4626Upgradeable, IERC4626) returns (uint256) {
         revert SynchronousCallDisabled();
     }
 
     /// @inheritdoc IERC4626
-    function totalAssets() public view override(ERC4626, IERC4626) returns (uint256) {
+    function totalAssets() public view override(ERC4626Upgradeable, IERC4626) returns (uint256) {
         return _totalAssets;
     }
 
     /// @notice Override ERC4626 decimals to always use SHARE_DECIMALS regardless of underlying asset decimals
     /// @dev This ensures consistent 18-decimal precision for share tokens across all vaults
     /// @return SHARE_DECIMALS for all vault share tokens
-    function decimals() public view virtual override(ERC4626, IERC20Metadata) returns (uint8) {
+    function decimals() public view virtual override(ERC4626Upgradeable, IERC20Metadata) returns (uint8) {
         return SHARE_DECIMALS;
     }
 
@@ -725,4 +735,7 @@ abstract contract OrionVault is ERC4626, ReentrancyGuard, IOrionVault {
             emit Redeem(address(this), user, underlyingAmount, userShares);
         }
     }
+
+    /// @dev Storage gap to allow for future upgrades
+    uint256[50] private __gap;
 }

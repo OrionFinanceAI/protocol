@@ -1,14 +1,15 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
+import "@openzeppelin/hardhat-upgrades";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import type { Signer } from "ethers";
+import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 import {
   OrionConfig,
   OrionTransparentVault,
   InternalStatesOrchestrator,
   LiquidityOrchestrator,
   TransparentVaultFactory,
-  MockUnderlyingAsset,
 } from "../typechain-types";
 
 /**
@@ -27,60 +28,14 @@ describe("Vault Owner Removal - Automatic Decommissioning", function () {
     const curator2 = allSigners[4];
     const automationRegistry = allSigners[5];
 
-    // Deploy mock USDC (6 decimals)
-    const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
-    const usdcDeployed = await MockUnderlyingAssetFactory.deploy(6);
-    await usdcDeployed.waitForDeployment();
-    const usdc = usdcDeployed as unknown as MockUnderlyingAsset;
+    const deployed = await deployUpgradeableProtocol(owner, owner);
 
-    // Deploy OrionConfig
-    const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
-    const configDeployed = await OrionConfigFactory.deploy(owner.address, owner.address, await usdc.getAddress());
-    await configDeployed.waitForDeployment();
-    const config = configDeployed as unknown as OrionConfig;
+    const usdc = deployed.underlyingAsset;
+    const config = deployed.orionConfig;
+    const internalStatesOrchestrator: InternalStatesOrchestrator = deployed.internalStatesOrchestrator;
+    const liquidityOrchestrator: LiquidityOrchestrator = deployed.liquidityOrchestrator;
+    const vaultFactory = deployed.transparentVaultFactory;
 
-    // Deploy LiquidityOrchestrator
-    const LiquidityOrchestratorFactory = await ethers.getContractFactory("LiquidityOrchestrator");
-    const liquidityOrchestratorDeployed = await LiquidityOrchestratorFactory.deploy(
-      owner.address,
-      await config.getAddress(),
-      automationRegistry.address,
-    );
-    await liquidityOrchestratorDeployed.waitForDeployment();
-    const liquidityOrchestrator = liquidityOrchestratorDeployed as unknown as LiquidityOrchestrator;
-
-    // Register LiquidityOrchestrator in config
-    await config.setLiquidityOrchestrator(await liquidityOrchestrator.getAddress());
-
-    // Deploy InternalStatesOrchestrator
-    const InternalStatesOrchestratorFactory = await ethers.getContractFactory("InternalStatesOrchestrator");
-    const internalStatesOrchestratorDeployed = await InternalStatesOrchestratorFactory.deploy(
-      owner.address,
-      await config.getAddress(),
-      automationRegistry.address,
-    );
-    await internalStatesOrchestratorDeployed.waitForDeployment();
-    const internalStatesOrchestrator = internalStatesOrchestratorDeployed as unknown as InternalStatesOrchestrator;
-
-    // Register InternalStatesOrchestrator in config
-    await config.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
-
-    // Link orchestrators
-    await liquidityOrchestrator.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
-
-    // Deploy vault factory
-    const TransparentVaultFactoryContract = await ethers.getContractFactory("TransparentVaultFactory");
-    const vaultFactoryDeployed = await TransparentVaultFactoryContract.deploy(await config.getAddress());
-    await vaultFactoryDeployed.waitForDeployment();
-    const vaultFactory = vaultFactoryDeployed as unknown as TransparentVaultFactory;
-    await config.setVaultFactory(await vaultFactory.getAddress());
-
-    // Deploy price adapter registry
-    const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistry");
-    const priceAdapterRegistry = await PriceAdapterRegistryFactory.deploy(owner.address, await config.getAddress());
-    await config.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
-
-    // Whitelist vault owners and curators
     await config.addWhitelistedVaultOwner(vaultOwner1.address);
     await config.addWhitelistedVaultOwner(vaultOwner2.address);
 

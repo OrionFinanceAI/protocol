@@ -1,5 +1,6 @@
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
+import "@openzeppelin/hardhat-upgrades";
 import { ethers } from "hardhat";
 
 import {
@@ -8,15 +9,16 @@ import {
   MockPriceAdapter,
   MockExecutionAdapter,
   OrionConfig,
-  InternalStatesOrchestrator,
   LiquidityOrchestrator,
   TransparentVaultFactory,
-  PriceAdapterRegistry,
   OrionTransparentVault,
 } from "../typechain-types";
+import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
+import { impersonateAccount, setBalance } from "@nomicfoundation/hardhat-network-helpers";
 
 let transparentVaultFactory: TransparentVaultFactory;
 let orionConfig: OrionConfig;
+let liquidityOrchestrator: LiquidityOrchestrator;
 let underlyingAsset: MockUnderlyingAsset;
 let mockAsset1: MockERC4626Asset;
 let mockAsset2: MockERC4626Asset;
@@ -24,9 +26,6 @@ let mockPriceAdapter1: MockPriceAdapter;
 let mockPriceAdapter2: MockPriceAdapter;
 let mockExecutionAdapter1: MockExecutionAdapter;
 let mockExecutionAdapter2: MockExecutionAdapter;
-let priceAdapterRegistry: PriceAdapterRegistry;
-let internalStatesOrchestrator: InternalStatesOrchestrator;
-let liquidityOrchestrator: LiquidityOrchestrator;
 let vault: OrionTransparentVault;
 
 let owner: SignerWithAddress, curator: SignerWithAddress, other: SignerWithAddress, user: SignerWithAddress;
@@ -34,11 +33,14 @@ let owner: SignerWithAddress, curator: SignerWithAddress, other: SignerWithAddre
 beforeEach(async function () {
   [owner, curator, other, user] = await ethers.getSigners();
 
-  const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
-  const underlyingAssetDeployed = await MockUnderlyingAssetFactory.deploy(6);
-  await underlyingAssetDeployed.waitForDeployment();
-  underlyingAsset = underlyingAssetDeployed as unknown as MockUnderlyingAsset;
+  const deployed = await deployUpgradeableProtocol(owner, other);
 
+  underlyingAsset = deployed.underlyingAsset;
+  orionConfig = deployed.orionConfig;
+  liquidityOrchestrator = deployed.liquidityOrchestrator;
+  transparentVaultFactory = deployed.transparentVaultFactory;
+
+  // Deploy additional mock ERC4626 assets for testing
   const MockERC4626AssetFactory = await ethers.getContractFactory("MockERC4626Asset");
   const mockAsset1Deployed = await MockERC4626AssetFactory.deploy(
     await underlyingAsset.getAddress(),
@@ -56,39 +58,7 @@ beforeEach(async function () {
   await mockAsset2Deployed.waitForDeployment();
   mockAsset2 = mockAsset2Deployed as unknown as MockERC4626Asset;
 
-  // Deploy OrionConfig
-  const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
-  const orionConfigDeployed = await OrionConfigFactory.deploy(
-    owner.address,
-    other.address, // admin
-    await underlyingAsset.getAddress(),
-  );
-  await orionConfigDeployed.waitForDeployment();
-  orionConfig = orionConfigDeployed as unknown as OrionConfig;
-
-  const TransparentVaultFactoryFactory = await ethers.getContractFactory("TransparentVaultFactory");
-  const transparentVaultFactoryDeployed = await TransparentVaultFactoryFactory.deploy(await orionConfig.getAddress());
-  await transparentVaultFactoryDeployed.waitForDeployment();
-  transparentVaultFactory = transparentVaultFactoryDeployed as unknown as TransparentVaultFactory;
-
-  const InternalStatesOrchestratorFactory = await ethers.getContractFactory("InternalStatesOrchestrator");
-  const internalStatesOrchestratorDeployed = await InternalStatesOrchestratorFactory.deploy(
-    owner.address,
-    await orionConfig.getAddress(),
-    await other.address,
-  );
-  await internalStatesOrchestratorDeployed.waitForDeployment();
-  internalStatesOrchestrator = internalStatesOrchestratorDeployed as unknown as InternalStatesOrchestrator;
-
-  const LiquidityOrchestratorFactory = await ethers.getContractFactory("LiquidityOrchestrator");
-  const liquidityOrchestratorDeployed = await LiquidityOrchestratorFactory.deploy(
-    owner.address,
-    await orionConfig.getAddress(),
-    await other.address,
-  );
-  await liquidityOrchestratorDeployed.waitForDeployment();
-  liquidityOrchestrator = liquidityOrchestratorDeployed as unknown as LiquidityOrchestrator;
-
+  // Deploy mock adapters for testing
   const MockPriceAdapterFactory = await ethers.getContractFactory("MockPriceAdapter");
   mockPriceAdapter1 = (await MockPriceAdapterFactory.deploy()) as unknown as MockPriceAdapter;
   await mockPriceAdapter1.waitForDeployment();
@@ -103,18 +73,7 @@ beforeEach(async function () {
   mockExecutionAdapter2 = (await MockExecutionAdapterFactory.deploy()) as unknown as MockExecutionAdapter;
   await mockExecutionAdapter2.waitForDeployment();
 
-  const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistry");
-  const priceAdapterRegistryDeployed = await PriceAdapterRegistryFactory.deploy(
-    owner.address,
-    await orionConfig.getAddress(),
-  );
-  await priceAdapterRegistryDeployed.waitForDeployment();
-  priceAdapterRegistry = priceAdapterRegistryDeployed as unknown as PriceAdapterRegistry;
-
-  await orionConfig.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
-  await orionConfig.setLiquidityOrchestrator(await liquidityOrchestrator.getAddress());
-  await orionConfig.setVaultFactory(await transparentVaultFactory.getAddress());
-  await orionConfig.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
+  // Configure protocol
   await orionConfig.setProtocolRiskFreeRate(0.0423 * 10_000);
 
   await orionConfig.addWhitelistedAsset(
@@ -422,6 +381,156 @@ describe("OrionVault - Base Functionality", function () {
         vault,
         "InsufficientAmount",
       );
+    });
+  });
+
+  describe("Redeem Request Cancellation", function () {
+    beforeEach(async function () {
+      // Setup: Give user shares by depositing and fulfilling
+      const depositAmount = ethers.parseUnits("1000", 6);
+
+      // Mint and approve underlying asset for user
+      await underlyingAsset.mint(user.address, depositAmount);
+      await underlyingAsset.connect(user).approve(await vault.getAddress(), depositAmount);
+
+      // Request deposit
+      await vault.connect(user).requestDeposit(depositAmount);
+
+      // Fund the LiquidityOrchestrator so it can fulfill the deposit (use admin 'other')
+      await underlyingAsset.mint(other.address, depositAmount);
+      await underlyingAsset.connect(other).approve(await liquidityOrchestrator.getAddress(), depositAmount);
+      await liquidityOrchestrator.connect(other).depositLiquidity(depositAmount);
+
+      // Impersonate LiquidityOrchestrator to fulfill deposit (gives user shares)
+      const loAddress = await liquidityOrchestrator.getAddress();
+      await impersonateAccount(loAddress);
+      await setBalance(loAddress, ethers.parseEther("1"));
+      const loSigner = await ethers.getSigner(loAddress);
+
+      await vault.connect(loSigner).fulfillDeposit(depositAmount);
+
+      // Stop impersonation
+      await ethers.provider.send("hardhat_stopImpersonatingAccount", [loAddress]);
+    });
+
+    it("Should revert when cancelling redeem request with zero amount", async function () {
+      await expect(vault.connect(user).cancelRedeemRequest(0)).to.be.revertedWithCustomError(
+        vault,
+        "AmountMustBeGreaterThanZero",
+      );
+    });
+
+    it("Should revert when cancelling more than requested redeem amount", async function () {
+      const userShares = await vault.balanceOf(user.address);
+      expect(userShares).to.be.gt(0n, "User should have shares after deposit fulfillment");
+
+      // Use half of user's shares for redeem, then try to cancel double that amount
+      const redeemAmount = userShares / 2n;
+      const cancelAmount = redeemAmount * 2n;
+
+      // Approve vault to transfer shares
+      await vault.connect(user).approve(await vault.getAddress(), redeemAmount);
+
+      // Request redeem
+      await vault.connect(user).requestRedeem(redeemAmount);
+
+      // Try to cancel more than requested
+      await expect(vault.connect(user).cancelRedeemRequest(cancelAmount)).to.be.revertedWithCustomError(
+        vault,
+        "InsufficientAmount",
+      );
+    });
+
+    it("Should allow user to cancel redeem request", async function () {
+      const userSharesBefore = await vault.balanceOf(user.address);
+      expect(userSharesBefore).to.be.gt(0n, "User should have shares after deposit fulfillment");
+
+      // Use half of user's shares for the test
+      const redeemAmount = userSharesBefore / 2n;
+
+      // Approve vault to transfer shares
+      await vault.connect(user).approve(await vault.getAddress(), redeemAmount);
+
+      // Request redeem
+      await vault.connect(user).requestRedeem(redeemAmount);
+
+      // Verify redeem request was created
+      const pendingRedeems = await vault.pendingRedeem(await orionConfig.maxFulfillBatchSize());
+      expect(pendingRedeems).to.be.gte(redeemAmount);
+
+      // User should have fewer shares (locked in pending redeem)
+      const sharesAfterRequest = await vault.balanceOf(user.address);
+      expect(sharesAfterRequest).to.equal(userSharesBefore - redeemAmount);
+
+      // Cancel the redeem request
+      await expect(vault.connect(user).cancelRedeemRequest(redeemAmount)).to.not.be.reverted;
+
+      // Verify shares were returned to user
+      const sharesAfterCancel = await vault.balanceOf(user.address);
+      expect(sharesAfterCancel).to.equal(userSharesBefore);
+    });
+
+    it("Should allow partial cancellation of redeem request", async function () {
+      const userSharesBefore = await vault.balanceOf(user.address);
+      expect(userSharesBefore).to.be.gt(0n, "User should have shares after deposit fulfillment");
+
+      // Use half of user's shares, cancel 30% of that
+      const redeemAmount = userSharesBefore / 2n;
+      const cancelAmount = (redeemAmount * 3n) / 10n; // 30% of redeem amount
+      const remainingRedeem = redeemAmount - cancelAmount;
+
+      // Approve vault to transfer shares
+      await vault.connect(user).approve(await vault.getAddress(), redeemAmount);
+
+      // Request redeem
+      await vault.connect(user).requestRedeem(redeemAmount);
+
+      // Cancel partial amount
+      await expect(vault.connect(user).cancelRedeemRequest(cancelAmount)).to.not.be.reverted;
+
+      // Verify partial shares were returned
+      const sharesAfterPartialCancel = await vault.balanceOf(user.address);
+      expect(sharesAfterPartialCancel).to.equal(userSharesBefore - remainingRedeem);
+
+      // Verify pending redeems matches the remaining amount for this single request
+      const pendingRedeems = await vault.pendingRedeem(await orionConfig.maxFulfillBatchSize());
+      expect(pendingRedeems).to.equal(remainingRedeem);
+    });
+
+    it("Should revert when caller has no pending redeem request", async function () {
+      // User has shares from beforeEach but has NOT opened a redeem request yet
+      const userShares = await vault.balanceOf(user.address);
+      expect(userShares).to.be.gt(0n, "User should have shares after deposit fulfillment");
+
+      const cancelAmount = userShares / 2n;
+      await expect(vault.connect(user).cancelRedeemRequest(cancelAmount)).to.be.revertedWithCustomError(
+        vault,
+        "InsufficientAmount",
+      );
+    });
+
+    it("Should revert when a different account attempts to cancel someone else's redeem", async function () {
+      const userSharesBefore = await vault.balanceOf(user.address);
+      expect(userSharesBefore).to.be.gt(0n, "User should have shares after deposit fulfillment");
+
+      const redeemAmount = userSharesBefore / 2n;
+
+      await vault.connect(user).approve(await vault.getAddress(), redeemAmount);
+
+      await vault.connect(user).requestRedeem(redeemAmount);
+
+      // Verify user's redeem request exists
+      const pendingRedeems = await vault.pendingRedeem(await orionConfig.maxFulfillBatchSize());
+      expect(pendingRedeems).to.be.gte(redeemAmount);
+
+      await expect(vault.connect(other).cancelRedeemRequest(redeemAmount)).to.be.revertedWithCustomError(
+        vault,
+        "InsufficientAmount",
+      );
+
+      // Verify user's redeem request is still intact
+      const pendingRedeemsAfter = await vault.pendingRedeem(await orionConfig.maxFulfillBatchSize());
+      expect(pendingRedeemsAfter).to.equal(pendingRedeems);
     });
   });
 

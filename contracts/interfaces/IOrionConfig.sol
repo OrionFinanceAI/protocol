@@ -7,6 +7,7 @@ import "../libraries/EventsLib.sol";
 /// @title IOrionConfig
 /// @notice Interface for the Orion config contract
 /// @author Orion Finance
+/// @custom:security-contact security@orionfinance.ai
 interface IOrionConfig {
     /// @notice Returns the address of the internal states orchestrator contract
     /// @dev This orchestrator manages the internal state transitions of the protocol

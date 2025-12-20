@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import "@openzeppelin/contracts/access/Ownable2Step.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/utils/Pausable.sol";
+import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "../interfaces/ILiquidityOrchestrator.sol";
 import "../interfaces/IOrionConfig.sol";
@@ -16,6 +18,8 @@ import "../interfaces/IOrionVault.sol";
 import "../interfaces/IExecutionAdapter.sol";
 import "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/utils/math/SafeCast.sol";
+
 /**
  * @title Liquidity Orchestrator
  * @notice Contract that orchestrates liquidity operations
@@ -24,10 +28,19 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
  *      - Executing actual buy and sell orders on investment universe;
  *      - Processing withdrawal requests from LPs;
  *      - Handling slippage and market execution differences from adapter price estimates via liquidity buffer.
+ * @custom:security-contact security@orionfinance.ai
  */
-contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiquidityOrchestrator {
+contract LiquidityOrchestrator is
+    Initializable,
+    Ownable2StepUpgradeable,
+    ReentrancyGuardUpgradeable,
+    PausableUpgradeable,
+    UUPSUpgradeable,
+    ILiquidityOrchestrator
+{
     using Math for uint256;
     using SafeERC20 for IERC20;
+    using SafeCast for uint256;
 
     /// @notice Basis points factor
     uint16 public constant BASIS_POINTS_FACTOR = 10_000;
@@ -114,13 +127,27 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
         _;
     }
 
-    /// @notice Constructor
+    /// @notice Constructor that disables initializers for the implementation contract
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    // solhint-disable-next-line use-natspec
+    constructor() {
+        _disableInitializers();
+    }
+
+    /// @notice Initializes the contract
     /// @param initialOwner The address of the initial owner
     /// @param config_ The address of the OrionConfig contract
     /// @param automationRegistry_ The address of the Chainlink Automation Registry
-    constructor(address initialOwner, address config_, address automationRegistry_) Ownable(initialOwner) {
+    function initialize(address initialOwner, address config_, address automationRegistry_) public initializer {
+        if (initialOwner == address(0)) revert ErrorsLib.ZeroAddress();
         if (config_ == address(0)) revert ErrorsLib.ZeroAddress();
         if (automationRegistry_ == address(0)) revert ErrorsLib.ZeroAddress();
+
+        __Ownable_init(initialOwner);
+        __Ownable2Step_init();
+        __ReentrancyGuard_init();
+        __Pausable_init();
+        __UUPSUpgradeable_init();
 
         config = IOrionConfig(config_);
         underlyingAsset = address(config.underlyingAsset());
@@ -370,7 +397,7 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
         // Clean up approval
         IERC20(asset).forceApprove(address(adapter), 0);
 
-        deltaBufferAmount += int256(executionUnderlyingAmount) - int256(estimatedUnderlyingAmount);
+        deltaBufferAmount += executionUnderlyingAmount.toInt256() - estimatedUnderlyingAmount.toInt256();
     }
 
     /// @notice Executes a buy order
@@ -394,7 +421,7 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
         // Clean up approval
         IERC20(underlyingAsset).forceApprove(address(adapter), 0);
 
-        deltaBufferAmount += int256(estimatedUnderlyingAmount) - int256(executionUnderlyingAmount);
+        deltaBufferAmount += estimatedUnderlyingAmount.toInt256() - executionUnderlyingAmount.toInt256();
     }
 
     /// @notice Handles the vault operations
@@ -474,4 +501,13 @@ contract LiquidityOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, ILiqu
     function unpause() external onlyConfig {
         _unpause();
     }
+
+    /// @notice Authorizes an upgrade to a new implementation
+    /// @dev This function is required by UUPS and can only be called by the owner
+    /// @param newImplementation The address of the new implementation contract
+    // solhint-disable-next-line no-empty-blocks, use-natspec
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+
+    /// @dev Storage gap to allow for future upgrades
+    uint256[50] private __gap;
 }

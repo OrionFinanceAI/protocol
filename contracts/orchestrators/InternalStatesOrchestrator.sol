@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import "@openzeppelin/contracts/access/Ownable2Step.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/utils/Pausable.sol";
+import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "../interfaces/IOrionConfig.sol";
@@ -26,8 +28,16 @@ import { UtilitiesLib } from "../libraries/UtilitiesLib.sol";
  *      - Updating vault states;
  *      - Computing state estimations for Liquidity Orchestrator;
  *      - Trigger the Liquidity Orchestrator.
+ * @custom:security-contact security@orionfinance.ai
  */
-contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, IInternalStateOrchestrator {
+contract InternalStatesOrchestrator is
+    Initializable,
+    Ownable2StepUpgradeable,
+    ReentrancyGuardUpgradeable,
+    PausableUpgradeable,
+    UUPSUpgradeable,
+    IInternalStateOrchestrator
+{
     using Math for uint256;
 
     /// @notice Chainlink Automation Registry address
@@ -155,13 +165,28 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
         _;
     }
 
-    /// @notice Constructor
+    /// @notice Constructor that disables initializers for the implementation contract
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    // solhint-disable-next-line use-natspec
+    constructor() {
+        _disableInitializers();
+    }
+
+    /// @notice Initializes the contract
     /// @param initialOwner The address of the initial owner
     /// @param config_ The address of the OrionConfig contract
     /// @param automationRegistry_ The address of the Chainlink Automation Registry
-    constructor(address initialOwner, address config_, address automationRegistry_) Ownable(initialOwner) {
+    function initialize(address initialOwner, address config_, address automationRegistry_) public initializer {
+        if (initialOwner == address(0)) revert ErrorsLib.ZeroAddress();
         if (config_ == address(0)) revert ErrorsLib.ZeroAddress();
         if (automationRegistry_ == address(0)) revert ErrorsLib.ZeroAddress();
+
+        __Ownable_init(initialOwner);
+        __Ownable2Step_init();
+        __ReentrancyGuard_init();
+        __Pausable_init();
+        __UUPSUpgradeable_init();
+
         config = IOrionConfig(config_);
         registry = IPriceAdapterRegistry(config.priceAdapterRegistry());
         intentFactor = 10 ** config.curatorIntentDecimals();
@@ -703,4 +728,13 @@ contract InternalStatesOrchestrator is Ownable2Step, ReentrancyGuard, Pausable, 
     function unpause() external onlyConfig {
         _unpause();
     }
+
+    /// @notice Authorizes an upgrade to a new implementation
+    /// @dev This function is required by UUPS and can only be called by the owner
+    /// @param newImplementation The address of the new implementation contract
+    // solhint-disable-next-line no-empty-blocks, use-natspec
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+
+    /// @dev Storage gap to allow for future upgrades
+    uint256[50] private __gap;
 }

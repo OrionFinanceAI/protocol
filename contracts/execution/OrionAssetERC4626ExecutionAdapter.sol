@@ -17,6 +17,7 @@ import { ILiquidityOrchestrator } from "../interfaces/ILiquidityOrchestrator.sol
  * @author Orion Finance
  * @dev This adapter handles the conversion between underlying assets and vault shares.
  *      It is not safe to use this adapter with vaults that are based on a different asset.
+ * @custom:security-contact security@orionfinance.ai
  */
 contract OrionAssetERC4626ExecutionAdapter is IExecutionAdapter {
     using SafeERC20 for IERC20;

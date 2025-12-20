@@ -1,14 +1,14 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
+import "@openzeppelin/hardhat-upgrades";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import {
   MockUnderlyingAsset,
-  OrionConfig,
   TransparentVaultFactory,
   OrionTransparentVault,
   WhitelistAccessControl,
-  PriceAdapterRegistry,
 } from "../typechain-types";
+import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 
 describe("Access Control", function () {
   let owner: SignerWithAddress;
@@ -18,11 +18,7 @@ describe("Access Control", function () {
   let user3: SignerWithAddress;
 
   let mockAsset: MockUnderlyingAsset;
-  let orionConfig: OrionConfig;
   let factory: TransparentVaultFactory;
-  let priceAdapterRegistry: PriceAdapterRegistry;
-  let internalStatesOrchestrator;
-  let liquidityOrchestrator;
   let accessControl: WhitelistAccessControl;
 
   const DEPOSIT_AMOUNT = ethers.parseUnits("1000", 6);
@@ -30,51 +26,10 @@ describe("Access Control", function () {
   beforeEach(async function () {
     [owner, curator, user1, user2, user3] = await ethers.getSigners();
 
-    // Deploy mock underlying asset (USDC-like, 6 decimals)
-    const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
-    mockAsset = (await MockUnderlyingAssetFactory.deploy(6)) as unknown as MockUnderlyingAsset;
+    const deployed = await deployUpgradeableProtocol(owner, owner);
 
-    // Deploy OrionConfig
-    const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
-    orionConfig = (await OrionConfigFactory.deploy(
-      owner.address,
-      owner.address,
-      await mockAsset.getAddress(),
-    )) as unknown as OrionConfig;
-
-    // Deploy Orchestrators
-    const InternalStatesOrchestratorFactory = await ethers.getContractFactory("InternalStatesOrchestrator");
-    internalStatesOrchestrator = await InternalStatesOrchestratorFactory.deploy(
-      owner.address,
-      await orionConfig.getAddress(),
-      owner.address,
-    );
-
-    const LiquidityOrchestratorFactory = await ethers.getContractFactory("LiquidityOrchestrator");
-    liquidityOrchestrator = await LiquidityOrchestratorFactory.deploy(
-      owner.address,
-      await orionConfig.getAddress(),
-      owner.address,
-    );
-
-    // Deploy PriceAdapterRegistry
-    const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistry");
-    priceAdapterRegistry = (await PriceAdapterRegistryFactory.deploy(
-      owner.address,
-      await orionConfig.getAddress(),
-    )) as unknown as PriceAdapterRegistry;
-
-    // Deploy TransparentVaultFactory
-    const TransparentVaultFactoryFactory = await ethers.getContractFactory("TransparentVaultFactory");
-    factory = (await TransparentVaultFactoryFactory.deploy(
-      await orionConfig.getAddress(),
-    )) as unknown as TransparentVaultFactory;
-
-    // Configure OrionConfig
-    await orionConfig.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
-    await orionConfig.setLiquidityOrchestrator(await liquidityOrchestrator.getAddress());
-    await orionConfig.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
-    await orionConfig.setVaultFactory(await factory.getAddress());
+    mockAsset = deployed.underlyingAsset;
+    factory = deployed.transparentVaultFactory;
 
     // Deploy WhitelistAccessControl
     const WhitelistAccessControlFactory = await ethers.getContractFactory("WhitelistAccessControl");

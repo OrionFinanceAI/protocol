@@ -23,6 +23,10 @@ protocol-costs/
 reports/
 docs/
 .cursor/
+res/
+running_node/
+artifacts/
+
 # files
 *.env
 *.log
@@ -32,16 +36,6 @@ docs/
 coverage.json
 package-lock.json
 *.lock
-
-res/
-running_node/
-
+gasReporterOutput.json
 docker-compose/docker-compose-full.yml
-*.hex
-fhe-keys/
-rust-fhe/target/
 diagram.mmd
-
-# Artifacts
-artifacts/
-

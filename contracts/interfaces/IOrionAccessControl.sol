@@ -6,6 +6,7 @@ pragma solidity 0.8.28;
  * @notice Interface for deposit access control in Orion vaults
  * @author Orion Finance
  * @dev Used to implement KYC, AML, and other compliance requirements
+ * @custom:security-contact security@orionfinance.ai
  */
 interface IOrionAccessControl {
     /**

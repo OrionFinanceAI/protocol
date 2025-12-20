@@ -1,12 +1,9 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
+import "@openzeppelin/hardhat-upgrades";
 import { loadFixture, time } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import {
-  TransparentVaultFactory,
-  OrionTransparentVault,
-  InternalStatesOrchestrator,
-  OrionConfig,
-} from "../typechain-types";
+import { OrionTransparentVault, InternalStatesOrchestrator } from "../typechain-types";
+import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 
 /**
  * @title Fee Cooldown Mechanism Tests
@@ -22,7 +19,6 @@ describe("Fee Cooldown Mechanism", function () {
     HURDLE_HWM: 4,
   };
 
-  const EPOCH_DURATION = 1n * 24n * 60n * 60n; // 1 day
   const DEFAULT_COOLDOWN = 7n * 24n * 60n * 60n; // 7 days
 
   // Max fees for testing
@@ -34,47 +30,12 @@ describe("Fee Cooldown Mechanism", function () {
   async function deployFixture() {
     const [owner, curator, user1, user2, automationRegistry] = await ethers.getSigners();
 
-    // Deploy mock USDC (6 decimals)
-    const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
-    const usdc = await MockUnderlyingAssetFactory.deploy(6);
+    const deployed = await deployUpgradeableProtocol(owner, owner);
 
-    // Deploy OrionConfig
-    const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
-    const config = (await OrionConfigFactory.deploy(
-      owner.address,
-      owner.address,
-      await usdc.getAddress(),
-    )) as unknown as OrionConfig;
-
-    // Deploy orchestrators
-    const InternalStatesOrchestratorFactory = await ethers.getContractFactory("InternalStatesOrchestrator");
-    const internalStatesOrchestrator = (await InternalStatesOrchestratorFactory.deploy(
-      owner.address,
-      await config.getAddress(),
-      automationRegistry.address,
-    )) as unknown as InternalStatesOrchestrator;
-
-    const LiquidityOrchestratorFactory = await ethers.getContractFactory("LiquidityOrchestrator");
-    const liquidityOrchestrator = await LiquidityOrchestratorFactory.deploy(
-      owner.address,
-      await config.getAddress(),
-      automationRegistry.address,
-    );
-
-    await config.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
-    await config.setLiquidityOrchestrator(await liquidityOrchestrator.getAddress());
-
-    // Deploy vault factory
-    const TransparentVaultFactoryContract = await ethers.getContractFactory("TransparentVaultFactory");
-    const vaultFactoryDeployed = await TransparentVaultFactoryContract.deploy(await config.getAddress());
-    await vaultFactoryDeployed.waitForDeployment();
-    const vaultFactory = vaultFactoryDeployed as unknown as TransparentVaultFactory;
-    await config.setVaultFactory(await vaultFactory.getAddress());
-
-    // Deploy price adapter registry
-    const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistry");
-    const priceAdapterRegistry = await PriceAdapterRegistryFactory.deploy(owner.address, await config.getAddress());
-    await config.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
+    const usdc = deployed.underlyingAsset;
+    const config = deployed.orionConfig;
+    const internalStatesOrchestrator: InternalStatesOrchestrator = deployed.internalStatesOrchestrator;
+    const vaultFactory = deployed.transparentVaultFactory;
 
     return {
       config,

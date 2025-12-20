@@ -22,6 +22,7 @@ import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { ethers } from "hardhat";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
 import { expect } from "chai";
+import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 
 import {
   MockUnderlyingAsset,
@@ -33,7 +34,6 @@ import {
   LiquidityOrchestrator,
   TransparentVaultFactory,
   OrionTransparentVault,
-  PriceAdapterRegistry,
 } from "../typechain-types";
 
 describe("Redeem Before Deposit Order Verification", function () {
@@ -45,7 +45,6 @@ describe("Redeem Before Deposit Order Verification", function () {
   let internalStatesOrchestrator: InternalStatesOrchestrator;
   let liquidityOrchestrator: LiquidityOrchestrator;
   let transparentVaultFactory: TransparentVaultFactory;
-  let priceAdapterRegistry: PriceAdapterRegistry;
   let vault: OrionTransparentVault;
 
   let owner: SignerWithAddress;
@@ -114,49 +113,15 @@ describe("Redeem Before Deposit Order Verification", function () {
     const MockExecutionAdapterFactory = await ethers.getContractFactory("MockExecutionAdapter");
     mockExecutionAdapter = (await MockExecutionAdapterFactory.deploy()) as unknown as MockExecutionAdapter;
 
-    const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
-    orionConfig = (await OrionConfigFactory.deploy(
-      owner.address,
-      owner.address,
-      await underlyingAsset.getAddress(),
-    )) as unknown as OrionConfig;
+    const deployed = await deployUpgradeableProtocol(owner, owner, underlyingAsset, automationRegistry);
 
-    const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistry");
-    priceAdapterRegistry = (await PriceAdapterRegistryFactory.deploy(
-      owner.address,
-      await orionConfig.getAddress(),
-    )) as unknown as PriceAdapterRegistry;
+    orionConfig = deployed.orionConfig;
+    internalStatesOrchestrator = deployed.internalStatesOrchestrator;
+    liquidityOrchestrator = deployed.liquidityOrchestrator;
+    transparentVaultFactory = deployed.transparentVaultFactory;
 
-    const LiquidityOrchestratorFactory = await ethers.getContractFactory("LiquidityOrchestrator");
-    liquidityOrchestrator = (await LiquidityOrchestratorFactory.deploy(
-      owner.address,
-      await orionConfig.getAddress(),
-      automationRegistry.address,
-    )) as unknown as LiquidityOrchestrator;
-
-    await orionConfig.setLiquidityOrchestrator(await liquidityOrchestrator.getAddress());
-    await orionConfig.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
-
-    const InternalStatesOrchestratorFactory = await ethers.getContractFactory("InternalStatesOrchestrator");
-    internalStatesOrchestrator = (await InternalStatesOrchestratorFactory.deploy(
-      owner.address,
-      await orionConfig.getAddress(),
-      automationRegistry.address,
-    )) as unknown as InternalStatesOrchestrator;
-
-    // Deploy vault factory
-    const TransparentVaultFactoryFactory = await ethers.getContractFactory("TransparentVaultFactory");
-    transparentVaultFactory = (await TransparentVaultFactoryFactory.deploy(
-      await orionConfig.getAddress(),
-    )) as unknown as TransparentVaultFactory;
-
-    // Configure OrionConfig
-    await orionConfig.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
-    await orionConfig.setVaultFactory(await transparentVaultFactory.getAddress());
+    // Configure protocol
     await orionConfig.setProtocolRiskFreeRate(0);
-
-    // Configure LiquidityOrchestrator
-    await liquidityOrchestrator.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
     await liquidityOrchestrator.connect(owner).setTargetBufferRatio(100); // 1% buffer
     await liquidityOrchestrator.connect(owner).updateMinibatchSize(8); // Process all vaults in one batch
 

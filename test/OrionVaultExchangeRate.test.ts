@@ -1,6 +1,8 @@
 import { impersonateAccount, loadFixture, setBalance } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
+import "@openzeppelin/hardhat-upgrades";
 import { ethers } from "hardhat";
+import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 
 describe("OrionVault Exchange Rate Tests", function () {
   async function impersonateOrchestrator(orchestratorAddress: string) {
@@ -14,63 +16,46 @@ describe("OrionVault Exchange Rate Tests", function () {
     const [owner, curator, lp1, lp2, lp3, internalStatesOrchestratorSigner, liquidityOrchestratorSigner, attacker] =
       await ethers.getSigners();
 
-    // Deploy mock underlying asset (6 decimals)
-    const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
-    const underlyingAsset = await MockUnderlyingAssetFactory.deploy(6);
-    await underlyingAsset.waitForDeployment();
-    const underlyingAssetAddress = await underlyingAsset.getAddress();
+    const deployed = await deployUpgradeableProtocol(owner, attacker);
 
-    // Deploy OrionConfig
-    const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
-    const config = await OrionConfigFactory.deploy(owner.address, attacker.address, underlyingAssetAddress); // admin
-    await config.waitForDeployment();
-    const configAddress = await config.getAddress();
-
-    // Deploy PriceAdapterRegistry
-    const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistry");
-    const priceAdapterRegistry = await PriceAdapterRegistryFactory.deploy(owner.address, configAddress);
-    await priceAdapterRegistry.waitForDeployment();
-
-    // Deploy InternalStatesOrchestrator
-    const InternalStatesOrchestratorFactory = await ethers.getContractFactory("InternalStatesOrchestrator");
-    const internalStatesOrchestrator = await InternalStatesOrchestratorFactory.deploy(
-      owner.address,
-      configAddress,
-      internalStatesOrchestratorSigner.address,
-    );
-    await internalStatesOrchestrator.waitForDeployment();
-
-    // Deploy LiquidityOrchestrator
-    const LiquidityOrchestratorFactory = await ethers.getContractFactory("LiquidityOrchestrator");
-    const liquidityOrchestratorContract = await LiquidityOrchestratorFactory.deploy(
-      owner.address,
-      configAddress,
-      liquidityOrchestratorSigner.address,
-    );
-    await liquidityOrchestratorContract.waitForDeployment();
-
-    // Set orchestrators in config
-    await config.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
-    await config.setLiquidityOrchestrator(await liquidityOrchestratorContract.getAddress());
-    await config.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
+    const underlyingAsset = deployed.underlyingAsset;
+    const config = deployed.orionConfig;
+    const factory = deployed.transparentVaultFactory;
+    const internalStatesOrchestrator = deployed.internalStatesOrchestrator;
+    const liquidityOrchestratorContract = deployed.liquidityOrchestrator;
 
     // Set protocol parameters
     await config.setProtocolRiskFreeRate(0.0423 * 10_000);
 
-    // Deploy OrionTransparentVault with correct constructor parameters
-    const OrionTransparentVaultFactory = await ethers.getContractFactory("OrionTransparentVault");
-    const vault = await OrionTransparentVaultFactory.deploy(
-      owner.address,
+    // Create vault via factory
+    const tx = await factory.createVault(
       curator.address,
-      configAddress,
       "Test Vault",
       "TV",
-      0,
-      0,
-      0,
+      0, // feeType
+      0, // performanceFee
+      0, // managementFee
       ethers.ZeroAddress, // depositAccessControl
     );
-    await vault.waitForDeployment();
+
+    const receipt = await tx.wait();
+    const event = receipt?.logs.find((log) => {
+      try {
+        const parsed = factory.interface.parseLog(log);
+        return parsed?.name === "OrionVaultCreated";
+      } catch {
+        return false;
+      }
+    });
+
+    if (!event) {
+      throw new Error("OrionVaultCreated event not found in transaction receipt");
+    }
+
+    const parsedEvent = factory.interface.parseLog(event);
+    const vaultAddress = parsedEvent?.args[0];
+
+    const vault = await ethers.getContractAt("OrionTransparentVault", vaultAddress);
 
     // Mint underlying assets to all participants
     await underlyingAsset.mint(lp1.address, ethers.parseUnits("1000000000000", 6));

@@ -8,6 +8,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 /// @title IOrionVault
 /// @notice Interface for Orion vaults
 /// @author Orion Finance
+/// @custom:security-contact security@orionfinance.ai
 interface IOrionVault is IERC4626 {
     // --------- ERRORS ---------
 

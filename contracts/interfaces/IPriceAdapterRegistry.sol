@@ -6,6 +6,7 @@ import "./IPriceAdapter.sol";
 /// @title IPriceAdapterRegistry
 /// @notice Interface for the price adapter registry
 /// @author Orion Finance
+/// @custom:security-contact security@orionfinance.ai
 interface IPriceAdapterRegistry {
     /// @notice Register or replace the price adapter for an asset.
     /// @param asset The address of the asset.

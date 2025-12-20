@@ -279,6 +279,7 @@ describe("Mainnet Fork: removeWhitelistedAsset DoS Test", function () {
           0, // Fee type
           0, // Performance fee
           0, // Management fee
+          ethers.ZeroAddress, // Permissionless mode
         );
 
         const receipt = await tx.wait();

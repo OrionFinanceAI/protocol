@@ -19,6 +19,7 @@ import { EventsLib } from "../libraries/EventsLib.sol";
  * This implementation supports two curator types:
  * 1. Active Management: Wallet curators submit intents via submitIntent()
  * 2. Passive Management: Smart contract curator strategies implement IOrionStrategy for on-demand intent computation
+ * @custom:security-contact security@orionfinance.ai
  */
 contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
@@ -30,39 +31,47 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     /// @notice Curator intent (w_1) - mapping of token address to target allocation
     EnumerableMap.AddressToUintMap internal _portfolioIntent;
 
-    /// @notice Constructor
-    /// @param vaultOwner The address of the vault owner
-    /// @param curator The address of the vault curator
-    /// @param configAddress The address of the OrionConfig contract
-    /// @param name The name of the vault
-    /// @param symbol The symbol of the vault
-    /// @param feeType The fee type
-    /// @param performanceFee The performance fee
-    /// @param managementFee The management fee
-    /// @param depositAccessControl The address of the deposit access control contract (address(0) = permissionless)
-    constructor(
-        address vaultOwner,
-        address curator,
-        IOrionConfig configAddress,
-        string memory name,
-        string memory symbol,
-        uint8 feeType,
-        uint16 performanceFee,
-        uint16 managementFee,
-        address depositAccessControl
-    )
-        OrionVault(
-            vaultOwner,
-            curator,
-            configAddress,
-            name,
-            symbol,
-            feeType,
-            performanceFee,
-            managementFee,
-            depositAccessControl
-        )
-    {
+    /// @notice Constructor that disables initializers for the implementation contract
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    // solhint-disable-next-line use-natspec
+    constructor() {
+        _disableInitializers();
+    }
+
+    /// @notice Initialize the vault
+    /// @param vaultOwner_ The address of the vault owner
+    /// @param curator_ The address of the vault curator
+    /// @param config_ The address of the OrionConfig contract
+    /// @param name_ The name of the vault
+    /// @param symbol_ The symbol of the vault
+    /// @param feeType_ The fee type
+    /// @param performanceFee_ The performance fee
+    /// @param managementFee_ The management fee
+    /// @param depositAccessControl_ The address of the deposit access control contract (address(0) = permissionless)
+    function initialize(
+        address vaultOwner_,
+        address curator_,
+        IOrionConfig config_,
+        string memory name_,
+        string memory symbol_,
+        uint8 feeType_,
+        uint16 performanceFee_,
+        uint16 managementFee_,
+        address depositAccessControl_
+    ) public initializer {
+        // Call parent initializer
+        __OrionVault_init(
+            vaultOwner_,
+            curator_,
+            config_,
+            name_,
+            symbol_,
+            feeType_,
+            performanceFee_,
+            managementFee_,
+            depositAccessControl_
+        );
+
         // slither-disable-next-line unused-return
         _portfolioIntent.set(address(config.underlyingAsset()), uint32(10 ** config.curatorIntentDecimals()));
     }
@@ -211,4 +220,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
             _portfolioIntent.set(underlyingAsset, blacklistedWeight);
         }
     }
+
+    /// @dev Storage gap to allow for future upgrades
+    uint256[50] private __gap;
 }

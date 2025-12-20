@@ -1,7 +1,9 @@
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
+import "@openzeppelin/hardhat-upgrades";
 import { ethers } from "hardhat";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
+import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 
 import {
   MockUnderlyingAsset,
@@ -12,7 +14,6 @@ import {
   LiquidityOrchestrator,
   TransparentVaultFactory,
   OrionTransparentVault,
-  PriceAdapterRegistry,
   OrionAssetERC4626PriceAdapter,
   KBestTvlWeightedAverage,
   KBestTvlWeightedAverageInvalid,
@@ -28,7 +29,6 @@ describe("Passive Curator Strategy", function () {
   let mockAsset4: MockERC4626Asset;
   let orionPriceAdapter: OrionAssetERC4626PriceAdapter;
   let orionExecutionAdapter: OrionAssetERC4626ExecutionAdapter;
-  let priceAdapterRegistry: PriceAdapterRegistry;
   let internalStatesOrchestrator: InternalStatesOrchestrator;
   let liquidityOrchestrator: LiquidityOrchestrator;
   let transparentVault: OrionTransparentVault;
@@ -42,7 +42,7 @@ describe("Passive Curator Strategy", function () {
   beforeEach(async function () {
     [owner, curator, automationRegistry, user] = await ethers.getSigners();
 
-    // Deploy Mock Underlying Asset
+    // Deploy Mock Underlying Asset first (will be passed to helper)
     const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
     const underlyingAssetDeployed = await MockUnderlyingAssetFactory.deploy(12);
     await underlyingAssetDeployed.waitForDeployment();
@@ -105,24 +105,12 @@ describe("Passive Curator Strategy", function () {
     await underlyingAsset.connect(user).approve(await mockAsset4.getAddress(), initialDeposit4);
     await mockAsset4.connect(user).deposit(initialDeposit4, user.address);
 
-    // Deploy OrionConfig
-    const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
-    const orionConfigDeployed = await OrionConfigFactory.deploy(
-      owner.address,
-      user.address, // admin
-      await underlyingAsset.getAddress(),
-    );
-    await orionConfigDeployed.waitForDeployment();
-    orionConfig = orionConfigDeployed as unknown as OrionConfig;
+    const deployed = await deployUpgradeableProtocol(owner, user, underlyingAsset, automationRegistry);
 
-    // Deploy Price Adapter Registry
-    const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistry");
-    const priceAdapterRegistryDeployed = await PriceAdapterRegistryFactory.deploy(
-      owner.address,
-      await orionConfig.getAddress(),
-    );
-    await priceAdapterRegistryDeployed.waitForDeployment();
-    priceAdapterRegistry = priceAdapterRegistryDeployed as unknown as PriceAdapterRegistry;
+    orionConfig = deployed.orionConfig;
+    internalStatesOrchestrator = deployed.internalStatesOrchestrator;
+    liquidityOrchestrator = deployed.liquidityOrchestrator;
+    transparentVaultFactory = deployed.transparentVaultFactory;
 
     // Deploy OrionAssetERC4626PriceAdapter
     const OrionAssetERC4626PriceAdapterFactory = await ethers.getContractFactory("OrionAssetERC4626PriceAdapter");
@@ -131,39 +119,8 @@ describe("Passive Curator Strategy", function () {
     )) as unknown as OrionAssetERC4626PriceAdapter;
     await orionPriceAdapter.waitForDeployment();
 
-    // Deploy TransparentVaultFactory
-    const TransparentVaultFactoryFactory = await ethers.getContractFactory("TransparentVaultFactory");
-    const transparentVaultFactoryDeployed = await TransparentVaultFactoryFactory.deploy(await orionConfig.getAddress());
-    await transparentVaultFactoryDeployed.waitForDeployment();
-    transparentVaultFactory = transparentVaultFactoryDeployed as unknown as TransparentVaultFactory;
-
-    const LiquidityOrchestratorFactory = await ethers.getContractFactory("LiquidityOrchestrator");
-    const liquidityOrchestratorDeployed = await LiquidityOrchestratorFactory.deploy(
-      owner.address,
-      await orionConfig.getAddress(),
-      automationRegistry.address,
-    );
-    await liquidityOrchestratorDeployed.waitForDeployment();
-    liquidityOrchestrator = liquidityOrchestratorDeployed as unknown as LiquidityOrchestrator;
-
-    await orionConfig.setLiquidityOrchestrator(await liquidityOrchestrator.getAddress());
-    await orionConfig.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
-
-    const InternalStatesOrchestratorFactory = await ethers.getContractFactory("InternalStatesOrchestrator");
-    const internalStatesOrchestratorDeployed = await InternalStatesOrchestratorFactory.deploy(
-      owner.address,
-      await orionConfig.getAddress(),
-      automationRegistry.address,
-    );
-    await internalStatesOrchestratorDeployed.waitForDeployment();
-    internalStatesOrchestrator = internalStatesOrchestratorDeployed as unknown as InternalStatesOrchestrator;
-
-    await orionConfig.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
-    await orionConfig.setVaultFactory(await transparentVaultFactory.getAddress());
-
+    // Configure protocol
     await internalStatesOrchestrator.connect(owner).updateProtocolFees(10, 1000);
-
-    await liquidityOrchestrator.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
     await liquidityOrchestrator.setTargetBufferRatio(100); // 1% target buffer ratio
 
     const OrionAssetERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
