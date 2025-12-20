@@ -4,10 +4,10 @@ import "@openzeppelin/hardhat-upgrades";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import {
   MockUnderlyingAsset,
-  OrionConfigUpgradeable,
+  OrionConfig,
   TransparentVaultFactory,
-  OrionTransparentVaultUpgradeable,
-  LiquidityOrchestratorUpgradeable,
+  OrionTransparentVault,
+  LiquidityOrchestrator,
 } from "../typechain-types";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 import { impersonateAccount, setBalance } from "@nomicfoundation/hardhat-network-helpers";
@@ -77,10 +77,10 @@ describe("Batch Limit Consistency - Critical Accounting Fix", function () {
   let users: SignerWithAddress[];
 
   let underlyingAsset: MockUnderlyingAsset;
-  let orionConfig: OrionConfigUpgradeable;
+  let orionConfig: OrionConfig;
   let transparentVaultFactory: TransparentVaultFactory;
-  let vault: OrionTransparentVaultUpgradeable;
-  let liquidityOrchestrator: LiquidityOrchestratorUpgradeable;
+  let vault: OrionTransparentVault;
+  let liquidityOrchestrator: LiquidityOrchestrator;
 
   const DEPOSIT_AMOUNT = ethers.parseUnits("100", 6); // 100 USDC per user
   let maxFulfillBatchSize: number;
@@ -88,7 +88,6 @@ describe("Batch Limit Consistency - Critical Accounting Fix", function () {
   beforeEach(async function () {
     [owner, curator, ...users] = await ethers.getSigners();
 
-    // Deploy upgradeable protocol
     const deployed = await deployUpgradeableProtocol(owner, owner);
 
     underlyingAsset = deployed.underlyingAsset;
@@ -127,10 +126,7 @@ describe("Batch Limit Consistency - Critical Accounting Fix", function () {
     const parsedEvent = transparentVaultFactory.interface.parseLog(event!);
     const vaultAddress = parsedEvent?.args[0];
 
-    vault = (await ethers.getContractAt(
-      "OrionTransparentVault",
-      vaultAddress,
-    )) as unknown as OrionTransparentVaultUpgradeable;
+    vault = (await ethers.getContractAt("OrionTransparentVault", vaultAddress)) as unknown as OrionTransparentVault;
 
     // Note: Not making initial deposit to keep tests simple
     // Each test will create its own requests

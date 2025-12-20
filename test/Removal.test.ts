@@ -9,27 +9,25 @@ import {
   MockUnderlyingAsset,
   MockERC4626Asset,
   OrionAssetERC4626ExecutionAdapter,
-  OrionConfigUpgradeable,
-  InternalStatesOrchestratorUpgradeable,
-  LiquidityOrchestratorUpgradeable,
+  OrionConfig,
+  InternalStatesOrchestrator,
+  LiquidityOrchestrator,
   TransparentVaultFactory,
-  OrionTransparentVaultUpgradeable,
-  PriceAdapterRegistryUpgradeable,
+  OrionTransparentVault,
   OrionAssetERC4626PriceAdapter,
 } from "../typechain-types";
 
 describe("Whitelist and Vault Removal Flows", function () {
   let transparentVaultFactory: TransparentVaultFactory;
-  let orionConfig: OrionConfigUpgradeable;
+  let orionConfig: OrionConfig;
   let underlyingAsset: MockUnderlyingAsset;
   let mockAsset1: MockERC4626Asset;
   let mockAsset2: MockERC4626Asset;
   let orionPriceAdapter: OrionAssetERC4626PriceAdapter;
   let orionExecutionAdapter: OrionAssetERC4626ExecutionAdapter;
-  let _priceAdapterRegistry: PriceAdapterRegistryUpgradeable;
-  let internalStatesOrchestrator: InternalStatesOrchestratorUpgradeable;
-  let liquidityOrchestrator: LiquidityOrchestratorUpgradeable;
-  let testVault: OrionTransparentVaultUpgradeable;
+  let internalStatesOrchestrator: InternalStatesOrchestrator;
+  let liquidityOrchestrator: LiquidityOrchestrator;
+  let testVault: OrionTransparentVault;
 
   let owner: SignerWithAddress;
   let curator: SignerWithAddress;
@@ -74,11 +72,9 @@ describe("Whitelist and Vault Removal Flows", function () {
     await underlyingAsset.connect(user).approve(await mockAsset2.getAddress(), initialDeposit2);
     await mockAsset2.connect(user).deposit(initialDeposit2, user.address);
 
-    // Deploy upgradeable protocol
     const deployed = await deployUpgradeableProtocol(owner, user, underlyingAsset, automationRegistry);
 
     orionConfig = deployed.orionConfig;
-    _priceAdapterRegistry = deployed.priceAdapterRegistry;
     internalStatesOrchestrator = deployed.internalStatesOrchestrator;
     liquidityOrchestrator = deployed.liquidityOrchestrator;
     transparentVaultFactory = deployed.transparentVaultFactory;
@@ -130,7 +126,7 @@ describe("Whitelist and Vault Removal Flows", function () {
     testVault = (await ethers.getContractAt(
       "OrionTransparentVault",
       testVaultAddress,
-    )) as unknown as OrionTransparentVaultUpgradeable;
+    )) as unknown as OrionTransparentVault;
 
     // Then do the deposit
     await underlyingAsset.connect(user).approve(await testVault.getAddress(), ethers.parseUnits("100", 12));

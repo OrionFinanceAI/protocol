@@ -4,12 +4,12 @@ pragma solidity ^0.8.28;
 import "../OrionConfig.sol";
 
 /**
- * @title OrionConfigUpgradeableV2
+ * @title OrionConfigV2
  * @notice Mock V2 implementation for testing UUPS upgrades
  * @author Orion Finance
  * @dev Adds a new state variable and function to demonstrate upgrade functionality
  */
-contract OrionConfigUpgradeableV2 is OrionConfig {
+contract OrionConfigV2 is OrionConfig {
     /// @notice New state variable added in V2
     uint256 public newV2Variable;
 

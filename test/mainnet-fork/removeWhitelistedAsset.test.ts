@@ -52,8 +52,8 @@ import {
   InternalStatesOrchestrator,
   LiquidityOrchestrator,
   TransparentVaultFactory,
-  OrionTransparentVaultUpgradeable,
-  PriceAdapterRegistryUpgradeable,
+  OrionTransparentVault,
+  PriceAdapterRegistry,
   OrionAssetERC4626PriceAdapter,
   OrionAssetERC4626ExecutionAdapter,
 } from "../../typechain-types";
@@ -69,11 +69,11 @@ describe("Mainnet Fork: removeWhitelistedAsset DoS Test", function () {
   let transparentVaultFactory: TransparentVaultFactory;
   let internalStatesOrchestrator: InternalStatesOrchestrator;
   let liquidityOrchestrator: LiquidityOrchestrator;
-  let priceAdapterRegistry: PriceAdapterRegistryUpgradeable;
+  let priceAdapterRegistry: PriceAdapterRegistry;
   let priceAdapter: OrionAssetERC4626PriceAdapter;
   let executionAdapter: OrionAssetERC4626ExecutionAdapter;
 
-  const vaults: OrionTransparentVaultUpgradeable[] = [];
+  const vaults: OrionTransparentVault[] = [];
 
   const MORPHO_VAULTS = {
     maWETH: "0x490BBbc2485e99989Ba39b34802faFa58e26ABa4", // Morpho Aave WETH Supply Vault
@@ -106,7 +106,7 @@ describe("Mainnet Fork: removeWhitelistedAsset DoS Test", function () {
     const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
     const orionConfigDeployed = await OrionConfigFactory.deploy(owner.address, admin.address, USDC_ADDRESS);
     await orionConfigDeployed.waitForDeployment();
-    orionConfig = orionConfigDeployed as OrionConfig;
+    orionConfig = orionConfigDeployed as unknown as OrionConfig;
     console.log(`✓ OrionConfig deployed at: ${await orionConfig.getAddress()}`);
 
     // ===== 2. Deploy TransparentVaultFactory =====
@@ -145,7 +145,7 @@ describe("Mainnet Fork: removeWhitelistedAsset DoS Test", function () {
       await orionConfig.getAddress(),
     );
     await priceAdapterRegistryDeployed.waitForDeployment();
-    priceAdapterRegistry = priceAdapterRegistryDeployed as unknown as PriceAdapterRegistryUpgradeable;
+    priceAdapterRegistry = priceAdapterRegistryDeployed as unknown as PriceAdapterRegistry;
     console.log(`✓ PriceAdapterRegistry deployed`);
 
     // ===== 4. Deploy Adapters for ERC4626 Vaults =====
@@ -279,6 +279,7 @@ describe("Mainnet Fork: removeWhitelistedAsset DoS Test", function () {
           0, // Fee type
           0, // Performance fee
           0, // Management fee
+          ethers.ZeroAddress, // Permissionless mode
         );
 
         const receipt = await tx.wait();
@@ -300,7 +301,7 @@ describe("Mainnet Fork: removeWhitelistedAsset DoS Test", function () {
         const vault = (await ethers.getContractAt(
           "OrionTransparentVault",
           vaultAddress,
-        )) as unknown as OrionTransparentVaultUpgradeable;
+        )) as unknown as OrionTransparentVault;
 
         vaults.push(vault);
 

@@ -2,11 +2,7 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import "@openzeppelin/hardhat-upgrades";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import {
-  OrionTransparentVaultUpgradeable,
-  InternalStatesOrchestratorUpgradeable,
-  LiquidityOrchestratorUpgradeable,
-} from "../typechain-types";
+import { OrionTransparentVault, InternalStatesOrchestrator, LiquidityOrchestrator } from "../typechain-types";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 
 /**
@@ -30,13 +26,12 @@ describe("Batch Limit Accounting Fix", function () {
     const curator = allSigners[1];
     const users = allSigners.slice(2); // Remaining signers for testing
 
-    // Deploy upgradeable protocol using helper
     const deployed = await deployUpgradeableProtocol(owner, owner);
 
     const usdc = deployed.underlyingAsset;
     const config = deployed.orionConfig;
-    const internalStatesOrchestrator: InternalStatesOrchestratorUpgradeable = deployed.internalStatesOrchestrator;
-    const liquidityOrchestrator: LiquidityOrchestratorUpgradeable = deployed.liquidityOrchestrator;
+    const internalStatesOrchestrator: InternalStatesOrchestrator = deployed.internalStatesOrchestrator;
+    const liquidityOrchestrator: LiquidityOrchestrator = deployed.liquidityOrchestrator;
     const vaultFactory = deployed.transparentVaultFactory;
 
     // Create a vault
@@ -60,7 +55,7 @@ describe("Batch Limit Accounting Fix", function () {
     const parsedLog = vaultCreatedEvent ? vaultFactory.interface.parseLog(vaultCreatedEvent) : null;
     const vaultAddress = parsedLog?.args[0];
     const vaultContract = await ethers.getContractAt("OrionTransparentVault", vaultAddress);
-    const vault = vaultContract as unknown as OrionTransparentVaultUpgradeable;
+    const vault = vaultContract as unknown as OrionTransparentVault;
 
     // Fund users with USDC and approve vault
     for (const user of users) {

@@ -9,13 +9,13 @@ import {
   MockERC4626Asset,
   MockPriceAdapter,
   MockExecutionAdapter,
-  OrionConfigUpgradeable,
+  OrionConfig,
   TransparentVaultFactory,
-  OrionTransparentVaultUpgradeable,
+  OrionTransparentVault,
 } from "../typechain-types";
 
 let transparentVaultFactory: TransparentVaultFactory;
-let orionConfig: OrionConfigUpgradeable;
+let orionConfig: OrionConfig;
 let underlyingAsset: MockUnderlyingAsset;
 let mockAsset1: MockERC4626Asset;
 let mockAsset2: MockERC4626Asset;
@@ -23,7 +23,7 @@ let mockPriceAdapter1: MockPriceAdapter;
 let mockPriceAdapter2: MockPriceAdapter;
 let mockExecutionAdapter1: MockExecutionAdapter;
 let mockExecutionAdapter2: MockExecutionAdapter;
-let transparentVault: OrionTransparentVaultUpgradeable;
+let transparentVault: OrionTransparentVault;
 
 let owner: SignerWithAddress, curator: SignerWithAddress, other: SignerWithAddress;
 
@@ -52,7 +52,6 @@ beforeEach(async function () {
   await mockAsset2Deployed.waitForDeployment();
   mockAsset2 = mockAsset2Deployed as unknown as MockERC4626Asset;
 
-  // Deploy upgradeable protocol
   const deployed = await deployUpgradeableProtocol(owner, other, underlyingAsset);
 
   orionConfig = deployed.orionConfig;
@@ -72,7 +71,6 @@ beforeEach(async function () {
   mockExecutionAdapter2 = (await MockExecutionAdapterFactory.deploy()) as unknown as MockExecutionAdapter;
   await mockExecutionAdapter2.waitForDeployment();
 
-  // Configure protocol
   await orionConfig.setProtocolRiskFreeRate(0.0423 * 10_000);
 
   await orionConfig.addWhitelistedAsset(
@@ -115,7 +113,7 @@ describe("TransparentVault - Curator Pipeline", function () {
       transparentVault = (await ethers.getContractAt(
         "OrionTransparentVault",
         vaultAddress,
-      )) as unknown as OrionTransparentVaultUpgradeable;
+      )) as unknown as OrionTransparentVault;
 
       // Verify vault properties
       void expect(await transparentVault.vaultOwner()).to.equal(owner.address);
@@ -151,7 +149,7 @@ describe("TransparentVault - Curator Pipeline", function () {
       const testVault = (await ethers.getContractAt(
         "OrionTransparentVault",
         vaultAddress,
-      )) as unknown as OrionTransparentVaultUpgradeable;
+      )) as unknown as OrionTransparentVault;
 
       // Try to update with management fee above limit (100% = 10,000 basis points)
       // Maximum allowed is 3% (300 basis points)
@@ -192,7 +190,7 @@ describe("TransparentVault - Curator Pipeline", function () {
       const testVault = (await ethers.getContractAt(
         "OrionTransparentVault",
         vaultAddress,
-      )) as unknown as OrionTransparentVaultUpgradeable;
+      )) as unknown as OrionTransparentVault;
 
       // Try to update with performance fee above limit (100% = 10,000 basis points)
       // Maximum allowed is 30% (3,000 basis points)
@@ -226,7 +224,7 @@ describe("TransparentVault - Curator Pipeline", function () {
       transparentVault = (await ethers.getContractAt(
         "OrionTransparentVault",
         vaultAddress,
-      )) as unknown as OrionTransparentVaultUpgradeable;
+      )) as unknown as OrionTransparentVault;
     });
 
     it("Should allow vault owner to update vault whitelist", async function () {
@@ -407,7 +405,7 @@ describe("TransparentVault - Curator Pipeline", function () {
       transparentVault = (await ethers.getContractAt(
         "OrionTransparentVault",
         vaultAddress,
-      )) as unknown as OrionTransparentVaultUpgradeable;
+      )) as unknown as OrionTransparentVault;
 
       // 2. Update vault whitelist
       const whitelist = [await mockAsset1.getAddress(), await mockAsset2.getAddress()];

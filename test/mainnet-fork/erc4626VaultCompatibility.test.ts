@@ -31,9 +31,9 @@ import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { ethers } from "hardhat";
 import { expect } from "chai";
 import {
-  OrionConfigUpgradeable,
+  OrionConfig,
   TransparentVaultFactory,
-  PriceAdapterRegistryUpgradeable,
+  PriceAdapterRegistry,
   InternalStatesOrchestrator,
   LiquidityOrchestrator,
   OrionAssetERC4626PriceAdapter,
@@ -46,11 +46,11 @@ describe("Mainnet Fork: ERC4626 Vault Compatibility", function () {
   let admin: SignerWithAddress;
   let other: SignerWithAddress;
 
-  let orionConfig: OrionConfigUpgradeable;
+  let orionConfig: OrionConfig;
   let transparentVaultFactory: TransparentVaultFactory;
   let internalStatesOrchestrator: InternalStatesOrchestrator;
   let liquidityOrchestrator: LiquidityOrchestrator;
-  let priceAdapterRegistry: PriceAdapterRegistryUpgradeable;
+  let priceAdapterRegistry: PriceAdapterRegistry;
   let priceAdapter: OrionAssetERC4626PriceAdapter;
   let executionAdapter: OrionAssetERC4626ExecutionAdapter;
 
@@ -188,7 +188,7 @@ describe("Mainnet Fork: ERC4626 Vault Compatibility", function () {
     const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
     const orionConfigDeployed = await OrionConfigFactory.deploy(owner.address, admin.address, USDC_ADDRESS);
     await orionConfigDeployed.waitForDeployment();
-    orionConfig = orionConfigDeployed as unknown as OrionConfigUpgradeable;
+    orionConfig = orionConfigDeployed as unknown as OrionConfig;
     console.log(`OrionConfig deployed at: ${await orionConfig.getAddress()}`);
 
     // Deploy TransparentVaultFactory
@@ -222,7 +222,7 @@ describe("Mainnet Fork: ERC4626 Vault Compatibility", function () {
       await orionConfig.getAddress(),
     );
     await priceAdapterRegistryDeployed.waitForDeployment();
-    priceAdapterRegistry = priceAdapterRegistryDeployed as unknown as PriceAdapterRegistryUpgradeable;
+    priceAdapterRegistry = priceAdapterRegistryDeployed as unknown as PriceAdapterRegistry;
 
     // Deploy ERC4626 Adapters
     const PriceAdapterFactory = await ethers.getContractFactory("OrionAssetERC4626PriceAdapter");

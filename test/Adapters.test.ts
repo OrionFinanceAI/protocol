@@ -4,26 +4,22 @@ import "@openzeppelin/hardhat-upgrades";
 import { ethers } from "hardhat";
 
 import {
-  InternalStatesOrchestratorUpgradeable,
-  LiquidityOrchestratorUpgradeable,
+  LiquidityOrchestrator,
   MockERC4626Asset,
   MockPriceAdapter,
   MockUnderlyingAsset,
   OrionAssetERC4626ExecutionAdapter,
   OrionAssetERC4626PriceAdapter,
-  OrionConfigUpgradeable,
-  PriceAdapterRegistryUpgradeable,
+  OrionConfig,
 } from "../typechain-types";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 
 describe("Price Adapter", function () {
-  let orionConfig: OrionConfigUpgradeable;
+  let orionConfig: OrionConfig;
   let underlyingAsset: MockUnderlyingAsset;
   let mockAsset1: MockERC4626Asset;
   let priceAdapter: OrionAssetERC4626PriceAdapter;
-  let _priceAdapterRegistry: PriceAdapterRegistryUpgradeable;
-  let liquidityOrchestrator: LiquidityOrchestratorUpgradeable;
-  let _internalStatesOrchestrator: InternalStatesOrchestratorUpgradeable;
+  let liquidityOrchestrator: LiquidityOrchestrator;
 
   let owner: SignerWithAddress;
   let automationRegistry: SignerWithAddress;
@@ -32,13 +28,10 @@ describe("Price Adapter", function () {
   beforeEach(async function () {
     [owner, automationRegistry, nonOwner] = await ethers.getSigners();
 
-    // Deploy upgradeable protocol using helper
     const deployed = await deployUpgradeableProtocol(owner, nonOwner, undefined, automationRegistry);
 
     underlyingAsset = deployed.underlyingAsset;
     orionConfig = deployed.orionConfig;
-    _priceAdapterRegistry = deployed.priceAdapterRegistry;
-    _internalStatesOrchestrator = deployed.internalStatesOrchestrator;
     liquidityOrchestrator = deployed.liquidityOrchestrator;
 
     // Deploy a regular ERC20 (not ERC4626) for adapter validation tests

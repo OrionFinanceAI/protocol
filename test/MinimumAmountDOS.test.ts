@@ -20,7 +20,6 @@ describe("Minimum Amount DOS Prevention", function () {
   async function deployFixture() {
     const [owner, curator, attacker, user1, user2, automationRegistry] = await ethers.getSigners();
 
-    // Deploy upgradeable protocol using helper
     const deployed = await deployUpgradeableProtocol(owner, owner);
 
     const usdc = deployed.underlyingAsset;

@@ -96,12 +96,11 @@ import {
   MockUnderlyingAsset,
   MockERC4626Asset,
   OrionAssetERC4626ExecutionAdapter,
-  OrionConfigUpgradeable,
-  InternalStatesOrchestratorUpgradeable,
-  LiquidityOrchestratorUpgradeable,
+  OrionConfig,
+  InternalStatesOrchestrator,
+  LiquidityOrchestrator,
   TransparentVaultFactory,
-  OrionTransparentVaultUpgradeable,
-  PriceAdapterRegistryUpgradeable,
+  OrionTransparentVault,
   OrionAssetERC4626PriceAdapter,
   KBestTvlWeightedAverage,
 } from "../../typechain-types";
@@ -116,23 +115,22 @@ describe("Orchestrator Security", function () {
   const PASSIVE_VAULT_DEPOSIT = 100;
 
   let transparentVaultFactory: TransparentVaultFactory;
-  let orionConfig: OrionConfigUpgradeable;
+  let orionConfig: OrionConfig;
   let underlyingAsset: MockUnderlyingAsset;
   let mockAsset1: MockERC4626Asset;
   let mockAsset2: MockERC4626Asset;
   let mockAsset3: MockERC4626Asset;
   let orionPriceAdapter: OrionAssetERC4626PriceAdapter;
   let orionExecutionAdapter: OrionAssetERC4626ExecutionAdapter;
-  let _priceAdapterRegistry: PriceAdapterRegistryUpgradeable;
-  let internalStatesOrchestrator: InternalStatesOrchestratorUpgradeable;
-  let liquidityOrchestrator: LiquidityOrchestratorUpgradeable;
-  let absoluteVault: OrionTransparentVaultUpgradeable;
-  let highWaterMarkVault: OrionTransparentVaultUpgradeable;
-  let softHurdleVault: OrionTransparentVaultUpgradeable;
-  let hardHurdleVault: OrionTransparentVaultUpgradeable;
-  let hurdleHwmVault: OrionTransparentVaultUpgradeable;
+  let internalStatesOrchestrator: InternalStatesOrchestrator;
+  let liquidityOrchestrator: LiquidityOrchestrator;
+  let absoluteVault: OrionTransparentVault;
+  let highWaterMarkVault: OrionTransparentVault;
+  let softHurdleVault: OrionTransparentVault;
+  let hardHurdleVault: OrionTransparentVault;
+  let hurdleHwmVault: OrionTransparentVault;
   let kbestTvlStrategy: KBestTvlWeightedAverage;
-  let passiveVault: OrionTransparentVaultUpgradeable;
+  let passiveVault: OrionTransparentVault;
 
   let underlyingDecimals: number;
 
@@ -209,7 +207,6 @@ describe("Orchestrator Security", function () {
     const deployed = await deployUpgradeableProtocol(owner, user, underlyingAsset, automationRegistry);
 
     orionConfig = deployed.orionConfig;
-    _priceAdapterRegistry = deployed.priceAdapterRegistry;
     internalStatesOrchestrator = deployed.internalStatesOrchestrator;
     liquidityOrchestrator = deployed.liquidityOrchestrator;
     transparentVaultFactory = deployed.transparentVaultFactory;
@@ -301,7 +298,7 @@ describe("Orchestrator Security", function () {
     absoluteVault = (await ethers.getContractAt(
       "OrionTransparentVault",
       absoluteVaultAddress,
-    )) as unknown as OrionTransparentVaultUpgradeable;
+    )) as unknown as OrionTransparentVault;
 
     const softHurdleVaultTx = await transparentVaultFactory
       .connect(owner)
@@ -320,7 +317,7 @@ describe("Orchestrator Security", function () {
     softHurdleVault = (await ethers.getContractAt(
       "OrionTransparentVault",
       softHurdleVaultAddress,
-    )) as unknown as OrionTransparentVaultUpgradeable;
+    )) as unknown as OrionTransparentVault;
 
     const hardHurdleVaultTx = await transparentVaultFactory
       .connect(owner)
@@ -339,7 +336,7 @@ describe("Orchestrator Security", function () {
     hardHurdleVault = (await ethers.getContractAt(
       "OrionTransparentVault",
       hardHurdleVaultAddress,
-    )) as unknown as OrionTransparentVaultUpgradeable;
+    )) as unknown as OrionTransparentVault;
 
     const highWaterMarkVaultTx = await transparentVaultFactory
       .connect(owner)
@@ -358,7 +355,7 @@ describe("Orchestrator Security", function () {
     highWaterMarkVault = (await ethers.getContractAt(
       "OrionTransparentVault",
       highWaterMarkVaultAddress,
-    )) as unknown as OrionTransparentVaultUpgradeable;
+    )) as unknown as OrionTransparentVault;
 
     const hurdleHwmVaultTx = await transparentVaultFactory
       .connect(owner)
@@ -377,7 +374,7 @@ describe("Orchestrator Security", function () {
     hurdleHwmVault = (await ethers.getContractAt(
       "OrionTransparentVault",
       hurdleHwmVaultAddress,
-    )) as unknown as OrionTransparentVaultUpgradeable;
+    )) as unknown as OrionTransparentVault;
 
     // Create passive vault with kbestTVL strategy (no curator intents)
     const passiveVaultTx = await transparentVaultFactory
@@ -397,7 +394,7 @@ describe("Orchestrator Security", function () {
     passiveVault = (await ethers.getContractAt(
       "OrionTransparentVault",
       passiveVaultAddress,
-    )) as unknown as OrionTransparentVaultUpgradeable;
+    )) as unknown as OrionTransparentVault;
 
     await passiveVault.connect(owner).updateCurator(await kbestTvlStrategy.getAddress());
 

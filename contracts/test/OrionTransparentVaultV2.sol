@@ -4,12 +4,12 @@ pragma solidity ^0.8.28;
 import "../vaults/OrionTransparentVault.sol";
 
 /**
- * @title OrionTransparentVaultUpgradeableV2
+ * @title OrionTransparentVaultV2
  * @notice Mock V2 implementation for testing Beacon Proxy upgrades
  * @author Orion Finance
  * @dev Adds a new state variable and function to demonstrate beacon upgrade functionality
  */
-contract OrionTransparentVaultUpgradeableV2 is OrionTransparentVault {
+contract OrionTransparentVaultV2 is OrionTransparentVault {
     /// @notice New state variable added in V2
     string public vaultDescription;
 

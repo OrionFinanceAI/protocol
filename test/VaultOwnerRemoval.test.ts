@@ -5,10 +5,10 @@ import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import type { Signer } from "ethers";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 import {
-  OrionConfigUpgradeable,
-  OrionTransparentVaultUpgradeable,
-  InternalStatesOrchestratorUpgradeable,
-  LiquidityOrchestratorUpgradeable,
+  OrionConfig,
+  OrionTransparentVault,
+  InternalStatesOrchestrator,
+  LiquidityOrchestrator,
   TransparentVaultFactory,
 } from "../typechain-types";
 
@@ -28,16 +28,14 @@ describe("Vault Owner Removal - Automatic Decommissioning", function () {
     const curator2 = allSigners[4];
     const automationRegistry = allSigners[5];
 
-    // Deploy upgradeable protocol
     const deployed = await deployUpgradeableProtocol(owner, owner);
 
     const usdc = deployed.underlyingAsset;
     const config = deployed.orionConfig;
-    const internalStatesOrchestrator: InternalStatesOrchestratorUpgradeable = deployed.internalStatesOrchestrator;
-    const liquidityOrchestrator: LiquidityOrchestratorUpgradeable = deployed.liquidityOrchestrator;
+    const internalStatesOrchestrator: InternalStatesOrchestrator = deployed.internalStatesOrchestrator;
+    const liquidityOrchestrator: LiquidityOrchestrator = deployed.liquidityOrchestrator;
     const vaultFactory = deployed.transparentVaultFactory;
 
-    // Whitelist vault owners and curators
     await config.addWhitelistedVaultOwner(vaultOwner1.address);
     await config.addWhitelistedVaultOwner(vaultOwner2.address);
 
@@ -58,12 +56,12 @@ describe("Vault Owner Removal - Automatic Decommissioning", function () {
 
   async function createVault(
     vaultFactory: TransparentVaultFactory,
-    _config: OrionConfigUpgradeable,
+    _config: OrionConfig,
     vaultOwner: Signer,
     curator: Signer,
     name: string,
     symbol: string,
-  ): Promise<OrionTransparentVaultUpgradeable> {
+  ): Promise<OrionTransparentVault> {
     const curatorAddress = await curator.getAddress();
     const vaultTx = await vaultFactory.connect(vaultOwner).createVault(
       curatorAddress,
@@ -85,7 +83,7 @@ describe("Vault Owner Removal - Automatic Decommissioning", function () {
     const parsedLog = vaultCreatedEvent ? vaultFactory.interface.parseLog(vaultCreatedEvent) : null;
     const vaultAddress = parsedLog?.args[0];
     const vaultContract = await ethers.getContractAt("OrionTransparentVault", vaultAddress);
-    return vaultContract as unknown as OrionTransparentVaultUpgradeable;
+    return vaultContract as unknown as OrionTransparentVault;
   }
 
   describe("1. Single vault owner removal", function () {

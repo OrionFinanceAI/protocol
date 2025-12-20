@@ -4,11 +4,9 @@ import "@openzeppelin/hardhat-upgrades";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import {
   MockUnderlyingAsset,
-  OrionConfigUpgradeable,
   TransparentVaultFactory,
-  OrionTransparentVaultUpgradeable,
+  OrionTransparentVault,
   WhitelistAccessControl,
-  PriceAdapterRegistryUpgradeable,
 } from "../typechain-types";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 
@@ -20,11 +18,7 @@ describe("Access Control", function () {
   let user3: SignerWithAddress;
 
   let mockAsset: MockUnderlyingAsset;
-  let _orionConfig: OrionConfigUpgradeable;
   let factory: TransparentVaultFactory;
-  let _priceAdapterRegistry: PriceAdapterRegistryUpgradeable;
-  let _internalStatesOrchestrator;
-  let _liquidityOrchestrator;
   let accessControl: WhitelistAccessControl;
 
   const DEPOSIT_AMOUNT = ethers.parseUnits("1000", 6);
@@ -32,14 +26,9 @@ describe("Access Control", function () {
   beforeEach(async function () {
     [owner, curator, user1, user2, user3] = await ethers.getSigners();
 
-    // Deploy upgradeable protocol using helper
     const deployed = await deployUpgradeableProtocol(owner, owner);
 
     mockAsset = deployed.underlyingAsset;
-    _orionConfig = deployed.orionConfig;
-    _priceAdapterRegistry = deployed.priceAdapterRegistry;
-    _internalStatesOrchestrator = deployed.internalStatesOrchestrator;
-    _liquidityOrchestrator = deployed.liquidityOrchestrator;
     factory = deployed.transparentVaultFactory;
 
     // Deploy WhitelistAccessControl
@@ -48,7 +37,7 @@ describe("Access Control", function () {
   });
 
   describe("Permissionless Mode (address(0))", function () {
-    let vault: OrionTransparentVaultUpgradeable;
+    let vault: OrionTransparentVault;
 
     beforeEach(async function () {
       // Create vault with no access control (permissionless)
@@ -75,10 +64,7 @@ describe("Access Control", function () {
       const parsedEvent = factory.interface.parseLog(event!);
       const vaultAddress = parsedEvent?.args[0];
 
-      vault = (await ethers.getContractAt(
-        "OrionTransparentVault",
-        vaultAddress,
-      )) as unknown as OrionTransparentVaultUpgradeable;
+      vault = (await ethers.getContractAt("OrionTransparentVault", vaultAddress)) as unknown as OrionTransparentVault;
     });
 
     it("Should allow any user to deposit when access control is zero address", async function () {
@@ -102,7 +88,7 @@ describe("Access Control", function () {
   });
 
   describe("With Access Control Enabled", function () {
-    let vault: OrionTransparentVaultUpgradeable;
+    let vault: OrionTransparentVault;
 
     beforeEach(async function () {
       // Create vault with access control
@@ -129,10 +115,7 @@ describe("Access Control", function () {
       const parsedEvent = factory.interface.parseLog(event!);
       const vaultAddress = parsedEvent?.args[0];
 
-      vault = (await ethers.getContractAt(
-        "OrionTransparentVault",
-        vaultAddress,
-      )) as unknown as OrionTransparentVaultUpgradeable;
+      vault = (await ethers.getContractAt("OrionTransparentVault", vaultAddress)) as unknown as OrionTransparentVault;
     });
 
     it("Should return correct depositAccessControl address", async function () {
@@ -206,7 +189,7 @@ describe("Access Control", function () {
   });
 
   describe("Vault Owner Can Update Access Control", function () {
-    let vault: OrionTransparentVaultUpgradeable;
+    let vault: OrionTransparentVault;
 
     beforeEach(async function () {
       // Create vault without access control initially
@@ -225,10 +208,7 @@ describe("Access Control", function () {
       const parsedEvent = factory.interface.parseLog(event!);
       const vaultAddress = parsedEvent?.args[0];
 
-      vault = (await ethers.getContractAt(
-        "OrionTransparentVault",
-        vaultAddress,
-      )) as unknown as OrionTransparentVaultUpgradeable;
+      vault = (await ethers.getContractAt("OrionTransparentVault", vaultAddress)) as unknown as OrionTransparentVault;
     });
 
     it("Should allow vault owner to set access control", async function () {

@@ -6,20 +6,20 @@ import { time } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { deployUpgradeableProtocol } from "../helpers/deployUpgradeable";
 
 import {
-  OrionConfigUpgradeable,
-  InternalStatesOrchestratorUpgradeable,
-  LiquidityOrchestratorUpgradeable,
+  OrionConfig,
+  InternalStatesOrchestrator,
+  LiquidityOrchestrator,
   TransparentVaultFactory,
-  OrionTransparentVaultUpgradeable,
+  OrionTransparentVault,
   MockUnderlyingAsset,
 } from "../../typechain-types";
 
 describe("Orchestrators - zero deposits and zero intents", function () {
-  let orionConfig: OrionConfigUpgradeable;
-  let internalStatesOrchestrator: InternalStatesOrchestratorUpgradeable;
-  let liquidityOrchestrator: LiquidityOrchestratorUpgradeable;
+  let orionConfig: OrionConfig;
+  let internalStatesOrchestrator: InternalStatesOrchestrator;
+  let liquidityOrchestrator: LiquidityOrchestrator;
   let transparentVaultFactory: TransparentVaultFactory;
-  let transparentVault: OrionTransparentVaultUpgradeable;
+  let transparentVault: OrionTransparentVault;
   let underlyingAsset: MockUnderlyingAsset;
 
   let owner: SignerWithAddress;
@@ -30,7 +30,6 @@ describe("Orchestrators - zero deposits and zero intents", function () {
   beforeEach(async function () {
     [owner, curator, automationRegistry, user] = await ethers.getSigners();
 
-    // Deploy upgradeable protocol
     const deployed = await deployUpgradeableProtocol(owner, user, undefined, automationRegistry);
 
     underlyingAsset = deployed.underlyingAsset;
@@ -60,7 +59,7 @@ describe("Orchestrators - zero deposits and zero intents", function () {
     transparentVault = (await ethers.getContractAt(
       "OrionTransparentVault",
       tvAddress,
-    )) as unknown as OrionTransparentVaultUpgradeable;
+    )) as unknown as OrionTransparentVault;
 
     // Mint underlying assets to user for potential deposits
     await underlyingAsset.mint(user.address, ethers.parseUnits("10000", 12));

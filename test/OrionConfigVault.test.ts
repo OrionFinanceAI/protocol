@@ -8,18 +8,17 @@ import {
   MockERC4626Asset,
   MockPriceAdapter,
   MockExecutionAdapter,
-  OrionConfigUpgradeable,
-  InternalStatesOrchestratorUpgradeable,
-  LiquidityOrchestratorUpgradeable,
+  OrionConfig,
+  LiquidityOrchestrator,
   TransparentVaultFactory,
-  PriceAdapterRegistryUpgradeable,
-  OrionTransparentVaultUpgradeable,
+  OrionTransparentVault,
 } from "../typechain-types";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 import { impersonateAccount, setBalance } from "@nomicfoundation/hardhat-network-helpers";
 
 let transparentVaultFactory: TransparentVaultFactory;
-let orionConfig: OrionConfigUpgradeable;
+let orionConfig: OrionConfig;
+let liquidityOrchestrator: LiquidityOrchestrator;
 let underlyingAsset: MockUnderlyingAsset;
 let mockAsset1: MockERC4626Asset;
 let mockAsset2: MockERC4626Asset;
@@ -27,24 +26,18 @@ let mockPriceAdapter1: MockPriceAdapter;
 let mockPriceAdapter2: MockPriceAdapter;
 let mockExecutionAdapter1: MockExecutionAdapter;
 let mockExecutionAdapter2: MockExecutionAdapter;
-let _priceAdapterRegistry: PriceAdapterRegistryUpgradeable;
-let _internalStatesOrchestrator: InternalStatesOrchestratorUpgradeable;
-let _liquidityOrchestrator: LiquidityOrchestratorUpgradeable;
-let vault: OrionTransparentVaultUpgradeable;
+let vault: OrionTransparentVault;
 
 let owner: SignerWithAddress, curator: SignerWithAddress, other: SignerWithAddress, user: SignerWithAddress;
 
 beforeEach(async function () {
   [owner, curator, other, user] = await ethers.getSigners();
 
-  // Deploy upgradeable protocol using helper
   const deployed = await deployUpgradeableProtocol(owner, other);
 
   underlyingAsset = deployed.underlyingAsset;
   orionConfig = deployed.orionConfig;
-  _priceAdapterRegistry = deployed.priceAdapterRegistry;
-  _internalStatesOrchestrator = deployed.internalStatesOrchestrator;
-  _liquidityOrchestrator = deployed.liquidityOrchestrator;
+  liquidityOrchestrator = deployed.liquidityOrchestrator;
   transparentVaultFactory = deployed.transparentVaultFactory;
 
   // Deploy additional mock ERC4626 assets for testing
@@ -109,10 +102,7 @@ beforeEach(async function () {
   });
   const parsedEvent = transparentVaultFactory.interface.parseLog(event!);
   const vaultAddress = parsedEvent?.args[0];
-  vault = (await ethers.getContractAt(
-    "OrionTransparentVault",
-    vaultAddress,
-  )) as unknown as OrionTransparentVaultUpgradeable;
+  vault = (await ethers.getContractAt("OrionTransparentVault", vaultAddress)) as unknown as OrionTransparentVault;
 
   // Give user some underlying assets for testing
   await underlyingAsset.mint(user.address, ethers.parseUnits("10000", 6));
@@ -408,11 +398,11 @@ describe("OrionVault - Base Functionality", function () {
 
       // Fund the LiquidityOrchestrator so it can fulfill the deposit (use admin 'other')
       await underlyingAsset.mint(other.address, depositAmount);
-      await underlyingAsset.connect(other).approve(await _liquidityOrchestrator.getAddress(), depositAmount);
-      await _liquidityOrchestrator.connect(other).depositLiquidity(depositAmount);
+      await underlyingAsset.connect(other).approve(await liquidityOrchestrator.getAddress(), depositAmount);
+      await liquidityOrchestrator.connect(other).depositLiquidity(depositAmount);
 
       // Impersonate LiquidityOrchestrator to fulfill deposit (gives user shares)
-      const loAddress = await _liquidityOrchestrator.getAddress();
+      const loAddress = await liquidityOrchestrator.getAddress();
       await impersonateAccount(loAddress);
       await setBalance(loAddress, ethers.parseEther("1"));
       const loSigner = await ethers.getSigner(loAddress);

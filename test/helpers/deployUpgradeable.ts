@@ -86,10 +86,11 @@ export async function deployUpgradeableProtocol(
   )) as unknown as LiquidityOrchestrator;
   await liquidityOrchestrator.waitForDeployment();
 
-  // 4. Set LiquidityOrchestrator in config BEFORE deploying InternalStatesOrchestrator
+  // 4. Set LiquidityOrchestrator and PriceAdapterRegistry in config BEFORE deploying InternalStatesOrchestrator
   await orionConfig.setLiquidityOrchestrator(await liquidityOrchestrator.getAddress());
+  await orionConfig.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
 
-  // 5. Deploy InternalStatesOrchestrator (UUPS) - reads liquidityOrchestrator from config
+  // 5. Deploy InternalStatesOrchestrator (UUPS) - reads liquidityOrchestrator and priceAdapterRegistry from config
   const InternalStatesOrchestratorFactory = await ethers.getContractFactory("InternalStatesOrchestrator");
   const internalStatesOrchestrator = (await upgrades.deployProxy(
     InternalStatesOrchestratorFactory,
@@ -122,9 +123,7 @@ export async function deployUpgradeableProtocol(
   await transparentVaultFactory.waitForDeployment();
 
   // 8. Configure OrionConfig with remaining deployed contracts
-  await orionConfig.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
   await orionConfig.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
-  // Note: LiquidityOrchestrator was already set before InternalStatesOrchestrator deployment
   await orionConfig.setVaultFactory(await transparentVaultFactory.getAddress());
 
   // 9. Link orchestrators (LiquidityOrchestrator needs InternalStatesOrchestrator reference)

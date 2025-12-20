@@ -51,10 +51,10 @@ import {
   MockUnderlyingAsset,
   MockERC4626Asset,
   OrionAssetERC4626ExecutionAdapter,
-  OrionConfigUpgradeable,
-  InternalStatesOrchestratorUpgradeable,
-  LiquidityOrchestratorUpgradeable,
-  OrionTransparentVaultUpgradeable,
+  OrionConfig,
+  InternalStatesOrchestrator,
+  LiquidityOrchestrator,
+  OrionTransparentVault,
 } from "../typechain-types";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
 
@@ -63,10 +63,10 @@ describe("Protocol Pause Functionality", function () {
   let underlyingAsset: MockUnderlyingAsset;
   let erc4626Asset: MockERC4626Asset;
   let adapter: OrionAssetERC4626ExecutionAdapter;
-  let config: OrionConfigUpgradeable;
-  let internalStatesOrchestrator: InternalStatesOrchestratorUpgradeable;
-  let liquidityOrchestrator: LiquidityOrchestratorUpgradeable;
-  let transparentVault: OrionTransparentVaultUpgradeable;
+  let config: OrionConfig;
+  let internalStatesOrchestrator: InternalStatesOrchestrator;
+  let liquidityOrchestrator: LiquidityOrchestrator;
+  let transparentVault: OrionTransparentVault;
 
   // Signers
   let admin: SignerWithAddress;
@@ -86,7 +86,6 @@ describe("Protocol Pause Functionality", function () {
     // Get signers
     [admin, guardian, curator, user1, user2, automationRegistry] = await ethers.getSigners();
 
-    // Deploy upgradeable protocol
     const deployed = await deployUpgradeableProtocol(admin, admin, undefined, automationRegistry);
 
     underlyingAsset = deployed.underlyingAsset;
@@ -154,7 +153,7 @@ describe("Protocol Pause Functionality", function () {
     transparentVault = (await ethers.getContractAt(
       "OrionTransparentVault",
       vaultAddress,
-    )) as unknown as OrionTransparentVaultUpgradeable;
+    )) as unknown as OrionTransparentVault;
 
     // Provide liquidity to the protocol
     const liquidityAmount = ethers.parseUnits("100000", 6); // 100k USDC

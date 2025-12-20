@@ -3,9 +3,9 @@ import { ethers, upgrades } from "hardhat";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import {
   OrionConfig,
-  OrionConfigUpgradeableV2,
+  OrionConfigV2,
   OrionTransparentVault,
-  OrionTransparentVaultUpgradeableV2,
+  OrionTransparentVaultV2,
   TransparentVaultFactory,
   UpgradeableBeacon,
   MockUnderlyingAsset,
@@ -56,11 +56,11 @@ describe("Upgrade Tests", function () {
       const proxyAddress = await orionConfig.getAddress();
 
       // Upgrade to V2
-      const OrionConfigV2Factory = await ethers.getContractFactory("OrionConfigUpgradeableV2");
+      const OrionConfigV2Factory = await ethers.getContractFactory("OrionConfigV2");
       const orionConfigV2 = (await upgrades.upgradeProxy(
         proxyAddress,
         OrionConfigV2Factory,
-      )) as unknown as OrionConfigUpgradeableV2;
+      )) as unknown as OrionConfigV2;
 
       // Verify V1 state is preserved
       expect(await orionConfigV2.owner()).to.equal(owner.address);
@@ -79,11 +79,11 @@ describe("Upgrade Tests", function () {
       const proxyAddress = await orionConfig.getAddress();
 
       // Upgrade to V2
-      const OrionConfigV2Factory = await ethers.getContractFactory("OrionConfigUpgradeableV2");
+      const OrionConfigV2Factory = await ethers.getContractFactory("OrionConfigV2");
       const orionConfigV2 = (await upgrades.upgradeProxy(
         proxyAddress,
         OrionConfigV2Factory,
-      )) as unknown as OrionConfigUpgradeableV2;
+      )) as unknown as OrionConfigV2;
 
       // Test V2 event
       const testValue = 100;
@@ -96,7 +96,7 @@ describe("Upgrade Tests", function () {
       const proxyAddress = await orionConfig.getAddress();
 
       // Attempt upgrade as non-owner (should fail)
-      const OrionConfigV2Factory = await ethers.getContractFactory("OrionConfigUpgradeableV2");
+      const OrionConfigV2Factory = await ethers.getContractFactory("OrionConfigV2");
       await expect(upgrades.upgradeProxy(proxyAddress, OrionConfigV2Factory.connect(user))).to.be.reverted;
     });
 
@@ -104,11 +104,11 @@ describe("Upgrade Tests", function () {
       const proxyAddress = await orionConfig.getAddress();
 
       // Upgrade to V2
-      const OrionConfigV2Factory = await ethers.getContractFactory("OrionConfigUpgradeableV2");
+      const OrionConfigV2Factory = await ethers.getContractFactory("OrionConfigV2");
       const orionConfigV2 = (await upgrades.upgradeProxy(
         proxyAddress,
         OrionConfigV2Factory,
-      )) as unknown as OrionConfigUpgradeableV2;
+      )) as unknown as OrionConfigV2;
 
       // V2 adds one state variable (newV2Variable), which should use one slot from __gap
       // This should not cause any storage collision
@@ -128,7 +128,6 @@ describe("Upgrade Tests", function () {
     let underlyingAsset: MockUnderlyingAsset;
 
     beforeEach(async function () {
-      // Deploy complete upgradeable protocol
       const deployed = await deployUpgradeableProtocol(owner, admin);
       vaultFactory = deployed.transparentVaultFactory;
       vaultBeacon = deployed.vaultBeacon;
@@ -187,7 +186,7 @@ describe("Upgrade Tests", function () {
       expect(await vault2.vaultOwner()).to.equal(owner.address);
 
       // Deploy V2 implementation
-      const VaultV2Factory = await ethers.getContractFactory("OrionTransparentVaultUpgradeableV2");
+      const VaultV2Factory = await ethers.getContractFactory("OrionTransparentVaultV2");
       const vaultV2Impl = await VaultV2Factory.deploy();
       await vaultV2Impl.waitForDeployment();
 
@@ -195,12 +194,8 @@ describe("Upgrade Tests", function () {
       await vaultBeacon.connect(owner).upgradeTo(await vaultV2Impl.getAddress());
 
       // Attach as V2 contracts
-      const vault1V2 = VaultV2Factory.attach(
-        await vault1.getAddress(),
-      ) as unknown as OrionTransparentVaultUpgradeableV2;
-      const vault2V2 = VaultV2Factory.attach(
-        await vault2.getAddress(),
-      ) as unknown as OrionTransparentVaultUpgradeableV2;
+      const vault1V2 = VaultV2Factory.attach(await vault1.getAddress()) as unknown as OrionTransparentVaultV2;
+      const vault2V2 = VaultV2Factory.attach(await vault2.getAddress()) as unknown as OrionTransparentVaultV2;
 
       // Verify V1 state is preserved in both vaults
       expect(await vault1V2.vaultOwner()).to.equal(owner.address);
@@ -220,7 +215,7 @@ describe("Upgrade Tests", function () {
 
     it("Should emit VaultDescriptionSet event when setting description in V2", async function () {
       // Deploy V2 implementation
-      const VaultV2Factory = await ethers.getContractFactory("OrionTransparentVaultUpgradeableV2");
+      const VaultV2Factory = await ethers.getContractFactory("OrionTransparentVaultV2");
       const vaultV2Impl = await VaultV2Factory.deploy();
       await vaultV2Impl.waitForDeployment();
 
@@ -228,9 +223,7 @@ describe("Upgrade Tests", function () {
       await vaultBeacon.connect(owner).upgradeTo(await vaultV2Impl.getAddress());
 
       // Attach as V2
-      const vault1V2 = VaultV2Factory.attach(
-        await vault1.getAddress(),
-      ) as unknown as OrionTransparentVaultUpgradeableV2;
+      const vault1V2 = VaultV2Factory.attach(await vault1.getAddress()) as unknown as OrionTransparentVaultV2;
 
       // Test V2 event
       const description = "Test description";
@@ -240,7 +233,7 @@ describe("Upgrade Tests", function () {
     });
 
     it("Should only allow beacon owner to upgrade implementation", async function () {
-      const VaultV2Factory = await ethers.getContractFactory("OrionTransparentVaultUpgradeableV2");
+      const VaultV2Factory = await ethers.getContractFactory("OrionTransparentVaultV2");
       const vaultV2Impl = await VaultV2Factory.deploy();
       await vaultV2Impl.waitForDeployment();
 
@@ -253,18 +246,14 @@ describe("Upgrade Tests", function () {
 
     it("Should maintain independent vault states after upgrade", async function () {
       // Upgrade to V2
-      const VaultV2Factory = await ethers.getContractFactory("OrionTransparentVaultUpgradeableV2");
+      const VaultV2Factory = await ethers.getContractFactory("OrionTransparentVaultV2");
       const vaultV2Impl = await VaultV2Factory.deploy();
       await vaultV2Impl.waitForDeployment();
       await vaultBeacon.connect(owner).upgradeTo(await vaultV2Impl.getAddress());
 
       // Attach as V2
-      const vault1V2 = VaultV2Factory.attach(
-        await vault1.getAddress(),
-      ) as unknown as OrionTransparentVaultUpgradeableV2;
-      const vault2V2 = VaultV2Factory.attach(
-        await vault2.getAddress(),
-      ) as unknown as OrionTransparentVaultUpgradeableV2;
+      const vault1V2 = VaultV2Factory.attach(await vault1.getAddress()) as unknown as OrionTransparentVaultV2;
+      const vault2V2 = VaultV2Factory.attach(await vault2.getAddress()) as unknown as OrionTransparentVaultV2;
 
       // Verify independent ownership is preserved
       expect(await vault1V2.vaultOwner()).to.equal(owner.address);
@@ -282,14 +271,12 @@ describe("Upgrade Tests", function () {
 
     it("Should consume storage gap slots correctly in beacon upgrade", async function () {
       // Upgrade to V2
-      const VaultV2Factory = await ethers.getContractFactory("OrionTransparentVaultUpgradeableV2");
+      const VaultV2Factory = await ethers.getContractFactory("OrionTransparentVaultV2");
       const vaultV2Impl = await VaultV2Factory.deploy();
       await vaultV2Impl.waitForDeployment();
       await vaultBeacon.connect(owner).upgradeTo(await vaultV2Impl.getAddress());
 
-      const vault1V2 = VaultV2Factory.attach(
-        await vault1.getAddress(),
-      ) as unknown as OrionTransparentVaultUpgradeableV2;
+      const vault1V2 = VaultV2Factory.attach(await vault1.getAddress()) as unknown as OrionTransparentVaultV2;
 
       // V2 adds one state variable (vaultDescription - string), which uses storage gap
       await vault1V2.connect(owner).setVaultDescription("Testing storage gap");
@@ -359,7 +346,7 @@ describe("Upgrade Tests", function () {
       const v1Implementation = await vaultBeacon.implementation();
 
       // Deploy V2 implementation
-      const VaultV2Factory = await ethers.getContractFactory("OrionTransparentVaultUpgradeableV2");
+      const VaultV2Factory = await ethers.getContractFactory("OrionTransparentVaultV2");
       const vaultV2Impl = await VaultV2Factory.deploy();
       await vaultV2Impl.waitForDeployment();
 
@@ -395,7 +382,7 @@ describe("Upgrade Tests", function () {
       const VaultV1Factory = await ethers.getContractFactory("OrionTransparentVault");
       const vault1 = VaultV1Factory.attach(vault1Address) as unknown as OrionTransparentVault;
 
-      const vault2V2 = VaultV2Factory.attach(vault2Address) as unknown as OrionTransparentVaultUpgradeableV2;
+      const vault2V2 = VaultV2Factory.attach(vault2Address) as unknown as OrionTransparentVaultV2;
 
       // Vault 1 should be V1 (no version function, should revert)
       // We can't call version() on V1, so just verify it's deployed correctly
@@ -417,7 +404,7 @@ describe("Upgrade Tests", function () {
         ?.args?.[0];
 
       // Deploy V2 implementation
-      const VaultV2Factory = await ethers.getContractFactory("OrionTransparentVaultUpgradeableV2");
+      const VaultV2Factory = await ethers.getContractFactory("OrionTransparentVaultV2");
       const vaultV2Impl = await VaultV2Factory.deploy();
       await vaultV2Impl.waitForDeployment();
 
@@ -434,8 +421,8 @@ describe("Upgrade Tests", function () {
         ?.args?.[0];
 
       // Attach as V2 contracts
-      const vault1V2 = VaultV2Factory.attach(vault1Address) as unknown as OrionTransparentVaultUpgradeableV2;
-      const vault2V2 = VaultV2Factory.attach(vault2Address) as unknown as OrionTransparentVaultUpgradeableV2;
+      const vault1V2 = VaultV2Factory.attach(vault1Address) as unknown as OrionTransparentVaultV2;
+      const vault2V2 = VaultV2Factory.attach(vault2Address) as unknown as OrionTransparentVaultV2;
 
       // Both vaults should now be V2
       expect(await vault1V2.version()).to.equal("v2");
@@ -471,7 +458,7 @@ describe("Upgrade Tests", function () {
       )) as unknown as TransparentVaultFactory;
 
       // Deploy V2 implementation
-      const VaultV2Factory = await ethers.getContractFactory("OrionTransparentVaultUpgradeableV2");
+      const VaultV2Factory = await ethers.getContractFactory("OrionTransparentVaultV2");
       const vaultV2Impl = await VaultV2Factory.deploy();
       await vaultV2Impl.waitForDeployment();
 
@@ -501,7 +488,7 @@ describe("Upgrade Tests", function () {
       const VaultV1Factory = await ethers.getContractFactory("OrionTransparentVault");
       const vault1 = VaultV1Factory.attach(vault1Address) as unknown as OrionTransparentVault;
 
-      const vault2V2 = VaultV2Factory.attach(vault2Address) as unknown as OrionTransparentVaultUpgradeableV2;
+      const vault2V2 = VaultV2Factory.attach(vault2Address) as unknown as OrionTransparentVaultV2;
 
       // Vault 1 should still be V1 (no version function)
       // We can't call version() on V1, so just verify it's deployed correctly

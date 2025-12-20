@@ -2,7 +2,7 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import "@openzeppelin/hardhat-upgrades";
 import { loadFixture, time } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import { OrionTransparentVaultUpgradeable, InternalStatesOrchestratorUpgradeable } from "../typechain-types";
+import { OrionTransparentVault, InternalStatesOrchestrator } from "../typechain-types";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 
 /**
@@ -19,7 +19,6 @@ describe("Fee Cooldown Mechanism", function () {
     HURDLE_HWM: 4,
   };
 
-  const EPOCH_DURATION = 1n * 24n * 60n * 60n; // 1 day
   const DEFAULT_COOLDOWN = 7n * 24n * 60n * 60n; // 7 days
 
   // Max fees for testing
@@ -31,12 +30,11 @@ describe("Fee Cooldown Mechanism", function () {
   async function deployFixture() {
     const [owner, curator, user1, user2, automationRegistry] = await ethers.getSigners();
 
-    // Deploy upgradeable protocol using helper
     const deployed = await deployUpgradeableProtocol(owner, owner);
 
     const usdc = deployed.underlyingAsset;
     const config = deployed.orionConfig;
-    const internalStatesOrchestrator: InternalStatesOrchestratorUpgradeable = deployed.internalStatesOrchestrator;
+    const internalStatesOrchestrator: InternalStatesOrchestrator = deployed.internalStatesOrchestrator;
     const vaultFactory = deployed.transparentVaultFactory;
 
     return {
@@ -57,7 +55,7 @@ describe("Fee Cooldown Mechanism", function () {
     feeType: number,
     performanceFee: number,
     managementFee: number,
-  ): Promise<OrionTransparentVaultUpgradeable> {
+  ): Promise<OrionTransparentVault> {
     const { vaultFactory, owner, curator, config } = fixture;
 
     // Whitelist owner if not already whitelisted
@@ -78,10 +76,7 @@ describe("Fee Cooldown Mechanism", function () {
     });
     const parsedLog = vaultCreatedEvent ? vaultFactory.interface.parseLog(vaultCreatedEvent) : null;
     const vaultAddress = parsedLog?.args[0];
-    return (await ethers.getContractAt(
-      "OrionTransparentVault",
-      vaultAddress,
-    )) as unknown as OrionTransparentVaultUpgradeable;
+    return (await ethers.getContractAt("OrionTransparentVault", vaultAddress)) as unknown as OrionTransparentVault;
   }
 
   describe("OrionConfig: Cooldown Duration Management", function () {
