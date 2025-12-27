@@ -135,12 +135,12 @@ describe("Orchestrator Security", function () {
   let underlyingDecimals: number;
 
   let owner: SignerWithAddress;
-  let curator: SignerWithAddress;
+  let manager: SignerWithAddress;
   let automationRegistry: SignerWithAddress;
   let user: SignerWithAddress;
 
   beforeEach(async function () {
-    [owner, curator, automationRegistry, user] = await ethers.getSigners();
+    [owner, manager, automationRegistry, user] = await ethers.getSigners();
 
     underlyingDecimals = 12;
 
@@ -283,7 +283,7 @@ describe("Orchestrator Security", function () {
 
     const absoluteVaultTx = await transparentVaultFactory
       .connect(owner)
-      .createVault(curator.address, "Absolute Fee Vault", "AFV", 0, 500, 50, ethers.ZeroAddress);
+      .createVault(manager.address, "Absolute Fee Vault", "AFV", 0, 500, 50, ethers.ZeroAddress);
     const absoluteVaultReceipt = await absoluteVaultTx.wait();
     const absoluteVaultEvent = absoluteVaultReceipt?.logs.find((log) => {
       try {
@@ -302,7 +302,7 @@ describe("Orchestrator Security", function () {
 
     const softHurdleVaultTx = await transparentVaultFactory
       .connect(owner)
-      .createVault(curator.address, "Soft Hurdle Vault", "SHV", 1, 1200, 80, ethers.ZeroAddress);
+      .createVault(manager.address, "Soft Hurdle Vault", "SHV", 1, 1200, 80, ethers.ZeroAddress);
     const softHurdleVaultReceipt = await softHurdleVaultTx.wait();
     const softHurdleVaultEvent = softHurdleVaultReceipt?.logs.find((log) => {
       try {
@@ -321,7 +321,7 @@ describe("Orchestrator Security", function () {
 
     const hardHurdleVaultTx = await transparentVaultFactory
       .connect(owner)
-      .createVault(curator.address, "Hard Hurdle Vault", "HHV", 2, 1500, 200, ethers.ZeroAddress);
+      .createVault(manager.address, "Hard Hurdle Vault", "HHV", 2, 1500, 200, ethers.ZeroAddress);
     const hardHurdleVaultReceipt = await hardHurdleVaultTx.wait();
     const hardHurdleVaultEvent = hardHurdleVaultReceipt?.logs.find((log) => {
       try {
@@ -340,7 +340,7 @@ describe("Orchestrator Security", function () {
 
     const highWaterMarkVaultTx = await transparentVaultFactory
       .connect(owner)
-      .createVault(curator.address, "High Water Mark Vault", "HWMV", 3, 800, 150, ethers.ZeroAddress);
+      .createVault(manager.address, "High Water Mark Vault", "HWMV", 3, 800, 150, ethers.ZeroAddress);
     const highWaterMarkVaultReceipt = await highWaterMarkVaultTx.wait();
     const highWaterMarkVaultEvent = highWaterMarkVaultReceipt?.logs.find((log) => {
       try {
@@ -359,7 +359,7 @@ describe("Orchestrator Security", function () {
 
     const hurdleHwmVaultTx = await transparentVaultFactory
       .connect(owner)
-      .createVault(curator.address, "Hurdle HWM Vault", "HHWMV", 4, 2000, 250, ethers.ZeroAddress);
+      .createVault(manager.address, "Hurdle HWM Vault", "HHWMV", 4, 2000, 250, ethers.ZeroAddress);
     const hurdleHwmVaultReceipt = await hurdleHwmVaultTx.wait();
     const hurdleHwmVaultEvent = hurdleHwmVaultReceipt?.logs.find((log) => {
       try {
@@ -376,7 +376,7 @@ describe("Orchestrator Security", function () {
       hurdleHwmVaultAddress,
     )) as unknown as OrionTransparentVault;
 
-    // Create passive vault with kbestTVL strategy (no curator intents)
+    // Create passive vault with kbestTVL strategy (no manager intents)
     const passiveVaultTx = await transparentVaultFactory
       .connect(owner)
       .createVault(owner.address, "Passive KBest TVL Vault", "PKTV", 0, 0, 0, ethers.ZeroAddress);
@@ -396,7 +396,7 @@ describe("Orchestrator Security", function () {
       passiveVaultAddress,
     )) as unknown as OrionTransparentVault;
 
-    await passiveVault.connect(owner).updateCurator(await kbestTvlStrategy.getAddress());
+    await passiveVault.connect(owner).updateManager(await kbestTvlStrategy.getAddress());
 
     let liquidityOrchestratorBalance = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
     expect(liquidityOrchestratorBalance).to.equal(0);
@@ -417,7 +417,7 @@ describe("Orchestrator Security", function () {
       },
       { token: await underlyingAsset.getAddress(), weight: 550000000 },
     ];
-    await absoluteVault.connect(curator).submitIntent(absoluteIntent);
+    await absoluteVault.connect(manager).submitIntent(absoluteIntent);
 
     await underlyingAsset
       .connect(user)
@@ -458,7 +458,7 @@ describe("Orchestrator Security", function () {
       },
       { token: await underlyingAsset.getAddress(), weight: 100000000 },
     ];
-    await softHurdleVault.connect(curator).submitIntent(softHurdleIntent);
+    await softHurdleVault.connect(manager).submitIntent(softHurdleIntent);
     await underlyingAsset
       .connect(user)
       .approve(
@@ -490,7 +490,7 @@ describe("Orchestrator Security", function () {
       },
       { token: await underlyingAsset.getAddress(), weight: 250000000 },
     ];
-    await hardHurdleVault.connect(curator).submitIntent(hardHurdleIntent);
+    await hardHurdleVault.connect(manager).submitIntent(hardHurdleIntent);
     await underlyingAsset
       .connect(user)
       .approve(
@@ -525,7 +525,7 @@ describe("Orchestrator Security", function () {
       },
       { token: await underlyingAsset.getAddress(), weight: 150000000 },
     ];
-    await highWaterMarkVault.connect(curator).submitIntent(highWaterMarkIntent);
+    await highWaterMarkVault.connect(manager).submitIntent(highWaterMarkIntent);
     await underlyingAsset
       .connect(user)
       .approve(
@@ -565,7 +565,7 @@ describe("Orchestrator Security", function () {
       },
       { token: await underlyingAsset.getAddress(), weight: 150000000 },
     ];
-    await hurdleHwmVault.connect(curator).submitIntent(hurdleHwmIntent);
+    await hurdleHwmVault.connect(manager).submitIntent(hurdleHwmIntent);
     await underlyingAsset
       .connect(user)
       .approve(

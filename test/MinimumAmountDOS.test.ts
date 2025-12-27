@@ -18,7 +18,7 @@ describe("Minimum Amount DOS Prevention", function () {
   const MIN_REDEEM = ethers.parseUnits("100", 18); // 100 shares minimum (18 decimals)
 
   async function deployFixture() {
-    const [owner, curator, attacker, user1, user2, automationRegistry] = await ethers.getSigners();
+    const [owner, manager, attacker, user1, user2, automationRegistry] = await ethers.getSigners();
 
     const deployed = await deployUpgradeableProtocol(owner, owner);
 
@@ -30,7 +30,7 @@ describe("Minimum Amount DOS Prevention", function () {
 
     // Create a vault
     const vaultTx = await vaultFactory.connect(owner).createVault(
-      curator.address,
+      manager.address,
       "Test Vault",
       "TVAULT",
       0, // Absolute fee type
@@ -58,7 +58,7 @@ describe("Minimum Amount DOS Prevention", function () {
 
     return {
       owner,
-      curator,
+      manager,
       attacker,
       user1,
       user2,

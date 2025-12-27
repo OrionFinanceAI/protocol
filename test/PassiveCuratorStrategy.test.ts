@@ -19,7 +19,7 @@ import {
   KBestTvlWeightedAverageInvalid,
 } from "../typechain-types";
 
-describe("Passive Curator Strategy", function () {
+describe("Passive Manager Strategy", function () {
   let transparentVaultFactory: TransparentVaultFactory;
   let orionConfig: OrionConfig;
   let underlyingAsset: MockUnderlyingAsset;
@@ -35,12 +35,12 @@ describe("Passive Curator Strategy", function () {
   let strategy: KBestTvlWeightedAverage;
 
   let owner: SignerWithAddress;
-  let curator: SignerWithAddress;
+  let manager: SignerWithAddress;
   let automationRegistry: SignerWithAddress;
   let user: SignerWithAddress;
 
   beforeEach(async function () {
-    [owner, curator, automationRegistry, user] = await ethers.getSigners();
+    [owner, manager, automationRegistry, user] = await ethers.getSigners();
 
     // Deploy Mock Underlying Asset first (will be passed to helper)
     const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
@@ -154,17 +154,17 @@ describe("Passive Curator Strategy", function () {
 
     const KBestTvlWeightedAverageFactory = await ethers.getContractFactory("KBestTvlWeightedAverage");
     const strategyDeployed = await KBestTvlWeightedAverageFactory.deploy(
-      curator.address,
+      manager.address,
       await orionConfig.getAddress(),
       3, // k = 3, select top 3 assets
     );
     await strategyDeployed.waitForDeployment();
     strategy = strategyDeployed as unknown as KBestTvlWeightedAverage;
 
-    // Step 1: Create a transparent vault with an address (not contract) as curator
+    // Step 1: Create a transparent vault with an address (not contract) as manager
     const tx = await transparentVaultFactory
       .connect(owner)
-      .createVault(curator.address, "Test Strategy Vault", "TSV", 0, 0, 0, ethers.ZeroAddress);
+      .createVault(manager.address, "Test Strategy Vault", "TSV", 0, 0, 0, ethers.ZeroAddress);
     const receipt = await tx.wait();
 
     // Find the vault creation event
@@ -200,10 +200,10 @@ describe("Passive Curator Strategy", function () {
         await mockAsset4.getAddress(),
       ]);
 
-    // Step 3: Update curator to the strategy contract
-    await transparentVault.connect(owner).updateCurator(await strategy.getAddress());
+    // Step 3: Update manager to the strategy contract
+    await transparentVault.connect(owner).updateManager(await strategy.getAddress());
 
-    await strategy.connect(curator).submitIntent(transparentVault);
+    await strategy.connect(manager).submitIntent(transparentVault);
 
     await underlyingAsset.connect(user).approve(await transparentVault.getAddress(), ethers.parseUnits("10000", 12));
     const depositAmount = ethers.parseUnits("100", 12);
@@ -214,11 +214,11 @@ describe("Passive Curator Strategy", function () {
     it("should have correct initial configuration", async function () {
       expect(await strategy.k()).to.equal(3);
       expect(await strategy.config()).to.equal(await orionConfig.getAddress());
-      expect(await strategy.owner()).to.equal(curator.address);
+      expect(await strategy.owner()).to.equal(manager.address);
     });
 
     it("should allow owner to update k parameter", async function () {
-      await strategy.connect(curator).updateParameters(2);
+      await strategy.connect(manager).updateParameters(2);
       expect(await strategy.k()).to.equal(2);
     });
 
@@ -263,16 +263,16 @@ describe("Passive Curator Strategy", function () {
         totalWeight += BigInt(weight);
       }
 
-      // Total weight should equal 10^curatorIntentDecimals
-      const curatorIntentDecimals = await orionConfig.curatorIntentDecimals();
-      const expectedTotalWeight = 10 ** Number(curatorIntentDecimals);
+      // Total weight should equal 10^managerIntentDecimals
+      const managerIntentDecimals = await orionConfig.managerIntentDecimals();
+      const expectedTotalWeight = 10 ** Number(managerIntentDecimals);
       expect(totalWeight).to.equal(expectedTotalWeight);
     });
 
     it("should handle case when k > number of available assets", async function () {
       // Update strategy to select 6 assets, but only 5 are available
-      await strategy.connect(curator).updateParameters(6);
-      await strategy.connect(curator).submitIntent(transparentVault);
+      await strategy.connect(manager).updateParameters(6);
+      await strategy.connect(manager).submitIntent(transparentVault);
 
       // Get intent through the vault (which calls the strategy)
       const [tokens, weights] = await transparentVault.getIntent();
@@ -291,8 +291,8 @@ describe("Passive Curator Strategy", function () {
 
     it("should handle case when k = 1", async function () {
       // Update strategy to select only 1 asset
-      await strategy.connect(curator).updateParameters(1);
-      await strategy.connect(curator).submitIntent(transparentVault);
+      await strategy.connect(manager).updateParameters(1);
+      await strategy.connect(manager).submitIntent(transparentVault);
 
       // Get intent through the vault (which calls the strategy)
       const [tokens, weights] = await transparentVault.getIntent();
@@ -302,17 +302,17 @@ describe("Passive Curator Strategy", function () {
       expect(weights.length).to.equal(1);
       expect(tokens[0]).to.equal(await mockAsset1.getAddress()); // Highest TVL
 
-      // Get the expected total weight based on curator intent decimals
-      const curatorIntentDecimals = await orionConfig.curatorIntentDecimals();
-      const expectedTotalWeight = 10 ** Number(curatorIntentDecimals);
+      // Get the expected total weight based on manager intent decimals
+      const managerIntentDecimals = await orionConfig.managerIntentDecimals();
+      const expectedTotalWeight = 10 ** Number(managerIntentDecimals);
       expect(weights[0]).to.equal(expectedTotalWeight); // 100% allocation
     });
 
     it("should handle case when k = 0", async function () {
       // Update strategy to select 0 assets
-      await strategy.connect(curator).updateParameters(0);
+      await strategy.connect(manager).updateParameters(0);
 
-      await expect(strategy.connect(curator).submitIntent(transparentVault)).to.be.revertedWithCustomError(
+      await expect(strategy.connect(manager).submitIntent(transparentVault)).to.be.revertedWithCustomError(
         strategy,
         "OrderIntentCannotBeEmpty",
       );
@@ -377,22 +377,22 @@ describe("Passive Curator Strategy", function () {
   describe("Strategy Parameter Updates", function () {
     it("should reflect parameter changes in intent computation", async function () {
       // Test with k=2
-      await strategy.connect(curator).updateParameters(2);
-      await strategy.connect(curator).submitIntent(transparentVault);
+      await strategy.connect(manager).updateParameters(2);
+      await strategy.connect(manager).submitIntent(transparentVault);
 
       let [tokens, _weights] = await transparentVault.getIntent();
       expect(tokens.length).to.equal(2);
 
       // Test with k=4 (all assets)
-      await strategy.connect(curator).updateParameters(4);
-      await strategy.connect(curator).submitIntent(transparentVault);
+      await strategy.connect(manager).updateParameters(4);
+      await strategy.connect(manager).submitIntent(transparentVault);
 
       [tokens, _weights] = await transparentVault.getIntent();
       expect(tokens.length).to.equal(4);
 
       // Test with k=1
-      await strategy.connect(curator).updateParameters(1);
-      await strategy.connect(curator).submitIntent(transparentVault);
+      await strategy.connect(manager).updateParameters(1);
+      await strategy.connect(manager).submitIntent(transparentVault);
 
       [tokens, _weights] = await transparentVault.getIntent();
       expect(tokens.length).to.equal(1);
@@ -411,14 +411,14 @@ describe("Passive Curator Strategy", function () {
       expect(whitelist).to.include(await mockAsset2.getAddress());
     });
 
-    it("should allow whitelist updates when curator is not a strategy", async function () {
-      await transparentVault.connect(owner).updateCurator(owner.address);
+    it("should allow whitelist updates when manager is not a strategy", async function () {
+      await transparentVault.connect(owner).updateManager(owner.address);
 
       await transparentVault
         .connect(owner)
         .updateVaultWhitelist([await mockAsset1.getAddress(), await mockAsset2.getAddress()]);
 
-      await transparentVault.connect(owner).updateCurator(await strategy.getAddress());
+      await transparentVault.connect(owner).updateManager(await strategy.getAddress());
     });
   });
 
@@ -426,7 +426,7 @@ describe("Passive Curator Strategy", function () {
     it("should maintain valid intent weights after parameter changes", async function () {
       // Test various k values to ensure weights always sum to 100%
       for (let k = 1; k <= 4; k++) {
-        await strategy.connect(curator).updateParameters(k);
+        await strategy.connect(manager).updateParameters(k);
         const [_tokens, weights] = await transparentVault.getIntent();
 
         let totalWeight = 0n;
@@ -434,9 +434,9 @@ describe("Passive Curator Strategy", function () {
           totalWeight += BigInt(weight);
         }
 
-        // Get the expected total weight based on curator intent decimals
-        const curatorIntentDecimals = await orionConfig.curatorIntentDecimals();
-        const expectedTotalWeight = 10 ** Number(curatorIntentDecimals);
+        // Get the expected total weight based on manager intent decimals
+        const managerIntentDecimals = await orionConfig.managerIntentDecimals();
+        const expectedTotalWeight = 10 ** Number(managerIntentDecimals);
         expect(totalWeight).to.equal(expectedTotalWeight); // 100%
       }
     });
@@ -445,7 +445,7 @@ describe("Passive Curator Strategy", function () {
       // Deploy the invalid strategy contract (without weight adjustment logic)
       const KBestTvlWeightedAverageInvalidFactory = await ethers.getContractFactory("KBestTvlWeightedAverageInvalid");
       const invalidStrategyDeployed = await KBestTvlWeightedAverageInvalidFactory.deploy(
-        curator.address,
+        manager.address,
         await orionConfig.getAddress(),
         3, // k = 3, select top 3 assets
       );
@@ -455,7 +455,7 @@ describe("Passive Curator Strategy", function () {
       // Create a new vault for this test
       const tx = await transparentVaultFactory
         .connect(owner)
-        .createVault(curator.address, "Invalid Strategy Vault", "ISV", 0, 0, 0, ethers.ZeroAddress);
+        .createVault(manager.address, "Invalid Strategy Vault", "ISV", 0, 0, 0, ethers.ZeroAddress);
       const receipt = await tx.wait();
 
       // Find the vault creation event
@@ -492,10 +492,10 @@ describe("Passive Curator Strategy", function () {
         ]);
 
       // Associate the invalid strategy with the vault
-      await invalidVault.connect(owner).updateCurator(await invalidStrategy.getAddress());
+      await invalidVault.connect(owner).updateManager(await invalidStrategy.getAddress());
 
       // Attempt to submit intent - this should fail because weights don't sum to intentScale
-      await expect(invalidStrategy.connect(curator).submitIntent(invalidVault)).to.be.revertedWithCustomError(
+      await expect(invalidStrategy.connect(manager).submitIntent(invalidVault)).to.be.revertedWithCustomError(
         invalidVault,
         "InvalidTotalWeight",
       );

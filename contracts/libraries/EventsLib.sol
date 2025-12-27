@@ -71,9 +71,9 @@ library EventsLib {
     // === Vault Lifecycle ===
     // =======================
 
-    /// @notice A new order has been submitted by a curator.
-    /// @param curator The address of the curator who submitted the order.
-    event OrderSubmitted(address indexed curator);
+    /// @notice A new order has been submitted by a manager.
+    /// @param manager The address of the manager who submitted the order.
+    event OrderSubmitted(address indexed manager);
 
     /// @notice The vault's state has been updated with new total assets.
     /// @param newTotalAssets The new total assets value for the vault.
@@ -117,7 +117,7 @@ library EventsLib {
     /// @notice A new Orion Vault has been created.
     /// @param vault The address of the newly created vault.
     /// @param vaultOwner The address of the vault's owner.
-    /// @param curator The address of the vault's curator.
+    /// @param manager The address of the vault's manager.
     /// @param name The name of the vault.
     /// @param symbol The symbol of the vault.
     /// @param feeType The fee type of the vault.
@@ -128,7 +128,7 @@ library EventsLib {
     event OrionVaultCreated(
         address indexed vault,
         address indexed vaultOwner,
-        address indexed curator,
+        address indexed manager,
         string name,
         string symbol,
         uint8 feeType,

@@ -4,9 +4,9 @@ pragma solidity ^0.8.28;
 import "./IOrionTransparentVault.sol";
 
 /// @title IOrionStrategy
-/// @notice Interface for curator strategies that compute portfolio intents on-demand
+/// @notice Interface for manager strategies that compute portfolio intents on-demand
 /// @author Orion Finance
-/// @dev Curator strategies are smart contracts that implement this interface to provide
+/// @dev Manager strategies are smart contracts that implement this interface to provide
 ///      dynamic portfolio allocation strategies.
 /// @custom:security-contact security@orionfinance.ai
 interface IOrionStrategy {

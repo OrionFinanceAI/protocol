@@ -69,10 +69,10 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @param amount The amount to return
     function returnDepositFunds(address user, uint256 amount) external;
 
-    /// @notice Transfer pending curator fees to a vault owner
+    /// @notice Transfer pending manager fees to a vault owner
     /// @dev Called by vault contracts when vault owners claim their fees
     /// @param amount The amount of fees to transfer
-    function transferCuratorFees(uint256 amount) external;
+    function transferManagerFees(uint256 amount) external;
 
     /// @notice Transfer redemption funds to a user after shares are burned
     /// @dev Called by vault contracts when processing redemption requests

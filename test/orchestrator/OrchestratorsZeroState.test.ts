@@ -23,12 +23,12 @@ describe("Orchestrators - zero deposits and zero intents", function () {
   let underlyingAsset: MockUnderlyingAsset;
 
   let owner: SignerWithAddress;
-  let curator: SignerWithAddress;
+  let manager: SignerWithAddress;
   let automationRegistry: SignerWithAddress;
   let user: SignerWithAddress;
 
   beforeEach(async function () {
-    [owner, curator, automationRegistry, user] = await ethers.getSigners();
+    [owner, manager, automationRegistry, user] = await ethers.getSigners();
 
     const deployed = await deployUpgradeableProtocol(owner, user, undefined, automationRegistry);
 
@@ -44,7 +44,7 @@ describe("Orchestrators - zero deposits and zero intents", function () {
     // Create transparent vault (no intent submitted)
     const tx = await transparentVaultFactory
       .connect(owner)
-      .createVault(curator.address, "ZeroState TV", "ZTV", 0, 0, 0, ethers.ZeroAddress);
+      .createVault(manager.address, "ZeroState TV", "ZTV", 0, 0, 0, ethers.ZeroAddress);
     const rcpt = await tx.wait();
     const ev = rcpt?.logs.find((log) => {
       try {
@@ -88,7 +88,7 @@ describe("Orchestrators - zero deposits and zero intents", function () {
         weight: 1000000000, // 100% (100% of 1e9)
       },
     ];
-    await transparentVault.connect(curator).submitIntent(intent);
+    await transparentVault.connect(manager).submitIntent(intent);
 
     // Verify the vault has no total assets and no pending deposits
     expect(await transparentVault.totalAssets()).to.equal(0);

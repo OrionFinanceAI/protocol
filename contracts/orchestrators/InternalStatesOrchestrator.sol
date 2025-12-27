@@ -24,7 +24,7 @@ import { UtilitiesLib } from "../libraries/UtilitiesLib.sol";
  * @author Orion Finance
  * @dev This contract is responsible for:
  *      - Reading current vault states and market data;
- *      - Processing curator fees and high water mark;
+ *      - Processing manager fees and high water mark;
  *      - Updating vault states;
  *      - Computing state estimations for Liquidity Orchestrator;
  *      - Trigger the Liquidity Orchestrator.
@@ -189,7 +189,7 @@ contract InternalStatesOrchestrator is
 
         config = IOrionConfig(config_);
         registry = IPriceAdapterRegistry(config.priceAdapterRegistry());
-        intentFactor = 10 ** config.curatorIntentDecimals();
+        intentFactor = 10 ** config.managerIntentDecimals();
         underlyingAsset = address(config.underlyingAsset());
         underlyingDecimals = config.getTokenDecimals(underlyingAsset);
         priceAdapterPrecision = 10 ** config.priceAdapterDecimals();
@@ -432,16 +432,16 @@ contract InternalStatesOrchestrator is
             pendingProtocolFees += protocolVolumeFee;
             totalAssets -= protocolVolumeFee;
 
-            // STEP 3 & 4: CURATOR FEES (Management + Performance)
-            uint256 curatorFee = vault.curatorFee(totalAssets);
+            // STEP 3 & 4: MANAGER FEES (Management + Performance)
+            uint256 managerFee = vault.managerFee(totalAssets);
 
-            totalAssets -= curatorFee;
+            totalAssets -= managerFee;
             _currentEpoch.vaultsTotalAssetsForFulfillRedeem[address(vault)] = totalAssets;
 
-            uint256 protocolRevenueShareFee = uint256(activeRsFee).mulDiv(curatorFee, BASIS_POINTS_FACTOR);
+            uint256 protocolRevenueShareFee = uint256(activeRsFee).mulDiv(managerFee, BASIS_POINTS_FACTOR);
             pendingProtocolFees += protocolRevenueShareFee;
-            curatorFee -= protocolRevenueShareFee;
-            vault.accrueCuratorFees(curatorFee);
+            managerFee -= protocolRevenueShareFee;
+            vault.accrueManagerFees(managerFee);
 
             // STEP 5: WITHDRAWAL EXCHANGE RATE (based on post-fee totalAssets)
             uint256 pendingRedeem = vault.convertToAssetsWithPITTotalAssets(

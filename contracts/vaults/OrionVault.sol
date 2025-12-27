@@ -27,7 +27,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
  * - https://eips.ethereum.org/EIPS/eip-7540
  * - https://eips.ethereum.org/EIPS/eip-7887
  *
- * Curator-submitted intents define portfolio allocation targets as percentages of total assets.
+ * Manager-submitted intents define portfolio allocation targets as percentages of total assets.
  * Derived contracts handle intent submission and interpretation:
  * - OrionTransparentVault: plaintext intents
  * - OrionEncryptedVault: encrypted, privacy-preserving intents
@@ -37,7 +37,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
  * 2. Deposit Requests (_depositRequests) [assets] – pending deposits, denominated in underlying tokens
  * 3. Redemption Requests (_redeemRequests) [shares] – pending redemptions, denominated in vault shares
  * 4. Portfolio Weights (w_0) [shares] – current allocation in share units for stateless TVL estimation
- * 5. Curator Intent (w_1) [%] – target allocation in percentage of total supply
+ * 5. Manager Intent (w_1) [%] – target allocation in percentage of total supply
  */
 abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGuardUpgradeable, IOrionVault {
     using Math for uint256;
@@ -47,8 +47,8 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
 
     /// @notice Vault owner
     address public vaultOwner;
-    /// @notice Vault curator
-    address public curator;
+    /// @notice Vault manager
+    address public manager;
     /// @notice OrionConfig contract
     IOrionConfig public config;
     /// @notice Internal states orchestrator
@@ -71,14 +71,14 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     /// @notice Redemption requests queue (R) - mapping of user address to requested [shares] amount
     EnumerableMap.AddressToUintMap private _redeemRequests;
 
-    /// @notice Pending curator fees [assets]
-    uint256 public pendingCuratorFees;
+    /// @notice Pending manager fees [assets]
+    uint256 public pendingManagerFees;
 
     /// @notice Share token decimals
     uint8 public constant SHARE_DECIMALS = 18;
 
     /* -------------------------------------------------------------------------- */
-    /*                               CURATOR FEES                                 */
+    /*                               MANAGER FEES                                 */
     /* -------------------------------------------------------------------------- */
 
     /// @notice Number of seconds in a year
@@ -131,9 +131,9 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         _;
     }
 
-    /// @dev Restricts function to only vault curator
-    modifier onlyCurator() {
-        if (msg.sender != curator) revert ErrorsLib.NotAuthorized();
+    /// @dev Restricts function to only vault manager
+    modifier onlyManager() {
+        if (msg.sender != manager) revert ErrorsLib.NotAuthorized();
         _;
     }
 
@@ -163,7 +163,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
 
     /// @notice Initialize the vault
     /// @param vaultOwner_ The address of the vault owner
-    /// @param curator_ The address of the vault curator
+    /// @param manager_ The address of the vault manager
     /// @param config_ The address of the OrionConfig contract
     /// @param name_ The name of the vault
     /// @param symbol_ The symbol of the vault
@@ -174,7 +174,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     // solhint-disable-next-line func-name-mixedcase, use-natspec
     function __OrionVault_init(
         address vaultOwner_,
-        address curator_,
+        address manager_,
         IOrionConfig config_,
         string memory name_,
         string memory symbol_,
@@ -189,7 +189,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         __ReentrancyGuard_init();
 
         vaultOwner = vaultOwner_;
-        curator = curator_;
+        manager = manager_;
         config = config_;
         internalStatesOrchestrator = IInternalStateOrchestrator(config_.internalStatesOrchestrator());
         liquidityOrchestrator = ILiquidityOrchestrator(config_.liquidityOrchestrator());
@@ -452,7 +452,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         emit RedeemRequestCancelled(msg.sender, shares);
     }
 
-    /// --------- VAULT OWNER AND CURATOR FUNCTIONS ---------
+    /// --------- VAULT OWNER AND MANAGER FUNCTIONS ---------
 
     /// @inheritdoc IOrionVault
     function vaultWhitelist() external view returns (address[] memory) {
@@ -501,7 +501,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
 
     /// @notice Validate that all assets in an intent are whitelisted for this vault
     /// @param assets Array of asset addresses to validate
-    /// @dev This function is used by derived contracts to validate curator intents
+    /// @dev This function is used by derived contracts to validate manager intents
     function _validateIntentAssets(address[] memory assets) internal view {
         for (uint256 i = 0; i < assets.length; ++i) {
             if (!_vaultWhitelistedAssets.contains(assets[i])) {
@@ -511,7 +511,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     }
 
     /// @inheritdoc IOrionVault
-    function curatorFee(uint256 activeTotalAssets) external view returns (uint256) {
+    function managerFee(uint256 activeTotalAssets) external view returns (uint256) {
         uint256 managementFeeAmount = _managementFeeAmount(activeTotalAssets);
         uint256 intermediateTotalAssets = activeTotalAssets - managementFeeAmount;
         uint256 performanceFeeAmount = _performanceFeeAmount(intermediateTotalAssets);
@@ -588,12 +588,12 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     }
 
     /// @inheritdoc IOrionVault
-    function claimCuratorFees(uint256 amount) external onlyVaultOwner {
+    function claimManagerFees(uint256 amount) external onlyVaultOwner {
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
-        if (amount > pendingCuratorFees) revert ErrorsLib.InsufficientAmount();
+        if (amount > pendingManagerFees) revert ErrorsLib.InsufficientAmount();
 
-        pendingCuratorFees -= amount;
-        liquidityOrchestrator.transferCuratorFees(amount);
+        pendingManagerFees -= amount;
+        liquidityOrchestrator.transferManagerFees(amount);
     }
 
     /// @inheritdoc IOrionVault
@@ -644,12 +644,12 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     }
 
     /// @inheritdoc IOrionVault
-    function accrueCuratorFees(uint256 feeAmount) external onlyInternalStatesOrchestrator {
+    function accrueManagerFees(uint256 feeAmount) external onlyInternalStatesOrchestrator {
         if (feeAmount == 0) return;
 
-        pendingCuratorFees += feeAmount;
+        pendingManagerFees += feeAmount;
 
-        emit CuratorFeesAccrued(feeAmount, pendingCuratorFees);
+        emit ManagerFeesAccrued(feeAmount, pendingManagerFees);
     }
 
     /// @inheritdoc IOrionVault

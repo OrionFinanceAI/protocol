@@ -71,7 +71,7 @@ describe("Protocol Pause Functionality", function () {
   // Signers
   let admin: SignerWithAddress;
   let guardian: SignerWithAddress;
-  let curator: SignerWithAddress;
+  let manager: SignerWithAddress;
   let user1: SignerWithAddress;
   let user2: SignerWithAddress;
   let automationRegistry: SignerWithAddress;
@@ -84,7 +84,7 @@ describe("Protocol Pause Functionality", function () {
 
   beforeEach(async function () {
     // Get signers
-    [admin, guardian, curator, user1, user2, automationRegistry] = await ethers.getSigners();
+    [admin, guardian, manager, user1, user2, automationRegistry] = await ethers.getSigners();
 
     const deployed = await deployUpgradeableProtocol(admin, admin, undefined, automationRegistry);
 
@@ -137,7 +137,7 @@ describe("Protocol Pause Functionality", function () {
 
     // Create vault via factory (automatically registers it)
     const vaultAddress = await vaultFactory.connect(admin).createVault.staticCall(
-      curator.address, // curator
+      manager.address, // manager
       "Orion Test Vault", // name
       "OTV", // symbol
       0, // feeType: ABSOLUTE
@@ -148,7 +148,7 @@ describe("Protocol Pause Functionality", function () {
 
     await vaultFactory
       .connect(admin)
-      .createVault(curator.address, "Orion Test Vault", "OTV", 0, 500, 100, ethers.ZeroAddress);
+      .createVault(manager.address, "Orion Test Vault", "OTV", 0, 500, 100, ethers.ZeroAddress);
 
     transparentVault = (await ethers.getContractAt(
       "OrionTransparentVault",

@@ -23,7 +23,7 @@ describe("Batch Limit Accounting Fix", function () {
   async function deployFixture() {
     const allSigners = await ethers.getSigners();
     const owner = allSigners[0];
-    const curator = allSigners[1];
+    const manager = allSigners[1];
     const users = allSigners.slice(2); // Remaining signers for testing
 
     const deployed = await deployUpgradeableProtocol(owner, owner);
@@ -36,7 +36,7 @@ describe("Batch Limit Accounting Fix", function () {
 
     // Create a vault
     const vaultTx = await vaultFactory.connect(owner).createVault(
-      curator.address,
+      manager.address,
       "Test Vault",
       "TVAULT",
       0, // Absolute fee type
@@ -65,7 +65,7 @@ describe("Batch Limit Accounting Fix", function () {
 
     return {
       owner,
-      curator,
+      manager,
       users,
       usdc,
       config,

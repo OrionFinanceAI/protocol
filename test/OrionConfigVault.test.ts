@@ -28,10 +28,10 @@ let mockExecutionAdapter1: MockExecutionAdapter;
 let mockExecutionAdapter2: MockExecutionAdapter;
 let vault: OrionTransparentVault;
 
-let owner: SignerWithAddress, curator: SignerWithAddress, other: SignerWithAddress, user: SignerWithAddress;
+let owner: SignerWithAddress, manager: SignerWithAddress, other: SignerWithAddress, user: SignerWithAddress;
 
 beforeEach(async function () {
-  [owner, curator, other, user] = await ethers.getSigners();
+  [owner, manager, other, user] = await ethers.getSigners();
 
   const deployed = await deployUpgradeableProtocol(owner, other);
 
@@ -90,7 +90,7 @@ beforeEach(async function () {
   // Create a vault for testing
   const tx = await transparentVaultFactory
     .connect(owner)
-    .createVault(curator.address, "Test Vault", "TV", 0, 0, 0, ethers.ZeroAddress);
+    .createVault(manager.address, "Test Vault", "TV", 0, 0, 0, ethers.ZeroAddress);
   const receipt = await tx.wait();
   const event = receipt?.logs.find((log) => {
     try {
@@ -534,29 +534,29 @@ describe("OrionVault - Base Functionality", function () {
     });
   });
 
-  describe("Curator Management", function () {
-    it("Should allow vault owner to update whitelisted curator", async function () {
-      const newCurator = other.address;
+  describe("Manager Management", function () {
+    it("Should allow vault owner to update whitelisted manager", async function () {
+      const newManager = other.address;
 
-      await expect(vault.connect(owner).updateCurator(newCurator)).to.not.be.reverted;
+      await expect(vault.connect(owner).updateManager(newManager)).to.not.be.reverted;
 
-      // Verify curator was updated
-      const updatedCurator = await vault.curator();
-      expect(updatedCurator).to.equal(newCurator);
+      // Verify manager was updated
+      const updatedManager = await vault.manager();
+      expect(updatedManager).to.equal(newManager);
     });
 
-    it("Should revert when non-owner tries to update curator", async function () {
-      const newCurator = other.address;
+    it("Should revert when non-owner tries to update manager", async function () {
+      const newManager = other.address;
 
-      await expect(vault.connect(user).updateCurator(newCurator)).to.be.revertedWithCustomError(vault, "NotAuthorized");
+      await expect(vault.connect(user).updateManager(newManager)).to.be.revertedWithCustomError(vault, "NotAuthorized");
     });
 
-    it("Should emit CuratorUpdated event when curator is updated", async function () {
-      const newCurator = other.address;
+    it("Should emit ManagerUpdated event when manager is updated", async function () {
+      const newManager = other.address;
 
-      await expect(vault.connect(owner).updateCurator(newCurator))
-        .to.emit(vault, "CuratorUpdated")
-        .withArgs(newCurator);
+      await expect(vault.connect(owner).updateManager(newManager))
+        .to.emit(vault, "ManagerUpdated")
+        .withArgs(newManager);
     });
   });
 
@@ -585,19 +585,19 @@ describe("OrionVault - Base Functionality", function () {
 
   describe("Access Control", function () {
     it("Should only allow vault owner to call owner-only functions", async function () {
-      // Test updateCurator function
-      await expect(vault.connect(user).updateCurator(other.address)).to.be.revertedWithCustomError(
+      // Test updateManager function
+      await expect(vault.connect(user).updateManager(other.address)).to.be.revertedWithCustomError(
         vault,
         "NotAuthorized",
       );
 
-      await expect(vault.connect(curator).updateCurator(other.address)).to.be.revertedWithCustomError(
+      await expect(vault.connect(manager).updateManager(other.address)).to.be.revertedWithCustomError(
         vault,
         "NotAuthorized",
       );
 
       // Only owner should be able to call
-      await expect(vault.connect(owner).updateCurator(other.address)).to.not.be.reverted;
+      await expect(vault.connect(owner).updateManager(other.address)).to.not.be.reverted;
     });
   });
 
