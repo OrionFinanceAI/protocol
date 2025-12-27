@@ -698,8 +698,8 @@ describe("Orchestrators", function () {
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
 
-      let transparentVaultsEpoch = await internalStatesOrchestrator.getTransparentVaultsEpoch();
-      expect(transparentVaultsEpoch.length).to.equal(6);
+      let transparentVaults = await orionConfig.getAllOrionVaults(0);
+      expect(transparentVaults.length).to.equal(6);
 
       // Process all vaults in preprocessing phase - continue until we reach buffering phase
       while ((await internalStatesOrchestrator.currentPhase()) === 1n) {
@@ -1693,12 +1693,12 @@ describe("Orchestrators", function () {
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
 
       // Calculate expected buffer amount using fulfill redeem/deposit values
-      transparentVaultsEpoch = await internalStatesOrchestrator.getTransparentVaultsEpoch();
+      transparentVaults = await orionConfig.getAllOrionVaults(0);
       let protocolTotalAssets = 0n;
       const vaultsTotalAssetsArray: bigint[] = [];
 
       // Reconstruct vaultsTotalAssets using the same logic as step 6 in the orchestrator
-      for (const vaultAddress of transparentVaultsEpoch) {
+      for (const vaultAddress of transparentVaults) {
         const vault = await ethers.getContractAt("OrionTransparentVault", vaultAddress);
 
         // Get the values that were stored in the orchestrator
@@ -1722,8 +1722,8 @@ describe("Orchestrators", function () {
       let actualBufferAllocated = 0n;
       const postBufferVaultsTotalAssets: bigint[] = [];
 
-      for (let i = 0; i < transparentVaultsEpoch.length; i++) {
-        const vaultAddress = transparentVaultsEpoch[i];
+      for (let i = 0; i < transparentVaults.length; i++) {
+        const vaultAddress = transparentVaults[i];
         const vaultTotalAssets = vaultsTotalAssetsArray[i];
 
         // Calculate vault buffer cost proportionally with floor division (same logic as orchestrator)
@@ -1790,7 +1790,7 @@ describe("Orchestrators", function () {
 
       // Assess vaultsTotalAssetsForFulfillRedeem for all vaults
       console.log("\n=== VAULTS TOTAL ASSETS FOR FULFILL REDEEM ===");
-      for (const vaultAddress of transparentVaultsEpoch) {
+      for (const vaultAddress of transparentVaults) {
         const [totalAssetsForRedeem, totalAssetsForDeposit] =
           await internalStatesOrchestrator.getVaultTotalAssetsAll(vaultAddress);
         console.log(`Vault ${vaultAddress}: Total Assets for Fulfill Redeem = ${totalAssetsForRedeem.toString()}`);
@@ -1801,8 +1801,8 @@ describe("Orchestrators", function () {
 
       // Assess vaultsTotalAssets (reconstructed as fulfillDeposit + pendingDeposit)
       console.log("\n=== VAULTS TOTAL ASSETS (RECONSTRUCTED) ===");
-      for (let i = 0; i < transparentVaultsEpoch.length; i++) {
-        const vaultAddress = transparentVaultsEpoch[i];
+      for (let i = 0; i < transparentVaults.length; i++) {
+        const vaultAddress = transparentVaults[i];
         const vaultsTotalAssets = vaultsTotalAssetsArray[i];
         console.log(`Vault ${vaultAddress}: Total Assets = ${vaultsTotalAssets.toString()}`);
         expect(vaultsTotalAssets).to.be.gt(0);
@@ -2196,8 +2196,8 @@ describe("Orchestrators", function () {
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
 
-      const transparentVaultsEpoch = await internalStatesOrchestrator.getTransparentVaultsEpoch();
-      expect(transparentVaultsEpoch.length).to.equal(6);
+      const transparentVaults = await orionConfig.getAllOrionVaults(0);
+      expect(transparentVaults.length).to.equal(6);
 
       // Process all vaults in preprocessing phase - continue until we reach buffering phase
       while ((await internalStatesOrchestrator.currentPhase()) === 1n) {

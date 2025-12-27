@@ -709,11 +709,6 @@ contract InternalStatesOrchestrator is
     }
 
     /// @inheritdoc IInternalStateOrchestrator
-    function getTransparentVaultsEpoch() external view returns (address[] memory vaults) {
-        return transparentVaultsEpoch;
-    }
-
-    /// @inheritdoc IInternalStateOrchestrator
     function getVaultPortfolio(address vault) external view returns (address[] memory tokens, uint256[] memory shares) {
         tokens = _currentEpoch.vaultPortfolioTokens[vault];
         shares = _currentEpoch.vaultPortfolioShares[vault];
