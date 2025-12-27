@@ -33,7 +33,7 @@ let owner: SignerWithAddress, manager: SignerWithAddress, other: SignerWithAddre
 beforeEach(async function () {
   [owner, manager, other, user] = await ethers.getSigners();
 
-  const deployed = await deployUpgradeableProtocol(owner, other);
+  const deployed = await deployUpgradeableProtocol(owner);
 
   underlyingAsset = deployed.underlyingAsset;
   orionConfig = deployed.orionConfig;
@@ -125,14 +125,14 @@ describe("Config", function () {
       const assetAddress = await mockAsset1.getAddress();
 
       expect(await orionConfig.isWhitelisted(assetAddress)).to.equal(true);
-      await expect(orionConfig.connect(other).removeWhitelistedAsset(assetAddress)).to.not.be.reverted;
+      await expect(orionConfig.connect(owner).removeWhitelistedAsset(assetAddress)).to.not.be.reverted;
       expect(await orionConfig.isWhitelisted(assetAddress)).to.equal(false);
     });
 
     it("Should emit WhitelistedAssetRemoved event when removing asset", async function () {
       const assetAddress = await mockAsset1.getAddress();
 
-      await expect(orionConfig.connect(other).removeWhitelistedAsset(assetAddress))
+      await expect(orionConfig.connect(owner).removeWhitelistedAsset(assetAddress))
         .to.emit(orionConfig, "WhitelistedAssetRemoved")
         .withArgs(assetAddress);
     });
@@ -141,7 +141,7 @@ describe("Config", function () {
       const initialCount = await orionConfig.whitelistedAssetsLength();
       expect(initialCount).to.equal(3); // underlying asset + 2 test assets
 
-      await orionConfig.connect(other).removeWhitelistedAsset(await mockAsset1.getAddress());
+      await orionConfig.connect(owner).removeWhitelistedAsset(await mockAsset1.getAddress());
       const finalCount = await orionConfig.whitelistedAssetsLength();
       expect(finalCount).to.equal(2); // underlying asset + 1 test asset
     });
@@ -152,7 +152,7 @@ describe("Config", function () {
       const initialAssets = await orionConfig.getAllWhitelistedAssets();
       expect(initialAssets).to.include(assetAddress);
 
-      await orionConfig.connect(other).removeWhitelistedAsset(assetAddress);
+      await orionConfig.connect(owner).removeWhitelistedAsset(assetAddress);
 
       const finalAssets = await orionConfig.getAllWhitelistedAssets();
       expect(finalAssets).to.not.include(assetAddress);
@@ -161,18 +161,17 @@ describe("Config", function () {
     it("Should revert when trying to remove non-whitelisted asset", async function () {
       const nonWhitelistedAsset = user.address;
 
-      await expect(orionConfig.connect(other).removeWhitelistedAsset(nonWhitelistedAsset))
+      await expect(orionConfig.connect(owner).removeWhitelistedAsset(nonWhitelistedAsset))
         .to.be.revertedWithCustomError(orionConfig, "TokenNotWhitelisted")
         .withArgs(nonWhitelistedAsset);
     });
 
-    it("Should revert when called by non-admin", async function () {
+    it("Should revert when called by non-owner", async function () {
       const assetAddress = await mockAsset1.getAddress();
 
-      await expect(orionConfig.connect(user).removeWhitelistedAsset(assetAddress)).to.be.revertedWithCustomError(
-        orionConfig,
-        "NotAuthorized",
-      );
+      await expect(orionConfig.connect(user).removeWhitelistedAsset(assetAddress))
+        .to.be.revertedWithCustomError(orionConfig, "OwnableUnauthorizedAccount")
+        .withArgs(user.address);
     });
   });
 
@@ -396,10 +395,10 @@ describe("OrionVault - Base Functionality", function () {
       // Request deposit
       await vault.connect(user).requestDeposit(depositAmount);
 
-      // Fund the LiquidityOrchestrator so it can fulfill the deposit (use admin 'other')
-      await underlyingAsset.mint(other.address, depositAmount);
-      await underlyingAsset.connect(other).approve(await liquidityOrchestrator.getAddress(), depositAmount);
-      await liquidityOrchestrator.connect(other).depositLiquidity(depositAmount);
+      // Fund the LiquidityOrchestrator so it can fulfill the deposit
+      await underlyingAsset.mint(owner.address, depositAmount);
+      await underlyingAsset.connect(owner).approve(await liquidityOrchestrator.getAddress(), depositAmount);
+      await liquidityOrchestrator.connect(owner).depositLiquidity(depositAmount);
 
       // Impersonate LiquidityOrchestrator to fulfill deposit (gives user shares)
       const loAddress = await liquidityOrchestrator.getAddress();

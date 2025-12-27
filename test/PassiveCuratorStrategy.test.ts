@@ -105,7 +105,7 @@ describe("Passive Manager Strategy", function () {
     await underlyingAsset.connect(user).approve(await mockAsset4.getAddress(), initialDeposit4);
     await mockAsset4.connect(user).deposit(initialDeposit4, user.address);
 
-    const deployed = await deployUpgradeableProtocol(owner, user, underlyingAsset, automationRegistry);
+    const deployed = await deployUpgradeableProtocol(owner, underlyingAsset, automationRegistry);
 
     orionConfig = deployed.orionConfig;
     internalStatesOrchestrator = deployed.internalStatesOrchestrator;

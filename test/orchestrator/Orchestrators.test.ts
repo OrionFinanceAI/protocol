@@ -118,7 +118,7 @@ describe("Orchestrators", function () {
     const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
     orionConfig = (await upgrades.deployProxy(
       OrionConfigFactory,
-      [owner.address, user.address, await underlyingAsset.getAddress()], // owner, admin, underlyingAsset
+      [owner.address, await underlyingAsset.getAddress()], // owner, underlyingAsset
       { initializer: "initialize", kind: "uups" },
     )) as unknown as OrionConfig;
     await orionConfig.waitForDeployment();
@@ -570,8 +570,8 @@ describe("Orchestrators", function () {
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Idle
       expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
       void expect(await orionConfig.isSystemIdle()).to.be.true;
-      await expect(orionConfig.connect(user).removeOrionVault(await hurdleHwmVault.getAddress())).not.to.be.reverted;
-      await expect(orionConfig.connect(user).removeWhitelistedAsset(await mockAsset1.getAddress())).not.to.be.reverted;
+      await expect(orionConfig.connect(owner).removeOrionVault(await hurdleHwmVault.getAddress())).not.to.be.reverted;
+      await expect(orionConfig.connect(owner).removeWhitelistedAsset(await mockAsset1.getAddress())).not.to.be.reverted;
 
       const epochDuration = await internalStatesOrchestrator.epochDuration();
       await time.increase(epochDuration + 1n);
@@ -584,7 +584,7 @@ describe("Orchestrators", function () {
       void expect(await orionConfig.isSystemIdle()).to.be.false;
 
       const vaultAddress = await hurdleHwmVault.getAddress();
-      await expect(orionConfig.connect(user).removeOrionVault(vaultAddress)).to.be.revertedWithCustomError(
+      await expect(orionConfig.connect(owner).removeOrionVault(vaultAddress)).to.be.revertedWithCustomError(
         orionConfig,
         "SystemNotIdle",
       );
@@ -603,11 +603,11 @@ describe("Orchestrators", function () {
       ).to.be.revertedWithCustomError(orionConfig, "SystemNotIdle");
 
       await expect(
-        orionConfig.connect(user).removeWhitelistedAsset(await mockAsset1.getAddress()),
+        orionConfig.connect(owner).removeWhitelistedAsset(await mockAsset1.getAddress()),
       ).to.be.revertedWithCustomError(orionConfig, "SystemNotIdle");
 
       await expect(
-        orionConfig.connect(user).removeOrionVault(await hurdleHwmVault.getAddress()),
+        orionConfig.connect(owner).removeOrionVault(await hurdleHwmVault.getAddress()),
       ).to.be.revertedWithCustomError(orionConfig, "SystemNotIdle");
 
       // Test InternalStatesOrchestrator functions
@@ -1022,11 +1022,11 @@ describe("Orchestrators", function () {
         liquidityOrchestratorTokenBalanceBefore3.toString(),
       );
 
-      // Protocol admin injects liquidity to stabilize the protocol.
+      // Protocol owner injects liquidity to stabilize the protocol.
       const liquidityInjectionAmount = ethers.parseUnits("170", underlyingDecimals);
-      await underlyingAsset.mint(user.address, liquidityInjectionAmount);
-      await underlyingAsset.connect(user).approve(await liquidityOrchestrator.getAddress(), liquidityInjectionAmount);
-      await liquidityOrchestrator.connect(user).depositLiquidity(liquidityInjectionAmount);
+      await underlyingAsset.mint(owner.address, liquidityInjectionAmount);
+      await underlyingAsset.connect(owner).approve(await liquidityOrchestrator.getAddress(), liquidityInjectionAmount);
+      await liquidityOrchestrator.connect(owner).depositLiquidity(liquidityInjectionAmount);
 
       await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
 
@@ -2141,7 +2141,7 @@ describe("Orchestrators", function () {
       // Check and claim protocol fees
       pendingProtocolFees = await internalStatesOrchestrator.pendingProtocolFees();
       if (pendingProtocolFees > 0) {
-        await liquidityOrchestrator.connect(user).claimProtocolFees(pendingProtocolFees);
+        await liquidityOrchestrator.connect(owner).claimProtocolFees(pendingProtocolFees);
       }
 
       // Check and claim manager fees for transparent vault
@@ -2520,10 +2520,10 @@ describe("Orchestrators", function () {
       const depositAmount = ethers.parseUnits("1000", underlyingDecimals);
       const bufferAmountBeforeDeposit = await internalStatesOrchestrator.bufferAmount();
 
-      await underlyingAsset.mint(user.address, depositAmount);
-      await underlyingAsset.connect(user).approve(await liquidityOrchestrator.getAddress(), depositAmount);
+      await underlyingAsset.mint(owner.address, depositAmount);
+      await underlyingAsset.connect(owner).approve(await liquidityOrchestrator.getAddress(), depositAmount);
 
-      await liquidityOrchestrator.connect(user).depositLiquidity(depositAmount);
+      await liquidityOrchestrator.connect(owner).depositLiquidity(depositAmount);
 
       // Check that the buffer amount increased by the deposit amount
       const bufferAmountAfterDeposit = await internalStatesOrchestrator.bufferAmount();
@@ -2532,7 +2532,7 @@ describe("Orchestrators", function () {
       const withdrawAmount = ethers.parseUnits("500", underlyingDecimals);
       const bufferAmountBeforeWithdraw = bufferAmountAfterDeposit;
 
-      await liquidityOrchestrator.connect(user).withdrawLiquidity(withdrawAmount);
+      await liquidityOrchestrator.connect(owner).withdrawLiquidity(withdrawAmount);
 
       const bufferAmountAfterWithdraw = await internalStatesOrchestrator.bufferAmount();
       expect(bufferAmountAfterWithdraw).to.equal(bufferAmountBeforeWithdraw - withdrawAmount);
@@ -2563,11 +2563,11 @@ describe("Orchestrators", function () {
       expect(phase).to.not.equal(0);
 
       const depositAmount = ethers.parseUnits("1000", underlyingDecimals);
-      await underlyingAsset.mint(user.address, depositAmount);
-      await underlyingAsset.connect(user).approve(await liquidityOrchestrator.getAddress(), depositAmount);
+      await underlyingAsset.mint(owner.address, depositAmount);
+      await underlyingAsset.connect(owner).approve(await liquidityOrchestrator.getAddress(), depositAmount);
 
       // Should revert with SystemNotIdle
-      await expect(liquidityOrchestrator.connect(user).depositLiquidity(depositAmount)).to.be.revertedWithCustomError(
+      await expect(liquidityOrchestrator.connect(owner).depositLiquidity(depositAmount)).to.be.revertedWithCustomError(
         liquidityOrchestrator,
         "SystemNotIdle",
       );
@@ -2590,9 +2590,9 @@ describe("Orchestrators", function () {
 
       // Deposit some liquidity first when idle
       const depositAmount = ethers.parseUnits("1000", underlyingDecimals);
-      await underlyingAsset.mint(user.address, depositAmount);
-      await underlyingAsset.connect(user).approve(await liquidityOrchestrator.getAddress(), depositAmount);
-      await liquidityOrchestrator.connect(user).depositLiquidity(depositAmount);
+      await underlyingAsset.mint(owner.address, depositAmount);
+      await underlyingAsset.connect(owner).approve(await liquidityOrchestrator.getAddress(), depositAmount);
+      await liquidityOrchestrator.connect(owner).depositLiquidity(depositAmount);
 
       // Start a new epoch to get system out of idle
       await time.increase(epochDuration + 1n);
@@ -2606,10 +2606,9 @@ describe("Orchestrators", function () {
       const withdrawAmount = ethers.parseUnits("500", underlyingDecimals);
 
       // Should revert with SystemNotIdle
-      await expect(liquidityOrchestrator.connect(user).withdrawLiquidity(withdrawAmount)).to.be.revertedWithCustomError(
-        liquidityOrchestrator,
-        "SystemNotIdle",
-      );
+      await expect(
+        liquidityOrchestrator.connect(owner).withdrawLiquidity(withdrawAmount),
+      ).to.be.revertedWithCustomError(liquidityOrchestrator, "SystemNotIdle");
     });
   });
 

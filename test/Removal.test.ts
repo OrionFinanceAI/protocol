@@ -72,7 +72,7 @@ describe("Whitelist and Vault Removal Flows", function () {
     await underlyingAsset.connect(user).approve(await mockAsset2.getAddress(), initialDeposit2);
     await mockAsset2.connect(user).deposit(initialDeposit2, user.address);
 
-    const deployed = await deployUpgradeableProtocol(owner, user, underlyingAsset, automationRegistry);
+    const deployed = await deployUpgradeableProtocol(owner, underlyingAsset, automationRegistry);
 
     orionConfig = deployed.orionConfig;
     internalStatesOrchestrator = deployed.internalStatesOrchestrator;
@@ -204,7 +204,7 @@ describe("Whitelist and Vault Removal Flows", function () {
     expect(mockAsset1BalanceBefore + mockAsset2BalanceBefore).to.be.gt(0);
 
     // Step 4: Remove mockAsset1 from whitelist BEFORE processing orchestrators
-    await orionConfig.connect(user).removeWhitelistedAsset(await mockAsset1.getAddress());
+    await orionConfig.connect(owner).removeWhitelistedAsset(await mockAsset1.getAddress());
 
     // Verify the asset is no longer whitelisted
     await expect(await orionConfig.isWhitelisted(await mockAsset1.getAddress())).to.be.false;
@@ -332,7 +332,7 @@ describe("Whitelist and Vault Removal Flows", function () {
     expect(mockAsset1BalanceBefore + mockAsset2BalanceBefore).to.be.gt(0);
 
     // Step 4: Remove mockAsset1 from whitelist BEFORE processing orchestrators
-    await orionConfig.connect(user).removeWhitelistedAsset(await mockAsset1.getAddress());
+    await orionConfig.connect(owner).removeWhitelistedAsset(await mockAsset1.getAddress());
 
     // Verify the asset is no longer whitelisted
     await expect(await orionConfig.isWhitelisted(await mockAsset1.getAddress())).to.be.false;
@@ -464,7 +464,7 @@ describe("Whitelist and Vault Removal Flows", function () {
 
     void expect(await orionConfig.isSystemIdle()).to.be.true;
 
-    await orionConfig.connect(user).removeOrionVault(await testVault.getAddress());
+    await orionConfig.connect(owner).removeOrionVault(await testVault.getAddress());
 
     void expect(await testVault.isDecommissioning()).to.be.true;
     void expect(await orionConfig.isDecommissionedVault(await testVault.getAddress())).to.be.false;
@@ -572,7 +572,7 @@ describe("Whitelist and Vault Removal Flows", function () {
   it("should block requestDeposit when vault is decommissioning", async function () {
     await testVault.connect(manager).submitIntent([{ token: await mockAsset1.getAddress(), weight: 1000000000 }]);
     // Mark vault for decommissioning
-    await orionConfig.connect(user).removeOrionVault(await testVault.getAddress());
+    await orionConfig.connect(owner).removeOrionVault(await testVault.getAddress());
 
     // Verify vault is decommissioning
     void expect(await testVault.isDecommissioning()).to.be.true;
@@ -632,7 +632,7 @@ describe("Whitelist and Vault Removal Flows", function () {
     expect(userShares).to.be.gt(0);
 
     // Mark vault for decommissioning
-    await orionConfig.connect(user).removeOrionVault(await testVault.getAddress());
+    await orionConfig.connect(owner).removeOrionVault(await testVault.getAddress());
 
     // Verify vault is decommissioning
     void expect(await testVault.isDecommissioning()).to.be.true;

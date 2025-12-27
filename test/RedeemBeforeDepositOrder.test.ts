@@ -113,7 +113,7 @@ describe("Redeem Before Deposit Order Verification", function () {
     const MockExecutionAdapterFactory = await ethers.getContractFactory("MockExecutionAdapter");
     mockExecutionAdapter = (await MockExecutionAdapterFactory.deploy()) as unknown as MockExecutionAdapter;
 
-    const deployed = await deployUpgradeableProtocol(owner, owner, underlyingAsset, automationRegistry);
+    const deployed = await deployUpgradeableProtocol(owner, underlyingAsset, automationRegistry);
 
     orionConfig = deployed.orionConfig;
     internalStatesOrchestrator = deployed.internalStatesOrchestrator;

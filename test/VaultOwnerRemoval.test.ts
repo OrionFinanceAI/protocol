@@ -28,7 +28,7 @@ describe("Vault Owner Removal - Automatic Decommissioning", function () {
     const manager2 = allSigners[4];
     const automationRegistry = allSigners[5];
 
-    const deployed = await deployUpgradeableProtocol(owner, owner);
+    const deployed = await deployUpgradeableProtocol(owner);
 
     const usdc = deployed.underlyingAsset;
     const config = deployed.orionConfig;

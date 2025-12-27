@@ -30,7 +30,7 @@ describe("Fee Cooldown Mechanism", function () {
   async function deployFixture() {
     const [owner, manager, user1, user2, automationRegistry] = await ethers.getSigners();
 
-    const deployed = await deployUpgradeableProtocol(owner, owner);
+    const deployed = await deployUpgradeableProtocol(owner);
 
     const usdc = deployed.underlyingAsset;
     const config = deployed.orionConfig;

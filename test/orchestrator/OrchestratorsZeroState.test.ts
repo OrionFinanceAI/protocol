@@ -30,7 +30,7 @@ describe("Orchestrators - zero deposits and zero intents", function () {
   beforeEach(async function () {
     [owner, manager, automationRegistry, user] = await ethers.getSigners();
 
-    const deployed = await deployUpgradeableProtocol(owner, user, undefined, automationRegistry);
+    const deployed = await deployUpgradeableProtocol(owner, undefined, automationRegistry);
 
     underlyingAsset = deployed.underlyingAsset;
     orionConfig = deployed.orionConfig;

@@ -26,7 +26,7 @@ describe("Access Control", function () {
   beforeEach(async function () {
     [owner, manager, user1, user2, user3] = await ethers.getSigners();
 
-    const deployed = await deployUpgradeableProtocol(owner, owner);
+    const deployed = await deployUpgradeableProtocol(owner);
 
     mockAsset = deployed.underlyingAsset;
     factory = deployed.transparentVaultFactory;

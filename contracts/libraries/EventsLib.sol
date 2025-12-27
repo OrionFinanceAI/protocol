@@ -104,10 +104,6 @@ library EventsLib {
     /// @param adapter The address of the execution adapter.
     event ExecutionAdapterSet(address indexed asset, address indexed adapter);
 
-    /// @notice An internal state has been processed.
-    /// @param epochCounter The current epoch counter.
-    event EpochProcessed(uint16 indexed epochCounter);
-
     /// @notice Enumeration of available vault types.
     enum VaultType {
         Transparent,

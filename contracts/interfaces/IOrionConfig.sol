@@ -24,11 +24,6 @@ interface IOrionConfig {
     /// @return The address of the underlying asset contract
     function underlyingAsset() external view returns (IERC20);
 
-    /// @notice Returns the admin address
-    /// @dev The admin address is immutable and set at construction
-    /// @return The admin address
-    function admin() external view returns (address);
-
     /// @notice Returns the address of the price adapter registry contract
     /// @dev This registry is responsible for managing asset price adapters
     /// @return The address of the price adapter registry

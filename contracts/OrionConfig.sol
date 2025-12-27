@@ -34,10 +34,6 @@ import "./interfaces/IInternalStateOrchestrator.sol";
 contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable, IOrionConfig {
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    /// @notice Admin address
-    // solhint-disable-next-line var-name-mixedcase
-    address private ADMIN;
-
     /// @notice Guardian address for emergency pausing
     address public guardian;
 
@@ -82,11 +78,6 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     EnumerableSet.AddressSet private decommissioningInProgressVaults;
     EnumerableSet.AddressSet private decommissionedVaults;
 
-    modifier onlyAdmin() {
-        if (msg.sender != ADMIN) revert ErrorsLib.NotAuthorized();
-        _;
-    }
-
     modifier onlyFactories() {
         if (msg.sender != transparentVaultFactory) revert ErrorsLib.NotAuthorized();
         _;
@@ -105,21 +96,18 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
 
     /// @notice Initializer function (replaces constructor)
     /// @param initialOwner The address that will own this contract
-    /// @param admin_ The address that will have admin privileges
     /// @param underlyingAsset_ The address of the underlying asset contract
     /// @dev The underlying asset is automatically added to the investment universe whitelist because:
     /// @dev - Managers may decide to be underleveraged in their active positions;
     /// @dev - removeWhitelistedAsset could trigger forced liquidations.
-    function initialize(address initialOwner, address admin_, address underlyingAsset_) public initializer {
+    function initialize(address initialOwner, address underlyingAsset_) public initializer {
         if (initialOwner == address(0)) revert ErrorsLib.ZeroAddress();
-        if (admin_ == address(0)) revert ErrorsLib.ZeroAddress();
         if (underlyingAsset_ == address(0)) revert ErrorsLib.ZeroAddress();
 
         __Ownable_init(initialOwner);
         __Ownable2Step_init();
         __UUPSUpgradeable_init();
 
-        ADMIN = admin_;
         underlyingAsset = IERC20(underlyingAsset_);
 
         priceAdapterDecimals = 14; // 14 for uint128
@@ -218,17 +206,17 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
 
     /// @notice Sets the guardian address for emergency pausing
     /// @param _guardian The new guardian address
-    /// @dev Only admin can set the guardian
-    function setGuardian(address _guardian) external onlyAdmin {
+    /// @dev Only owner can set the guardian
+    function setGuardian(address _guardian) external onlyOwner {
         guardian = _guardian;
         emit EventsLib.GuardianUpdated(_guardian);
     }
 
     /// @notice Pauses all protocol operations across orchestrators
-    /// @dev Can only be called by guardian or admin
+    /// @dev Can only be called by guardian or owner
     ///      Pauses InternalStatesOrchestrator and LiquidityOrchestrator
     function pauseAll() external {
-        if (msg.sender != guardian && msg.sender != ADMIN) revert ErrorsLib.NotAuthorized();
+        if (msg.sender != guardian && msg.sender != owner()) revert ErrorsLib.NotAuthorized();
 
         IInternalStateOrchestrator(internalStatesOrchestrator).pause();
         ILiquidityOrchestrator(liquidityOrchestrator).pause();
@@ -237,9 +225,9 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     }
 
     /// @notice Unpauses all protocol operations across orchestrators
-    /// @dev Can only be called by admin (not guardian: requires admin approval to resume)
+    /// @dev Can only be called by owner (not guardian: requires owner approval to resume)
     ///      Unpauses InternalStatesOrchestrator and LiquidityOrchestrator
-    function unpauseAll() external onlyAdmin {
+    function unpauseAll() external onlyOwner {
         IInternalStateOrchestrator(internalStatesOrchestrator).unpause();
         ILiquidityOrchestrator(liquidityOrchestrator).unpause();
 
@@ -268,7 +256,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     }
 
     /// @inheritdoc IOrionConfig
-    function removeWhitelistedAsset(address asset) external onlyAdmin {
+    function removeWhitelistedAsset(address asset) external onlyOwner {
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         if (asset == address(underlyingAsset)) revert ErrorsLib.InvalidArguments();
@@ -371,7 +359,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     }
 
     /// @inheritdoc IOrionConfig
-    function removeOrionVault(address vault) external onlyAdmin {
+    function removeOrionVault(address vault) external onlyOwner {
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         if (!this.isOrionVault(vault)) {
@@ -443,11 +431,6 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     /// @inheritdoc IOrionConfig
     function getTokenDecimals(address token) external view returns (uint8) {
         return tokenDecimals[token];
-    }
-
-    /// @inheritdoc IOrionConfig
-    function admin() external view returns (address) {
-        return ADMIN;
     }
 
     /// @notice Authorizes an upgrade to a new implementation

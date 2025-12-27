@@ -28,7 +28,7 @@ describe("Price Adapter", function () {
   beforeEach(async function () {
     [owner, automationRegistry, nonOwner] = await ethers.getSigners();
 
-    const deployed = await deployUpgradeableProtocol(owner, nonOwner, undefined, automationRegistry);
+    const deployed = await deployUpgradeableProtocol(owner, undefined, automationRegistry);
 
     underlyingAsset = deployed.underlyingAsset;
     orionConfig = deployed.orionConfig;

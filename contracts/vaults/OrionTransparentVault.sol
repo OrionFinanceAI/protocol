@@ -174,8 +174,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
         emit ManagerUpdated(newManager);
     }
 
-    /// @notice Override updateVaultWhitelist to validate strategy compatibility
-    /// @param assets The new whitelisted assets for the vault
+    /// @inheritdoc IOrionVault
     function updateVaultWhitelist(address[] calldata assets) external onlyVaultOwner {
         // Clear existing whitelist
         _vaultWhitelistedAssets.clear();

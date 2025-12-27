@@ -26,7 +26,7 @@ describe("Batch Limit Accounting Fix", function () {
     const manager = allSigners[1];
     const users = allSigners.slice(2); // Remaining signers for testing
 
-    const deployed = await deployUpgradeableProtocol(owner, owner);
+    const deployed = await deployUpgradeableProtocol(owner);
 
     const usdc = deployed.underlyingAsset;
     const config = deployed.orionConfig;

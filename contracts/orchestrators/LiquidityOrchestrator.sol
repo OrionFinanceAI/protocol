@@ -60,18 +60,12 @@ contract LiquidityOrchestrator is
     /// @notice Underlying asset address
     address public underlyingAsset;
 
-    /// @notice Admin address from config
-    address public admin;
-
     /// @notice Execution adapters mapping for assets
     mapping(address => IExecutionAdapter) public executionAdapterOf;
 
     /* -------------------------------------------------------------------------- */
     /*                               UPKEEP STATE                                 */
     /* -------------------------------------------------------------------------- */
-
-    /// @notice Counter for tracking processing cycles
-    uint16 public epochCounter;
 
     /// @notice Minibatch size for fulfill deposit and redeem processing
     uint8 public minibatchSize;
@@ -115,12 +109,6 @@ contract LiquidityOrchestrator is
         _;
     }
 
-    /// @dev Restricts function to only admin from config
-    modifier onlyAdmin() {
-        if (msg.sender != admin) revert ErrorsLib.NotAuthorized();
-        _;
-    }
-
     /// @dev Restricts function to only Internal States Orchestrator contract
     modifier onlyInternalStatesOrchestrator() {
         if (msg.sender != address(internalStatesOrchestrator)) revert ErrorsLib.NotAuthorized();
@@ -151,7 +139,6 @@ contract LiquidityOrchestrator is
 
         config = IOrionConfig(config_);
         underlyingAsset = address(config.underlyingAsset());
-        admin = config.admin();
 
         automationRegistry = automationRegistry_;
         currentPhase = LiquidityUpkeepPhase.Idle;
@@ -199,12 +186,12 @@ contract LiquidityOrchestrator is
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function depositLiquidity(uint256 amount) external onlyAdmin {
+    function depositLiquidity(uint256 amount) external onlyOwner {
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
         if (internalStatesOrchestrator.currentPhase() != IInternalStateOrchestrator.InternalUpkeepPhase.Idle)
             revert ErrorsLib.SystemNotIdle();
 
-        // Transfer underlying assets from the admin to this contract
+        // Transfer underlying assets from the owner to this contract
         IERC20(underlyingAsset).safeTransferFrom(msg.sender, address(this), amount);
 
         // Update buffer amount in the internal states orchestrator
@@ -212,7 +199,7 @@ contract LiquidityOrchestrator is
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function withdrawLiquidity(uint256 amount) external onlyAdmin {
+    function withdrawLiquidity(uint256 amount) external onlyOwner {
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
         if (internalStatesOrchestrator.currentPhase() != IInternalStateOrchestrator.InternalUpkeepPhase.Idle)
             revert ErrorsLib.SystemNotIdle();
@@ -231,7 +218,7 @@ contract LiquidityOrchestrator is
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function claimProtocolFees(uint256 amount) external onlyAdmin {
+    function claimProtocolFees(uint256 amount) external onlyOwner {
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
 
         internalStatesOrchestrator.subtractPendingProtocolFees(amount);
@@ -437,8 +424,6 @@ contract LiquidityOrchestrator is
             i1 = uint16(transparentVaults.length);
             currentPhase = LiquidityUpkeepPhase.Idle;
             currentMinibatchIndex = 0;
-            emit EventsLib.EpochProcessed(epochCounter);
-            ++epochCounter;
         }
 
         for (uint16 i = i0; i < i1; ++i) {

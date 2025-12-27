@@ -52,7 +52,7 @@ beforeEach(async function () {
   await mockAsset2Deployed.waitForDeployment();
   mockAsset2 = mockAsset2Deployed as unknown as MockERC4626Asset;
 
-  const deployed = await deployUpgradeableProtocol(owner, other, underlyingAsset);
+  const deployed = await deployUpgradeableProtocol(owner, underlyingAsset);
 
   orionConfig = deployed.orionConfig;
   transparentVaultFactory = deployed.transparentVaultFactory;
@@ -342,7 +342,7 @@ describe("TransparentVault - Manager Pipeline", function () {
       await transparentVault.connect(owner).updateVaultWhitelist(whitelist);
 
       // First, blacklist mockAsset1 by removing it from the protocol whitelist
-      await orionConfig.connect(other).removeWhitelistedAsset(await mockAsset1.getAddress());
+      await orionConfig.connect(owner).removeWhitelistedAsset(await mockAsset1.getAddress());
 
       // Try to submit intent with the blacklisted asset
       const absoluteIntent = [

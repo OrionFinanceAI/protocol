@@ -8,19 +8,19 @@
  * ======================
  *
  * 1. GUARDIAN ROLE MANAGEMENT
- *    - Setting guardian address by admin
- *    - Preventing non-admin from setting guardian
+ *    - Setting guardian address by owner
+ *    - Preventing non-owner from setting guardian
  *    - Guardian address changes emit correct events
  *
  * 2. PAUSE ALL FUNCTIONALITY
  *    - Guardian can pause all protocol operations
- *    - Admin can pause all protocol operations
+ *    - Owner can pause all protocol operations
  *    - Non-privileged users cannot pause
  *    - Pause affects all orchestrators (InternalStates, Liquidity)
  *    - ProtocolPaused event is emitted
  *
  * 3. UNPAUSE ALL FUNCTIONALITY
- *    - Only admin can unpause (not guardian)
+ *    - Only owner can unpause (not guardian)
  *    - Non-privileged users cannot unpause
  *    - Unpause restores all orchestrators
  *    - ProtocolUnpaused event is emitted
@@ -69,7 +69,7 @@ describe("Protocol Pause Functionality", function () {
   let transparentVault: OrionTransparentVault;
 
   // Signers
-  let admin: SignerWithAddress;
+  let owner: SignerWithAddress;
   let guardian: SignerWithAddress;
   let manager: SignerWithAddress;
   let user1: SignerWithAddress;
@@ -84,9 +84,9 @@ describe("Protocol Pause Functionality", function () {
 
   beforeEach(async function () {
     // Get signers
-    [admin, guardian, manager, user1, user2, automationRegistry] = await ethers.getSigners();
+    [owner, guardian, manager, user1, user2, automationRegistry] = await ethers.getSigners();
 
-    const deployed = await deployUpgradeableProtocol(admin, admin, undefined, automationRegistry);
+    const deployed = await deployUpgradeableProtocol(owner, undefined, automationRegistry);
 
     underlyingAsset = deployed.underlyingAsset;
     config = deployed.orionConfig;
@@ -136,7 +136,7 @@ describe("Protocol Pause Functionality", function () {
     const vaultFactory = deployed.transparentVaultFactory;
 
     // Create vault via factory (automatically registers it)
-    const vaultAddress = await vaultFactory.connect(admin).createVault.staticCall(
+    const vaultAddress = await vaultFactory.connect(owner).createVault.staticCall(
       manager.address, // manager
       "Orion Test Vault", // name
       "OTV", // symbol
@@ -147,7 +147,7 @@ describe("Protocol Pause Functionality", function () {
     );
 
     await vaultFactory
-      .connect(admin)
+      .connect(owner)
       .createVault(manager.address, "Orion Test Vault", "OTV", 0, 500, 100, ethers.ZeroAddress);
 
     transparentVault = (await ethers.getContractAt(
@@ -157,8 +157,8 @@ describe("Protocol Pause Functionality", function () {
 
     // Provide liquidity to the protocol
     const liquidityAmount = ethers.parseUnits("100000", 6); // 100k USDC
-    await underlyingAsset.mint(admin.address, liquidityAmount);
-    await underlyingAsset.connect(admin).approve(await liquidityOrchestrator.getAddress(), liquidityAmount);
+    await underlyingAsset.mint(owner.address, liquidityAmount);
+    await underlyingAsset.connect(owner).approve(await liquidityOrchestrator.getAddress(), liquidityAmount);
     await liquidityOrchestrator.depositLiquidity(liquidityAmount);
 
     // Approve vault for user deposits
@@ -167,26 +167,26 @@ describe("Protocol Pause Functionality", function () {
   });
 
   describe("1. Guardian Role Management", function () {
-    it("should allow admin to set guardian", async function () {
+    it("should allow owner to set guardian", async function () {
       const newGuardian = user1.address;
-      await expect(config.connect(admin).setGuardian(newGuardian))
+      await expect(config.connect(owner).setGuardian(newGuardian))
         .to.emit(config, "GuardianUpdated")
         .withArgs(newGuardian);
 
       expect(await config.guardian()).to.equal(newGuardian);
     });
 
-    it("should prevent non-admin from setting guardian", async function () {
+    it("should prevent non-owner from setting guardian", async function () {
       await expect(config.connect(user1).setGuardian(user2.address)).to.be.revertedWithCustomError(
         config,
-        "NotAuthorized",
+        "OwnableUnauthorizedAccount",
       );
     });
 
     it("should update guardian address correctly", async function () {
       expect(await config.guardian()).to.equal(guardian.address);
 
-      await config.connect(admin).setGuardian(user1.address);
+      await config.connect(owner).setGuardian(user1.address);
       expect(await config.guardian()).to.equal(user1.address);
     });
   });
@@ -200,8 +200,8 @@ describe("Protocol Pause Functionality", function () {
       void expect(await liquidityOrchestrator.paused()).to.be.true;
     });
 
-    it("should allow admin to pause all protocol operations", async function () {
-      await expect(config.connect(admin).pauseAll()).to.emit(config, "ProtocolPaused").withArgs(admin.address);
+    it("should allow owner to pause all protocol operations", async function () {
+      await expect(config.connect(owner).pauseAll()).to.emit(config, "ProtocolPaused").withArgs(owner.address);
 
       // Verify all contracts are paused
       void expect(await internalStatesOrchestrator.paused()).to.be.true;
@@ -223,24 +223,30 @@ describe("Protocol Pause Functionality", function () {
       await config.connect(guardian).pauseAll();
     });
 
-    it("should allow admin to unpause all protocol operations", async function () {
-      await expect(config.connect(admin).unpauseAll()).to.emit(config, "ProtocolUnpaused").withArgs(admin.address);
+    it("should allow owner to unpause all protocol operations", async function () {
+      await expect(config.connect(owner).unpauseAll()).to.emit(config, "ProtocolUnpaused").withArgs(owner.address);
 
       // Verify orchestrators are unpaused
       void expect(await internalStatesOrchestrator.paused()).to.be.false;
       void expect(await liquidityOrchestrator.paused()).to.be.false;
     });
 
-    it("should prevent guardian from unpausing (only admin)", async function () {
-      await expect(config.connect(guardian).unpauseAll()).to.be.revertedWithCustomError(config, "NotAuthorized");
+    it("should prevent guardian from unpausing (only owner)", async function () {
+      await expect(config.connect(guardian).unpauseAll()).to.be.revertedWithCustomError(
+        config,
+        "OwnableUnauthorizedAccount",
+      );
 
       // Verify everything is still paused
       void expect(await internalStatesOrchestrator.paused()).to.be.true;
       void expect(await liquidityOrchestrator.paused()).to.be.true;
     });
 
-    it("should prevent non-admin from unpausing", async function () {
-      await expect(config.connect(user1).unpauseAll()).to.be.revertedWithCustomError(config, "NotAuthorized");
+    it("should prevent non-owner from unpausing", async function () {
+      await expect(config.connect(user1).unpauseAll()).to.be.revertedWithCustomError(
+        config,
+        "OwnableUnauthorizedAccount",
+      );
 
       // Verify everything is still paused
       void expect(await internalStatesOrchestrator.paused()).to.be.true;
@@ -272,7 +278,7 @@ describe("Protocol Pause Functionality", function () {
 
     it("should allow operations to resume after unpause", async function () {
       // Unpause
-      await config.connect(admin).unpauseAll();
+      await config.connect(owner).unpauseAll();
 
       // Now operations should work
       await expect(transparentVault.connect(user1).requestDeposit(DEPOSIT_AMOUNT)).to.not.be.reverted;
@@ -284,7 +290,7 @@ describe("Protocol Pause Functionality", function () {
 
   describe("5. Individual Contract Pause Access Control", function () {
     it("should prevent non-OrionConfig from calling pause() on InternalStatesOrchestrator", async function () {
-      await expect(internalStatesOrchestrator.connect(admin).pause()).to.be.revertedWithCustomError(
+      await expect(internalStatesOrchestrator.connect(owner).pause()).to.be.revertedWithCustomError(
         internalStatesOrchestrator,
         "NotAuthorized",
       );
@@ -299,14 +305,14 @@ describe("Protocol Pause Functionality", function () {
       // Pause first
       await config.connect(guardian).pauseAll();
 
-      await expect(internalStatesOrchestrator.connect(admin).unpause()).to.be.revertedWithCustomError(
+      await expect(internalStatesOrchestrator.connect(owner).unpause()).to.be.revertedWithCustomError(
         internalStatesOrchestrator,
         "NotAuthorized",
       );
     });
 
     it("should prevent non-OrionConfig from calling pause() on LiquidityOrchestrator", async function () {
-      await expect(liquidityOrchestrator.connect(admin).pause()).to.be.revertedWithCustomError(
+      await expect(liquidityOrchestrator.connect(owner).pause()).to.be.revertedWithCustomError(
         liquidityOrchestrator,
         "NotAuthorized",
       );
@@ -321,7 +327,7 @@ describe("Protocol Pause Functionality", function () {
       // Pause first
       await config.connect(guardian).pauseAll();
 
-      await expect(liquidityOrchestrator.connect(admin).unpause()).to.be.revertedWithCustomError(
+      await expect(liquidityOrchestrator.connect(owner).unpause()).to.be.revertedWithCustomError(
         liquidityOrchestrator,
         "NotAuthorized",
       );
@@ -335,7 +341,7 @@ describe("Protocol Pause Functionality", function () {
 
       // Pause and unpause
       await config.connect(guardian).pauseAll();
-      await config.connect(admin).unpauseAll();
+      await config.connect(owner).unpauseAll();
 
       // User can now cancel their request
       await expect(transparentVault.connect(user1).cancelDepositRequest(DEPOSIT_AMOUNT)).to.not.be.reverted;
@@ -349,15 +355,15 @@ describe("Protocol Pause Functionality", function () {
       void expect(await internalStatesOrchestrator.paused()).to.be.true;
       void expect(await liquidityOrchestrator.paused()).to.be.true;
 
-      await config.connect(admin).unpauseAll();
+      await config.connect(owner).unpauseAll();
       void expect(await internalStatesOrchestrator.paused()).to.be.false;
       void expect(await liquidityOrchestrator.paused()).to.be.false;
       // Cycle 2: Pause and unpause again
-      await config.connect(admin).pauseAll(); // Admin can also pause
+      await config.connect(owner).pauseAll(); // Owner can also pause
       void expect(await internalStatesOrchestrator.paused()).to.be.true;
       void expect(await liquidityOrchestrator.paused()).to.be.true;
 
-      await config.connect(admin).unpauseAll();
+      await config.connect(owner).unpauseAll();
       void expect(await internalStatesOrchestrator.paused()).to.be.false;
       void expect(await liquidityOrchestrator.paused()).to.be.false;
 
@@ -380,7 +386,7 @@ describe("Protocol Pause Functionality", function () {
       expect(await transparentVault.pendingDeposit(await config.maxFulfillBatchSize())).to.equal(depositBefore);
 
       // Unpause
-      await config.connect(admin).unpauseAll();
+      await config.connect(owner).unpauseAll();
 
       // State should still be unchanged
       expect(await transparentVault.pendingDeposit(await config.maxFulfillBatchSize())).to.equal(depositBefore);

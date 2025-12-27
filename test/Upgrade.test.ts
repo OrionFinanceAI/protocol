@@ -17,12 +17,11 @@ import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 
 describe("Upgrade Tests", function () {
   let owner: SignerWithAddress;
-  let admin: SignerWithAddress;
   let manager: SignerWithAddress;
   let user: SignerWithAddress;
 
   beforeEach(async function () {
-    [owner, admin, manager, user] = await ethers.getSigners();
+    [owner, manager, user] = await ethers.getSigners();
   });
 
   describe("UUPS Upgrade Pattern - OrionConfig", function () {
@@ -39,7 +38,7 @@ describe("Upgrade Tests", function () {
       const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
       orionConfig = (await upgrades.deployProxy(
         OrionConfigFactory,
-        [owner.address, admin.address, await underlyingAsset.getAddress()],
+        [owner.address, await underlyingAsset.getAddress()],
         { initializer: "initialize", kind: "uups" },
       )) as unknown as OrionConfig;
       await orionConfig.waitForDeployment();
@@ -133,7 +132,7 @@ describe("Upgrade Tests", function () {
     let underlyingAsset: MockUnderlyingAsset;
 
     beforeEach(async function () {
-      const deployed = await deployUpgradeableProtocol(owner, admin);
+      const deployed = await deployUpgradeableProtocol(owner);
       vaultFactory = deployed.transparentVaultFactory;
       vaultBeacon = deployed.vaultBeacon;
       underlyingAsset = deployed.underlyingAsset;
@@ -309,7 +308,7 @@ describe("Upgrade Tests", function () {
     let vaultFactory: TransparentVaultFactory;
 
     beforeEach(async function () {
-      const deployed = await deployUpgradeableProtocol(owner, admin);
+      const deployed = await deployUpgradeableProtocol(owner);
       vaultFactory = deployed.transparentVaultFactory;
     });
 
@@ -337,7 +336,7 @@ describe("Upgrade Tests", function () {
     let vaultBeacon: UpgradeableBeacon;
 
     beforeEach(async function () {
-      const deployed = await deployUpgradeableProtocol(owner, admin);
+      const deployed = await deployUpgradeableProtocol(owner);
       orionConfig = deployed.orionConfig;
       vaultFactory = deployed.transparentVaultFactory;
       vaultBeacon = deployed.vaultBeacon;
@@ -539,7 +538,7 @@ describe("Upgrade Tests", function () {
     let transparentVaultFactory: TransparentVaultFactory;
 
     beforeEach(async function () {
-      const deployed = await deployUpgradeableProtocol(owner, admin);
+      const deployed = await deployUpgradeableProtocol(owner);
       orionConfig = deployed.orionConfig;
       priceAdapterRegistry = deployed.priceAdapterRegistry;
       internalStatesOrchestrator = deployed.internalStatesOrchestrator;

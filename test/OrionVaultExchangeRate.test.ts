@@ -16,7 +16,7 @@ describe("OrionVault Exchange Rate Tests", function () {
     const [owner, manager, lp1, lp2, lp3, internalStatesOrchestratorSigner, liquidityOrchestratorSigner, attacker] =
       await ethers.getSigners();
 
-    const deployed = await deployUpgradeableProtocol(owner, attacker);
+    const deployed = await deployUpgradeableProtocol(owner);
 
     const underlyingAsset = deployed.underlyingAsset;
     const config = deployed.orionConfig;

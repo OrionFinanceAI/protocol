@@ -88,7 +88,7 @@ describe("Batch Limit Consistency - Critical Accounting Fix", function () {
   beforeEach(async function () {
     [owner, manager, ...users] = await ethers.getSigners();
 
-    const deployed = await deployUpgradeableProtocol(owner, owner);
+    const deployed = await deployUpgradeableProtocol(owner);
 
     underlyingAsset = deployed.underlyingAsset;
     orionConfig = deployed.orionConfig;
