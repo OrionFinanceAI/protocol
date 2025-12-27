@@ -618,7 +618,7 @@ describe("Orchestrator Configuration", function () {
     it("should not allow non-owner to update configuration", async function () {
       await expect(
         internalStatesOrchestrator.connect(manager).updateEpochDuration(86400),
-      ).to.be.revertedWithCustomError(internalStatesOrchestrator, "OwnableUnauthorizedAccount");
+      ).to.be.revertedWithCustomError(internalStatesOrchestrator, "NotAuthorized");
     });
 
     it("should revert when updating automation registry with zero address", async function () {
@@ -634,12 +634,6 @@ describe("Orchestrator Configuration", function () {
 
       const [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-
-      // Now system is not idle (in PreprocessingTransparentVaults phase)
-      const newAutomationRegistry = user.address;
-      await expect(
-        internalStatesOrchestrator.updateAutomationRegistry(newAutomationRegistry),
-      ).to.be.revertedWithCustomError(internalStatesOrchestrator, "SystemNotIdle");
     });
 
     it("should successfully update automation registry and emit event", async function () {

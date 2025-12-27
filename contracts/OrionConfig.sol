@@ -166,7 +166,8 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     }
 
     /// @inheritdoc IOrionConfig
-    function setMinDepositAmount(uint256 amount) external onlyOwner {
+    function setMinDepositAmount(uint256 amount) external {
+        if (msg.sender != guardian && msg.sender != owner()) revert ErrorsLib.NotAuthorized();
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         if (amount == 0) revert ErrorsLib.InvalidArguments();
 
@@ -176,7 +177,8 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     }
 
     /// @inheritdoc IOrionConfig
-    function setMinRedeemAmount(uint256 amount) external onlyOwner {
+    function setMinRedeemAmount(uint256 amount) external {
+        if (msg.sender != guardian && msg.sender != owner()) revert ErrorsLib.NotAuthorized();
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         if (amount == 0) revert ErrorsLib.InvalidArguments();
 
@@ -195,7 +197,8 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     }
 
     /// @inheritdoc IOrionConfig
-    function setMaxFulfillBatchSize(uint256 size) external onlyOwner {
+    function setMaxFulfillBatchSize(uint256 size) external {
+        if (msg.sender != guardian && msg.sender != owner()) revert ErrorsLib.NotAuthorized();
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         if (size == 0) revert ErrorsLib.InvalidArguments();
 
@@ -208,6 +211,8 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     /// @param _guardian The new guardian address
     /// @dev Only owner can set the guardian
     function setGuardian(address _guardian) external onlyOwner {
+        if (_guardian == address(0)) revert ErrorsLib.ZeroAddress();
+
         guardian = _guardian;
         emit EventsLib.GuardianUpdated(_guardian);
     }
@@ -295,7 +300,8 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     }
 
     /// @inheritdoc IOrionConfig
-    function addWhitelistedVaultOwner(address vaultOwner) external onlyOwner {
+    function addWhitelistedVaultOwner(address vaultOwner) external {
+        if (msg.sender != guardian && msg.sender != owner()) revert ErrorsLib.NotAuthorized();
         bool inserted = whitelistedVaultOwners.add(vaultOwner);
         if (!inserted) revert ErrorsLib.AlreadyRegistered();
     }

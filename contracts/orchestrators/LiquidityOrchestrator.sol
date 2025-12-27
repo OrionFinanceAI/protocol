@@ -115,6 +115,14 @@ contract LiquidityOrchestrator is
         _;
     }
 
+    /// @dev Restricts function to only owner or guardian
+    modifier onlyOwnerOrGuardian() {
+        if (msg.sender != owner() && msg.sender != config.guardian()) {
+            revert ErrorsLib.NotAuthorized();
+        }
+        _;
+    }
+
     /// @notice Constructor that disables initializers for the implementation contract
     /// @custom:oz-upgrades-unsafe-allow constructor
     // solhint-disable-next-line use-natspec
@@ -151,7 +159,7 @@ contract LiquidityOrchestrator is
     /* -------------------------------------------------------------------------- */
 
     /// @inheritdoc ILiquidityOrchestrator
-    function updateMinibatchSize(uint8 _minibatchSize) external onlyOwner {
+    function updateMinibatchSize(uint8 _minibatchSize) external onlyOwnerOrGuardian {
         if (_minibatchSize == 0) revert ErrorsLib.InvalidArguments();
         if (_minibatchSize > MAX_MINIBATCH_SIZE) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
@@ -161,7 +169,6 @@ contract LiquidityOrchestrator is
     /// @inheritdoc ILiquidityOrchestrator
     function updateAutomationRegistry(address newAutomationRegistry) external onlyOwner {
         if (newAutomationRegistry == address(0)) revert ErrorsLib.ZeroAddress();
-        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         automationRegistry = newAutomationRegistry;
         emit EventsLib.AutomationRegistryUpdated(newAutomationRegistry);
@@ -186,12 +193,12 @@ contract LiquidityOrchestrator is
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function depositLiquidity(uint256 amount) external onlyOwner {
+    function depositLiquidity(uint256 amount) external {
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
         if (internalStatesOrchestrator.currentPhase() != IInternalStateOrchestrator.InternalUpkeepPhase.Idle)
             revert ErrorsLib.SystemNotIdle();
 
-        // Transfer underlying assets from the owner to this contract
+        // Transfer underlying assets from the caller to this contract
         IERC20(underlyingAsset).safeTransferFrom(msg.sender, address(this), amount);
 
         // Update buffer amount in the internal states orchestrator

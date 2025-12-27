@@ -219,9 +219,10 @@ describe("Config", function () {
     it("Should revert when called by non-owner", async function () {
       const newVaultOwner = other.address;
 
-      await expect(orionConfig.connect(user).addWhitelistedVaultOwner(newVaultOwner))
-        .to.be.revertedWithCustomError(orionConfig, "OwnableUnauthorizedAccount")
-        .withArgs(user.address);
+      await expect(orionConfig.connect(user).addWhitelistedVaultOwner(newVaultOwner)).to.be.revertedWithCustomError(
+        orionConfig,
+        "NotAuthorized",
+      );
     });
   });
 

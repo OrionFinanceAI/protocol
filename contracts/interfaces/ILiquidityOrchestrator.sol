@@ -77,7 +77,7 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     function transferRedemptionFunds(address user, uint256 amount) external;
 
     /// @notice Deposits underlying assets to the liquidity orchestrator buffer
-    /// @dev Can only be called by the owner. Increases the buffer amount by the deposited amount.
+    /// @dev Increases the buffer amount by the deposited amount.
     /// @param amount The amount of underlying assets to deposit
     function depositLiquidity(uint256 amount) external;
 

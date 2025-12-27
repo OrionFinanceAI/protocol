@@ -626,11 +626,6 @@ describe("Orchestrators", function () {
         "SystemNotIdle",
       );
 
-      await expect(liquidityOrchestrator.updateAutomationRegistry(user.address)).to.be.revertedWithCustomError(
-        liquidityOrchestrator,
-        "SystemNotIdle",
-      );
-
       await expect(liquidityOrchestrator.setTargetBufferRatio(100)).to.be.revertedWithCustomError(
         liquidityOrchestrator,
         "SystemNotIdle",
@@ -2657,28 +2652,13 @@ describe("Orchestrators", function () {
     it("should not allow non-owner to update configuration", async function () {
       await expect(
         internalStatesOrchestrator.connect(manager).updateEpochDuration(86400),
-      ).to.be.revertedWithCustomError(internalStatesOrchestrator, "OwnableUnauthorizedAccount");
+      ).to.be.revertedWithCustomError(internalStatesOrchestrator, "NotAuthorized");
     });
 
     it("should revert when updating automation registry with zero address", async function () {
       await expect(
         internalStatesOrchestrator.updateAutomationRegistry(ethers.ZeroAddress),
       ).to.be.revertedWithCustomError(internalStatesOrchestrator, "ZeroAddress");
-    });
-
-    it("should revert when updating automation registry when system is not idle", async function () {
-      // Fast forward time to trigger upkeep and make system not idle
-      const epochDuration = await internalStatesOrchestrator.epochDuration();
-      await time.increase(epochDuration + 1n);
-
-      const [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-
-      // Now system is not idle (in PreprocessingTransparentVaults phase)
-      const newAutomationRegistry = user.address;
-      await expect(
-        internalStatesOrchestrator.updateAutomationRegistry(newAutomationRegistry),
-      ).to.be.revertedWithCustomError(internalStatesOrchestrator, "SystemNotIdle");
     });
 
     it("should successfully update automation registry and emit event", async function () {
@@ -2706,11 +2686,11 @@ describe("Orchestrators", function () {
       // Not Owner should revert
       await expect(orionConfig.connect(user).setMinDepositAmount(MIN_DEPOSIT)).to.be.revertedWithCustomError(
         orionConfig,
-        "OwnableUnauthorizedAccount",
+        "NotAuthorized",
       );
       await expect(orionConfig.connect(user).setMinRedeemAmount(MIN_REDEEM)).to.be.revertedWithCustomError(
         orionConfig,
-        "OwnableUnauthorizedAccount",
+        "NotAuthorized",
       );
 
       // Set minimum deposit amount

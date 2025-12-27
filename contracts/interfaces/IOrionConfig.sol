@@ -43,6 +43,10 @@ interface IOrionConfig {
     /// @return The risk-free rate
     function riskFreeRate() external view returns (uint16);
 
+    /// @notice Returns the guardian address
+    /// @return The guardian address
+    function guardian() external view returns (address);
+
     /// @notice Sets the internal states orchestrator for the protocol
     /// @dev Can only be called by the contract owner
     /// @param orchestrator The address of the internal states orchestrator
@@ -170,12 +174,12 @@ interface IOrionConfig {
     function minRedeemAmount() external view returns (uint256);
 
     /// @notice Sets the minimum deposit amount
-    /// @dev Can only be called by the contract owner
+    /// @dev Can be called by the contract owner or guardian
     /// @param amount The new minimum deposit amount in underlying asset units
     function setMinDepositAmount(uint256 amount) external;
 
     /// @notice Sets the minimum redeem amount
-    /// @dev Can only be called by the contract owner
+    /// @dev Can be called by the contract owner or guardian
     /// @param amount The new minimum redeem amount in share units
     function setMinRedeemAmount(uint256 amount) external;
 
@@ -193,7 +197,7 @@ interface IOrionConfig {
     function maxFulfillBatchSize() external view returns (uint256);
 
     /// @notice Sets the maximum fulfill batch size
-    /// @dev Can only be called by the contract owner
+    /// @dev Can be called by the contract owner or guardian
     /// @param size The new maximum fulfill batch size
     function setMaxFulfillBatchSize(uint256 size) external;
 }
