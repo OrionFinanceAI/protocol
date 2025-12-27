@@ -30,12 +30,12 @@ describe("Whitelist and Vault Removal Flows", function () {
   let testVault: OrionTransparentVault;
 
   let owner: SignerWithAddress;
-  let curator: SignerWithAddress;
+  let manager: SignerWithAddress;
   let automationRegistry: SignerWithAddress;
   let user: SignerWithAddress;
 
   beforeEach(async function () {
-    [owner, curator, automationRegistry, user] = await ethers.getSigners();
+    [owner, manager, automationRegistry, user] = await ethers.getSigners();
 
     // Deploy mock underlying asset first
     const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
@@ -72,7 +72,7 @@ describe("Whitelist and Vault Removal Flows", function () {
     await underlyingAsset.connect(user).approve(await mockAsset2.getAddress(), initialDeposit2);
     await mockAsset2.connect(user).deposit(initialDeposit2, user.address);
 
-    const deployed = await deployUpgradeableProtocol(owner, user, underlyingAsset, automationRegistry);
+    const deployed = await deployUpgradeableProtocol(owner, underlyingAsset, automationRegistry);
 
     orionConfig = deployed.orionConfig;
     internalStatesOrchestrator = deployed.internalStatesOrchestrator;
@@ -111,7 +111,7 @@ describe("Whitelist and Vault Removal Flows", function () {
 
     const testVaultTx = await transparentVaultFactory
       .connect(owner)
-      .createVault(curator.address, "Test Vault", "TV", 0, 500, 50, ethers.ZeroAddress);
+      .createVault(manager.address, "Test Vault", "TV", 0, 500, 50, ethers.ZeroAddress);
     const testVaultReceipt = await testVaultTx.wait();
     const testVaultEvent = testVaultReceipt?.logs.find((log) => {
       try {
@@ -149,7 +149,7 @@ describe("Whitelist and Vault Removal Flows", function () {
         weight: 300000000, // 30% allocation
       },
     ];
-    await testVault.connect(curator).submitIntent(intent);
+    await testVault.connect(manager).submitIntent(intent);
 
     // Step 2: Trigger orchestrators to process the intent and build orders
     const epochDuration = await internalStatesOrchestrator.epochDuration();
@@ -204,7 +204,7 @@ describe("Whitelist and Vault Removal Flows", function () {
     expect(mockAsset1BalanceBefore + mockAsset2BalanceBefore).to.be.gt(0);
 
     // Step 4: Remove mockAsset1 from whitelist BEFORE processing orchestrators
-    await orionConfig.connect(user).removeWhitelistedAsset(await mockAsset1.getAddress());
+    await orionConfig.connect(owner).removeWhitelistedAsset(await mockAsset1.getAddress());
 
     // Verify the asset is no longer whitelisted
     await expect(await orionConfig.isWhitelisted(await mockAsset1.getAddress())).to.be.false;
@@ -277,7 +277,7 @@ describe("Whitelist and Vault Removal Flows", function () {
         weight: 500000000, // 50% allocation
       },
     ];
-    await testVault.connect(curator).submitIntent(intent);
+    await testVault.connect(manager).submitIntent(intent);
 
     // Step 2: Trigger orchestrators to process the intent and build orders
     const epochDuration = await internalStatesOrchestrator.epochDuration();
@@ -332,7 +332,7 @@ describe("Whitelist and Vault Removal Flows", function () {
     expect(mockAsset1BalanceBefore + mockAsset2BalanceBefore).to.be.gt(0);
 
     // Step 4: Remove mockAsset1 from whitelist BEFORE processing orchestrators
-    await orionConfig.connect(user).removeWhitelistedAsset(await mockAsset1.getAddress());
+    await orionConfig.connect(owner).removeWhitelistedAsset(await mockAsset1.getAddress());
 
     // Verify the asset is no longer whitelisted
     await expect(await orionConfig.isWhitelisted(await mockAsset1.getAddress())).to.be.false;
@@ -409,7 +409,7 @@ describe("Whitelist and Vault Removal Flows", function () {
         weight: 300000000, // 30% allocation
       },
     ];
-    await testVault.connect(curator).submitIntent(intent);
+    await testVault.connect(manager).submitIntent(intent);
 
     // Step 2: Trigger orchestrators to process the intent and build orders
     const epochDuration = await internalStatesOrchestrator.epochDuration();
@@ -464,7 +464,7 @@ describe("Whitelist and Vault Removal Flows", function () {
 
     void expect(await orionConfig.isSystemIdle()).to.be.true;
 
-    await orionConfig.connect(user).removeOrionVault(await testVault.getAddress());
+    await orionConfig.connect(owner).removeOrionVault(await testVault.getAddress());
 
     void expect(await testVault.isDecommissioning()).to.be.true;
     void expect(await orionConfig.isDecommissionedVault(await testVault.getAddress())).to.be.false;
@@ -557,22 +557,22 @@ describe("Whitelist and Vault Removal Flows", function () {
     const sharePriceAfter = await testVault.convertToAssets(oneShare);
     expect(sharePriceAfter).to.equal(sharePriceBefore, "Share price should remain unchanged after redeem");
 
-    const pendingCuratorFees = await testVault.pendingCuratorFees();
-    if (pendingCuratorFees > 0) {
+    const pendingManagerFees = await testVault.pendingManagerFees();
+    if (pendingManagerFees > 0) {
       const initialOwnerBalance = await underlyingAsset.balanceOf(owner.address);
 
-      // Claim curator fees (this should work also for decommissioned vaults)
-      await testVault.connect(owner).claimCuratorFees(pendingCuratorFees);
+      // Claim manager fees (this should work also for decommissioned vaults)
+      await testVault.connect(owner).claimManagerFees(pendingManagerFees);
 
       const finalOwnerBalance = await underlyingAsset.balanceOf(owner.address);
-      expect(finalOwnerBalance).to.equal(initialOwnerBalance + pendingCuratorFees);
+      expect(finalOwnerBalance).to.equal(initialOwnerBalance + pendingManagerFees);
     }
   });
 
   it("should block requestDeposit when vault is decommissioning", async function () {
-    await testVault.connect(curator).submitIntent([{ token: await mockAsset1.getAddress(), weight: 1000000000 }]);
+    await testVault.connect(manager).submitIntent([{ token: await mockAsset1.getAddress(), weight: 1000000000 }]);
     // Mark vault for decommissioning
-    await orionConfig.connect(user).removeOrionVault(await testVault.getAddress());
+    await orionConfig.connect(owner).removeOrionVault(await testVault.getAddress());
 
     // Verify vault is decommissioning
     void expect(await testVault.isDecommissioning()).to.be.true;
@@ -609,7 +609,7 @@ describe("Whitelist and Vault Removal Flows", function () {
     await underlyingAsset.connect(user).approve(await testVault.getAddress(), depositAmount);
     await testVault.connect(user).requestDeposit(depositAmount);
 
-    await testVault.connect(curator).submitIntent([{ token: await mockAsset1.getAddress(), weight: 1000000000 }]);
+    await testVault.connect(manager).submitIntent([{ token: await mockAsset1.getAddress(), weight: 1000000000 }]);
 
     const epochDuration = await internalStatesOrchestrator.epochDuration();
     await time.increase(epochDuration + 1n);
@@ -632,7 +632,7 @@ describe("Whitelist and Vault Removal Flows", function () {
     expect(userShares).to.be.gt(0);
 
     // Mark vault for decommissioning
-    await orionConfig.connect(user).removeOrionVault(await testVault.getAddress());
+    await orionConfig.connect(owner).removeOrionVault(await testVault.getAddress());
 
     // Verify vault is decommissioning
     void expect(await testVault.isDecommissioning()).to.be.true;

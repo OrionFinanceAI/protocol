@@ -24,20 +24,15 @@ interface IOrionConfig {
     /// @return The address of the underlying asset contract
     function underlyingAsset() external view returns (IERC20);
 
-    /// @notice Returns the admin address
-    /// @dev The admin address is immutable and set at construction
-    /// @return The admin address
-    function admin() external view returns (address);
-
     /// @notice Returns the address of the price adapter registry contract
     /// @dev This registry is responsible for managing asset price adapters
     /// @return The address of the price adapter registry
     function priceAdapterRegistry() external view returns (address);
 
-    /// @notice Returns the number of decimal places used for curator intent calculations
-    /// @dev This value is used to scale curator intent values for precision
-    /// @return The number of decimal places for curator intents
-    function curatorIntentDecimals() external view returns (uint8);
+    /// @notice Returns the number of decimal places used for manager intent calculations
+    /// @dev This value is used to scale manager intent values for precision
+    /// @return The number of decimal places for manager intents
+    function managerIntentDecimals() external view returns (uint8);
 
     /// @notice Returns the number of decimal places used for price adapters
     /// @dev This value is used to scale price adapter values for precision
@@ -47,6 +42,10 @@ interface IOrionConfig {
     /// @notice Returns the risk-free rate
     /// @return The risk-free rate
     function riskFreeRate() external view returns (uint16);
+
+    /// @notice Returns the guardian address
+    /// @return The guardian address
+    function guardian() external view returns (address);
 
     /// @notice Sets the internal states orchestrator for the protocol
     /// @dev Can only be called by the contract owner
@@ -122,7 +121,7 @@ interface IOrionConfig {
     /// @notice Deregisters an Orion vault from the protocol's registry
     /// @dev Callable exclusively by the contract owner. This action does not destroy the vault itself;
     /// @dev it merely disconnects the vault from the protocol, which causes the share price to stale
-    /// @dev and renders curator intents inactive.
+    /// @dev and renders manager intents inactive.
     /// @dev The vault remains in both active and decommissioning states, allowing orchestrators to process
     /// @dev it one last time to liquidate all positions before final removal.
     /// @param vault The address of the vault to be removed from the registry
@@ -175,12 +174,12 @@ interface IOrionConfig {
     function minRedeemAmount() external view returns (uint256);
 
     /// @notice Sets the minimum deposit amount
-    /// @dev Can only be called by the contract owner
+    /// @dev Can be called by the contract owner or guardian
     /// @param amount The new minimum deposit amount in underlying asset units
     function setMinDepositAmount(uint256 amount) external;
 
     /// @notice Sets the minimum redeem amount
-    /// @dev Can only be called by the contract owner
+    /// @dev Can be called by the contract owner or guardian
     /// @param amount The new minimum redeem amount in share units
     function setMinRedeemAmount(uint256 amount) external;
 
@@ -198,7 +197,7 @@ interface IOrionConfig {
     function maxFulfillBatchSize() external view returns (uint256);
 
     /// @notice Sets the maximum fulfill batch size
-    /// @dev Can only be called by the contract owner
+    /// @dev Can be called by the contract owner or guardian
     /// @param size The new maximum fulfill batch size
     function setMaxFulfillBatchSize(uint256 size) external;
 }

@@ -24,7 +24,7 @@ import { UtilitiesLib } from "../libraries/UtilitiesLib.sol";
  * @author Orion Finance
  * @dev This contract is responsible for:
  *      - Reading current vault states and market data;
- *      - Processing curator fees and high water mark;
+ *      - Processing manager fees and high water mark;
  *      - Updating vault states;
  *      - Computing state estimations for Liquidity Orchestrator;
  *      - Trigger the Liquidity Orchestrator.
@@ -165,6 +165,14 @@ contract InternalStatesOrchestrator is
         _;
     }
 
+    /// @dev Restricts function to only owner or guardian
+    modifier onlyOwnerOrGuardian() {
+        if (msg.sender != owner() && msg.sender != config.guardian()) {
+            revert ErrorsLib.NotAuthorized();
+        }
+        _;
+    }
+
     /// @notice Constructor that disables initializers for the implementation contract
     /// @custom:oz-upgrades-unsafe-allow constructor
     // solhint-disable-next-line use-natspec
@@ -189,7 +197,7 @@ contract InternalStatesOrchestrator is
 
         config = IOrionConfig(config_);
         registry = IPriceAdapterRegistry(config.priceAdapterRegistry());
-        intentFactor = 10 ** config.curatorIntentDecimals();
+        intentFactor = 10 ** config.managerIntentDecimals();
         underlyingAsset = address(config.underlyingAsset());
         underlyingDecimals = config.getTokenDecimals(underlyingAsset);
         priceAdapterPrecision = 10 ** config.priceAdapterDecimals();
@@ -207,14 +215,13 @@ contract InternalStatesOrchestrator is
     /// @inheritdoc IInternalStateOrchestrator
     function updateAutomationRegistry(address newAutomationRegistry) external onlyOwner {
         if (newAutomationRegistry == address(0)) revert ErrorsLib.ZeroAddress();
-        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         automationRegistry = newAutomationRegistry;
         emit EventsLib.AutomationRegistryUpdated(newAutomationRegistry);
     }
 
     /// @inheritdoc IInternalStateOrchestrator
-    function updateEpochDuration(uint32 newEpochDuration) external onlyOwner {
+    function updateEpochDuration(uint32 newEpochDuration) external onlyOwnerOrGuardian {
         if (newEpochDuration == 0) revert ErrorsLib.InvalidArguments();
         if (newEpochDuration > MAX_EPOCH_DURATION) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
@@ -224,7 +231,7 @@ contract InternalStatesOrchestrator is
     }
 
     /// @inheritdoc IInternalStateOrchestrator
-    function updateMinibatchSize(uint8 _transparentMinibatchSize) external onlyOwner {
+    function updateMinibatchSize(uint8 _transparentMinibatchSize) external onlyOwnerOrGuardian {
         if (_transparentMinibatchSize == 0) revert ErrorsLib.InvalidArguments();
         if (_transparentMinibatchSize > MAX_TRANSPARENT_MINIBATCH_SIZE) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
@@ -432,16 +439,16 @@ contract InternalStatesOrchestrator is
             pendingProtocolFees += protocolVolumeFee;
             totalAssets -= protocolVolumeFee;
 
-            // STEP 3 & 4: CURATOR FEES (Management + Performance)
-            uint256 curatorFee = vault.curatorFee(totalAssets);
+            // STEP 3 & 4: MANAGER FEES (Management + Performance)
+            uint256 managerFee = vault.managerFee(totalAssets);
 
-            totalAssets -= curatorFee;
+            totalAssets -= managerFee;
             _currentEpoch.vaultsTotalAssetsForFulfillRedeem[address(vault)] = totalAssets;
 
-            uint256 protocolRevenueShareFee = uint256(activeRsFee).mulDiv(curatorFee, BASIS_POINTS_FACTOR);
+            uint256 protocolRevenueShareFee = uint256(activeRsFee).mulDiv(managerFee, BASIS_POINTS_FACTOR);
             pendingProtocolFees += protocolRevenueShareFee;
-            curatorFee -= protocolRevenueShareFee;
-            vault.accrueCuratorFees(curatorFee);
+            managerFee -= protocolRevenueShareFee;
+            vault.accrueManagerFees(managerFee);
 
             // STEP 5: WITHDRAWAL EXCHANGE RATE (based on post-fee totalAssets)
             uint256 pendingRedeem = vault.convertToAssetsWithPITTotalAssets(
@@ -706,11 +713,6 @@ contract InternalStatesOrchestrator is
             _currentEpoch.vaultsTotalAssetsForFulfillDeposit[vault],
             _currentEpoch.vaultsTotalAssets[vault]
         );
-    }
-
-    /// @inheritdoc IInternalStateOrchestrator
-    function getTransparentVaultsEpoch() external view returns (address[] memory vaults) {
-        return transparentVaultsEpoch;
     }
 
     /// @inheritdoc IInternalStateOrchestrator

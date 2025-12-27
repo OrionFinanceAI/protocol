@@ -48,7 +48,7 @@ describe("Redeem Before Deposit Order Verification", function () {
   let vault: OrionTransparentVault;
 
   let owner: SignerWithAddress;
-  let curator: SignerWithAddress;
+  let manager: SignerWithAddress;
   let initialDepositor: SignerWithAddress;
   let redeemer: SignerWithAddress;
   let newDepositor: SignerWithAddress;
@@ -93,7 +93,7 @@ describe("Redeem Before Deposit Order Verification", function () {
   }
 
   beforeEach(async function () {
-    [owner, curator, initialDepositor, redeemer, newDepositor, automationRegistry] = await ethers.getSigners();
+    [owner, manager, initialDepositor, redeemer, newDepositor, automationRegistry] = await ethers.getSigners();
 
     // Deploy underlying asset (USDC with 6 decimals)
     const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
@@ -113,7 +113,7 @@ describe("Redeem Before Deposit Order Verification", function () {
     const MockExecutionAdapterFactory = await ethers.getContractFactory("MockExecutionAdapter");
     mockExecutionAdapter = (await MockExecutionAdapterFactory.deploy()) as unknown as MockExecutionAdapter;
 
-    const deployed = await deployUpgradeableProtocol(owner, owner, underlyingAsset, automationRegistry);
+    const deployed = await deployUpgradeableProtocol(owner, underlyingAsset, automationRegistry);
 
     orionConfig = deployed.orionConfig;
     internalStatesOrchestrator = deployed.internalStatesOrchestrator;
@@ -134,7 +134,7 @@ describe("Redeem Before Deposit Order Verification", function () {
 
     // Create vault
     const tx = await transparentVaultFactory.createVault(
-      curator.address,
+      manager.address,
       "Test Vault",
       "TVault",
       0,
@@ -155,8 +155,8 @@ describe("Redeem Before Deposit Order Verification", function () {
     const vaultAddress = parsedEvent?.args[0];
     vault = (await ethers.getContractAt("OrionTransparentVault", vaultAddress)) as unknown as OrionTransparentVault;
 
-    // Submit curator intent (100% to underlying asset to avoid liquidity orchestrator complexity)
-    await vault.connect(curator).submitIntent([
+    // Submit manager intent (100% to underlying asset to avoid liquidity orchestrator complexity)
+    await vault.connect(manager).submitIntent([
       {
         token: await underlyingAsset.getAddress(),
         weight: 1000000000, // 100% in basis points (10^9)

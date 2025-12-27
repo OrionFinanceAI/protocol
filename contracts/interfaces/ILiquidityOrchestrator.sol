@@ -17,10 +17,6 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
         ProcessVaultOperations
     }
 
-    /// @notice Returns the current epoch counter
-    /// @return The current epoch
-    function epochCounter() external view returns (uint16);
-
     /// @notice Returns the current upkeep phase
     /// @return The current LiquidityUpkeepPhase
     function currentPhase() external view returns (LiquidityUpkeepPhase);
@@ -69,10 +65,10 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @param amount The amount to return
     function returnDepositFunds(address user, uint256 amount) external;
 
-    /// @notice Transfer pending curator fees to a vault owner
+    /// @notice Transfer pending manager fees to a vault owner
     /// @dev Called by vault contracts when vault owners claim their fees
     /// @param amount The amount of fees to transfer
-    function transferCuratorFees(uint256 amount) external;
+    function transferManagerFees(uint256 amount) external;
 
     /// @notice Transfer redemption funds to a user after shares are burned
     /// @dev Called by vault contracts when processing redemption requests
@@ -81,7 +77,7 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     function transferRedemptionFunds(address user, uint256 amount) external;
 
     /// @notice Deposits underlying assets to the liquidity orchestrator buffer
-    /// @dev Can only be called by the owner. Increases the buffer amount by the deposited amount.
+    /// @dev Increases the buffer amount by the deposited amount.
     /// @param amount The amount of underlying assets to deposit
     function depositLiquidity(uint256 amount) external;
 

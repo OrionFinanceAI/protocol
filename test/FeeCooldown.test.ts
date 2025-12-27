@@ -28,9 +28,9 @@ describe("Fee Cooldown Mechanism", function () {
   const MAX_PROTOCOL_REVENUE_SHARE = 2000; // 20%
 
   async function deployFixture() {
-    const [owner, curator, user1, user2, automationRegistry] = await ethers.getSigners();
+    const [owner, manager, user1, user2, automationRegistry] = await ethers.getSigners();
 
-    const deployed = await deployUpgradeableProtocol(owner, owner);
+    const deployed = await deployUpgradeableProtocol(owner);
 
     const usdc = deployed.underlyingAsset;
     const config = deployed.orionConfig;
@@ -42,7 +42,7 @@ describe("Fee Cooldown Mechanism", function () {
       vaultFactory,
       usdc,
       owner,
-      curator,
+      manager,
       user1,
       user2,
       internalStatesOrchestrator,
@@ -56,7 +56,7 @@ describe("Fee Cooldown Mechanism", function () {
     performanceFee: number,
     managementFee: number,
   ): Promise<OrionTransparentVault> {
-    const { vaultFactory, owner, curator, config } = fixture;
+    const { vaultFactory, owner, manager, config } = fixture;
 
     // Whitelist owner if not already whitelisted
     if (!(await config.isWhitelistedVaultOwner(owner.address))) {
@@ -65,7 +65,7 @@ describe("Fee Cooldown Mechanism", function () {
 
     const vaultTx = await vaultFactory
       .connect(owner)
-      .createVault(curator.address, "Test Vault", "TVAULT", feeType, performanceFee, managementFee, ethers.ZeroAddress);
+      .createVault(manager.address, "Test Vault", "TVAULT", feeType, performanceFee, managementFee, ethers.ZeroAddress);
     const receipt = await vaultTx.wait();
     const vaultCreatedEvent = receipt?.logs.find((log) => {
       try {
@@ -326,19 +326,19 @@ describe("Fee Cooldown Mechanism", function () {
       ).to.be.revertedWithCustomError(vault, "NotAuthorized");
 
       await expect(
-        vault.connect(fixture.curator).updateFeeModel(FEE_TYPE.ABSOLUTE, 2000, 200),
+        vault.connect(fixture.manager).updateFeeModel(FEE_TYPE.ABSOLUTE, 2000, 200),
       ).to.be.revertedWithCustomError(vault, "NotAuthorized");
     });
 
     it("should only allow owner to update protocol fees", async function () {
-      const { internalStatesOrchestrator, user1, curator } = await loadFixture(deployFixture);
+      const { internalStatesOrchestrator, user1, manager } = await loadFixture(deployFixture);
 
       await expect(
         internalStatesOrchestrator.connect(user1).updateProtocolFees(25, 1000),
       ).to.be.revertedWithCustomError(internalStatesOrchestrator, "OwnableUnauthorizedAccount");
 
       await expect(
-        internalStatesOrchestrator.connect(curator).updateProtocolFees(25, 1000),
+        internalStatesOrchestrator.connect(manager).updateProtocolFees(25, 1000),
       ).to.be.revertedWithCustomError(internalStatesOrchestrator, "OwnableUnauthorizedAccount");
     });
 

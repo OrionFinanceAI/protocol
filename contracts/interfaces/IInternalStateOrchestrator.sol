@@ -95,10 +95,6 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     /// @dev This function blocks if the internal state orchestrator is not idle
     function getEpochTokens() external view returns (address[] memory tokens);
 
-    /// @notice Get the transparent vaults for the current epoch
-    /// @return vaults The array of transparent vault addresses for the current epoch
-    function getTransparentVaultsEpoch() external view returns (address[] memory vaults);
-
     /// @notice Get portfolio shares for a specific vault
     /// @param vault The vault address
     /// @return tokens The array of token addresses in the vault's portfolio

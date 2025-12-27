@@ -37,9 +37,9 @@ interface IOrionVault is IERC4626 {
     /// @param shares The number of shares that were requested for redemption.
     event RedeemRequestCancelled(address indexed user, uint256 indexed shares);
 
-    /// @notice The curator has been updated.
-    /// @param newCurator The new curator address.
-    event CuratorUpdated(address indexed newCurator);
+    /// @notice The manager has been updated.
+    /// @param newManager The new manager address.
+    event ManagerUpdated(address indexed newManager);
 
     /// @notice The fee model has been updated.
     /// @param mode The new calculation mode.
@@ -58,10 +58,10 @@ interface IOrionVault is IERC4626 {
     /// @param assets The new whitelist of assets.
     event VaultWhitelistUpdated(address[] assets);
 
-    /// @notice Curator fees have been accrued.
+    /// @notice Manager fees have been accrued.
     /// @param feeAmount The amount of fees accrued in underlying asset units.
-    /// @param pendingCuratorFees The total pending curator fees in underlying asset units.
-    event CuratorFeesAccrued(uint256 indexed feeAmount, uint256 indexed pendingCuratorFees);
+    /// @param pendingManagerFees The total pending manager fees in underlying asset units.
+    event ManagerFeesAccrued(uint256 indexed feeAmount, uint256 indexed pendingManagerFees);
 
     /// @notice The deposit access control contract has been updated.
     /// @param newDepositAccessControl The new deposit access control contract address (address(0) = permissionless).
@@ -77,13 +77,13 @@ interface IOrionVault is IERC4626 {
     /// @return The vault owner address
     function vaultOwner() external view returns (address);
 
-    /// @notice Curator getter
-    /// @return The curator address
-    function curator() external view returns (address);
+    /// @notice Manager getter
+    /// @return The manager address
+    function manager() external view returns (address);
 
-    /// @notice Pending curator fees getter
-    /// @return Pending curator fees amount
-    function pendingCuratorFees() external view returns (uint256);
+    /// @notice Pending manager fees getter
+    /// @return Pending manager fees amount
+    function pendingManagerFees() external view returns (uint256);
 
     /// @notice Convert shares to assets with point in time total assets.
     /// @param shares The amount of shares to convert.
@@ -134,15 +134,15 @@ interface IOrionVault is IERC4626 {
     /// @param shares The amount of share tokens to recover.
     function cancelRedeemRequest(uint256 shares) external;
 
-    // --------- VAULT OWNER AND CURATOR FUNCTIONS ---------
+    // --------- VAULT OWNER AND MANAGER FUNCTIONS ---------
 
-    /// @notice Update the vault curator address
-    /// @param newCurator The new curator address.
-    /// @dev The curator is responsible for setting allocation strategy for the vault's assets.
-    ///      This function enables vault owners to change allocation strategies by updating the curator.
-    ///      Curator can be a smart contract or an address. It is the FULL responsibility of the vault owner
-    ///      to ensure the curator is capable of performing its duties.
-    function updateCurator(address newCurator) external;
+    /// @notice Update the vault manager address
+    /// @param newManager The new manager address.
+    /// @dev The manager is responsible for setting allocation strategy for the vault's assets.
+    ///      This function enables vault owners to change allocation strategies by updating the manager.
+    ///      Manager can be a smart contract or an address. It is the FULL responsibility of the vault owner
+    ///      to ensure the manager is capable of performing its duties.
+    function updateManager(address newManager) external;
 
     /// @notice Update the vault whitelist
     /// @param assets The new whitelist of assets.
@@ -158,9 +158,9 @@ interface IOrionVault is IERC4626 {
     /// @param managementFee The management fee
     function updateFeeModel(uint8 mode, uint16 performanceFee, uint16 managementFee) external;
 
-    /// @notice Claim accrued curator fees
-    /// @param amount The amount of curator fees to claim
-    function claimCuratorFees(uint256 amount) external;
+    /// @notice Claim accrued manager fees
+    /// @param amount The amount of manager fees to claim
+    function claimManagerFees(uint256 amount) external;
 
     /// @notice Set deposit access control contract
     /// @param newDepositAccessControl Address of the new access control contract (address(0) = permissionless)
@@ -183,12 +183,12 @@ interface IOrionVault is IERC4626 {
     /// @dev This returns share amounts, not underlying asset amounts
     function pendingRedeem(uint256 fulfillBatchSize) external view returns (uint256);
 
-    /// @notice Calculate the curator's fee based on total assets
+    /// @notice Calculate the manager's fee based on total assets
     /// @param totalAssets The total assets under management
-    /// @return The curator fee amount in underlying asset units
+    /// @return The manager fee amount in underlying asset units
     /// @dev Warning: Calling this function mid-epoch may return inaccurate results
     ///      since fees are calculated based on the full epoch duration
-    function curatorFee(uint256 totalAssets) external view returns (uint256);
+    function managerFee(uint256 totalAssets) external view returns (uint256);
 
     /// --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
 
@@ -200,7 +200,7 @@ interface IOrionVault is IERC4626 {
     /// @param redeemTotalAssets The total assets associated with the redemption requests
     function fulfillRedeem(uint256 redeemTotalAssets) external;
 
-    /// @notice Accrue curator fees for a specific epoch
-    /// @param feeAmount The amount of curator fees to accrue in underlying asset units
-    function accrueCuratorFees(uint256 feeAmount) external;
+    /// @notice Accrue manager fees for a specific epoch
+    /// @param feeAmount The amount of manager fees to accrue in underlying asset units
+    function accrueManagerFees(uint256 feeAmount) external;
 }

@@ -37,19 +37,17 @@ export interface UpgradeableProtocolContracts {
  * - UpgradeableBeacon for vaults
  *
  * @param owner Protocol owner address
- * @param admin Protocol admin address
  * @param underlyingAsset Underlying asset contract (optional, creates mock if not provided)
- * @param automationRegistry Automation registry address (optional, defaults to admin)
+ * @param automationRegistry Automation registry address (optional, defaults to owner)
  * @returns Deployed contract instances
  */
 export async function deployUpgradeableProtocol(
   owner: SignerWithAddress,
-  admin: SignerWithAddress,
   underlyingAsset?: MockUnderlyingAsset,
   automationRegistry?: SignerWithAddress,
 ): Promise<UpgradeableProtocolContracts> {
-  // Use admin as automation registry if not provided
-  const automationReg = automationRegistry || admin;
+  // Use owner as automation registry if not provided
+  const automationReg = automationRegistry || owner;
 
   // Deploy mock underlying asset if not provided
   let underlying = underlyingAsset;
@@ -61,11 +59,10 @@ export async function deployUpgradeableProtocol(
 
   // 1. Deploy OrionConfig (UUPS)
   const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
-  const orionConfig = (await upgrades.deployProxy(
-    OrionConfigFactory,
-    [owner.address, admin.address, await underlying.getAddress()],
-    { initializer: "initialize", kind: "uups" },
-  )) as unknown as OrionConfig;
+  const orionConfig = (await upgrades.deployProxy(OrionConfigFactory, [owner.address, await underlying.getAddress()], {
+    initializer: "initialize",
+    kind: "uups",
+  })) as unknown as OrionConfig;
   await orionConfig.waitForDeployment();
 
   // 2. Deploy PriceAdapterRegistry (UUPS)

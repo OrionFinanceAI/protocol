@@ -121,7 +121,7 @@ contract KBestTvlWeightedAverageInvalid is IOrionStrategy, Ownable {
             totalTVL += topTvls[i];
         }
 
-        uint32 intentScale = uint32(10 ** config.curatorIntentDecimals());
+        uint32 intentScale = uint32(10 ** config.managerIntentDecimals());
         intent = new IOrionTransparentVault.IntentPosition[](kActual);
 
         // Calculate weights without adjustment - this may result in sumWeights < intentScale

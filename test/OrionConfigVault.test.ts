@@ -28,12 +28,12 @@ let mockExecutionAdapter1: MockExecutionAdapter;
 let mockExecutionAdapter2: MockExecutionAdapter;
 let vault: OrionTransparentVault;
 
-let owner: SignerWithAddress, curator: SignerWithAddress, other: SignerWithAddress, user: SignerWithAddress;
+let owner: SignerWithAddress, manager: SignerWithAddress, other: SignerWithAddress, user: SignerWithAddress;
 
 beforeEach(async function () {
-  [owner, curator, other, user] = await ethers.getSigners();
+  [owner, manager, other, user] = await ethers.getSigners();
 
-  const deployed = await deployUpgradeableProtocol(owner, other);
+  const deployed = await deployUpgradeableProtocol(owner);
 
   underlyingAsset = deployed.underlyingAsset;
   orionConfig = deployed.orionConfig;
@@ -90,7 +90,7 @@ beforeEach(async function () {
   // Create a vault for testing
   const tx = await transparentVaultFactory
     .connect(owner)
-    .createVault(curator.address, "Test Vault", "TV", 0, 0, 0, ethers.ZeroAddress);
+    .createVault(manager.address, "Test Vault", "TV", 0, 0, 0, ethers.ZeroAddress);
   const receipt = await tx.wait();
   const event = receipt?.logs.find((log) => {
     try {
@@ -125,14 +125,14 @@ describe("Config", function () {
       const assetAddress = await mockAsset1.getAddress();
 
       expect(await orionConfig.isWhitelisted(assetAddress)).to.equal(true);
-      await expect(orionConfig.connect(other).removeWhitelistedAsset(assetAddress)).to.not.be.reverted;
+      await expect(orionConfig.connect(owner).removeWhitelistedAsset(assetAddress)).to.not.be.reverted;
       expect(await orionConfig.isWhitelisted(assetAddress)).to.equal(false);
     });
 
     it("Should emit WhitelistedAssetRemoved event when removing asset", async function () {
       const assetAddress = await mockAsset1.getAddress();
 
-      await expect(orionConfig.connect(other).removeWhitelistedAsset(assetAddress))
+      await expect(orionConfig.connect(owner).removeWhitelistedAsset(assetAddress))
         .to.emit(orionConfig, "WhitelistedAssetRemoved")
         .withArgs(assetAddress);
     });
@@ -141,7 +141,7 @@ describe("Config", function () {
       const initialCount = await orionConfig.whitelistedAssetsLength();
       expect(initialCount).to.equal(3); // underlying asset + 2 test assets
 
-      await orionConfig.connect(other).removeWhitelistedAsset(await mockAsset1.getAddress());
+      await orionConfig.connect(owner).removeWhitelistedAsset(await mockAsset1.getAddress());
       const finalCount = await orionConfig.whitelistedAssetsLength();
       expect(finalCount).to.equal(2); // underlying asset + 1 test asset
     });
@@ -152,7 +152,7 @@ describe("Config", function () {
       const initialAssets = await orionConfig.getAllWhitelistedAssets();
       expect(initialAssets).to.include(assetAddress);
 
-      await orionConfig.connect(other).removeWhitelistedAsset(assetAddress);
+      await orionConfig.connect(owner).removeWhitelistedAsset(assetAddress);
 
       const finalAssets = await orionConfig.getAllWhitelistedAssets();
       expect(finalAssets).to.not.include(assetAddress);
@@ -161,18 +161,17 @@ describe("Config", function () {
     it("Should revert when trying to remove non-whitelisted asset", async function () {
       const nonWhitelistedAsset = user.address;
 
-      await expect(orionConfig.connect(other).removeWhitelistedAsset(nonWhitelistedAsset))
+      await expect(orionConfig.connect(owner).removeWhitelistedAsset(nonWhitelistedAsset))
         .to.be.revertedWithCustomError(orionConfig, "TokenNotWhitelisted")
         .withArgs(nonWhitelistedAsset);
     });
 
-    it("Should revert when called by non-admin", async function () {
+    it("Should revert when called by non-owner", async function () {
       const assetAddress = await mockAsset1.getAddress();
 
-      await expect(orionConfig.connect(user).removeWhitelistedAsset(assetAddress)).to.be.revertedWithCustomError(
-        orionConfig,
-        "NotAuthorized",
-      );
+      await expect(orionConfig.connect(user).removeWhitelistedAsset(assetAddress))
+        .to.be.revertedWithCustomError(orionConfig, "OwnableUnauthorizedAccount")
+        .withArgs(user.address);
     });
   });
 
@@ -220,9 +219,10 @@ describe("Config", function () {
     it("Should revert when called by non-owner", async function () {
       const newVaultOwner = other.address;
 
-      await expect(orionConfig.connect(user).addWhitelistedVaultOwner(newVaultOwner))
-        .to.be.revertedWithCustomError(orionConfig, "OwnableUnauthorizedAccount")
-        .withArgs(user.address);
+      await expect(orionConfig.connect(user).addWhitelistedVaultOwner(newVaultOwner)).to.be.revertedWithCustomError(
+        orionConfig,
+        "NotAuthorized",
+      );
     });
   });
 
@@ -396,10 +396,10 @@ describe("OrionVault - Base Functionality", function () {
       // Request deposit
       await vault.connect(user).requestDeposit(depositAmount);
 
-      // Fund the LiquidityOrchestrator so it can fulfill the deposit (use admin 'other')
-      await underlyingAsset.mint(other.address, depositAmount);
-      await underlyingAsset.connect(other).approve(await liquidityOrchestrator.getAddress(), depositAmount);
-      await liquidityOrchestrator.connect(other).depositLiquidity(depositAmount);
+      // Fund the LiquidityOrchestrator so it can fulfill the deposit
+      await underlyingAsset.mint(owner.address, depositAmount);
+      await underlyingAsset.connect(owner).approve(await liquidityOrchestrator.getAddress(), depositAmount);
+      await liquidityOrchestrator.connect(owner).depositLiquidity(depositAmount);
 
       // Impersonate LiquidityOrchestrator to fulfill deposit (gives user shares)
       const loAddress = await liquidityOrchestrator.getAddress();
@@ -534,29 +534,29 @@ describe("OrionVault - Base Functionality", function () {
     });
   });
 
-  describe("Curator Management", function () {
-    it("Should allow vault owner to update whitelisted curator", async function () {
-      const newCurator = other.address;
+  describe("Manager Management", function () {
+    it("Should allow vault owner to update whitelisted manager", async function () {
+      const newManager = other.address;
 
-      await expect(vault.connect(owner).updateCurator(newCurator)).to.not.be.reverted;
+      await expect(vault.connect(owner).updateManager(newManager)).to.not.be.reverted;
 
-      // Verify curator was updated
-      const updatedCurator = await vault.curator();
-      expect(updatedCurator).to.equal(newCurator);
+      // Verify manager was updated
+      const updatedManager = await vault.manager();
+      expect(updatedManager).to.equal(newManager);
     });
 
-    it("Should revert when non-owner tries to update curator", async function () {
-      const newCurator = other.address;
+    it("Should revert when non-owner tries to update manager", async function () {
+      const newManager = other.address;
 
-      await expect(vault.connect(user).updateCurator(newCurator)).to.be.revertedWithCustomError(vault, "NotAuthorized");
+      await expect(vault.connect(user).updateManager(newManager)).to.be.revertedWithCustomError(vault, "NotAuthorized");
     });
 
-    it("Should emit CuratorUpdated event when curator is updated", async function () {
-      const newCurator = other.address;
+    it("Should emit ManagerUpdated event when manager is updated", async function () {
+      const newManager = other.address;
 
-      await expect(vault.connect(owner).updateCurator(newCurator))
-        .to.emit(vault, "CuratorUpdated")
-        .withArgs(newCurator);
+      await expect(vault.connect(owner).updateManager(newManager))
+        .to.emit(vault, "ManagerUpdated")
+        .withArgs(newManager);
     });
   });
 
@@ -585,19 +585,19 @@ describe("OrionVault - Base Functionality", function () {
 
   describe("Access Control", function () {
     it("Should only allow vault owner to call owner-only functions", async function () {
-      // Test updateCurator function
-      await expect(vault.connect(user).updateCurator(other.address)).to.be.revertedWithCustomError(
+      // Test updateManager function
+      await expect(vault.connect(user).updateManager(other.address)).to.be.revertedWithCustomError(
         vault,
         "NotAuthorized",
       );
 
-      await expect(vault.connect(curator).updateCurator(other.address)).to.be.revertedWithCustomError(
+      await expect(vault.connect(manager).updateManager(other.address)).to.be.revertedWithCustomError(
         vault,
         "NotAuthorized",
       );
 
       // Only owner should be able to call
-      await expect(vault.connect(owner).updateCurator(other.address)).to.not.be.reverted;
+      await expect(vault.connect(owner).updateManager(other.address)).to.not.be.reverted;
     });
   });
 

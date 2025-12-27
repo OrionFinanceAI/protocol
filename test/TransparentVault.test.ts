@@ -25,10 +25,10 @@ let mockExecutionAdapter1: MockExecutionAdapter;
 let mockExecutionAdapter2: MockExecutionAdapter;
 let transparentVault: OrionTransparentVault;
 
-let owner: SignerWithAddress, curator: SignerWithAddress, other: SignerWithAddress;
+let owner: SignerWithAddress, manager: SignerWithAddress, other: SignerWithAddress;
 
 beforeEach(async function () {
-  [owner, curator, other] = await ethers.getSigners();
+  [owner, manager, other] = await ethers.getSigners();
 
   const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
   const underlyingAssetDeployed = await MockUnderlyingAssetFactory.deploy(6);
@@ -52,7 +52,7 @@ beforeEach(async function () {
   await mockAsset2Deployed.waitForDeployment();
   mockAsset2 = mockAsset2Deployed as unknown as MockERC4626Asset;
 
-  const deployed = await deployUpgradeableProtocol(owner, other, underlyingAsset);
+  const deployed = await deployUpgradeableProtocol(owner, underlyingAsset);
 
   orionConfig = deployed.orionConfig;
   transparentVaultFactory = deployed.transparentVaultFactory;
@@ -85,12 +85,12 @@ beforeEach(async function () {
   );
 });
 
-describe("TransparentVault - Curator Pipeline", function () {
+describe("TransparentVault - Manager Pipeline", function () {
   describe("Vault Creation", function () {
     it("Should create a transparent vault with correct parameters", async function () {
       const tx = await transparentVaultFactory
         .connect(owner)
-        .createVault(curator.address, "Test Vault", "TV", 0, 0, 0, ethers.ZeroAddress);
+        .createVault(manager.address, "Test Vault", "TV", 0, 0, 0, ethers.ZeroAddress);
       const receipt = await tx.wait();
 
       // Find the vault creation event
@@ -117,14 +117,14 @@ describe("TransparentVault - Curator Pipeline", function () {
 
       // Verify vault properties
       void expect(await transparentVault.vaultOwner()).to.equal(owner.address);
-      void expect(await transparentVault.curator()).to.equal(curator.address);
+      void expect(await transparentVault.manager()).to.equal(manager.address);
       void expect(await transparentVault.config()).to.equal(await orionConfig.getAddress());
     });
 
     it("Should reject fee update with management fee above limit", async function () {
       // Create vault with valid fees first
       const tx = await transparentVaultFactory.connect(owner).createVault(
-        curator.address,
+        manager.address,
         "Test Vault",
         "TV",
         0, // feeType
@@ -165,7 +165,7 @@ describe("TransparentVault - Curator Pipeline", function () {
     it("Should reject fee update with performance fee above limit", async function () {
       // Create vault with valid fees first
       const tx = await transparentVaultFactory.connect(owner).createVault(
-        curator.address,
+        manager.address,
         "Test Vault",
         "TV",
         0, // feeType
@@ -204,12 +204,12 @@ describe("TransparentVault - Curator Pipeline", function () {
     });
   });
 
-  describe("Curator Operations", function () {
+  describe("Manager Operations", function () {
     beforeEach(async function () {
       // Create a vault first
       const tx = await transparentVaultFactory
         .connect(owner)
-        .createVault(curator.address, "Test Vault", "TV", 0, 0, 0, ethers.ZeroAddress);
+        .createVault(manager.address, "Test Vault", "TV", 0, 0, 0, ethers.ZeroAddress);
       const receipt = await tx.wait();
       const event = receipt?.logs.find((log) => {
         try {
@@ -242,16 +242,16 @@ describe("TransparentVault - Curator Pipeline", function () {
         .reverted;
     });
 
-    it("Should allow vault owner to claim curator fees", async function () {
+    it("Should allow vault owner to claim manager fees", async function () {
       const claimAmount = ethers.parseUnits("50", 6); // Try to claim 50 USDC
 
-      await expect(transparentVault.connect(owner).claimCuratorFees(claimAmount)).to.be.revertedWithCustomError(
+      await expect(transparentVault.connect(owner).claimManagerFees(claimAmount)).to.be.revertedWithCustomError(
         transparentVault,
         "InsufficientAmount",
       );
     });
 
-    it("Should allow curator to submit intent", async function () {
+    it("Should allow manager to submit intent", async function () {
       const whitelist = [await mockAsset1.getAddress(), await mockAsset2.getAddress()];
       await transparentVault.connect(owner).updateVaultWhitelist(whitelist);
 
@@ -259,15 +259,15 @@ describe("TransparentVault - Curator Pipeline", function () {
       const intent = [
         {
           token: await mockAsset1.getAddress(),
-          weight: 600000000, // 60% * 10^9 (curator intent decimals)
+          weight: 600000000, // 60% * 10^9 (manager intent decimals)
         },
         {
           token: await mockAsset2.getAddress(),
-          weight: 400000000, // 40% * 10^9 (curator intent decimals)
+          weight: 400000000, // 40% * 10^9 (manager intent decimals)
         },
       ];
 
-      await expect(transparentVault.connect(curator).submitIntent(intent)).to.not.be.reverted;
+      await expect(transparentVault.connect(manager).submitIntent(intent)).to.not.be.reverted;
 
       // Verify the intent was stored correctly
       const [tokens, weights] = await transparentVault.getIntent();
@@ -291,7 +291,7 @@ describe("TransparentVault - Curator Pipeline", function () {
         },
       ];
 
-      await expect(transparentVault.connect(curator).submitIntent(intent)).to.be.revertedWithCustomError(
+      await expect(transparentVault.connect(manager).submitIntent(intent)).to.be.revertedWithCustomError(
         transparentVault,
         "InvalidTotalWeight",
       );
@@ -314,13 +314,13 @@ describe("TransparentVault - Curator Pipeline", function () {
         },
       ];
 
-      await expect(transparentVault.connect(curator).submitIntent(intent)).to.be.revertedWithCustomError(
+      await expect(transparentVault.connect(manager).submitIntent(intent)).to.be.revertedWithCustomError(
         transparentVault,
         "TokenNotWhitelisted",
       );
     });
 
-    it("Should reject intent from non-curator", async function () {
+    it("Should reject intent from non-manager", async function () {
       const whitelist = [await mockAsset1.getAddress(), await mockAsset2.getAddress()];
       await transparentVault.connect(owner).updateVaultWhitelist(whitelist);
 
@@ -342,7 +342,7 @@ describe("TransparentVault - Curator Pipeline", function () {
       await transparentVault.connect(owner).updateVaultWhitelist(whitelist);
 
       // First, blacklist mockAsset1 by removing it from the protocol whitelist
-      await orionConfig.connect(other).removeWhitelistedAsset(await mockAsset1.getAddress());
+      await orionConfig.connect(owner).removeWhitelistedAsset(await mockAsset1.getAddress());
 
       // Try to submit intent with the blacklisted asset
       const absoluteIntent = [
@@ -356,7 +356,7 @@ describe("TransparentVault - Curator Pipeline", function () {
         },
       ];
 
-      await expect(transparentVault.connect(curator).submitIntent(absoluteIntent)).to.be.revertedWithCustomError(
+      await expect(transparentVault.connect(manager).submitIntent(absoluteIntent)).to.be.revertedWithCustomError(
         transparentVault,
         "TokenNotWhitelisted",
       );
@@ -378,7 +378,7 @@ describe("TransparentVault - Curator Pipeline", function () {
         },
       ];
 
-      await expect(transparentVault.connect(curator).submitIntent(absoluteIntent)).to.be.revertedWithCustomError(
+      await expect(transparentVault.connect(manager).submitIntent(absoluteIntent)).to.be.revertedWithCustomError(
         transparentVault,
         "InvalidTotalWeight",
       );
@@ -386,11 +386,11 @@ describe("TransparentVault - Curator Pipeline", function () {
   });
 
   describe("Full Pipeline Integration", function () {
-    it("Should execute complete curator pipeline successfully", async function () {
+    it("Should execute complete manager pipeline successfully", async function () {
       // 1. Create vault
       const tx = await transparentVaultFactory
         .connect(owner)
-        .createVault(curator.address, "Integration Test Vault", "ITV", 0, 0, 0, ethers.ZeroAddress);
+        .createVault(manager.address, "Integration Test Vault", "ITV", 0, 0, 0, ethers.ZeroAddress);
       const receipt = await tx.wait();
       const event = receipt?.logs.find((log) => {
         try {
@@ -425,7 +425,7 @@ describe("TransparentVault - Curator Pipeline", function () {
           weight: 300000000, // 30%
         },
       ];
-      await transparentVault.connect(curator).submitIntent(intent);
+      await transparentVault.connect(manager).submitIntent(intent);
 
       const [tokens, weights] = await transparentVault.getIntent();
       void expect(tokens).to.deep.equal([await mockAsset1.getAddress(), await mockAsset2.getAddress()]);

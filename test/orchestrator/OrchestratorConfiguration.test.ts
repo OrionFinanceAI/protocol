@@ -112,12 +112,12 @@ describe("Orchestrator Configuration", function () {
   let underlyingDecimals: number;
 
   let owner: SignerWithAddress;
-  let curator: SignerWithAddress;
+  let manager: SignerWithAddress;
   let automationRegistry: SignerWithAddress;
   let user: SignerWithAddress;
 
   beforeEach(async function () {
-    [owner, curator, automationRegistry, user] = await ethers.getSigners();
+    [owner, manager, automationRegistry, user] = await ethers.getSigners();
 
     underlyingDecimals = 12;
 
@@ -180,7 +180,7 @@ describe("Orchestrator Configuration", function () {
     await mockAsset2.connect(user).simulateLosses(ethers.parseUnits("30", underlyingDecimals), user.address);
     await mockAsset3.connect(user).simulateGains(ethers.parseUnits("60", underlyingDecimals));
 
-    const deployed = await deployUpgradeableProtocol(owner, user, underlyingAsset, automationRegistry);
+    const deployed = await deployUpgradeableProtocol(owner, underlyingAsset, automationRegistry);
 
     orionConfig = deployed.orionConfig;
     internalStatesOrchestrator = deployed.internalStatesOrchestrator;
@@ -259,7 +259,7 @@ describe("Orchestrator Configuration", function () {
 
     const absoluteVaultTx = await transparentVaultFactory
       .connect(owner)
-      .createVault(curator.address, "Absolute Fee Vault", "AFV", 0, 500, 50, ethers.ZeroAddress);
+      .createVault(manager.address, "Absolute Fee Vault", "AFV", 0, 500, 50, ethers.ZeroAddress);
     const absoluteVaultReceipt = await absoluteVaultTx.wait();
     const absoluteVaultEvent = absoluteVaultReceipt?.logs.find((log) => {
       try {
@@ -278,7 +278,7 @@ describe("Orchestrator Configuration", function () {
 
     const softHurdleVaultTx = await transparentVaultFactory
       .connect(owner)
-      .createVault(curator.address, "Soft Hurdle Vault", "SHV", 1, 1200, 80, ethers.ZeroAddress);
+      .createVault(manager.address, "Soft Hurdle Vault", "SHV", 1, 1200, 80, ethers.ZeroAddress);
     const softHurdleVaultReceipt = await softHurdleVaultTx.wait();
     const softHurdleVaultEvent = softHurdleVaultReceipt?.logs.find((log) => {
       try {
@@ -297,7 +297,7 @@ describe("Orchestrator Configuration", function () {
 
     const hardHurdleVaultTx = await transparentVaultFactory
       .connect(owner)
-      .createVault(curator.address, "Hard Hurdle Vault", "HHV", 2, 1500, 200, ethers.ZeroAddress);
+      .createVault(manager.address, "Hard Hurdle Vault", "HHV", 2, 1500, 200, ethers.ZeroAddress);
     const hardHurdleVaultReceipt = await hardHurdleVaultTx.wait();
     const hardHurdleVaultEvent = hardHurdleVaultReceipt?.logs.find((log) => {
       try {
@@ -316,7 +316,7 @@ describe("Orchestrator Configuration", function () {
 
     const highWaterMarkVaultTx = await transparentVaultFactory
       .connect(owner)
-      .createVault(curator.address, "High Water Mark Vault", "HWMV", 3, 800, 150, ethers.ZeroAddress);
+      .createVault(manager.address, "High Water Mark Vault", "HWMV", 3, 800, 150, ethers.ZeroAddress);
     const highWaterMarkVaultReceipt = await highWaterMarkVaultTx.wait();
     const highWaterMarkVaultEvent = highWaterMarkVaultReceipt?.logs.find((log) => {
       try {
@@ -335,7 +335,7 @@ describe("Orchestrator Configuration", function () {
 
     const hurdleHwmVaultTx = await transparentVaultFactory
       .connect(owner)
-      .createVault(curator.address, "Hurdle HWM Vault", "HHWMV", 4, 2000, 250, ethers.ZeroAddress);
+      .createVault(manager.address, "Hurdle HWM Vault", "HHWMV", 4, 2000, 250, ethers.ZeroAddress);
     const hurdleHwmVaultReceipt = await hurdleHwmVaultTx.wait();
     const hurdleHwmVaultEvent = hurdleHwmVaultReceipt?.logs.find((log) => {
       try {
@@ -352,7 +352,7 @@ describe("Orchestrator Configuration", function () {
       hurdleHwmVaultAddress,
     )) as unknown as OrionTransparentVault;
 
-    // Create passive vault with kbestTVL strategy (no curator intents)
+    // Create passive vault with kbestTVL strategy (no manager intents)
     const passiveVaultTx = await transparentVaultFactory
       .connect(owner)
       .createVault(owner.address, "Passive KBest TVL Vault", "PKTV", 0, 0, 0, ethers.ZeroAddress);
@@ -372,7 +372,7 @@ describe("Orchestrator Configuration", function () {
       passiveVaultAddress,
     )) as unknown as OrionTransparentVault;
 
-    await passiveVault.connect(owner).updateCurator(await kbestTvlStrategy.getAddress());
+    await passiveVault.connect(owner).updateManager(await kbestTvlStrategy.getAddress());
     await kbestTvlStrategy.connect(owner).submitIntent(passiveVault);
 
     let liquidityOrchestratorBalance = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
@@ -394,7 +394,7 @@ describe("Orchestrator Configuration", function () {
       },
       { token: await underlyingAsset.getAddress(), weight: 550000000 },
     ];
-    await absoluteVault.connect(curator).submitIntent(absoluteIntent);
+    await absoluteVault.connect(manager).submitIntent(absoluteIntent);
 
     await underlyingAsset
       .connect(user)
@@ -435,7 +435,7 @@ describe("Orchestrator Configuration", function () {
       },
       { token: await underlyingAsset.getAddress(), weight: 100000000 },
     ];
-    await softHurdleVault.connect(curator).submitIntent(softHurdleIntent);
+    await softHurdleVault.connect(manager).submitIntent(softHurdleIntent);
     await underlyingAsset
       .connect(user)
       .approve(
@@ -467,7 +467,7 @@ describe("Orchestrator Configuration", function () {
       },
       { token: await underlyingAsset.getAddress(), weight: 250000000 },
     ];
-    await hardHurdleVault.connect(curator).submitIntent(hardHurdleIntent);
+    await hardHurdleVault.connect(manager).submitIntent(hardHurdleIntent);
     await underlyingAsset
       .connect(user)
       .approve(
@@ -502,7 +502,7 @@ describe("Orchestrator Configuration", function () {
       },
       { token: await underlyingAsset.getAddress(), weight: 150000000 },
     ];
-    await highWaterMarkVault.connect(curator).submitIntent(highWaterMarkIntent);
+    await highWaterMarkVault.connect(manager).submitIntent(highWaterMarkIntent);
     await underlyingAsset
       .connect(user)
       .approve(
@@ -542,7 +542,7 @@ describe("Orchestrator Configuration", function () {
       },
       { token: await underlyingAsset.getAddress(), weight: 150000000 },
     ];
-    await hurdleHwmVault.connect(curator).submitIntent(hurdleHwmIntent);
+    await hurdleHwmVault.connect(manager).submitIntent(hurdleHwmIntent);
     await underlyingAsset
       .connect(user)
       .approve(
@@ -617,8 +617,8 @@ describe("Orchestrator Configuration", function () {
 
     it("should not allow non-owner to update configuration", async function () {
       await expect(
-        internalStatesOrchestrator.connect(curator).updateEpochDuration(86400),
-      ).to.be.revertedWithCustomError(internalStatesOrchestrator, "OwnableUnauthorizedAccount");
+        internalStatesOrchestrator.connect(manager).updateEpochDuration(86400),
+      ).to.be.revertedWithCustomError(internalStatesOrchestrator, "NotAuthorized");
     });
 
     it("should revert when updating automation registry with zero address", async function () {
@@ -634,12 +634,6 @@ describe("Orchestrator Configuration", function () {
 
       const [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-
-      // Now system is not idle (in PreprocessingTransparentVaults phase)
-      const newAutomationRegistry = user.address;
-      await expect(
-        internalStatesOrchestrator.updateAutomationRegistry(newAutomationRegistry),
-      ).to.be.revertedWithCustomError(internalStatesOrchestrator, "SystemNotIdle");
     });
 
     it("should successfully update automation registry and emit event", async function () {

@@ -22,13 +22,12 @@ describe("Execution Adapter Validation - Comprehensive Tests", function () {
   let liquidityOrchestrator: LiquidityOrchestrator;
 
   let owner: SignerWithAddress;
-  let admin: SignerWithAddress;
   let user: SignerWithAddress;
 
   beforeEach(async function () {
-    [owner, admin, user] = await ethers.getSigners();
+    [owner, user] = await ethers.getSigners();
 
-    const deployed = await deployUpgradeableProtocol(owner, admin);
+    const deployed = await deployUpgradeableProtocol(owner);
 
     underlyingAsset = deployed.underlyingAsset;
     orionConfig = deployed.orionConfig;

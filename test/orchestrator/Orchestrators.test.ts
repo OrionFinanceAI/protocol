@@ -48,12 +48,12 @@ describe("Orchestrators", function () {
   let underlyingDecimals: number;
 
   let owner: SignerWithAddress;
-  let curator: SignerWithAddress;
+  let manager: SignerWithAddress;
   let automationRegistry: SignerWithAddress;
   let user: SignerWithAddress;
 
   beforeEach(async function () {
-    [owner, curator, automationRegistry, user] = await ethers.getSigners();
+    [owner, manager, automationRegistry, user] = await ethers.getSigners();
 
     underlyingDecimals = 12;
 
@@ -118,7 +118,7 @@ describe("Orchestrators", function () {
     const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
     orionConfig = (await upgrades.deployProxy(
       OrionConfigFactory,
-      [owner.address, user.address, await underlyingAsset.getAddress()], // owner, admin, underlyingAsset
+      [owner.address, await underlyingAsset.getAddress()], // owner, underlyingAsset
       { initializer: "initialize", kind: "uups" },
     )) as unknown as OrionConfig;
     await orionConfig.waitForDeployment();
@@ -245,7 +245,7 @@ describe("Orchestrators", function () {
 
     const absoluteVaultTx = await transparentVaultFactory
       .connect(owner)
-      .createVault(curator.address, "Absolute Fee Vault", "AFV", 0, 500, 50, ethers.ZeroAddress);
+      .createVault(manager.address, "Absolute Fee Vault", "AFV", 0, 500, 50, ethers.ZeroAddress);
     const absoluteVaultReceipt = await absoluteVaultTx.wait();
     const absoluteVaultEvent = absoluteVaultReceipt?.logs.find((log) => {
       try {
@@ -264,7 +264,7 @@ describe("Orchestrators", function () {
 
     const softHurdleVaultTx = await transparentVaultFactory
       .connect(owner)
-      .createVault(curator.address, "Soft Hurdle Vault", "SHV", 1, 1200, 80, ethers.ZeroAddress);
+      .createVault(manager.address, "Soft Hurdle Vault", "SHV", 1, 1200, 80, ethers.ZeroAddress);
     const softHurdleVaultReceipt = await softHurdleVaultTx.wait();
     const softHurdleVaultEvent = softHurdleVaultReceipt?.logs.find((log) => {
       try {
@@ -283,7 +283,7 @@ describe("Orchestrators", function () {
 
     const hardHurdleVaultTx = await transparentVaultFactory
       .connect(owner)
-      .createVault(curator.address, "Hard Hurdle Vault", "HHV", 2, 1500, 200, ethers.ZeroAddress);
+      .createVault(manager.address, "Hard Hurdle Vault", "HHV", 2, 1500, 200, ethers.ZeroAddress);
     const hardHurdleVaultReceipt = await hardHurdleVaultTx.wait();
     const hardHurdleVaultEvent = hardHurdleVaultReceipt?.logs.find((log) => {
       try {
@@ -302,7 +302,7 @@ describe("Orchestrators", function () {
 
     const highWaterMarkVaultTx = await transparentVaultFactory
       .connect(owner)
-      .createVault(curator.address, "High Water Mark Vault", "HWMV", 3, 800, 150, ethers.ZeroAddress);
+      .createVault(manager.address, "High Water Mark Vault", "HWMV", 3, 800, 150, ethers.ZeroAddress);
     const highWaterMarkVaultReceipt = await highWaterMarkVaultTx.wait();
     const highWaterMarkVaultEvent = highWaterMarkVaultReceipt?.logs.find((log) => {
       try {
@@ -321,7 +321,7 @@ describe("Orchestrators", function () {
 
     const hurdleHwmVaultTx = await transparentVaultFactory
       .connect(owner)
-      .createVault(curator.address, "Hurdle HWM Vault", "HHWMV", 4, 2000, 250, ethers.ZeroAddress);
+      .createVault(manager.address, "Hurdle HWM Vault", "HHWMV", 4, 2000, 250, ethers.ZeroAddress);
     const hurdleHwmVaultReceipt = await hurdleHwmVaultTx.wait();
     const hurdleHwmVaultEvent = hurdleHwmVaultReceipt?.logs.find((log) => {
       try {
@@ -338,7 +338,7 @@ describe("Orchestrators", function () {
       hurdleHwmVaultAddress,
     )) as unknown as OrionTransparentVault;
 
-    // Create passive vault with kbestTVL strategy (no curator intents)
+    // Create passive vault with kbestTVL strategy (no manager intents)
     const passiveVaultTx = await transparentVaultFactory
       .connect(owner)
       .createVault(owner.address, "Passive KBest TVL Vault", "PKTV", 0, 0, 0, ethers.ZeroAddress);
@@ -358,7 +358,7 @@ describe("Orchestrators", function () {
       passiveVaultAddress,
     )) as unknown as OrionTransparentVault;
 
-    await passiveVault.connect(owner).updateCurator(await kbestTvlStrategy.getAddress());
+    await passiveVault.connect(owner).updateManager(await kbestTvlStrategy.getAddress());
     await kbestTvlStrategy.connect(owner).submitIntent(passiveVault);
 
     let liquidityOrchestratorBalance = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
@@ -380,7 +380,7 @@ describe("Orchestrators", function () {
       },
       { token: await underlyingAsset.getAddress(), weight: 550000000 },
     ];
-    await absoluteVault.connect(curator).submitIntent(absoluteIntent);
+    await absoluteVault.connect(manager).submitIntent(absoluteIntent);
 
     await underlyingAsset
       .connect(user)
@@ -421,7 +421,7 @@ describe("Orchestrators", function () {
       },
       { token: await underlyingAsset.getAddress(), weight: 100000000 },
     ];
-    await softHurdleVault.connect(curator).submitIntent(softHurdleIntent);
+    await softHurdleVault.connect(manager).submitIntent(softHurdleIntent);
     await underlyingAsset
       .connect(user)
       .approve(
@@ -453,7 +453,7 @@ describe("Orchestrators", function () {
       },
       { token: await underlyingAsset.getAddress(), weight: 250000000 },
     ];
-    await hardHurdleVault.connect(curator).submitIntent(hardHurdleIntent);
+    await hardHurdleVault.connect(manager).submitIntent(hardHurdleIntent);
     await underlyingAsset
       .connect(user)
       .approve(
@@ -488,7 +488,7 @@ describe("Orchestrators", function () {
       },
       { token: await underlyingAsset.getAddress(), weight: 150000000 },
     ];
-    await highWaterMarkVault.connect(curator).submitIntent(highWaterMarkIntent);
+    await highWaterMarkVault.connect(manager).submitIntent(highWaterMarkIntent);
     await underlyingAsset
       .connect(user)
       .approve(
@@ -528,7 +528,7 @@ describe("Orchestrators", function () {
       },
       { token: await underlyingAsset.getAddress(), weight: 150000000 },
     ];
-    await hurdleHwmVault.connect(curator).submitIntent(hurdleHwmIntent);
+    await hurdleHwmVault.connect(manager).submitIntent(hurdleHwmIntent);
     await underlyingAsset
       .connect(user)
       .approve(
@@ -570,8 +570,8 @@ describe("Orchestrators", function () {
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Idle
       expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
       void expect(await orionConfig.isSystemIdle()).to.be.true;
-      await expect(orionConfig.connect(user).removeOrionVault(await hurdleHwmVault.getAddress())).not.to.be.reverted;
-      await expect(orionConfig.connect(user).removeWhitelistedAsset(await mockAsset1.getAddress())).not.to.be.reverted;
+      await expect(orionConfig.connect(owner).removeOrionVault(await hurdleHwmVault.getAddress())).not.to.be.reverted;
+      await expect(orionConfig.connect(owner).removeWhitelistedAsset(await mockAsset1.getAddress())).not.to.be.reverted;
 
       const epochDuration = await internalStatesOrchestrator.epochDuration();
       await time.increase(epochDuration + 1n);
@@ -584,7 +584,7 @@ describe("Orchestrators", function () {
       void expect(await orionConfig.isSystemIdle()).to.be.false;
 
       const vaultAddress = await hurdleHwmVault.getAddress();
-      await expect(orionConfig.connect(user).removeOrionVault(vaultAddress)).to.be.revertedWithCustomError(
+      await expect(orionConfig.connect(owner).removeOrionVault(vaultAddress)).to.be.revertedWithCustomError(
         orionConfig,
         "SystemNotIdle",
       );
@@ -603,11 +603,11 @@ describe("Orchestrators", function () {
       ).to.be.revertedWithCustomError(orionConfig, "SystemNotIdle");
 
       await expect(
-        orionConfig.connect(user).removeWhitelistedAsset(await mockAsset1.getAddress()),
+        orionConfig.connect(owner).removeWhitelistedAsset(await mockAsset1.getAddress()),
       ).to.be.revertedWithCustomError(orionConfig, "SystemNotIdle");
 
       await expect(
-        orionConfig.connect(user).removeOrionVault(await hurdleHwmVault.getAddress()),
+        orionConfig.connect(owner).removeOrionVault(await hurdleHwmVault.getAddress()),
       ).to.be.revertedWithCustomError(orionConfig, "SystemNotIdle");
 
       // Test InternalStatesOrchestrator functions
@@ -623,11 +623,6 @@ describe("Orchestrators", function () {
 
       await expect(internalStatesOrchestrator.updateProtocolFees(50, 1000)).to.be.revertedWithCustomError(
         internalStatesOrchestrator,
-        "SystemNotIdle",
-      );
-
-      await expect(liquidityOrchestrator.updateAutomationRegistry(user.address)).to.be.revertedWithCustomError(
-        liquidityOrchestrator,
         "SystemNotIdle",
       );
 
@@ -667,7 +662,7 @@ describe("Orchestrators", function () {
       // Test factory function
       await expect(
         transparentVaultFactory.createVault(
-          curator.address,
+          manager.address,
           "Test Transparent Vault",
           "TTV",
           0,
@@ -698,8 +693,8 @@ describe("Orchestrators", function () {
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
 
-      let transparentVaultsEpoch = await internalStatesOrchestrator.getTransparentVaultsEpoch();
-      expect(transparentVaultsEpoch.length).to.equal(6);
+      let transparentVaults = await orionConfig.getAllOrionVaults(0);
+      expect(transparentVaults.length).to.equal(6);
 
       // Process all vaults in preprocessing phase - continue until we reach buffering phase
       while ((await internalStatesOrchestrator.currentPhase()) === 1n) {
@@ -719,8 +714,8 @@ describe("Orchestrators", function () {
         hurdleHwmVault,
         passiveVault,
       ]) {
-        const pendingCuratorFees = await v.pendingCuratorFees();
-        expect(pendingCuratorFees).to.equal(0);
+        const pendingManagerFees = await v.pendingManagerFees();
+        expect(pendingManagerFees).to.equal(0);
         const [, totalAssetsForDeposit] = await internalStatesOrchestrator.getVaultTotalAssetsAll(await v.getAddress());
         const [totalAssetsForRedeem, ,] = await internalStatesOrchestrator.getVaultTotalAssetsAll(await v.getAddress());
         expect(totalAssetsForDeposit).to.equal(0);
@@ -906,8 +901,8 @@ describe("Orchestrators", function () {
       // Fast forward time to trigger the next upkeep cycle
       await time.increase(epochDuration + 1n);
 
-      // Capture pending curator fees BEFORE the second epoch starts (fees accumulate across epochs)
-      const pendingCuratorFeesBeforeSecondEpoch = new Map<string, bigint>();
+      // Capture pending manager fees BEFORE the second epoch starts (fees accumulate across epochs)
+      const pendingManagerFeesBeforeSecondEpoch = new Map<string, bigint>();
       const vaultsForFeeCheck = [
         { name: "Absolute", vault: absoluteVault },
         { name: "High Water Mark", vault: highWaterMarkVault },
@@ -918,7 +913,7 @@ describe("Orchestrators", function () {
       ];
       for (const { vault } of vaultsForFeeCheck) {
         const vaultAddress = await vault.getAddress();
-        pendingCuratorFeesBeforeSecondEpoch.set(vaultAddress, await vault.pendingCuratorFees());
+        pendingManagerFeesBeforeSecondEpoch.set(vaultAddress, await vault.pendingManagerFees());
       }
 
       // Process all phases for the second epoch until BuildingOrders
@@ -1022,11 +1017,11 @@ describe("Orchestrators", function () {
         liquidityOrchestratorTokenBalanceBefore3.toString(),
       );
 
-      // Protocol admin injects liquidity to stabilize the protocol.
+      // Protocol owner injects liquidity to stabilize the protocol.
       const liquidityInjectionAmount = ethers.parseUnits("170", underlyingDecimals);
-      await underlyingAsset.mint(user.address, liquidityInjectionAmount);
-      await underlyingAsset.connect(user).approve(await liquidityOrchestrator.getAddress(), liquidityInjectionAmount);
-      await liquidityOrchestrator.connect(user).depositLiquidity(liquidityInjectionAmount);
+      await underlyingAsset.mint(owner.address, liquidityInjectionAmount);
+      await underlyingAsset.connect(owner).approve(await liquidityOrchestrator.getAddress(), liquidityInjectionAmount);
+      await liquidityOrchestrator.connect(owner).depositLiquidity(liquidityInjectionAmount);
 
       await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
 
@@ -1225,8 +1220,8 @@ describe("Orchestrators", function () {
 
       // ------------------------------------------------------------------------------------------------
       // Assert that portfolio values match intent weights * actual assets
-      const curatorIntentDecimals = await orionConfig.curatorIntentDecimals();
-      const intentDecimals = 10n ** BigInt(curatorIntentDecimals);
+      const managerIntentDecimals = await orionConfig.managerIntentDecimals();
+      const intentDecimals = 10n ** BigInt(managerIntentDecimals);
 
       const [absIntentTokens, absIntentWeights] = await absoluteVault.getIntent();
       const [absPortfolioTokens, absPortfolioShares] = await absoluteVault.getPortfolio();
@@ -1479,7 +1474,7 @@ describe("Orchestrators", function () {
         await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
       }
 
-      console.log("\n=== CURATOR FEE CALCULATION ANALYSIS ===");
+      console.log("\n=== MANAGER FEE CALCULATION ANALYSIS ===");
 
       // Get protocol configuration
       const vFeeCoefficient = await internalStatesOrchestrator.vFeeCoefficient();
@@ -1504,9 +1499,9 @@ describe("Orchestrators", function () {
       for (const { name, vault, feeType } of vaults) {
         console.log(`\n--- ${name} Vault Analysis ---`);
 
-        // Get pending curator fees BEFORE this epoch (captured before second epoch started)
+        // Get pending manager fees BEFORE this epoch (captured before second epoch started)
         const vaultAddress = await vault.getAddress();
-        const pendingCuratorFeesBefore = pendingCuratorFeesBeforeSecondEpoch.get(vaultAddress) || 0n;
+        const pendingManagerFeesBefore = pendingManagerFeesBeforeSecondEpoch.get(vaultAddress) || 0n;
 
         // Get vault fee model
         const feeModel = await vault.feeModel();
@@ -1551,7 +1546,7 @@ describe("Orchestrators", function () {
 
         console.log(`Volume Fee: ${volumeFeeAdjusted.toString()}`);
 
-        // Calculate curator fees (following protocol logic)
+        // Calculate manager fees (following protocol logic)
         const assetsAfterVolumeFee = vaultTotalAssets - volumeFeeAdjusted;
 
         // Management fee calculation
@@ -1618,43 +1613,43 @@ describe("Orchestrators", function () {
           console.log(`  Divisor: ${divisor.toString()}`);
         }
 
-        const totalCuratorFee = managementFeeAmount + performanceFeeAmount;
+        const totalManagerFee = managementFeeAmount + performanceFeeAmount;
 
         console.log(`Management Fee: ${managementFeeAmount.toString()}`);
         console.log(`Performance Fee: ${performanceFeeAmount.toString()}`);
-        console.log(`Total Curator Fee: ${totalCuratorFee.toString()}`);
+        console.log(`Total Manager Fee: ${totalManagerFee.toString()}`);
 
         // Calculate revenue share fee
-        const revenueShareFee = (BigInt(rsFeeCoefficient) * totalCuratorFee) / 10000n;
+        const revenueShareFee = (BigInt(rsFeeCoefficient) * totalManagerFee) / 10000n;
         totalCalculatedRevenueShareFee += Number(revenueShareFee);
 
         console.log(`Revenue Share Fee: ${revenueShareFee.toString()}`);
 
         // Get actual values from contracts for comparison
-        const actualPendingCuratorFees = await vault.pendingCuratorFees();
-        console.log(`Pending Curator Fees Before: ${pendingCuratorFeesBefore.toString()}`);
-        console.log(`Actual Pending Curator Fees: ${actualPendingCuratorFees.toString()}`);
+        const actualPendingManagerFees = await vault.pendingManagerFees();
+        console.log(`Pending Manager Fees Before: ${pendingManagerFeesBefore.toString()}`);
+        console.log(`Actual Pending Manager Fees: ${actualPendingManagerFees.toString()}`);
 
-        // Calculate expected curator fee after revenue share for THIS epoch
-        const expectedCuratorFeeAfterRevenueShareThisEpoch = totalCuratorFee - revenueShareFee;
+        // Calculate expected manager fee after revenue share for THIS epoch
+        const expectedManagerFeeAfterRevenueShareThisEpoch = totalManagerFee - revenueShareFee;
         console.log(
-          `Expected Curator Fee (after revenue share) THIS EPOCH: ${expectedCuratorFeeAfterRevenueShareThisEpoch.toString()}`,
+          `Expected Manager Fee (after revenue share) THIS EPOCH: ${expectedManagerFeeAfterRevenueShareThisEpoch.toString()}`,
         );
 
         // Expected total pending fees = previous pending fees + new fees from this epoch
-        const expectedTotalPendingCuratorFees = pendingCuratorFeesBefore + expectedCuratorFeeAfterRevenueShareThisEpoch;
-        console.log(`Expected Total Pending Curator Fees: ${expectedTotalPendingCuratorFees.toString()}`);
+        const expectedTotalPendingManagerFees = pendingManagerFeesBefore + expectedManagerFeeAfterRevenueShareThisEpoch;
+        console.log(`Expected Total Pending Manager Fees: ${expectedTotalPendingManagerFees.toString()}`);
 
-        expect(expectedTotalPendingCuratorFees).to.equal(expectedCuratorFeeAfterRevenueShareThisEpoch);
+        expect(expectedTotalPendingManagerFees).to.equal(expectedManagerFeeAfterRevenueShareThisEpoch);
 
         // Calculate expected values for fulfill deposit and redeem
         const assetsAfterVolumeFeeForFulfill = vaultTotalAssets - volumeFeeAdjusted;
-        const assetsAfterCuratorFeesForFulfill = assetsAfterVolumeFeeForFulfill - totalCuratorFee;
+        const assetsAfterManagerFeesForFulfill = assetsAfterVolumeFeeForFulfill - totalManagerFee;
 
-        // Expected fulfill redeem: totalAssets after volume fee and curator fees
-        const expectedFulfillRedeem = assetsAfterCuratorFeesForFulfill;
+        // Expected fulfill redeem: totalAssets after volume fee and manager fees
+        const expectedFulfillRedeem = assetsAfterManagerFeesForFulfill;
 
-        // Expected fulfill deposit: totalAssets after volume fee, curator fees, and pending redeem
+        // Expected fulfill deposit: totalAssets after volume fee, manager fees, and pending redeem
         // Note: pendingRedeem needs to be converted from shares to assets using convertToAssetsWithPITTotalAssets
         const pendingRedeemShares = await vault.pendingRedeem(await orionConfig.maxFulfillBatchSize());
         const pendingRedeemAssets = await vault.convertToAssetsWithPITTotalAssets(
@@ -1693,12 +1688,12 @@ describe("Orchestrators", function () {
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
 
       // Calculate expected buffer amount using fulfill redeem/deposit values
-      transparentVaultsEpoch = await internalStatesOrchestrator.getTransparentVaultsEpoch();
+      transparentVaults = await orionConfig.getAllOrionVaults(0);
       let protocolTotalAssets = 0n;
       const vaultsTotalAssetsArray: bigint[] = [];
 
       // Reconstruct vaultsTotalAssets using the same logic as step 6 in the orchestrator
-      for (const vaultAddress of transparentVaultsEpoch) {
+      for (const vaultAddress of transparentVaults) {
         const vault = await ethers.getContractAt("OrionTransparentVault", vaultAddress);
 
         // Get the values that were stored in the orchestrator
@@ -1722,8 +1717,8 @@ describe("Orchestrators", function () {
       let actualBufferAllocated = 0n;
       const postBufferVaultsTotalAssets: bigint[] = [];
 
-      for (let i = 0; i < transparentVaultsEpoch.length; i++) {
-        const vaultAddress = transparentVaultsEpoch[i];
+      for (let i = 0; i < transparentVaults.length; i++) {
+        const vaultAddress = transparentVaults[i];
         const vaultTotalAssets = vaultsTotalAssetsArray[i];
 
         // Calculate vault buffer cost proportionally with floor division (same logic as orchestrator)
@@ -1790,7 +1785,7 @@ describe("Orchestrators", function () {
 
       // Assess vaultsTotalAssetsForFulfillRedeem for all vaults
       console.log("\n=== VAULTS TOTAL ASSETS FOR FULFILL REDEEM ===");
-      for (const vaultAddress of transparentVaultsEpoch) {
+      for (const vaultAddress of transparentVaults) {
         const [totalAssetsForRedeem, totalAssetsForDeposit] =
           await internalStatesOrchestrator.getVaultTotalAssetsAll(vaultAddress);
         console.log(`Vault ${vaultAddress}: Total Assets for Fulfill Redeem = ${totalAssetsForRedeem.toString()}`);
@@ -1801,8 +1796,8 @@ describe("Orchestrators", function () {
 
       // Assess vaultsTotalAssets (reconstructed as fulfillDeposit + pendingDeposit)
       console.log("\n=== VAULTS TOTAL ASSETS (RECONSTRUCTED) ===");
-      for (let i = 0; i < transparentVaultsEpoch.length; i++) {
-        const vaultAddress = transparentVaultsEpoch[i];
+      for (let i = 0; i < transparentVaults.length; i++) {
+        const vaultAddress = transparentVaults[i];
         const vaultsTotalAssets = vaultsTotalAssetsArray[i];
         console.log(`Vault ${vaultAddress}: Total Assets = ${vaultsTotalAssets.toString()}`);
         expect(vaultsTotalAssets).to.be.gt(0);
@@ -1936,8 +1931,8 @@ describe("Orchestrators", function () {
 
       // ------------------------------------------------------------------------------------------------
       // Assert that portfolio values match intent weights * actual assets for second epoch
-      const curatorIntentDecimals_SecondEpoch = await orionConfig.curatorIntentDecimals();
-      const intentDecimals_SecondEpoch = 10n ** BigInt(curatorIntentDecimals_SecondEpoch);
+      const managerIntentDecimals_SecondEpoch = await orionConfig.managerIntentDecimals();
+      const intentDecimals_SecondEpoch = 10n ** BigInt(managerIntentDecimals_SecondEpoch);
 
       const [absIntentTokens_SecondEpoch, absIntentWeights_SecondEpoch] = await absoluteVault.getIntent();
       const [absPortfolioTokens_SecondEpoch, absPortfolioShares_SecondEpoch] = await absoluteVault.getPortfolio();
@@ -2141,13 +2136,13 @@ describe("Orchestrators", function () {
       // Check and claim protocol fees
       pendingProtocolFees = await internalStatesOrchestrator.pendingProtocolFees();
       if (pendingProtocolFees > 0) {
-        await liquidityOrchestrator.connect(user).claimProtocolFees(pendingProtocolFees);
+        await liquidityOrchestrator.connect(owner).claimProtocolFees(pendingProtocolFees);
       }
 
-      // Check and claim curator fees for transparent vault
-      const pendingTransparentCuratorFees = await hurdleHwmVault.pendingCuratorFees();
-      if (pendingTransparentCuratorFees > 0) {
-        await hurdleHwmVault.connect(owner).claimCuratorFees(pendingTransparentCuratorFees);
+      // Check and claim manager fees for transparent vault
+      const pendingTransparentManagerFees = await hurdleHwmVault.pendingManagerFees();
+      if (pendingTransparentManagerFees > 0) {
+        await hurdleHwmVault.connect(owner).claimManagerFees(pendingTransparentManagerFees);
       }
 
       const epochTokens = await internalStatesOrchestrator.getEpochTokens();
@@ -2196,8 +2191,8 @@ describe("Orchestrators", function () {
       await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
       expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
 
-      const transparentVaultsEpoch = await internalStatesOrchestrator.getTransparentVaultsEpoch();
-      expect(transparentVaultsEpoch.length).to.equal(6);
+      const transparentVaults = await orionConfig.getAllOrionVaults(0);
+      expect(transparentVaults.length).to.equal(6);
 
       // Process all vaults in preprocessing phase - continue until we reach buffering phase
       while ((await internalStatesOrchestrator.currentPhase()) === 1n) {
@@ -2336,7 +2331,7 @@ describe("Orchestrators", function () {
 
       // Should succeed when called by owner
       await expect(internalStatesOrchestrator.connect(owner).performUpkeep(performData)).to.not.be.reverted;
-      await expect(internalStatesOrchestrator.connect(curator).performUpkeep(performData)).to.be.reverted;
+      await expect(internalStatesOrchestrator.connect(manager).performUpkeep(performData)).to.be.reverted;
     });
 
     it("should allow automation registry to call performUpkeep", async function () {
@@ -2520,10 +2515,10 @@ describe("Orchestrators", function () {
       const depositAmount = ethers.parseUnits("1000", underlyingDecimals);
       const bufferAmountBeforeDeposit = await internalStatesOrchestrator.bufferAmount();
 
-      await underlyingAsset.mint(user.address, depositAmount);
-      await underlyingAsset.connect(user).approve(await liquidityOrchestrator.getAddress(), depositAmount);
+      await underlyingAsset.mint(owner.address, depositAmount);
+      await underlyingAsset.connect(owner).approve(await liquidityOrchestrator.getAddress(), depositAmount);
 
-      await liquidityOrchestrator.connect(user).depositLiquidity(depositAmount);
+      await liquidityOrchestrator.connect(owner).depositLiquidity(depositAmount);
 
       // Check that the buffer amount increased by the deposit amount
       const bufferAmountAfterDeposit = await internalStatesOrchestrator.bufferAmount();
@@ -2532,7 +2527,7 @@ describe("Orchestrators", function () {
       const withdrawAmount = ethers.parseUnits("500", underlyingDecimals);
       const bufferAmountBeforeWithdraw = bufferAmountAfterDeposit;
 
-      await liquidityOrchestrator.connect(user).withdrawLiquidity(withdrawAmount);
+      await liquidityOrchestrator.connect(owner).withdrawLiquidity(withdrawAmount);
 
       const bufferAmountAfterWithdraw = await internalStatesOrchestrator.bufferAmount();
       expect(bufferAmountAfterWithdraw).to.equal(bufferAmountBeforeWithdraw - withdrawAmount);
@@ -2563,11 +2558,11 @@ describe("Orchestrators", function () {
       expect(phase).to.not.equal(0);
 
       const depositAmount = ethers.parseUnits("1000", underlyingDecimals);
-      await underlyingAsset.mint(user.address, depositAmount);
-      await underlyingAsset.connect(user).approve(await liquidityOrchestrator.getAddress(), depositAmount);
+      await underlyingAsset.mint(owner.address, depositAmount);
+      await underlyingAsset.connect(owner).approve(await liquidityOrchestrator.getAddress(), depositAmount);
 
       // Should revert with SystemNotIdle
-      await expect(liquidityOrchestrator.connect(user).depositLiquidity(depositAmount)).to.be.revertedWithCustomError(
+      await expect(liquidityOrchestrator.connect(owner).depositLiquidity(depositAmount)).to.be.revertedWithCustomError(
         liquidityOrchestrator,
         "SystemNotIdle",
       );
@@ -2590,9 +2585,9 @@ describe("Orchestrators", function () {
 
       // Deposit some liquidity first when idle
       const depositAmount = ethers.parseUnits("1000", underlyingDecimals);
-      await underlyingAsset.mint(user.address, depositAmount);
-      await underlyingAsset.connect(user).approve(await liquidityOrchestrator.getAddress(), depositAmount);
-      await liquidityOrchestrator.connect(user).depositLiquidity(depositAmount);
+      await underlyingAsset.mint(owner.address, depositAmount);
+      await underlyingAsset.connect(owner).approve(await liquidityOrchestrator.getAddress(), depositAmount);
+      await liquidityOrchestrator.connect(owner).depositLiquidity(depositAmount);
 
       // Start a new epoch to get system out of idle
       await time.increase(epochDuration + 1n);
@@ -2606,10 +2601,9 @@ describe("Orchestrators", function () {
       const withdrawAmount = ethers.parseUnits("500", underlyingDecimals);
 
       // Should revert with SystemNotIdle
-      await expect(liquidityOrchestrator.connect(user).withdrawLiquidity(withdrawAmount)).to.be.revertedWithCustomError(
-        liquidityOrchestrator,
-        "SystemNotIdle",
-      );
+      await expect(
+        liquidityOrchestrator.connect(owner).withdrawLiquidity(withdrawAmount),
+      ).to.be.revertedWithCustomError(liquidityOrchestrator, "SystemNotIdle");
     });
   });
 
@@ -2657,29 +2651,14 @@ describe("Orchestrators", function () {
 
     it("should not allow non-owner to update configuration", async function () {
       await expect(
-        internalStatesOrchestrator.connect(curator).updateEpochDuration(86400),
-      ).to.be.revertedWithCustomError(internalStatesOrchestrator, "OwnableUnauthorizedAccount");
+        internalStatesOrchestrator.connect(manager).updateEpochDuration(86400),
+      ).to.be.revertedWithCustomError(internalStatesOrchestrator, "NotAuthorized");
     });
 
     it("should revert when updating automation registry with zero address", async function () {
       await expect(
         internalStatesOrchestrator.updateAutomationRegistry(ethers.ZeroAddress),
       ).to.be.revertedWithCustomError(internalStatesOrchestrator, "ZeroAddress");
-    });
-
-    it("should revert when updating automation registry when system is not idle", async function () {
-      // Fast forward time to trigger upkeep and make system not idle
-      const epochDuration = await internalStatesOrchestrator.epochDuration();
-      await time.increase(epochDuration + 1n);
-
-      const [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-
-      // Now system is not idle (in PreprocessingTransparentVaults phase)
-      const newAutomationRegistry = user.address;
-      await expect(
-        internalStatesOrchestrator.updateAutomationRegistry(newAutomationRegistry),
-      ).to.be.revertedWithCustomError(internalStatesOrchestrator, "SystemNotIdle");
     });
 
     it("should successfully update automation registry and emit event", async function () {
@@ -2707,11 +2686,11 @@ describe("Orchestrators", function () {
       // Not Owner should revert
       await expect(orionConfig.connect(user).setMinDepositAmount(MIN_DEPOSIT)).to.be.revertedWithCustomError(
         orionConfig,
-        "OwnableUnauthorizedAccount",
+        "NotAuthorized",
       );
       await expect(orionConfig.connect(user).setMinRedeemAmount(MIN_REDEEM)).to.be.revertedWithCustomError(
         orionConfig,
-        "OwnableUnauthorizedAccount",
+        "NotAuthorized",
       );
 
       // Set minimum deposit amount
