@@ -29,10 +29,10 @@ interface IOrionConfig {
     /// @return The address of the price adapter registry
     function priceAdapterRegistry() external view returns (address);
 
-    /// @notice Returns the number of decimal places used for manager intent calculations
-    /// @dev This value is used to scale manager intent values for precision
-    /// @return The number of decimal places for manager intents
-    function managerIntentDecimals() external view returns (uint8);
+    /// @notice Returns the number of decimal places used for strategist intent calculations
+    /// @dev This value is used to scale strategist intent values for precision
+    /// @return The number of decimal places for strategist intents
+    function strategistIntentDecimals() external view returns (uint8);
 
     /// @notice Returns the number of decimal places used for price adapters
     /// @dev This value is used to scale price adapter values for precision
@@ -97,20 +97,20 @@ interface IOrionConfig {
     /// @return True if the asset is whitelisted, false otherwise
     function isWhitelisted(address asset) external view returns (bool);
 
-    /// @notice Adds a vault owner to the whitelist
+    /// @notice Adds a manager to the whitelist
     /// @dev Can only be called by the contract owner
-    /// @param vaultOwner The address of the vault owner to whitelist
-    function addWhitelistedVaultOwner(address vaultOwner) external;
+    /// @param manager The address of the manager to whitelist
+    function addWhitelistedManager(address manager) external;
 
-    /// @notice Removes a vault owner from the whitelist
+    /// @notice Removes a manager from the whitelist
     /// @dev Can only be called by the contract owner
-    /// @param vaultOwner The address of the vault owner to remove from whitelist
-    function removeWhitelistedVaultOwner(address vaultOwner) external;
+    /// @param manager The address of the manager to remove from whitelist
+    function removeWhitelistedManager(address manager) external;
 
-    /// @notice Checks if a vault owner is whitelisted
-    /// @param vaultOwner The address of the vault owner to check
-    /// @return True if the vault owner is whitelisted, false otherwise
-    function isWhitelistedVaultOwner(address vaultOwner) external view returns (bool);
+    /// @notice Checks if a manager is whitelisted
+    /// @param manager The address of the manager to check
+    /// @return True if the manager is whitelisted, false otherwise
+    function isWhitelistedManager(address manager) external view returns (bool);
 
     /// @notice Adds a new Orion vault to the protocol registry
     /// @dev Only callable by the vault factories contracts
@@ -121,7 +121,7 @@ interface IOrionConfig {
     /// @notice Deregisters an Orion vault from the protocol's registry
     /// @dev Callable exclusively by the contract owner. This action does not destroy the vault itself;
     /// @dev it merely disconnects the vault from the protocol, which causes the share price to stale
-    /// @dev and renders manager intents inactive.
+    /// @dev and renders strategist intents inactive.
     /// @dev The vault remains in both active and decommissioning states, allowing orchestrators to process
     /// @dev it one last time to liquidate all positions before final removal.
     /// @param vault The address of the vault to be removed from the registry

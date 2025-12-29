@@ -30,12 +30,12 @@ describe("Whitelist and Vault Removal Flows", function () {
   let testVault: OrionTransparentVault;
 
   let owner: SignerWithAddress;
-  let manager: SignerWithAddress;
+  let strategist: SignerWithAddress;
   let automationRegistry: SignerWithAddress;
   let user: SignerWithAddress;
 
   beforeEach(async function () {
-    [owner, manager, automationRegistry, user] = await ethers.getSigners();
+    [owner, strategist, automationRegistry, user] = await ethers.getSigners();
 
     // Deploy mock underlying asset first
     const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
@@ -111,7 +111,7 @@ describe("Whitelist and Vault Removal Flows", function () {
 
     const testVaultTx = await transparentVaultFactory
       .connect(owner)
-      .createVault(manager.address, "Test Vault", "TV", 0, 500, 50, ethers.ZeroAddress);
+      .createVault(strategist.address, "Test Vault", "TV", 0, 500, 50, ethers.ZeroAddress);
     const testVaultReceipt = await testVaultTx.wait();
     const testVaultEvent = testVaultReceipt?.logs.find((log) => {
       try {
@@ -149,7 +149,7 @@ describe("Whitelist and Vault Removal Flows", function () {
         weight: 300000000, // 30% allocation
       },
     ];
-    await testVault.connect(manager).submitIntent(intent);
+    await testVault.connect(strategist).submitIntent(intent);
 
     // Step 2: Trigger orchestrators to process the intent and build orders
     const epochDuration = await internalStatesOrchestrator.epochDuration();
@@ -277,7 +277,7 @@ describe("Whitelist and Vault Removal Flows", function () {
         weight: 500000000, // 50% allocation
       },
     ];
-    await testVault.connect(manager).submitIntent(intent);
+    await testVault.connect(strategist).submitIntent(intent);
 
     // Step 2: Trigger orchestrators to process the intent and build orders
     const epochDuration = await internalStatesOrchestrator.epochDuration();
@@ -409,7 +409,7 @@ describe("Whitelist and Vault Removal Flows", function () {
         weight: 300000000, // 30% allocation
       },
     ];
-    await testVault.connect(manager).submitIntent(intent);
+    await testVault.connect(strategist).submitIntent(intent);
 
     // Step 2: Trigger orchestrators to process the intent and build orders
     const epochDuration = await internalStatesOrchestrator.epochDuration();
@@ -557,20 +557,20 @@ describe("Whitelist and Vault Removal Flows", function () {
     const sharePriceAfter = await testVault.convertToAssets(oneShare);
     expect(sharePriceAfter).to.equal(sharePriceBefore, "Share price should remain unchanged after redeem");
 
-    const pendingManagerFees = await testVault.pendingManagerFees();
-    if (pendingManagerFees > 0) {
+    const pendingVaultFees = await testVault.pendingVaultFees();
+    if (pendingVaultFees > 0) {
       const initialOwnerBalance = await underlyingAsset.balanceOf(owner.address);
 
-      // Claim manager fees (this should work also for decommissioned vaults)
-      await testVault.connect(owner).claimManagerFees(pendingManagerFees);
+      // Claim vault fees (this should work also for decommissioned vaults)
+      await testVault.connect(owner).claimVaultFees(pendingVaultFees);
 
       const finalOwnerBalance = await underlyingAsset.balanceOf(owner.address);
-      expect(finalOwnerBalance).to.equal(initialOwnerBalance + pendingManagerFees);
+      expect(finalOwnerBalance).to.equal(initialOwnerBalance + pendingVaultFees);
     }
   });
 
   it("should block requestDeposit when vault is decommissioning", async function () {
-    await testVault.connect(manager).submitIntent([{ token: await mockAsset1.getAddress(), weight: 1000000000 }]);
+    await testVault.connect(strategist).submitIntent([{ token: await mockAsset1.getAddress(), weight: 1000000000 }]);
     // Mark vault for decommissioning
     await orionConfig.connect(owner).removeOrionVault(await testVault.getAddress());
 
@@ -609,7 +609,7 @@ describe("Whitelist and Vault Removal Flows", function () {
     await underlyingAsset.connect(user).approve(await testVault.getAddress(), depositAmount);
     await testVault.connect(user).requestDeposit(depositAmount);
 
-    await testVault.connect(manager).submitIntent([{ token: await mockAsset1.getAddress(), weight: 1000000000 }]);
+    await testVault.connect(strategist).submitIntent([{ token: await mockAsset1.getAddress(), weight: 1000000000 }]);
 
     const epochDuration = await internalStatesOrchestrator.epochDuration();
     await time.increase(epochDuration + 1n);

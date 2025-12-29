@@ -129,18 +129,18 @@ describe("Orchestrator Security", function () {
   let softHurdleVault: OrionTransparentVault;
   let hardHurdleVault: OrionTransparentVault;
   let hurdleHwmVault: OrionTransparentVault;
-  let kbestTvlStrategy: KBestTvlWeightedAverage;
+  let kbestTvlPassiveStrategist: KBestTvlWeightedAverage;
   let passiveVault: OrionTransparentVault;
 
   let underlyingDecimals: number;
 
   let owner: SignerWithAddress;
-  let manager: SignerWithAddress;
+  let strategist: SignerWithAddress;
   let automationRegistry: SignerWithAddress;
   let user: SignerWithAddress;
 
   beforeEach(async function () {
-    [owner, manager, automationRegistry, user] = await ethers.getSigners();
+    [owner, strategist, automationRegistry, user] = await ethers.getSigners();
 
     underlyingDecimals = 12;
 
@@ -211,15 +211,15 @@ describe("Orchestrator Security", function () {
     liquidityOrchestrator = deployed.liquidityOrchestrator;
     transparentVaultFactory = deployed.transparentVaultFactory;
 
-    // Deploy KBestTvlWeightedAverage strategy with k=2
+    // Deploy KBestTvlWeightedAverage passive strategist with k=2
     const KBestTvlWeightedAverageFactory = await ethers.getContractFactory("KBestTvlWeightedAverage");
-    const kbestTvlStrategyDeployed = await KBestTvlWeightedAverageFactory.deploy(
+    const kbestTvlPassiveStrategistDeployed = await KBestTvlWeightedAverageFactory.deploy(
       owner.address,
       await orionConfig.getAddress(),
-      1, // k=1
+      1, // k=1, select top 1 asset for passive strategist
     );
-    await kbestTvlStrategyDeployed.waitForDeployment();
-    kbestTvlStrategy = kbestTvlStrategyDeployed as unknown as KBestTvlWeightedAverage;
+    await kbestTvlPassiveStrategistDeployed.waitForDeployment();
+    kbestTvlPassiveStrategist = kbestTvlPassiveStrategistDeployed as unknown as KBestTvlWeightedAverage;
 
     const OrionAssetERC4626PriceAdapterFactory = await ethers.getContractFactory("OrionAssetERC4626PriceAdapter");
     orionPriceAdapter = (await OrionAssetERC4626PriceAdapterFactory.deploy(
@@ -283,7 +283,7 @@ describe("Orchestrator Security", function () {
 
     const absoluteVaultTx = await transparentVaultFactory
       .connect(owner)
-      .createVault(manager.address, "Absolute Fee Vault", "AFV", 0, 500, 50, ethers.ZeroAddress);
+      .createVault(strategist.address, "Absolute Fee Vault", "AFV", 0, 500, 50, ethers.ZeroAddress);
     const absoluteVaultReceipt = await absoluteVaultTx.wait();
     const absoluteVaultEvent = absoluteVaultReceipt?.logs.find((log) => {
       try {
@@ -302,7 +302,7 @@ describe("Orchestrator Security", function () {
 
     const softHurdleVaultTx = await transparentVaultFactory
       .connect(owner)
-      .createVault(manager.address, "Soft Hurdle Vault", "SHV", 1, 1200, 80, ethers.ZeroAddress);
+      .createVault(strategist.address, "Soft Hurdle Vault", "SHV", 1, 1200, 80, ethers.ZeroAddress);
     const softHurdleVaultReceipt = await softHurdleVaultTx.wait();
     const softHurdleVaultEvent = softHurdleVaultReceipt?.logs.find((log) => {
       try {
@@ -321,7 +321,7 @@ describe("Orchestrator Security", function () {
 
     const hardHurdleVaultTx = await transparentVaultFactory
       .connect(owner)
-      .createVault(manager.address, "Hard Hurdle Vault", "HHV", 2, 1500, 200, ethers.ZeroAddress);
+      .createVault(strategist.address, "Hard Hurdle Vault", "HHV", 2, 1500, 200, ethers.ZeroAddress);
     const hardHurdleVaultReceipt = await hardHurdleVaultTx.wait();
     const hardHurdleVaultEvent = hardHurdleVaultReceipt?.logs.find((log) => {
       try {
@@ -340,7 +340,7 @@ describe("Orchestrator Security", function () {
 
     const highWaterMarkVaultTx = await transparentVaultFactory
       .connect(owner)
-      .createVault(manager.address, "High Water Mark Vault", "HWMV", 3, 800, 150, ethers.ZeroAddress);
+      .createVault(strategist.address, "High Water Mark Vault", "HWMV", 3, 800, 150, ethers.ZeroAddress);
     const highWaterMarkVaultReceipt = await highWaterMarkVaultTx.wait();
     const highWaterMarkVaultEvent = highWaterMarkVaultReceipt?.logs.find((log) => {
       try {
@@ -359,7 +359,7 @@ describe("Orchestrator Security", function () {
 
     const hurdleHwmVaultTx = await transparentVaultFactory
       .connect(owner)
-      .createVault(manager.address, "Hurdle HWM Vault", "HHWMV", 4, 2000, 250, ethers.ZeroAddress);
+      .createVault(strategist.address, "Hurdle HWM Vault", "HHWMV", 4, 2000, 250, ethers.ZeroAddress);
     const hurdleHwmVaultReceipt = await hurdleHwmVaultTx.wait();
     const hurdleHwmVaultEvent = hurdleHwmVaultReceipt?.logs.find((log) => {
       try {
@@ -376,10 +376,10 @@ describe("Orchestrator Security", function () {
       hurdleHwmVaultAddress,
     )) as unknown as OrionTransparentVault;
 
-    // Create passive vault with kbestTVL strategy (no manager intents)
+    // Create passive vault with kbestTVL passive strategist (no strategist intents)
     const passiveVaultTx = await transparentVaultFactory
       .connect(owner)
-      .createVault(owner.address, "Passive KBest TVL Vault", "PKTV", 0, 0, 0, ethers.ZeroAddress);
+      .createVault(strategist.address, "Passive KBest TVL Vault", "PKTV", 0, 0, 0, ethers.ZeroAddress);
     const passiveVaultReceipt = await passiveVaultTx.wait();
     const passiveVaultEvent = passiveVaultReceipt?.logs.find((log) => {
       try {
@@ -396,7 +396,7 @@ describe("Orchestrator Security", function () {
       passiveVaultAddress,
     )) as unknown as OrionTransparentVault;
 
-    await passiveVault.connect(owner).updateManager(await kbestTvlStrategy.getAddress());
+    await passiveVault.connect(owner).updateStrategist(await kbestTvlPassiveStrategist.getAddress());
 
     let liquidityOrchestratorBalance = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
     expect(liquidityOrchestratorBalance).to.equal(0);
@@ -417,7 +417,7 @@ describe("Orchestrator Security", function () {
       },
       { token: await underlyingAsset.getAddress(), weight: 550000000 },
     ];
-    await absoluteVault.connect(manager).submitIntent(absoluteIntent);
+    await absoluteVault.connect(strategist).submitIntent(absoluteIntent);
 
     await underlyingAsset
       .connect(user)
@@ -458,7 +458,7 @@ describe("Orchestrator Security", function () {
       },
       { token: await underlyingAsset.getAddress(), weight: 100000000 },
     ];
-    await softHurdleVault.connect(manager).submitIntent(softHurdleIntent);
+    await softHurdleVault.connect(strategist).submitIntent(softHurdleIntent);
     await underlyingAsset
       .connect(user)
       .approve(
@@ -490,7 +490,7 @@ describe("Orchestrator Security", function () {
       },
       { token: await underlyingAsset.getAddress(), weight: 250000000 },
     ];
-    await hardHurdleVault.connect(manager).submitIntent(hardHurdleIntent);
+    await hardHurdleVault.connect(strategist).submitIntent(hardHurdleIntent);
     await underlyingAsset
       .connect(user)
       .approve(
@@ -525,7 +525,7 @@ describe("Orchestrator Security", function () {
       },
       { token: await underlyingAsset.getAddress(), weight: 150000000 },
     ];
-    await highWaterMarkVault.connect(manager).submitIntent(highWaterMarkIntent);
+    await highWaterMarkVault.connect(strategist).submitIntent(highWaterMarkIntent);
     await underlyingAsset
       .connect(user)
       .approve(
@@ -565,7 +565,7 @@ describe("Orchestrator Security", function () {
       },
       { token: await underlyingAsset.getAddress(), weight: 150000000 },
     ];
-    await hurdleHwmVault.connect(manager).submitIntent(hurdleHwmIntent);
+    await hurdleHwmVault.connect(strategist).submitIntent(hurdleHwmIntent);
     await underlyingAsset
       .connect(user)
       .approve(

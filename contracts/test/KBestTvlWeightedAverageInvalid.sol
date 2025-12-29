@@ -3,7 +3,7 @@ pragma solidity ^0.8.28;
 
 import { IOrionTransparentVault } from "../interfaces/IOrionTransparentVault.sol";
 import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
-import { IOrionStrategy } from "../interfaces/IOrionStrategy.sol";
+import { IOrionStrategist } from "../interfaces/IOrionStrategist.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
@@ -15,14 +15,14 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
  *         This contract is designed to fail when submitting intent because weights may not sum to intentScale.
  * @author Orion Finance
  */
-contract KBestTvlWeightedAverageInvalid is IOrionStrategy, Ownable {
+contract KBestTvlWeightedAverageInvalid is IOrionStrategist, Ownable {
     /// @notice The Orion configuration contract
     IOrionConfig public config;
 
     /// @notice The number of assets to pick
     uint16 public k;
 
-    /// @notice Constructor for KBestTvlWeightedAverageInvalid strategy
+    /// @notice Constructor for KBestTvlWeightedAverageInvalid strategist
     /// @param owner The owner of the contract
     /// @param _config The Orion configuration contract address
     /// @param _k The number of assets to pick
@@ -33,7 +33,7 @@ contract KBestTvlWeightedAverageInvalid is IOrionStrategy, Ownable {
         k = _k;
     }
 
-    /// @inheritdoc IOrionStrategy
+    /// @inheritdoc IOrionStrategist
     function submitIntent(IOrionTransparentVault vault) external {
         address[] memory vaultWhitelistedAssets = vault.vaultWhitelist();
         uint16 n = uint16(vaultWhitelistedAssets.length);
@@ -121,7 +121,7 @@ contract KBestTvlWeightedAverageInvalid is IOrionStrategy, Ownable {
             totalTVL += topTvls[i];
         }
 
-        uint32 intentScale = uint32(10 ** config.managerIntentDecimals());
+        uint32 intentScale = uint32(10 ** config.strategistIntentDecimals());
         intent = new IOrionTransparentVault.IntentPosition[](kActual);
 
         // Calculate weights without adjustment - this may result in sumWeights < intentScale

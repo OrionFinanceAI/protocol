@@ -18,7 +18,7 @@ contract OrionTransparentVaultV2 is OrionTransparentVault {
 
     /// @notice New function added in V2 to demonstrate upgrade functionality
     /// @param description The description to set
-    function setVaultDescription(string memory description) external onlyVaultOwner {
+    function setVaultDescription(string memory description) external onlyManager {
         vaultDescription = description;
         emit VaultDescriptionSet(description);
     }

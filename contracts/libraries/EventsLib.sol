@@ -63,17 +63,17 @@ library EventsLib {
     /// @param unpauser The address that triggered the unpause.
     event ProtocolUnpaused(address indexed unpauser);
 
-    /// @notice A vault owner has been removed from the whitelist.
-    /// @param vaultOwner The address of the vault owner that was removed.
-    event VaultOwnerRemoved(address indexed vaultOwner);
+    /// @notice A manager has been removed from the whitelist.
+    /// @param manager The address of the manager that was removed.
+    event ManagerRemoved(address indexed manager);
 
     // =======================
     // === Vault Lifecycle ===
     // =======================
 
-    /// @notice A new order has been submitted by a manager.
-    /// @param manager The address of the manager who submitted the order.
-    event OrderSubmitted(address indexed manager);
+    /// @notice A new order has been submitted by a strategist.
+    /// @param strategist The address of the strategist who submitted the order.
+    event OrderSubmitted(address indexed strategist);
 
     /// @notice The vault's state has been updated with new total assets.
     /// @param newTotalAssets The new total assets value for the vault.
@@ -112,8 +112,8 @@ library EventsLib {
 
     /// @notice A new Orion Vault has been created.
     /// @param vault The address of the newly created vault.
-    /// @param vaultOwner The address of the vault's owner.
     /// @param manager The address of the vault's manager.
+    /// @param strategist The address of the vault's strategist.
     /// @param name The name of the vault.
     /// @param symbol The symbol of the vault.
     /// @param feeType The fee type of the vault.
@@ -123,8 +123,8 @@ library EventsLib {
     /// @param vaultType The type of vault that was created (Transparent or Encrypted).
     event OrionVaultCreated(
         address indexed vault,
-        address indexed vaultOwner,
         address indexed manager,
+        address indexed strategist,
         string name,
         string symbol,
         uint8 feeType,

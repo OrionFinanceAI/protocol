@@ -73,7 +73,7 @@ async function impersonateLiquidityOrchestrator(loAddress: string) {
  */
 describe("Batch Limit Consistency - Critical Accounting Fix", function () {
   let owner: SignerWithAddress;
-  let manager: SignerWithAddress;
+  let strategist: SignerWithAddress;
   let users: SignerWithAddress[];
 
   let underlyingAsset: MockUnderlyingAsset;
@@ -86,7 +86,7 @@ describe("Batch Limit Consistency - Critical Accounting Fix", function () {
   let maxFulfillBatchSize: number;
 
   beforeEach(async function () {
-    [owner, manager, ...users] = await ethers.getSigners();
+    [owner, strategist, ...users] = await ethers.getSigners();
 
     const deployed = await deployUpgradeableProtocol(owner);
 
@@ -100,7 +100,7 @@ describe("Batch Limit Consistency - Critical Accounting Fix", function () {
 
     // Create vault via factory
     const tx = await transparentVaultFactory.createVault(
-      manager.address,
+      strategist.address,
       "Test Vault",
       "TVAULT",
       0, // feeType

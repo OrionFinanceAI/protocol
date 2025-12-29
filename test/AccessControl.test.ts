@@ -12,7 +12,7 @@ import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 
 describe("Access Control", function () {
   let owner: SignerWithAddress;
-  let manager: SignerWithAddress;
+  let strategist: SignerWithAddress;
   let user1: SignerWithAddress;
   let user2: SignerWithAddress;
   let user3: SignerWithAddress;
@@ -24,7 +24,7 @@ describe("Access Control", function () {
   const DEPOSIT_AMOUNT = ethers.parseUnits("1000", 6);
 
   beforeEach(async function () {
-    [owner, manager, user1, user2, user3] = await ethers.getSigners();
+    [owner, strategist, user1, user2, user3] = await ethers.getSigners();
 
     const deployed = await deployUpgradeableProtocol(owner);
 
@@ -42,7 +42,7 @@ describe("Access Control", function () {
     beforeEach(async function () {
       // Create vault with no access control (permissionless)
       const tx = await factory.createVault(
-        manager.address,
+        strategist.address,
         "Test Vault",
         "TVAULT",
         0, // feeType
@@ -93,7 +93,7 @@ describe("Access Control", function () {
     beforeEach(async function () {
       // Create vault with access control
       const tx = await factory.createVault(
-        manager.address,
+        strategist.address,
         "Gated Vault",
         "GVAULT",
         0,
@@ -193,7 +193,15 @@ describe("Access Control", function () {
 
     beforeEach(async function () {
       // Create vault without access control initially
-      const tx = await factory.createVault(manager.address, "Updateable Vault", "UVAULT", 0, 0, 0, ethers.ZeroAddress);
+      const tx = await factory.createVault(
+        strategist.address,
+        "Updateable Vault",
+        "UVAULT",
+        0,
+        0,
+        0,
+        ethers.ZeroAddress,
+      );
 
       const receipt = await tx.wait();
       const event = receipt?.logs.find((log) => {

@@ -37,15 +37,15 @@ interface IOrionVault is IERC4626 {
     /// @param shares The number of shares that were requested for redemption.
     event RedeemRequestCancelled(address indexed user, uint256 indexed shares);
 
-    /// @notice The manager has been updated.
-    /// @param newManager The new manager address.
-    event ManagerUpdated(address indexed newManager);
+    /// @notice The strategist has been updated.
+    /// @param newStrategist The new strategist address.
+    event StrategistUpdated(address indexed newStrategist);
 
     /// @notice The fee model has been updated.
     /// @param mode The new calculation mode.
     /// @param performanceFee The new performance fee in basis points.
     /// @param managementFee The new management fee in basis points.
-    event FeeModelUpdated(uint8 indexed mode, uint16 indexed performanceFee, uint16 indexed managementFee);
+    event VaultFeeModelUpdated(uint8 indexed mode, uint16 indexed performanceFee, uint16 indexed managementFee);
 
     /// @notice A redemption request has been fulfilled.
     /// @param vault The address of the vault where the redemption was fulfilled.
@@ -58,10 +58,10 @@ interface IOrionVault is IERC4626 {
     /// @param assets The new whitelist of assets.
     event VaultWhitelistUpdated(address[] assets);
 
-    /// @notice Manager fees have been accrued.
+    /// @notice Fees have been accrued.
     /// @param feeAmount The amount of fees accrued in underlying asset units.
-    /// @param pendingManagerFees The total pending manager fees in underlying asset units.
-    event ManagerFeesAccrued(uint256 indexed feeAmount, uint256 indexed pendingManagerFees);
+    /// @param pendingVaultFees The total pending vault fees in underlying asset units.
+    event VaultFeesAccrued(uint256 indexed feeAmount, uint256 indexed pendingVaultFees);
 
     /// @notice The deposit access control contract has been updated.
     /// @param newDepositAccessControl The new deposit access control contract address (address(0) = permissionless).
@@ -73,17 +73,17 @@ interface IOrionVault is IERC4626 {
     /// @return The Orion config contract address
     function config() external view returns (IOrionConfig);
 
-    /// @notice Vault owner getter
-    /// @return The vault owner address
-    function vaultOwner() external view returns (address);
-
     /// @notice Manager getter
     /// @return The manager address
     function manager() external view returns (address);
 
-    /// @notice Pending manager fees getter
-    /// @return Pending manager fees amount
-    function pendingManagerFees() external view returns (uint256);
+    /// @notice Strategist getter
+    /// @return The strategist address
+    function strategist() external view returns (address);
+
+    /// @notice Pending vault fees getter
+    /// @return Pending vault fees amount
+    function pendingVaultFees() external view returns (uint256);
 
     /// @notice Convert shares to assets with point in time total assets.
     /// @param shares The amount of shares to convert.
@@ -134,15 +134,15 @@ interface IOrionVault is IERC4626 {
     /// @param shares The amount of share tokens to recover.
     function cancelRedeemRequest(uint256 shares) external;
 
-    // --------- VAULT OWNER AND MANAGER FUNCTIONS ---------
+    // --------- MANAGER AND STRATEGIST FUNCTIONS ---------
 
-    /// @notice Update the vault manager address
-    /// @param newManager The new manager address.
-    /// @dev The manager is responsible for setting allocation strategy for the vault's assets.
-    ///      This function enables vault owners to change allocation strategies by updating the manager.
-    ///      Manager can be a smart contract or an address. It is the FULL responsibility of the vault owner
-    ///      to ensure the manager is capable of performing its duties.
-    function updateManager(address newManager) external;
+    /// @notice Update the strategist address
+    /// @param newStrategist The new strategist address.
+    /// @dev The strategist is responsible for setting allocation logic for the vault's assets.
+    ///      This function enables managers to update the strategist.
+    ///      Strategist can be a smart contract or an address. It is the FULL responsibility of the manager
+    ///      to ensure the strategist is capable of performing its duties.
+    function updateStrategist(address newStrategist) external;
 
     /// @notice Update the vault whitelist
     /// @param assets The new whitelist of assets.
@@ -158,14 +158,14 @@ interface IOrionVault is IERC4626 {
     /// @param managementFee The management fee
     function updateFeeModel(uint8 mode, uint16 performanceFee, uint16 managementFee) external;
 
-    /// @notice Claim accrued manager fees
-    /// @param amount The amount of manager fees to claim
-    function claimManagerFees(uint256 amount) external;
+    /// @notice Claim accrued vault fees
+    /// @param amount The amount of vault fees to claim
+    function claimVaultFees(uint256 amount) external;
 
     /// @notice Set deposit access control contract
     /// @param newDepositAccessControl Address of the new access control contract (address(0) = permissionless)
-    /// @dev Only callable by vault owner
-    ///      It is the FULL responsibility of the vault owner
+    /// @dev Only callable by vault manager
+    ///      It is the FULL responsibility of the vault manager
     ///      to ensure the deposit access control is capable of performing its duties.
     function setDepositAccessControl(address newDepositAccessControl) external;
 
@@ -183,12 +183,12 @@ interface IOrionVault is IERC4626 {
     /// @dev This returns share amounts, not underlying asset amounts
     function pendingRedeem(uint256 fulfillBatchSize) external view returns (uint256);
 
-    /// @notice Calculate the manager's fee based on total assets
+    /// @notice Calculate the vault's fee based on total assets
     /// @param totalAssets The total assets under management
-    /// @return The manager fee amount in underlying asset units
+    /// @return The vault fee amount in underlying asset units
     /// @dev Warning: Calling this function mid-epoch may return inaccurate results
     ///      since fees are calculated based on the full epoch duration
-    function managerFee(uint256 totalAssets) external view returns (uint256);
+    function vaultFee(uint256 totalAssets) external view returns (uint256);
 
     /// --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
 
@@ -200,7 +200,7 @@ interface IOrionVault is IERC4626 {
     /// @param redeemTotalAssets The total assets associated with the redemption requests
     function fulfillRedeem(uint256 redeemTotalAssets) external;
 
-    /// @notice Accrue manager fees for a specific epoch
-    /// @param feeAmount The amount of manager fees to accrue in underlying asset units
-    function accrueManagerFees(uint256 feeAmount) external;
+    /// @notice Accrue vault fees for a specific epoch
+    /// @param feeAmount The amount of vault fees to accrue in underlying asset units
+    function accrueVaultFees(uint256 feeAmount) external;
 }

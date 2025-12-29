@@ -3,7 +3,7 @@ pragma solidity ^0.8.28;
 
 import { IOrionTransparentVault } from "../interfaces/IOrionTransparentVault.sol";
 import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
-import { IOrionStrategy } from "../interfaces/IOrionStrategy.sol";
+import { IOrionStrategist } from "../interfaces/IOrionStrategist.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
@@ -11,18 +11,18 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
  * @title KBestTvlWeightedAverage
- * @notice This strategy selects the top K ERC4626 assets based on their TVL and allocates them proportionally.
+ * @notice This strategist selects the top K ERC4626 assets based on their TVL and allocates them proportionally.
  * @author Orion Finance
  * @custom:security-contact security@orionfinance.ai
  */
-contract KBestTvlWeightedAverage is IOrionStrategy, Ownable2Step {
+contract KBestTvlWeightedAverage is IOrionStrategist, Ownable2Step {
     /// @notice The Orion configuration contract
     IOrionConfig public config;
 
     /// @notice The number of assets to pick
     uint16 public k;
 
-    /// @notice Constructor for KBestTvlWeightedAverage strategy
+    /// @notice Constructor for KBestTvlWeightedAverage strategist
     /// @param owner The owner of the contract
     /// @param _config The Orion configuration contract address
     /// @param _k The number of assets to pick
@@ -33,7 +33,7 @@ contract KBestTvlWeightedAverage is IOrionStrategy, Ownable2Step {
         k = _k;
     }
 
-    /// @inheritdoc IOrionStrategy
+    /// @inheritdoc IOrionStrategist
     function submitIntent(IOrionTransparentVault vault) external onlyOwner {
         if (k == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
 
@@ -122,7 +122,7 @@ contract KBestTvlWeightedAverage is IOrionStrategy, Ownable2Step {
             totalTVL += topTvls[i];
         }
 
-        uint32 intentScale = uint32(10 ** config.managerIntentDecimals());
+        uint32 intentScale = uint32(10 ** config.strategistIntentDecimals());
         intent = new IOrionTransparentVault.IntentPosition[](kActual);
 
         uint32 sumWeights = 0;
