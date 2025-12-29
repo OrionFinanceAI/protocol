@@ -68,9 +68,6 @@ library ErrorsLib {
     /// @notice Transfer of tokens failed.
     error TransferFailed();
 
-    /// @notice The manager contract does not properly implement the required interface.
-    error InvalidManagerContract();
-
     /// @notice The strategy is not compatible with the provided whitelisted assets.
     error InvalidStrategy();
 

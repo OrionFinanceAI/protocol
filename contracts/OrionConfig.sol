@@ -48,8 +48,8 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     /// @notice Address of the price adapter registry
     address public priceAdapterRegistry;
 
-    /// @notice Decimals for manager intent
-    uint8 public constant managerIntentDecimals = 9;
+    /// @notice Decimals for strategist intent
+    uint8 public constant strategistIntentDecimals = 9;
     /// @notice Decimals for price adapter
     uint8 public priceAdapterDecimals;
     /// @notice Risk-free rate in basis points. Same decimals as BASIS_POINTS_FACTOR
@@ -98,7 +98,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     /// @param initialOwner The address that will own this contract
     /// @param underlyingAsset_ The address of the underlying asset contract
     /// @dev The underlying asset is automatically added to the investment universe whitelist because:
-    /// @dev - Managers may decide to be underleveraged in their active positions;
+    /// @dev - Strategists may decide to be underleveraged in their active positions;
     /// @dev - removeWhitelistedAsset could trigger forced liquidations.
     function initialize(address initialOwner, address underlyingAsset_) public initializer {
         if (initialOwner == address(0)) revert ErrorsLib.ZeroAddress();

@@ -122,7 +122,7 @@ contract KBestTvlWeightedAverage is IOrionStrategy, Ownable2Step {
             totalTVL += topTvls[i];
         }
 
-        uint32 intentScale = uint32(10 ** config.managerIntentDecimals());
+        uint32 intentScale = uint32(10 ** config.strategistIntentDecimals());
         intent = new IOrionTransparentVault.IntentPosition[](kActual);
 
         uint32 sumWeights = 0;

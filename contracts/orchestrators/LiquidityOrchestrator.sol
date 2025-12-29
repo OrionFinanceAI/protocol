@@ -268,7 +268,7 @@ contract LiquidityOrchestrator is
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function transferManagerFees(uint256 amount) external {
+    function transferVaultFees(uint256 amount) external {
         address vault = msg.sender;
 
         if (!config.isOrionVault(vault) && !config.isDecommissionedVault(vault)) revert ErrorsLib.NotAuthorized();

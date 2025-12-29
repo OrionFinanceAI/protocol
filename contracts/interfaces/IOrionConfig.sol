@@ -29,10 +29,10 @@ interface IOrionConfig {
     /// @return The address of the price adapter registry
     function priceAdapterRegistry() external view returns (address);
 
-    /// @notice Returns the number of decimal places used for manager intent calculations
-    /// @dev This value is used to scale manager intent values for precision
-    /// @return The number of decimal places for manager intents
-    function managerIntentDecimals() external view returns (uint8);
+    /// @notice Returns the number of decimal places used for strategist intent calculations
+    /// @dev This value is used to scale strategist intent values for precision
+    /// @return The number of decimal places for strategist intents
+    function strategistIntentDecimals() external view returns (uint8);
 
     /// @notice Returns the number of decimal places used for price adapters
     /// @dev This value is used to scale price adapter values for precision
@@ -121,7 +121,7 @@ interface IOrionConfig {
     /// @notice Deregisters an Orion vault from the protocol's registry
     /// @dev Callable exclusively by the contract owner. This action does not destroy the vault itself;
     /// @dev it merely disconnects the vault from the protocol, which causes the share price to stale
-    /// @dev and renders manager intents inactive.
+    /// @dev and renders strategist intents inactive.
     /// @dev The vault remains in both active and decommissioning states, allowing orchestrators to process
     /// @dev it one last time to liquidate all positions before final removal.
     /// @param vault The address of the vault to be removed from the registry

@@ -49,7 +49,7 @@ contract TransparentVaultFactory is Initializable, Ownable2StepUpgradeable, UUPS
     }
 
     /// @notice Creates a new transparent vault
-    /// @param manager The address of the vault manager
+    /// @param strategist The address of the vault strategist
     /// @param name The name of the vault
     /// @param symbol The symbol of the vault
     /// @param feeType The fee type
@@ -58,7 +58,7 @@ contract TransparentVaultFactory is Initializable, Ownable2StepUpgradeable, UUPS
     /// @param depositAccessControl The address of the deposit access control contract (address(0) = permissionless)
     /// @return vault The address of the new transparent vault
     function createVault(
-        address manager,
+        address strategist,
         string calldata name,
         string calldata symbol,
         uint8 feeType,
@@ -75,7 +75,7 @@ contract TransparentVaultFactory is Initializable, Ownable2StepUpgradeable, UUPS
         bytes memory initData = abi.encodeWithSignature(
             "initialize(address,address,address,string,string,uint8,uint16,uint16,address)",
             vaultOwner,
-            manager,
+            strategist,
             address(config),
             name,
             symbol,
@@ -93,7 +93,7 @@ contract TransparentVaultFactory is Initializable, Ownable2StepUpgradeable, UUPS
         emit EventsLib.OrionVaultCreated(
             vault,
             vaultOwner,
-            manager,
+            strategist,
             name,
             symbol,
             feeType,

@@ -16,9 +16,9 @@ import { EventsLib } from "../libraries/EventsLib.sol";
  * @notice A transparent implementation of OrionVault supporting both active and passive management strategies
  * @author Orion Finance
  * @dev
- * This implementation supports two manager types:
- * 1. Active Management: Wallet managers submit intents via submitIntent()
- * 2. Passive Management: Smart contract manager strategies implement IOrionStrategy for on-demand intent computation
+ * This implementation supports two strategist types:
+ * 1. Active Management: Wallet strategists submit intents via submitIntent()
+ * 2. Passive Management: Smart contract strategists implement IOrionStrategy for on-demand intent computation
  * @custom:security-contact security@orionfinance.ai
  */
 contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
@@ -28,7 +28,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     /// @notice Current portfolio shares per asset (w_0) - mapping of token address to live allocation
     EnumerableMap.AddressToUintMap internal _portfolio;
 
-    /// @notice Manager intent (w_1) - mapping of token address to target allocation
+    /// @notice Strategist intent (w_1) - mapping of token address to target allocation
     EnumerableMap.AddressToUintMap internal _portfolioIntent;
 
     /// @notice Constructor that disables initializers for the implementation contract
@@ -40,7 +40,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
     /// @notice Initialize the vault
     /// @param vaultOwner_ The address of the vault owner
-    /// @param manager_ The address of the vault manager
+    /// @param strategist_ The address of the vault strategist
     /// @param config_ The address of the OrionConfig contract
     /// @param name_ The name of the vault
     /// @param symbol_ The symbol of the vault
@@ -50,7 +50,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     /// @param depositAccessControl_ The address of the deposit access control contract (address(0) = permissionless)
     function initialize(
         address vaultOwner_,
-        address manager_,
+        address strategist_,
         IOrionConfig config_,
         string memory name_,
         string memory symbol_,
@@ -62,7 +62,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
         // Call parent initializer
         __OrionVault_init(
             vaultOwner_,
-            manager_,
+            strategist_,
             config_,
             name_,
             symbol_,
@@ -73,13 +73,13 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
         );
 
         // slither-disable-next-line unused-return
-        _portfolioIntent.set(address(config.underlyingAsset()), uint32(10 ** config.managerIntentDecimals()));
+        _portfolioIntent.set(address(config.underlyingAsset()), uint32(10 ** config.strategistIntentDecimals()));
     }
 
-    /// --------- MANAGER FUNCTIONS ---------
+    /// --------- STRATEGIST FUNCTIONS ---------
 
     /// @inheritdoc IOrionTransparentVault
-    function submitIntent(IntentPosition[] calldata intent) external onlyManager {
+    function submitIntent(IntentPosition[] calldata intent) external onlyStrategist {
         if (intent.length == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
 
         _portfolioIntent.clear();
@@ -101,7 +101,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
         // Validate that all assets in the intent are whitelisted for this vault
         _validateIntentAssets(assets);
         // Validate that the total weight is 100%
-        if (totalWeight != 10 ** config.managerIntentDecimals()) revert ErrorsLib.InvalidTotalWeight();
+        if (totalWeight != 10 ** config.strategistIntentDecimals()) revert ErrorsLib.InvalidTotalWeight();
 
         emit EventsLib.OrderSubmitted(msg.sender);
     }
@@ -126,9 +126,8 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
             tokens = new address[](1);
             weights = new uint32[](1);
             tokens[0] = address(config.underlyingAsset());
-            weights[0] = uint32(10 ** config.managerIntentDecimals()); // 100%
+            weights[0] = uint32(10 ** config.strategistIntentDecimals()); // 100%
         } else {
-            // For active managers, return stored pushed intent
             uint16 length = uint16(_portfolioIntent.length());
             tokens = new address[](length);
             weights = new uint32[](length);
@@ -169,9 +168,9 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     /// --------- VAULT OWNER FUNCTIONS ---------
 
     /// @inheritdoc IOrionVault
-    function updateManager(address newManager) external onlyVaultOwner {
-        manager = newManager;
-        emit ManagerUpdated(newManager);
+    function updateStrategist(address newStrategist) external onlyVaultOwner {
+        strategist = newStrategist;
+        emit StrategistUpdated(newStrategist);
     }
 
     /// @inheritdoc IOrionVault
