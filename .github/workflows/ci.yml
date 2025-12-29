@@ -143,9 +143,10 @@ jobs:
           DEPLOYER_PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
           LP_PRIVATE_KEY: ${{ secrets.LP_PRIVATE_KEY }}
           ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
-
-      - name: "Extract and package ABIs"
+      - name: "Extract and package ABIs + Bytecode"
         run: |
+          set -e
+
           mkdir -p abis
 
           find artifacts/contracts -name "*.json" \
@@ -155,12 +156,10 @@ jobs:
             -exec sh -c '
               for file do
                 contract_name=$(basename "$file" .json)
-                jq ".abi" "$file" > "abis/${contract_name}.json"
+                jq "{abi: .abi, bytecode: .bytecode, deployedBytecode: .deployedBytecode}" "$file" > "abis/${contract_name}.json"
               done
             ' sh {} +
 
-          jq -s "reduce .[] as \$item ({}; . + {(\$item | keys[0]): \$item[(\$item | keys[0])]})" \
-            $(for f in abis/*.json; do echo "$f"; done) > /dev/null 2>&1 || true
 
           ls abis/*.json | xargs -I {} basename {} .json | jq -R -s 'split("\n") | map(select(length > 0))' > abis/index.json
 
