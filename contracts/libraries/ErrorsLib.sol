@@ -36,9 +36,6 @@ library ErrorsLib {
     /// @param token The duplicate token address.
     error TokenAlreadyInOrder(address token);
 
-    /// @notice Operation attempted before the required time or condition has been met.
-    error TooEarly();
-
     /// @notice Insufficient amount to complete the operation.
     error InsufficientAmount();
 
@@ -51,25 +48,12 @@ library ErrorsLib {
     /// @notice One or more function arguments are invalid.
     error InvalidArguments();
 
-    /// @notice System is in an invalid or unexpected state.
-    error InvalidState();
-
     /// @notice The adapter is not compatible with the asset.
     /// @param asset The asset address that is not compatible with the adapter.
     error InvalidAdapter(address asset);
 
-    /// @notice Execution failed.
-    /// @param asset The asset address that failed to execute.
-    error ExecutionFailed(address asset);
-
     /// @notice Operation cannot be performed because the system is not idle.
     error SystemNotIdle();
-
-    /// @notice Transfer of tokens failed.
-    error TransferFailed();
-
-    /// @notice The strategy is not compatible with the provided whitelisted assets.
-    error InvalidStrategy();
 
     /// @notice Vault is decommissioned and cannot accept new requests.
     error VaultDecommissioned();

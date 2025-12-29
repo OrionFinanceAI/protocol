@@ -3,13 +3,13 @@ pragma solidity ^0.8.28;
 
 import "./IOrionTransparentVault.sol";
 
-/// @title IOrionStrategy
+/// @title IOrionStrategist
 /// @notice Interface for strategies that compute portfolio intents on-demand
 /// @author Orion Finance
 /// @dev Strategists can be smart contracts that implement this interface to provide
 ///      dynamic portfolio allocation logic in a fully transparent manner.
 /// @custom:security-contact security@orionfinance.ai
-interface IOrionStrategy {
+interface IOrionStrategist {
     /// @notice Submit the current portfolio intent based on market conditions and logic.
     /// @param vault The vault to submit the intent to
     function submitIntent(IOrionTransparentVault vault) external;

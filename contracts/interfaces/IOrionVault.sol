@@ -73,9 +73,9 @@ interface IOrionVault is IERC4626 {
     /// @return The Orion config contract address
     function config() external view returns (IOrionConfig);
 
-    /// @notice Vault owner getter
-    /// @return The vault owner address
-    function vaultOwner() external view returns (address);
+    /// @notice Manager getter
+    /// @return The manager address
+    function manager() external view returns (address);
 
     /// @notice Strategist getter
     /// @return The strategist address
@@ -139,7 +139,7 @@ interface IOrionVault is IERC4626 {
     /// @notice Update the strategist address
     /// @param newStrategist The new strategist address.
     /// @dev The strategist is responsible for setting allocation logic for the vault's assets.
-    ///      This function enables managers to change allocation logic by updating the strategist.
+    ///      This function enables managers to update the strategist.
     ///      Strategist can be a smart contract or an address. It is the FULL responsibility of the manager
     ///      to ensure the strategist is capable of performing its duties.
     function updateStrategist(address newStrategist) external;
@@ -164,8 +164,8 @@ interface IOrionVault is IERC4626 {
 
     /// @notice Set deposit access control contract
     /// @param newDepositAccessControl Address of the new access control contract (address(0) = permissionless)
-    /// @dev Only callable by vault owner
-    ///      It is the FULL responsibility of the vault owner
+    /// @dev Only callable by vault manager
+    ///      It is the FULL responsibility of the vault manager
     ///      to ensure the deposit access control is capable of performing its duties.
     function setDepositAccessControl(address newDepositAccessControl) external;
 

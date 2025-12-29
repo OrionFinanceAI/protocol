@@ -17,11 +17,11 @@ import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 
 describe("Upgrade Tests", function () {
   let owner: SignerWithAddress;
-  let manager: SignerWithAddress;
+  let strategist: SignerWithAddress;
   let user: SignerWithAddress;
 
   beforeEach(async function () {
-    [owner, manager, user] = await ethers.getSigners();
+    [owner, strategist, user] = await ethers.getSigners();
   });
 
   describe("UUPS Upgrade Pattern - OrionConfig", function () {
@@ -138,14 +138,14 @@ describe("Upgrade Tests", function () {
       underlyingAsset = deployed.underlyingAsset;
 
       // Whitelist vault owner (only if not already whitelisted)
-      const isWhitelisted = await deployed.orionConfig.isWhitelistedVaultOwner(owner.address);
+      const isWhitelisted = await deployed.orionConfig.isWhitelistedManager(owner.address);
       if (!isWhitelisted) {
-        await deployed.orionConfig.connect(owner).addWhitelistedVaultOwner(owner.address);
+        await deployed.orionConfig.connect(owner).addWhitelistedManager(owner.address);
       }
 
       // Create two vaults (both will use the beacon)
       const tx1 = await vaultFactory.connect(owner).createVault(
-        manager.address,
+        strategist.address,
         "Test Vault 1",
         "TV1",
         0, // feeType
@@ -165,7 +165,7 @@ describe("Upgrade Tests", function () {
 
       const tx2 = await vaultFactory
         .connect(owner)
-        .createVault(manager.address, "Test Vault 2", "TV2", 0, 0, 0, ethers.ZeroAddress);
+        .createVault(strategist.address, "Test Vault 2", "TV2", 0, 0, 0, ethers.ZeroAddress);
       const receipt2 = await tx2.wait();
       const vault2Event = receipt2?.logs.find((log) => {
         try {
@@ -198,8 +198,8 @@ describe("Upgrade Tests", function () {
       await vault2.connect(owner).updateVaultWhitelist([await underlyingAsset.getAddress()]);
 
       // Verify vaults are deployed
-      expect(await vault1.vaultOwner()).to.equal(owner.address);
-      expect(await vault2.vaultOwner()).to.equal(owner.address);
+      expect(await vault1.manager()).to.equal(owner.address);
+      expect(await vault2.manager()).to.equal(owner.address);
 
       // Deploy V2 implementation
       const VaultV2Factory = await ethers.getContractFactory("OrionTransparentVaultV2");
@@ -214,8 +214,8 @@ describe("Upgrade Tests", function () {
       const vault2V2 = VaultV2Factory.attach(await vault2.getAddress()) as unknown as OrionTransparentVaultV2;
 
       // Verify V1 state is preserved in both vaults
-      expect(await vault1V2.vaultOwner()).to.equal(owner.address);
-      expect(await vault2V2.vaultOwner()).to.equal(owner.address);
+      expect(await vault1V2.manager()).to.equal(owner.address);
+      expect(await vault2V2.manager()).to.equal(owner.address);
 
       // Verify V2 functionality is available in both vaults
       expect(await vault1V2.version()).to.equal("v2");
@@ -272,10 +272,10 @@ describe("Upgrade Tests", function () {
       const vault2V2 = VaultV2Factory.attach(await vault2.getAddress()) as unknown as OrionTransparentVaultV2;
 
       // Verify independent ownership is preserved
-      expect(await vault1V2.vaultOwner()).to.equal(owner.address);
-      expect(await vault2V2.vaultOwner()).to.equal(owner.address);
-      expect(await vault1V2.manager()).to.equal(manager.address);
-      expect(await vault2V2.manager()).to.equal(manager.address);
+      expect(await vault1V2.manager()).to.equal(owner.address);
+      expect(await vault2V2.manager()).to.equal(owner.address);
+      expect(await vault1V2.strategist()).to.equal(strategist.address);
+      expect(await vault2V2.strategist()).to.equal(strategist.address);
 
       // Set different V2 states
       await vault1V2.connect(owner).setVaultDescription("Vault 1 description");
@@ -299,8 +299,8 @@ describe("Upgrade Tests", function () {
       expect(await vault1V2.vaultDescription()).to.equal("Testing storage gap");
 
       // Original state should still be intact
-      expect(await vault1V2.vaultOwner()).to.equal(owner.address);
-      expect(await vault1V2.manager()).to.equal(manager.address);
+      expect(await vault1V2.manager()).to.equal(owner.address);
+      expect(await vault1V2.strategist()).to.equal(strategist.address);
     });
   });
 
@@ -342,9 +342,9 @@ describe("Upgrade Tests", function () {
       vaultBeacon = deployed.vaultBeacon;
 
       // Whitelist vault owner
-      const isWhitelisted = await orionConfig.isWhitelistedVaultOwner(owner.address);
+      const isWhitelisted = await orionConfig.isWhitelistedManager(owner.address);
       if (!isWhitelisted) {
-        await orionConfig.connect(owner).addWhitelistedVaultOwner(owner.address);
+        await orionConfig.connect(owner).addWhitelistedManager(owner.address);
       }
     });
 
@@ -352,7 +352,7 @@ describe("Upgrade Tests", function () {
       // Deploy first vault with V1 implementation
       const tx1 = await vaultFactory
         .connect(owner)
-        .createVault(manager.address, "Vault V1", "VV1", 0, 0, 0, ethers.ZeroAddress);
+        .createVault(strategist.address, "Vault V1", "VV1", 0, 0, 0, ethers.ZeroAddress);
       const receipt1 = await tx1.wait();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const vault1Address = (receipt1?.logs.find((log: any) => log.fragment?.name === "OrionVaultCreated") as any)
@@ -382,7 +382,7 @@ describe("Upgrade Tests", function () {
       // Deploy second vault with V2 implementation
       const tx2 = await vaultFactory
         .connect(owner)
-        .createVault(manager.address, "Vault V2", "VV2", 0, 0, 0, ethers.ZeroAddress);
+        .createVault(strategist.address, "Vault V2", "VV2", 0, 0, 0, ethers.ZeroAddress);
       const receipt2 = await tx2.wait();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const vault2Address = (receipt2?.logs.find((log: any) => log.fragment?.name === "OrionVaultCreated") as any)
@@ -402,18 +402,18 @@ describe("Upgrade Tests", function () {
 
       // Vault 1 should be V1 (no version function, should revert)
       // We can't call version() on V1, so just verify it's deployed correctly
-      expect(await vault1.vaultOwner()).to.equal(owner.address);
+      expect(await vault1.manager()).to.equal(owner.address);
 
       // Vault 2 should be V2
       expect(await vault2V2.version()).to.equal("v2");
-      expect(await vault2V2.vaultOwner()).to.equal(owner.address);
+      expect(await vault2V2.manager()).to.equal(owner.address);
     });
 
     it("Should create vaults with same new implementation after vaultBeacon.upgradeTo", async function () {
       // Deploy first vault with V1 implementation
       const tx1 = await vaultFactory
         .connect(owner)
-        .createVault(manager.address, "Vault 1", "V1", 0, 0, 0, ethers.ZeroAddress);
+        .createVault(strategist.address, "Vault 1", "V1", 0, 0, 0, ethers.ZeroAddress);
       const receipt1 = await tx1.wait();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const vault1Address = (receipt1?.logs.find((log: any) => log.fragment?.name === "OrionVaultCreated") as any)
@@ -430,7 +430,7 @@ describe("Upgrade Tests", function () {
       // Deploy second vault (should use V2 via upgraded beacon)
       const tx2 = await vaultFactory
         .connect(owner)
-        .createVault(manager.address, "Vault 2", "V2", 0, 0, 0, ethers.ZeroAddress);
+        .createVault(strategist.address, "Vault 2", "V2", 0, 0, 0, ethers.ZeroAddress);
       const receipt2 = await tx2.wait();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const vault2Address = (receipt2?.logs.find((log: any) => log.fragment?.name === "OrionVaultCreated") as any)
@@ -445,8 +445,8 @@ describe("Upgrade Tests", function () {
       expect(await vault2V2.version()).to.equal("v2");
 
       // Both vaults should have their own state
-      expect(await vault1V2.vaultOwner()).to.equal(owner.address);
-      expect(await vault2V2.vaultOwner()).to.equal(owner.address);
+      expect(await vault1V2.manager()).to.equal(owner.address);
+      expect(await vault2V2.manager()).to.equal(owner.address);
 
       // Test V2 functionality on both
       await vault1V2.connect(owner).setVaultDescription("Old vault, new impl");
@@ -460,7 +460,7 @@ describe("Upgrade Tests", function () {
       // Deploy first vault with original factory and V1 beacon
       const tx1 = await vaultFactory
         .connect(owner)
-        .createVault(manager.address, "Pre-upgrade Vault", "PRE", 0, 0, 0, ethers.ZeroAddress);
+        .createVault(strategist.address, "Pre-upgrade Vault", "PRE", 0, 0, 0, ethers.ZeroAddress);
       const receipt1 = await tx1.wait();
       const vault1Event = receipt1?.logs.find((log) => {
         try {
@@ -499,7 +499,7 @@ describe("Upgrade Tests", function () {
       // Deploy second vault with upgraded factory and V2 beacon
       const tx2 = await upgradedFactory
         .connect(owner)
-        .createVault(manager.address, "Post-upgrade Vault", "POST", 0, 0, 0, ethers.ZeroAddress);
+        .createVault(strategist.address, "Post-upgrade Vault", "POST", 0, 0, 0, ethers.ZeroAddress);
       const receipt2 = await tx2.wait();
       const vault2Event = receipt2?.logs.find((log) => {
         try {
@@ -518,11 +518,11 @@ describe("Upgrade Tests", function () {
 
       // Vault 1 should still be V1 (no version function)
       // We can't call version() on V1, so just verify it's deployed correctly
-      expect(await vault1.vaultOwner()).to.equal(owner.address);
+      expect(await vault1.manager()).to.equal(owner.address);
 
       // Vault 2 should be V2
       expect(await vault2V2.version()).to.equal("v2");
-      expect(await vault2V2.vaultOwner()).to.equal(owner.address);
+      expect(await vault2V2.manager()).to.equal(owner.address);
 
       // Test V2 functionality
       await vault2V2.connect(owner).setVaultDescription("Created via upgraded factory");

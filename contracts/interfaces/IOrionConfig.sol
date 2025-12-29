@@ -97,20 +97,20 @@ interface IOrionConfig {
     /// @return True if the asset is whitelisted, false otherwise
     function isWhitelisted(address asset) external view returns (bool);
 
-    /// @notice Adds a vault owner to the whitelist
+    /// @notice Adds a manager to the whitelist
     /// @dev Can only be called by the contract owner
-    /// @param vaultOwner The address of the vault owner to whitelist
-    function addWhitelistedVaultOwner(address vaultOwner) external;
+    /// @param manager The address of the manager to whitelist
+    function addWhitelistedManager(address manager) external;
 
-    /// @notice Removes a vault owner from the whitelist
+    /// @notice Removes a manager from the whitelist
     /// @dev Can only be called by the contract owner
-    /// @param vaultOwner The address of the vault owner to remove from whitelist
-    function removeWhitelistedVaultOwner(address vaultOwner) external;
+    /// @param manager The address of the manager to remove from whitelist
+    function removeWhitelistedManager(address manager) external;
 
-    /// @notice Checks if a vault owner is whitelisted
-    /// @param vaultOwner The address of the vault owner to check
-    /// @return True if the vault owner is whitelisted, false otherwise
-    function isWhitelistedVaultOwner(address vaultOwner) external view returns (bool);
+    /// @notice Checks if a manager is whitelisted
+    /// @param manager The address of the manager to check
+    /// @return True if the manager is whitelisted, false otherwise
+    function isWhitelistedManager(address manager) external view returns (bool);
 
     /// @notice Adds a new Orion vault to the protocol registry
     /// @dev Only callable by the vault factories contracts

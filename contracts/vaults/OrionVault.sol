@@ -45,8 +45,8 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     using EnumerableMap for EnumerableMap.AddressToUintMap;
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    /// @notice Vault owner
-    address public vaultOwner;
+    /// @notice Vault manager
+    address public manager;
     /// @notice Vault strategist
     address public strategist;
     /// @notice OrionConfig contract
@@ -125,9 +125,9 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     /// @dev When true, intent is overridden to 100% underlying asset
     bool public isDecommissioning;
 
-    /// @dev Restricts function to only vault owner
-    modifier onlyVaultOwner() {
-        if (msg.sender != vaultOwner) revert ErrorsLib.NotAuthorized();
+    /// @dev Restricts function to only vault manager
+    modifier onlyManager() {
+        if (msg.sender != manager) revert ErrorsLib.NotAuthorized();
         _;
     }
 
@@ -162,7 +162,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     }
 
     /// @notice Initialize the vault
-    /// @param vaultOwner_ The address of the vault owner
+    /// @param manager_ The address of the vault manager
     /// @param strategist_ The address of the vault strategist
     /// @param config_ The address of the OrionConfig contract
     /// @param name_ The name of the vault
@@ -173,7 +173,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     /// @param depositAccessControl_ The address of the deposit access control contract (address(0) = permissionless)
     // solhint-disable-next-line func-name-mixedcase, use-natspec
     function __OrionVault_init(
-        address vaultOwner_,
+        address manager_,
         address strategist_,
         IOrionConfig config_,
         string memory name_,
@@ -188,7 +188,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         __ERC4626_init(config_.underlyingAsset());
         __ReentrancyGuard_init();
 
-        vaultOwner = vaultOwner_;
+        manager = manager_;
         strategist = strategist_;
         config = config_;
         internalStatesOrchestrator = IInternalStateOrchestrator(config_.internalStatesOrchestrator());
@@ -217,7 +217,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
 
     /// @notice Initialize the vault whitelist with all protocol whitelisted assets
     /// @dev This sets the initial vault whitelist to match the protocol whitelist as a default.
-    ///      This can be overridden by the vault owner to set a subset of the protocol whitelist.
+    ///      This can be overridden by the vault manager to set a subset of the protocol whitelist.
     function _initializeVaultWhitelist() internal {
         address[] memory protocolAssets = config.getAllWhitelistedAssets();
         for (uint256 i = 0; i < protocolAssets.length; ++i) {
@@ -463,10 +463,10 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     /// @param feeType The fee type (0=ABSOLUTE, 1=HURDLE, 2=HIGH_WATER_MARK, 3=HURDLE_HWM)
     /// @param performanceFee The performance fee
     /// @param managementFee The management fee
-    /// @dev Only vault owner can update fee model parameters
+    /// @dev Only vault manager can update fee model parameters
     ///      Performance and management fees are capped by protocol limits
     ///      New fees take effect after cooldown period to protect depositors
-    function updateFeeModel(uint8 feeType, uint16 performanceFee, uint16 managementFee) external onlyVaultOwner {
+    function updateFeeModel(uint8 feeType, uint16 performanceFee, uint16 managementFee) external onlyManager {
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         // Validate input
@@ -587,7 +587,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     }
 
     /// @inheritdoc IOrionVault
-    function claimVaultFees(uint256 amount) external onlyVaultOwner {
+    function claimVaultFees(uint256 amount) external onlyManager {
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
         if (amount > pendingVaultFees) revert ErrorsLib.InsufficientAmount();
 
@@ -596,8 +596,8 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     }
 
     /// @inheritdoc IOrionVault
-    function setDepositAccessControl(address newDepositAccessControl) external onlyVaultOwner {
-        // No extra checks, vault owner has right to fully stop deposits
+    function setDepositAccessControl(address newDepositAccessControl) external onlyManager {
+        // No extra checks, manager has right to fully stop deposits
         depositAccessControl = newDepositAccessControl;
         emit DepositAccessControlUpdated(newDepositAccessControl);
     }

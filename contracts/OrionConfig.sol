@@ -67,7 +67,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
 
     // Vault-specific configuration
     EnumerableSet.AddressSet private whitelistedAssets;
-    EnumerableSet.AddressSet private whitelistedVaultOwners;
+    EnumerableSet.AddressSet private whitelistedManager;
 
     /// @notice Mapping of token address to its decimals
     mapping(address => uint8) public tokenDecimals;
@@ -121,7 +121,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         whitelistedAssets.add(underlyingAsset_);
 
         // slither-disable-next-line unused-return
-        whitelistedVaultOwners.add(initialOwner);
+        whitelistedManager.add(initialOwner);
     }
 
     // === Protocol Configuration ===
@@ -300,23 +300,23 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     }
 
     /// @inheritdoc IOrionConfig
-    function addWhitelistedVaultOwner(address vaultOwner) external {
+    function addWhitelistedManager(address manager) external {
         if (msg.sender != guardian && msg.sender != owner()) revert ErrorsLib.NotAuthorized();
-        bool inserted = whitelistedVaultOwners.add(vaultOwner);
+        bool inserted = whitelistedManager.add(manager);
         if (!inserted) revert ErrorsLib.AlreadyRegistered();
     }
 
     /// @inheritdoc IOrionConfig
-    function removeWhitelistedVaultOwner(address vaultOwner) external onlyOwner {
-        if (!this.isWhitelistedVaultOwner(vaultOwner)) revert ErrorsLib.InvalidAddress();
+    function removeWhitelistedManager(address manager) external onlyOwner {
+        if (!this.isWhitelistedManager(manager)) revert ErrorsLib.InvalidAddress();
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
-        // Decommission all vaults owned by this vault owner
+        // Decommission all vaults associated with this manager
         // Check transparent vaults
         address[] memory transparentVaultsList = this.getAllOrionVaults(EventsLib.VaultType.Transparent);
         for (uint256 i = 0; i < transparentVaultsList.length; ++i) {
             address vault = transparentVaultsList[i];
-            if (IOrionVault(vault).vaultOwner() == vaultOwner) {
+            if (IOrionVault(vault).manager() == manager) {
                 // Mark vault for decommissioning
                 // slither-disable-next-line unused-return
                 decommissioningInProgressVaults.add(vault);
@@ -328,7 +328,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         address[] memory encryptedVaultsList = this.getAllOrionVaults(EventsLib.VaultType.Encrypted);
         for (uint256 i = 0; i < encryptedVaultsList.length; ++i) {
             address vault = encryptedVaultsList[i];
-            if (IOrionVault(vault).vaultOwner() == vaultOwner) {
+            if (IOrionVault(vault).manager() == manager) {
                 // Mark vault for decommissioning
                 // slither-disable-next-line unused-return
                 decommissioningInProgressVaults.add(vault);
@@ -336,15 +336,15 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
             }
         }
 
-        bool removed = whitelistedVaultOwners.remove(vaultOwner);
+        bool removed = whitelistedManager.remove(manager);
         if (!removed) revert ErrorsLib.InvalidAddress();
 
-        emit EventsLib.VaultOwnerRemoved(vaultOwner);
+        emit EventsLib.ManagerRemoved(manager);
     }
 
     /// @inheritdoc IOrionConfig
-    function isWhitelistedVaultOwner(address vaultOwner) external view returns (bool) {
-        return whitelistedVaultOwners.contains(vaultOwner);
+    function isWhitelistedManager(address manager) external view returns (bool) {
+        return whitelistedManager.contains(manager);
     }
 
     // === Orion Vaults ===

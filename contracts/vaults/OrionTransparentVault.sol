@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import "./OrionVault.sol";
 import "../interfaces/IOrionConfig.sol";
 import "../interfaces/IOrionTransparentVault.sol";
-import "../interfaces/IOrionStrategy.sol";
+import "../interfaces/IOrionStrategist.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { EventsLib } from "../libraries/EventsLib.sol";
 
@@ -18,7 +18,7 @@ import { EventsLib } from "../libraries/EventsLib.sol";
  * @dev
  * This implementation supports two strategist types:
  * 1. Active Management: Wallet strategists submit intents via submitIntent()
- * 2. Passive Management: Smart contract strategists implement IOrionStrategy for on-demand intent computation
+ * 2. Passive Management: Smart contract strategists implement IOrionStrategist for on-demand intent computation
  * @custom:security-contact security@orionfinance.ai
  */
 contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
@@ -39,7 +39,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     }
 
     /// @notice Initialize the vault
-    /// @param vaultOwner_ The address of the vault owner
+    /// @param manager_ The address of the vault manager
     /// @param strategist_ The address of the vault strategist
     /// @param config_ The address of the OrionConfig contract
     /// @param name_ The name of the vault
@@ -49,7 +49,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     /// @param managementFee_ The management fee
     /// @param depositAccessControl_ The address of the deposit access control contract (address(0) = permissionless)
     function initialize(
-        address vaultOwner_,
+        address manager_,
         address strategist_,
         IOrionConfig config_,
         string memory name_,
@@ -61,7 +61,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     ) public initializer {
         // Call parent initializer
         __OrionVault_init(
-            vaultOwner_,
+            manager_,
             strategist_,
             config_,
             name_,
@@ -165,16 +165,16 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
         emit EventsLib.VaultStateUpdated(newTotalAssets);
     }
 
-    /// --------- VAULT OWNER FUNCTIONS ---------
+    /// --------- MANAGER FUNCTIONS ---------
 
     /// @inheritdoc IOrionVault
-    function updateStrategist(address newStrategist) external onlyVaultOwner {
+    function updateStrategist(address newStrategist) external onlyManager {
         strategist = newStrategist;
         emit StrategistUpdated(newStrategist);
     }
 
     /// @inheritdoc IOrionVault
-    function updateVaultWhitelist(address[] calldata assets) external onlyVaultOwner {
+    function updateVaultWhitelist(address[] calldata assets) external onlyManager {
         // Clear existing whitelist
         _vaultWhitelistedAssets.clear();
 

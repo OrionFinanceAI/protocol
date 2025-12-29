@@ -274,9 +274,9 @@ contract LiquidityOrchestrator is
         if (!config.isOrionVault(vault) && !config.isDecommissionedVault(vault)) revert ErrorsLib.NotAuthorized();
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
 
-        // Transfer underlying assets to the vault owner
-        address vaultOwner = IOrionVault(vault).vaultOwner();
-        IERC20(underlyingAsset).safeTransfer(vaultOwner, amount);
+        // Transfer underlying assets to the manager
+        address manager = IOrionVault(vault).manager();
+        IERC20(underlyingAsset).safeTransfer(manager, amount);
     }
 
     /// @inheritdoc ILiquidityOrchestrator

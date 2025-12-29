@@ -63,9 +63,9 @@ library EventsLib {
     /// @param unpauser The address that triggered the unpause.
     event ProtocolUnpaused(address indexed unpauser);
 
-    /// @notice A vault owner has been removed from the whitelist.
-    /// @param vaultOwner The address of the vault owner that was removed.
-    event VaultOwnerRemoved(address indexed vaultOwner);
+    /// @notice A manager has been removed from the whitelist.
+    /// @param manager The address of the manager that was removed.
+    event ManagerRemoved(address indexed manager);
 
     // =======================
     // === Vault Lifecycle ===
@@ -112,7 +112,7 @@ library EventsLib {
 
     /// @notice A new Orion Vault has been created.
     /// @param vault The address of the newly created vault.
-    /// @param vaultOwner The address of the vault's owner.
+    /// @param manager The address of the vault's manager.
     /// @param strategist The address of the vault's strategist.
     /// @param name The name of the vault.
     /// @param symbol The symbol of the vault.
@@ -123,7 +123,7 @@ library EventsLib {
     /// @param vaultType The type of vault that was created (Transparent or Encrypted).
     event OrionVaultCreated(
         address indexed vault,
-        address indexed vaultOwner,
+        address indexed manager,
         address indexed strategist,
         string name,
         string symbol,

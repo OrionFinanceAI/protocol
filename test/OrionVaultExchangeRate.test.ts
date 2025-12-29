@@ -13,7 +13,7 @@ describe("OrionVault Exchange Rate Tests", function () {
 
   // Test fixture setup
   async function deployVaultFixture() {
-    const [owner, manager, lp1, lp2, lp3, internalStatesOrchestratorSigner, liquidityOrchestratorSigner, attacker] =
+    const [owner, strategist, lp1, lp2, lp3, internalStatesOrchestratorSigner, liquidityOrchestratorSigner, attacker] =
       await ethers.getSigners();
 
     const deployed = await deployUpgradeableProtocol(owner);
@@ -29,7 +29,7 @@ describe("OrionVault Exchange Rate Tests", function () {
 
     // Create vault via factory
     const tx = await factory.createVault(
-      manager.address,
+      strategist.address,
       "Test Vault",
       "TV",
       0, // feeType
@@ -68,7 +68,7 @@ describe("OrionVault Exchange Rate Tests", function () {
       config,
       underlyingAsset,
       owner,
-      manager,
+      strategist,
       lp1,
       lp2,
       lp3,

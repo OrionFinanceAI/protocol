@@ -7,7 +7,6 @@ import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
 import "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import "../interfaces/IOrionConfig.sol";
-import "../vaults/OrionTransparentVault.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { EventsLib } from "../libraries/EventsLib.sol";
 
@@ -66,15 +65,15 @@ contract TransparentVaultFactory is Initializable, Ownable2StepUpgradeable, UUPS
         uint16 managementFee,
         address depositAccessControl
     ) external returns (address vault) {
-        address vaultOwner = msg.sender;
+        address manager = msg.sender;
 
-        if (!config.isWhitelistedVaultOwner(vaultOwner)) revert ErrorsLib.NotAuthorized();
+        if (!config.isWhitelistedManager(manager)) revert ErrorsLib.NotAuthorized();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         // Encode the initialization call
         bytes memory initData = abi.encodeWithSignature(
             "initialize(address,address,address,string,string,uint8,uint16,uint16,address)",
-            vaultOwner,
+            manager,
             strategist,
             address(config),
             name,
@@ -92,7 +91,7 @@ contract TransparentVaultFactory is Initializable, Ownable2StepUpgradeable, UUPS
         config.addOrionVault(vault, EventsLib.VaultType.Transparent);
         emit EventsLib.OrionVaultCreated(
             vault,
-            vaultOwner,
+            manager,
             strategist,
             name,
             symbol,
