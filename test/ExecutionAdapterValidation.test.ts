@@ -7,8 +7,8 @@ import {
   LiquidityOrchestrator,
   MockERC4626Asset,
   MockUnderlyingAsset,
-  OrionAssetERC4626ExecutionAdapter,
-  OrionAssetERC4626PriceAdapter,
+  ERC4626ExecutionAdapter,
+  MockPriceAdapter,
   OrionConfig,
 } from "../typechain-types";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
@@ -17,8 +17,8 @@ describe("Execution Adapter Validation - Comprehensive Tests", function () {
   let orionConfig: OrionConfig;
   let underlyingAsset: MockUnderlyingAsset;
   let erc4626Vault: MockERC4626Asset;
-  let erc4626ExecutionAdapter: OrionAssetERC4626ExecutionAdapter;
-  let priceAdapter: OrionAssetERC4626PriceAdapter;
+  let erc4626ExecutionAdapter: ERC4626ExecutionAdapter;
+  let priceAdapter: MockPriceAdapter;
   let liquidityOrchestrator: LiquidityOrchestrator;
 
   let owner: SignerWithAddress;
@@ -49,19 +49,23 @@ describe("Execution Adapter Validation - Comprehensive Tests", function () {
     await erc4626Vault.connect(user).deposit(initialDeposit, user.address);
 
     // Deploy price adapter
-    const OrionAssetERC4626PriceAdapterFactory = await ethers.getContractFactory("OrionAssetERC4626PriceAdapter");
-    priceAdapter = (await OrionAssetERC4626PriceAdapterFactory.deploy(
-      await orionConfig.getAddress(),
-    )) as unknown as OrionAssetERC4626PriceAdapter;
+    const MockPriceAdapterFactory = await ethers.getContractFactory("MockPriceAdapter");
+    priceAdapter = (await MockPriceAdapterFactory.deploy()) as unknown as MockPriceAdapter;
     await priceAdapter.waitForDeployment();
 
+    // Deploy mock swap executor
+    const MockSwapExecutorFactory = await ethers.getContractFactory("MockSwapExecutor");
+    const mockSwapExecutor = await MockSwapExecutorFactory.deploy();
+    await mockSwapExecutor.waitForDeployment();
+
     // Deploy execution adapter
-    const OrionAssetERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
-      "OrionAssetERC4626ExecutionAdapter",
+    const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
+      "ERC4626ExecutionAdapter",
     );
-    erc4626ExecutionAdapter = (await OrionAssetERC4626ExecutionAdapterFactory.deploy(
+    erc4626ExecutionAdapter = (await ERC4626ExecutionAdapterFactory.deploy(
       await orionConfig.getAddress(),
-    )) as unknown as OrionAssetERC4626ExecutionAdapter;
+      await mockSwapExecutor.getAddress(),
+    )) as unknown as ERC4626ExecutionAdapter;
     await erc4626ExecutionAdapter.waitForDeployment();
   });
 

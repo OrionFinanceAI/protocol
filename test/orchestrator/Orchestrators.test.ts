@@ -6,14 +6,14 @@ import { time } from "@nomicfoundation/hardhat-network-helpers";
 import {
   MockUnderlyingAsset,
   MockERC4626Asset,
-  OrionAssetERC4626ExecutionAdapter,
+  ERC4626ExecutionAdapter,
   OrionConfig,
   InternalStatesOrchestrator,
   LiquidityOrchestrator,
   TransparentVaultFactory,
   OrionTransparentVault,
   PriceAdapterRegistry,
-  OrionAssetERC4626PriceAdapter,
+  MockPriceAdapter,
   KBestTvlWeightedAverage,
 } from "../../typechain-types";
 
@@ -32,8 +32,8 @@ describe("Orchestrators", function () {
   let mockAsset1: MockERC4626Asset;
   let mockAsset2: MockERC4626Asset;
   let mockAsset3: MockERC4626Asset;
-  let orionPriceAdapter: OrionAssetERC4626PriceAdapter;
-  let orionExecutionAdapter: OrionAssetERC4626ExecutionAdapter;
+  let orionPriceAdapter: MockPriceAdapter;
+  let orionExecutionAdapter: ERC4626ExecutionAdapter;
   let priceAdapterRegistry: PriceAdapterRegistry;
   let internalStatesOrchestrator: InternalStatesOrchestrator;
   let liquidityOrchestrator: LiquidityOrchestrator;
@@ -141,10 +141,8 @@ describe("Orchestrators", function () {
     )) as unknown as PriceAdapterRegistry;
     await priceAdapterRegistry.waitForDeployment();
 
-    const OrionAssetERC4626PriceAdapterFactory = await ethers.getContractFactory("OrionAssetERC4626PriceAdapter");
-    orionPriceAdapter = (await OrionAssetERC4626PriceAdapterFactory.deploy(
-      await orionConfig.getAddress(),
-    )) as unknown as OrionAssetERC4626PriceAdapter;
+    const MockPriceAdapterFactory = await ethers.getContractFactory("MockPriceAdapter");
+    orionPriceAdapter = (await MockPriceAdapterFactory.deploy()) as unknown as MockPriceAdapter;
     await orionPriceAdapter.waitForDeployment();
 
     // Deploy UpgradeableBeacon for vaults
@@ -217,12 +215,17 @@ describe("Orchestrators", function () {
     // Set minibatch size to a large value to process all vaults in one batch for tests
     await liquidityOrchestrator.connect(owner).updateMinibatchSize(8);
 
-    const OrionAssetERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
-      "OrionAssetERC4626ExecutionAdapter",
+    const MockSwapExecutorFactory = await ethers.getContractFactory("MockSwapExecutor");
+    const mockSwapExecutor = await MockSwapExecutorFactory.deploy();
+    await mockSwapExecutor.waitForDeployment();
+
+    const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
+      "ERC4626ExecutionAdapter",
     );
-    orionExecutionAdapter = (await OrionAssetERC4626ExecutionAdapterFactory.deploy(
+    orionExecutionAdapter = (await ERC4626ExecutionAdapterFactory.deploy(
       await orionConfig.getAddress(),
-    )) as unknown as OrionAssetERC4626ExecutionAdapter;
+      await mockSwapExecutor.getAddress(),
+    )) as unknown as ERC4626ExecutionAdapter;
     await orionExecutionAdapter.waitForDeployment();
 
     await orionConfig.addWhitelistedAsset(

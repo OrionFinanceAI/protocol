@@ -8,9 +8,10 @@ import {
   MockERC4626Asset,
   MockPriceAdapter,
   MockUnderlyingAsset,
-  OrionAssetERC4626ExecutionAdapter,
-  OrionAssetERC4626PriceAdapter,
+  ERC4626ExecutionAdapter,
+  ERC4626PriceAdapter,
   OrionConfig,
+  MockSwapExecutor,
 } from "../typechain-types";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 
@@ -18,7 +19,7 @@ describe("Price Adapter", function () {
   let orionConfig: OrionConfig;
   let underlyingAsset: MockUnderlyingAsset;
   let mockAsset1: MockERC4626Asset;
-  let priceAdapter: OrionAssetERC4626PriceAdapter;
+  let priceAdapter: ERC4626PriceAdapter;
   let liquidityOrchestrator: LiquidityOrchestrator;
 
   let owner: SignerWithAddress;
@@ -42,10 +43,10 @@ describe("Price Adapter", function () {
     mockAsset1 = mockAsset1Deployed as unknown as MockERC4626Asset; // Used to test InvalidAdapter errors
 
     // Deploy price adapter for tests
-    const OrionAssetERC4626PriceAdapterFactory = await ethers.getContractFactory("OrionAssetERC4626PriceAdapter");
-    priceAdapter = (await OrionAssetERC4626PriceAdapterFactory.deploy(
+    const ERC4626PriceAdapterFactory = await ethers.getContractFactory("ERC4626PriceAdapter");
+    priceAdapter = (await ERC4626PriceAdapterFactory.deploy(
       await orionConfig.getAddress(),
-    )) as unknown as OrionAssetERC4626PriceAdapter;
+    )) as unknown as ERC4626PriceAdapter;
     await priceAdapter.waitForDeployment();
   });
 
@@ -69,11 +70,16 @@ describe("Price Adapter", function () {
       const mockPriceAdapter = await MockPriceAdapterFactory.deploy();
       await mockPriceAdapter.waitForDeployment();
 
-      const OrionAssetERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
-        "OrionAssetERC4626ExecutionAdapter",
+      const MockSwapExecutorFactory = await ethers.getContractFactory("MockSwapExecutor");
+      const mockSwapExecutor = await MockSwapExecutorFactory.deploy();
+      await mockSwapExecutor.waitForDeployment();
+
+      const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
+        "ERC4626ExecutionAdapter",
       );
-      const erc4626ExecutionAdapter = await OrionAssetERC4626ExecutionAdapterFactory.deploy(
+      const erc4626ExecutionAdapter = await ERC4626ExecutionAdapterFactory.deploy(
         await orionConfig.getAddress(),
+        await mockSwapExecutor.getAddress(),
       );
       await erc4626ExecutionAdapter.waitForDeployment();
 
@@ -132,16 +138,21 @@ describe("Price Adapter", function () {
       ).to.be.revertedWithCustomError(orionConfig, "OwnableUnauthorizedAccount");
     });
 
-    it("should revert with InvalidAdapter when trying to whitelist an ERC4626 with different underlying asset using ERC4626 execution adapter", async function () {
+    it("should successfully whitelist an ERC4626 with different underlying asset using ERC4626 execution adapter (cross-asset support)", async function () {
       const MockPriceAdapterFactory = await ethers.getContractFactory("MockPriceAdapter");
       const mockPriceAdapter = await MockPriceAdapterFactory.deploy();
       await mockPriceAdapter.waitForDeployment();
 
-      const OrionAssetERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
-        "OrionAssetERC4626ExecutionAdapter",
+      const MockSwapExecutorFactory = await ethers.getContractFactory("MockSwapExecutor");
+      const mockSwapExecutor = await MockSwapExecutorFactory.deploy();
+      await mockSwapExecutor.waitForDeployment();
+
+      const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
+        "ERC4626ExecutionAdapter",
       );
-      const erc4626ExecutionAdapter = await OrionAssetERC4626ExecutionAdapterFactory.deploy(
+      const erc4626ExecutionAdapter = await ERC4626ExecutionAdapterFactory.deploy(
         await orionConfig.getAddress(),
+        await mockSwapExecutor.getAddress(),
       );
       await erc4626ExecutionAdapter.waitForDeployment();
 
@@ -157,28 +168,39 @@ describe("Price Adapter", function () {
       );
       await erc4626Vault.waitForDeployment();
 
+      // Should succeed - cross-asset vaults are now supported
       await expect(
         orionConfig.addWhitelistedAsset(
           await erc4626Vault.getAddress(),
           await mockPriceAdapter.getAddress(),
           await erc4626ExecutionAdapter.getAddress(),
         ),
-      ).to.be.revertedWithCustomError(erc4626ExecutionAdapter, "InvalidAdapter");
+      ).to.not.be.reverted;
+
+      // Verify vault was successfully whitelisted
+      const isWhitelisted = await orionConfig.isWhitelisted(await erc4626Vault.getAddress());
+      expect(isWhitelisted).to.be.true;
     });
   });
 
   describe("ERC4626 Execution Adapter - Share Accounting", function () {
-    let erc4626ExecutionAdapter: OrionAssetERC4626ExecutionAdapter;
+    let erc4626ExecutionAdapter: ERC4626ExecutionAdapter;
     let erc4626Vault: MockERC4626Asset;
     let mockPriceAdapter: MockPriceAdapter;
+    let mockSwapExecutor: MockSwapExecutor;
 
     beforeEach(async function () {
-      const OrionAssetERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
-        "OrionAssetERC4626ExecutionAdapter",
+      const MockSwapExecutorFactory = await ethers.getContractFactory("MockSwapExecutor");
+      mockSwapExecutor = (await MockSwapExecutorFactory.deploy()) as unknown as MockSwapExecutor;
+      await mockSwapExecutor.waitForDeployment();
+
+      const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
+        "ERC4626ExecutionAdapter",
       );
-      erc4626ExecutionAdapter = (await OrionAssetERC4626ExecutionAdapterFactory.deploy(
+      erc4626ExecutionAdapter = (await ERC4626ExecutionAdapterFactory.deploy(
         await orionConfig.getAddress(),
-      )) as unknown as OrionAssetERC4626ExecutionAdapter;
+        await mockSwapExecutor.getAddress(),
+      )) as unknown as ERC4626ExecutionAdapter;
       await erc4626ExecutionAdapter.waitForDeployment();
 
       const MockERC4626AssetFactory = await ethers.getContractFactory("MockERC4626Asset");
@@ -215,8 +237,9 @@ describe("Price Adapter", function () {
       const sharesTarget = ethers.parseUnits("1000", 12);
       const underlyingAmount = ethers.parseUnits("10000", 12);
 
-      // Mint underlying to LO
-      await underlyingAsset.mint(await liquidityOrchestrator.getAddress(), underlyingAmount);
+      // Mint underlying to LO (with extra for slippage buffer)
+      const amountWithSlippage = ethers.parseUnits("11000", 12); // Extra to cover slippage
+      await underlyingAsset.mint(await liquidityOrchestrator.getAddress(), amountWithSlippage);
 
       // Impersonate LO to call buy
       await ethers.provider.send("hardhat_impersonateAccount", [await liquidityOrchestrator.getAddress()]);
@@ -251,8 +274,9 @@ describe("Price Adapter", function () {
       const sharesTarget = ethers.parseUnits("1000", 12);
       const underlyingAmount = ethers.parseUnits("10000", 12);
 
-      // Mint underlying to LO
-      await underlyingAsset.mint(await liquidityOrchestrator.getAddress(), underlyingAmount);
+      // Mint underlying to LO (with extra for slippage buffer)
+      const amountWithSlippage = ethers.parseUnits("11000", 12); // Extra to cover slippage
+      await underlyingAsset.mint(await liquidityOrchestrator.getAddress(), amountWithSlippage);
 
       // Impersonate LO
       await ethers.provider.send("hardhat_impersonateAccount", [await liquidityOrchestrator.getAddress()]);
@@ -332,8 +356,9 @@ describe("Price Adapter", function () {
       const sharesAmount = ethers.parseUnits("1000", 12);
       const underlyingAmount = ethers.parseUnits("10000", 12);
 
-      // Mint underlying to LO
-      await underlyingAsset.mint(await liquidityOrchestrator.getAddress(), underlyingAmount);
+      // Mint underlying to LO (with extra for slippage buffer)
+      const amountWithSlippage = ethers.parseUnits("11000", 12); // Extra to cover slippage
+      await underlyingAsset.mint(await liquidityOrchestrator.getAddress(), amountWithSlippage);
 
       // Impersonate LO
       await ethers.provider.send("hardhat_impersonateAccount", [await liquidityOrchestrator.getAddress()]);
