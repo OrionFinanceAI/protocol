@@ -76,4 +76,27 @@ library ErrorsLib {
     /// @param actual The actual value observed.
     /// @param expected The expected value.
     error SlippageExceeded(address asset, uint256 actual, uint256 expected);
+
+    /// @notice Swap execution failed to meet output requirements.
+    error SwapFailed();
+
+    /// @notice Insufficient output from swap execution.
+    /// @param received The amount received from the swap.
+    /// @param minimum The minimum amount required.
+    error InsufficientSwapOutput(uint256 received, uint256 minimum);
+
+    /// @notice Swap executor address is invalid or not set.
+    error InvalidSwapExecutor();
+
+    /// @notice Caller is not authorized for this operation.
+    error UnauthorizedCaller();
+
+    /// @notice Price data from oracle is stale or outdated.
+    error StalePrice();
+
+    /// @notice Price returned from oracle is invalid (zero or negative).
+    error InvalidPrice();
+
+    /// @notice Price is outside acceptable bounds.
+    error PriceOutOfBounds();
 }
