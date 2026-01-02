@@ -38,3 +38,38 @@ interface IExecutionAdapter {
         uint256 estimatedUnderlyingAmount
     ) external returns (uint256 executionUnderlyingAmount);
 }
+
+/**
+ * @title IExecutionAdapterWithRouting
+ * @notice Extended execution adapter interface for cross-asset execution with routing parameters
+ * @author Orion Finance
+ * @dev Used by adapters that need to specify swap routes (e.g., OrionCrossAssetERC4626ExecutionAdapter)
+ * @custom:security-contact security@orionfinance.ai
+ */
+interface IExecutionAdapterWithRouting is IExecutionAdapter {
+    /// @notice Executes a sell operation with routing parameters
+    /// @param asset The address of the asset to sell
+    /// @param sharesAmount The amount of shares to sell
+    /// @param estimatedUnderlyingAmount The estimated underlying amount to receive
+    /// @param routeParams Venue-specific routing parameters (abi-encoded)
+    /// @return executionUnderlyingAmount The actual execution underlying amount received
+    function sell(
+        address asset,
+        uint256 sharesAmount,
+        uint256 estimatedUnderlyingAmount,
+        bytes calldata routeParams
+    ) external returns (uint256 executionUnderlyingAmount);
+
+    /// @notice Executes a buy operation with routing parameters
+    /// @param asset The address of the asset to buy
+    /// @param sharesAmount The amount of shares to buy
+    /// @param estimatedUnderlyingAmount The estimated underlying amount to spend
+    /// @param routeParams Venue-specific routing parameters (abi-encoded)
+    /// @return executionUnderlyingAmount The actual execution underlying amount spent
+    function buy(
+        address asset,
+        uint256 sharesAmount,
+        uint256 estimatedUnderlyingAmount,
+        bytes calldata routeParams
+    ) external returns (uint256 executionUnderlyingAmount);
+}
