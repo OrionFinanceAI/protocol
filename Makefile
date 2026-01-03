@@ -11,3 +11,7 @@ ci:
 	pnpm lint
 	pnpm slither
 	pnpm test
+
+.PHONY: docs
+docs:
+	./scripts/build-dev-docs.sh

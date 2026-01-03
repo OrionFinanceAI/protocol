@@ -10,7 +10,7 @@ dotenv.config();
 const config: HardhatUserConfig = {
   defaultNetwork: "hardhat",
   docgen: {
-    outputDir: "../docs/docs/developer/api",
+    outputDir: "./docs/",
     pages: "files",
     exclude: ["mocks", "test"],
   },
