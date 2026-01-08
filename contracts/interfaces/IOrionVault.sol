@@ -169,7 +169,7 @@ interface IOrionVault is IERC4626 {
     ///      to ensure the deposit access control is capable of performing its duties.
     function setDepositAccessControl(address newDepositAccessControl) external;
 
-    /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
+    /// --------- INTERNAL STATE ORCHESTRATOR FUNCTIONS ---------
 
     /// @notice Get total pending deposit amount across all users
     /// @param fulfillBatchSize The maximum number of requests to process per fulfill call

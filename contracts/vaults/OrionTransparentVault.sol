@@ -106,7 +106,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
         emit EventsLib.OrderSubmitted(msg.sender);
     }
 
-    // --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
+    // --------- INTERNAL STATE ORCHESTRATOR FUNCTIONS ---------
 
     /// @inheritdoc IOrionTransparentVault
     function getPortfolio() external view returns (address[] memory tokens, uint256[] memory sharesPerAsset) {

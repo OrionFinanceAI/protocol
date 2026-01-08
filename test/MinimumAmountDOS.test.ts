@@ -24,7 +24,7 @@ describe("Minimum Amount DOS Prevention", function () {
 
     const usdc = deployed.underlyingAsset;
     const config = deployed.orionConfig;
-    const internalStatesOrchestrator = deployed.internalStatesOrchestrator;
+    const InternalStateOrchestrator = deployed.InternalStateOrchestrator;
     const liquidityOrchestrator = deployed.liquidityOrchestrator;
     const vaultFactory = deployed.transparentVaultFactory;
 
@@ -66,7 +66,7 @@ describe("Minimum Amount DOS Prevention", function () {
       usdc,
       config,
       vault,
-      internalStatesOrchestrator,
+      InternalStateOrchestrator,
       liquidityOrchestrator,
     };
   }

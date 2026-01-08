@@ -51,8 +51,8 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     address public strategist;
     /// @notice OrionConfig contract
     IOrionConfig public config;
-    /// @notice Internal states orchestrator
-    IInternalStateOrchestrator public internalStatesOrchestrator;
+    /// @notice Internal state orchestrator
+    IInternalStateOrchestrator public InternalStateOrchestrator;
     /// @notice Liquidity orchestrator
     ILiquidityOrchestrator public liquidityOrchestrator;
     /// @notice Deposit access control contract (address(0) = permissionless)
@@ -137,9 +137,9 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         _;
     }
 
-    /// @dev Restricts function to only internal states orchestrator
-    modifier onlyInternalStatesOrchestrator() {
-        if (msg.sender != address(internalStatesOrchestrator)) revert ErrorsLib.NotAuthorized();
+    /// @dev Restricts function to only internal state orchestrator
+    modifier onlyInternalStateOrchestrator() {
+        if (msg.sender != address(InternalStateOrchestrator)) revert ErrorsLib.NotAuthorized();
         _;
     }
 
@@ -191,7 +191,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         manager = manager_;
         strategist = strategist_;
         config = config_;
-        internalStatesOrchestrator = IInternalStateOrchestrator(config_.internalStatesOrchestrator());
+        InternalStateOrchestrator = IInternalStateOrchestrator(config_.InternalStateOrchestrator());
         liquidityOrchestrator = ILiquidityOrchestrator(config_.liquidityOrchestrator());
         depositAccessControl = depositAccessControl_;
 
@@ -525,7 +525,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         if (activeFees.managementFee == 0) return 0;
 
         uint256 annualFeeAmount = uint256(activeFees.managementFee).mulDiv(feeTotalAssets, BASIS_POINTS_FACTOR);
-        return annualFeeAmount.mulDiv(internalStatesOrchestrator.epochDuration(), YEAR_IN_SECONDS);
+        return annualFeeAmount.mulDiv(InternalStateOrchestrator.epochDuration(), YEAR_IN_SECONDS);
     }
 
     /// @notice Calculate performance fee amount
@@ -547,7 +547,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         if (activeSharePrice < benchmark || divisor == 0) return 0;
         uint256 feeRate = uint256(activeFees.performanceFee).mulDiv(activeSharePrice - divisor, divisor);
         uint256 performanceFeeAmount = feeRate.mulDiv(feeTotalAssets, BASIS_POINTS_FACTOR);
-        return performanceFeeAmount.mulDiv(internalStatesOrchestrator.epochDuration(), YEAR_IN_SECONDS);
+        return performanceFeeAmount.mulDiv(InternalStateOrchestrator.epochDuration(), YEAR_IN_SECONDS);
     }
 
     /// @notice Get benchmark value based on fee model type
@@ -582,7 +582,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     function _getHurdlePrice(uint256 currentSharePrice) internal view returns (uint256) {
         uint256 riskFreeRate = config.riskFreeRate();
 
-        uint256 hurdleReturn = riskFreeRate.mulDiv(internalStatesOrchestrator.epochDuration(), YEAR_IN_SECONDS);
+        uint256 hurdleReturn = riskFreeRate.mulDiv(InternalStateOrchestrator.epochDuration(), YEAR_IN_SECONDS);
         return currentSharePrice.mulDiv(BASIS_POINTS_FACTOR + hurdleReturn, BASIS_POINTS_FACTOR);
     }
 
@@ -602,7 +602,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         emit DepositAccessControlUpdated(newDepositAccessControl);
     }
 
-    /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
+    /// --------- INTERNAL STATE ORCHESTRATOR FUNCTIONS ---------
 
     /// @inheritdoc IOrionVault
     function pendingDeposit(uint256 fulfillBatchSize) external view returns (uint256) {
@@ -643,7 +643,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     }
 
     /// @inheritdoc IOrionVault
-    function accrueVaultFees(uint256 feeAmount) external onlyInternalStatesOrchestrator {
+    function accrueVaultFees(uint256 feeAmount) external onlyInternalStateOrchestrator {
         if (feeAmount == 0) return;
 
         pendingVaultFees += feeAmount;

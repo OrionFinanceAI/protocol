@@ -39,8 +39,8 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
 
     /// @notice Underlying asset address
     IERC20 public underlyingAsset;
-    /// @notice Address of the internal states orchestrator
-    address public internalStatesOrchestrator;
+    /// @notice Address of the internal state orchestrator
+    address public InternalStateOrchestrator;
     /// @notice Address of the liquidity orchestrator
     address public liquidityOrchestrator;
     /// @notice Address of the transparent vault factory
@@ -127,10 +127,10 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     // === Protocol Configuration ===
 
     /// @inheritdoc IOrionConfig
-    function setInternalStatesOrchestrator(address orchestrator) external onlyOwner {
+    function setInternalStateOrchestrator(address orchestrator) external onlyOwner {
         if (orchestrator == address(0)) revert ErrorsLib.ZeroAddress();
-        if (internalStatesOrchestrator != address(0)) revert ErrorsLib.AlreadyRegistered();
-        internalStatesOrchestrator = orchestrator;
+        if (InternalStateOrchestrator != address(0)) revert ErrorsLib.AlreadyRegistered();
+        InternalStateOrchestrator = orchestrator;
     }
 
     /// @inheritdoc IOrionConfig
@@ -219,11 +219,11 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
 
     /// @notice Pauses all protocol operations across orchestrators
     /// @dev Can only be called by guardian or owner
-    ///      Pauses InternalStatesOrchestrator and LiquidityOrchestrator
+    ///      Pauses InternalStateOrchestrator and LiquidityOrchestrator
     function pauseAll() external {
         if (msg.sender != guardian && msg.sender != owner()) revert ErrorsLib.NotAuthorized();
 
-        IInternalStateOrchestrator(internalStatesOrchestrator).pause();
+        IInternalStateOrchestrator(InternalStateOrchestrator).pause();
         ILiquidityOrchestrator(liquidityOrchestrator).pause();
 
         emit EventsLib.ProtocolPaused(msg.sender);
@@ -231,9 +231,9 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
 
     /// @notice Unpauses all protocol operations across orchestrators
     /// @dev Can only be called by owner (not guardian: requires owner approval to resume)
-    ///      Unpauses InternalStatesOrchestrator and LiquidityOrchestrator
+    ///      Unpauses InternalStateOrchestrator and LiquidityOrchestrator
     function unpauseAll() external onlyOwner {
-        IInternalStateOrchestrator(internalStatesOrchestrator).unpause();
+        IInternalStateOrchestrator(InternalStateOrchestrator).unpause();
         ILiquidityOrchestrator(liquidityOrchestrator).unpause();
 
         emit EventsLib.ProtocolUnpaused(msg.sender);
@@ -430,7 +430,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         return
             ILiquidityOrchestrator(liquidityOrchestrator).currentPhase() ==
             ILiquidityOrchestrator.LiquidityUpkeepPhase.Idle &&
-            IInternalStateOrchestrator(internalStatesOrchestrator).currentPhase() ==
+            IInternalStateOrchestrator(InternalStateOrchestrator).currentPhase() ==
             IInternalStateOrchestrator.InternalUpkeepPhase.Idle;
     }
 

@@ -30,7 +30,7 @@ import {
   MockPriceAdapter,
   MockExecutionAdapter,
   OrionConfig,
-  InternalStatesOrchestrator,
+  InternalStateOrchestrator,
   LiquidityOrchestrator,
   TransparentVaultFactory,
   OrionTransparentVault,
@@ -42,7 +42,7 @@ describe("Redeem Before Deposit Order Verification", function () {
   let mockPriceAdapter: MockPriceAdapter;
   let mockExecutionAdapter: MockExecutionAdapter;
   let orionConfig: OrionConfig;
-  let internalStatesOrchestrator: InternalStatesOrchestrator;
+  let InternalStateOrchestrator: InternalStateOrchestrator;
   let liquidityOrchestrator: LiquidityOrchestrator;
   let transparentVaultFactory: TransparentVaultFactory;
   let vault: OrionTransparentVault;
@@ -61,11 +61,11 @@ describe("Redeem Before Deposit Order Verification", function () {
 
   let epochDuration: bigint;
 
-  async function processInternalStatesOrchestrator(): Promise<void> {
-    let [upkeepNeeded] = await internalStatesOrchestrator.checkUpkeep("0x");
+  async function processInternalStateOrchestrator(): Promise<void> {
+    let [upkeepNeeded] = await InternalStateOrchestrator.checkUpkeep("0x");
     while (upkeepNeeded) {
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep("0x");
-      [upkeepNeeded] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep("0x");
+      [upkeepNeeded] = await InternalStateOrchestrator.checkUpkeep("0x");
     }
   }
 
@@ -79,7 +79,7 @@ describe("Redeem Before Deposit Order Verification", function () {
 
   async function processFullEpoch(): Promise<void> {
     await time.increase(epochDuration + 1n);
-    await processInternalStatesOrchestrator();
+    await processInternalStateOrchestrator();
     await processLiquidityOrchestrator();
   }
 
@@ -116,7 +116,7 @@ describe("Redeem Before Deposit Order Verification", function () {
     const deployed = await deployUpgradeableProtocol(owner, underlyingAsset, automationRegistry);
 
     orionConfig = deployed.orionConfig;
-    internalStatesOrchestrator = deployed.internalStatesOrchestrator;
+    InternalStateOrchestrator = deployed.InternalStateOrchestrator;
     liquidityOrchestrator = deployed.liquidityOrchestrator;
     transparentVaultFactory = deployed.transparentVaultFactory;
 
@@ -163,7 +163,7 @@ describe("Redeem Before Deposit Order Verification", function () {
       },
     ]);
 
-    epochDuration = await internalStatesOrchestrator.epochDuration();
+    epochDuration = await InternalStateOrchestrator.epochDuration();
 
     // Setup initial state: Deposit 100 USDC and fulfill to establish baseline
     await underlyingAsset.mint(initialDepositor.address, INITIAL_ASSETS);
@@ -210,12 +210,12 @@ describe("Redeem Before Deposit Order Verification", function () {
 
       // Phase C: Process through orchestrator phases
       await time.increase(epochDuration + 1n);
-      await processInternalStatesOrchestrator();
+      await processInternalStateOrchestrator();
 
       // Phase D: Verify totalAssets calculations reflect correct order
       const vaultAddress = await vault.getAddress();
       const [totalAssetsForRedeem, totalAssetsForDeposit] =
-        await internalStatesOrchestrator.getVaultTotalAssetsAll(vaultAddress);
+        await InternalStateOrchestrator.getVaultTotalAssetsAll(vaultAddress);
 
       // CRITICAL ASSERTION: Redeem uses higher totalAssets (before deposit impact)
       expect(totalAssetsForRedeem).to.be.gt(totalAssetsForDeposit);
@@ -310,7 +310,7 @@ describe("Redeem Before Deposit Order Verification", function () {
       // Formula: shares = assets * (totalSupply + 10^decimalsOffset) / (totalAssets + 1)
       // Query the actual totalAssetsForDeposit to match Solidity rounding
       const vaultAddress = await vault.getAddress();
-      const [, totalAssetsForDeposit] = await internalStatesOrchestrator.getVaultTotalAssetsAll(vaultAddress);
+      const [, totalAssetsForDeposit] = await InternalStateOrchestrator.getVaultTotalAssetsAll(vaultAddress);
       const decimalsOffset = 12n;
       const totalSupplyAfterRedeem = ethers.parseUnits("10", 18);
       const virtualSupply = totalSupplyAfterRedeem + 10n ** decimalsOffset;
@@ -341,12 +341,12 @@ describe("Redeem Before Deposit Order Verification", function () {
 
       // Process epoch
       await time.increase(epochDuration + 1n);
-      await processInternalStatesOrchestrator();
+      await processInternalStateOrchestrator();
 
       // When there are no redemptions, both totalAssets should be equal
       const vaultAddress = await vault.getAddress();
       const [totalAssetsForRedeem, totalAssetsForDeposit] =
-        await internalStatesOrchestrator.getVaultTotalAssetsAll(vaultAddress);
+        await InternalStateOrchestrator.getVaultTotalAssetsAll(vaultAddress);
 
       expect(totalAssetsForRedeem).to.equal(totalAssetsForDeposit);
 

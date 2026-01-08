@@ -54,8 +54,8 @@ contract LiquidityOrchestrator is
     /// @notice Orion Config contract address
     IOrionConfig public config;
 
-    /// @notice Internal States Orchestrator contract address
-    IInternalStateOrchestrator public internalStatesOrchestrator;
+    /// @notice Internal State Orchestrator contract address
+    IInternalStateOrchestrator public InternalStateOrchestrator;
 
     /// @notice Underlying asset address
     address public underlyingAsset;
@@ -109,9 +109,9 @@ contract LiquidityOrchestrator is
         _;
     }
 
-    /// @dev Restricts function to only Internal States Orchestrator contract
-    modifier onlyInternalStatesOrchestrator() {
-        if (msg.sender != address(internalStatesOrchestrator)) revert ErrorsLib.NotAuthorized();
+    /// @dev Restricts function to only Internal State Orchestrator contract
+    modifier onlyInternalStateOrchestrator() {
+        if (msg.sender != address(InternalStateOrchestrator)) revert ErrorsLib.NotAuthorized();
         _;
     }
 
@@ -175,10 +175,10 @@ contract LiquidityOrchestrator is
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function setInternalStatesOrchestrator(address _internalStatesOrchestrator) external onlyOwner {
-        if (_internalStatesOrchestrator == address(0)) revert ErrorsLib.ZeroAddress();
-        if (address(internalStatesOrchestrator) != address(0)) revert ErrorsLib.AlreadyRegistered();
-        internalStatesOrchestrator = IInternalStateOrchestrator(_internalStatesOrchestrator);
+    function setInternalStateOrchestrator(address _InternalStateOrchestrator) external onlyOwner {
+        if (_InternalStateOrchestrator == address(0)) revert ErrorsLib.ZeroAddress();
+        if (address(InternalStateOrchestrator) != address(0)) revert ErrorsLib.AlreadyRegistered();
+        InternalStateOrchestrator = IInternalStateOrchestrator(_InternalStateOrchestrator);
     }
 
     /// @inheritdoc ILiquidityOrchestrator
@@ -195,30 +195,30 @@ contract LiquidityOrchestrator is
     /// @inheritdoc ILiquidityOrchestrator
     function depositLiquidity(uint256 amount) external {
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
-        if (internalStatesOrchestrator.currentPhase() != IInternalStateOrchestrator.InternalUpkeepPhase.Idle)
+        if (InternalStateOrchestrator.currentPhase() != IInternalStateOrchestrator.InternalUpkeepPhase.Idle)
             revert ErrorsLib.SystemNotIdle();
 
         // Transfer underlying assets from the caller to this contract
         IERC20(underlyingAsset).safeTransferFrom(msg.sender, address(this), amount);
 
-        // Update buffer amount in the internal states orchestrator
-        internalStatesOrchestrator.updateBufferAmount(int256(amount));
+        // Update buffer amount in the internal state orchestrator
+        InternalStateOrchestrator.updateBufferAmount(int256(amount));
     }
 
     /// @inheritdoc ILiquidityOrchestrator
     function withdrawLiquidity(uint256 amount) external onlyOwner {
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
-        if (internalStatesOrchestrator.currentPhase() != IInternalStateOrchestrator.InternalUpkeepPhase.Idle)
+        if (InternalStateOrchestrator.currentPhase() != IInternalStateOrchestrator.InternalUpkeepPhase.Idle)
             revert ErrorsLib.SystemNotIdle();
 
-        // Get current buffer amount from internal states orchestrator
-        uint256 currentBufferAmount = internalStatesOrchestrator.bufferAmount();
+        // Get current buffer amount from internal state orchestrator
+        uint256 currentBufferAmount = InternalStateOrchestrator.bufferAmount();
 
         // Safety check: ensure withdrawal doesn't make buffer negative
         if (amount > currentBufferAmount) revert ErrorsLib.InsufficientAmount();
 
-        // Update buffer amount in the internal states orchestrator
-        internalStatesOrchestrator.updateBufferAmount(-int256(amount));
+        // Update buffer amount in the internal state orchestrator
+        InternalStateOrchestrator.updateBufferAmount(-int256(amount));
 
         // Transfer underlying assets to the owner
         IERC20(underlyingAsset).safeTransfer(msg.sender, amount);
@@ -228,7 +228,7 @@ contract LiquidityOrchestrator is
     function claimProtocolFees(uint256 amount) external onlyOwner {
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
 
-        internalStatesOrchestrator.subtractPendingProtocolFees(amount);
+        InternalStateOrchestrator.subtractPendingProtocolFees(amount);
 
         IERC20(underlyingAsset).safeTransfer(msg.sender, amount);
     }
@@ -247,11 +247,11 @@ contract LiquidityOrchestrator is
     }
 
     /* -------------------------------------------------------------------------- */
-    /*                  INTERNAL STATES ORCHESTRATOR FUNCTIONS                    */
+    /*                  INTERNAL STATE ORCHESTRATOR FUNCTIONS                    */
     /* -------------------------------------------------------------------------- */
 
     /// @inheritdoc ILiquidityOrchestrator
-    function advanceIdlePhase() external onlyInternalStatesOrchestrator {
+    function advanceIdlePhase() external onlyInternalStateOrchestrator {
         currentPhase = LiquidityUpkeepPhase.SellingLeg;
     }
 
@@ -324,7 +324,7 @@ contract LiquidityOrchestrator is
             _processBuyLeg();
         } else if (currentPhase == LiquidityUpkeepPhase.ProcessVaultOperations) {
             _processVaultOperations();
-            internalStatesOrchestrator.updateNextUpdateTime();
+            InternalStateOrchestrator.updateNextUpdateTime();
         }
 
         emit EventsLib.PortfolioRebalanced();
@@ -340,7 +340,7 @@ contract LiquidityOrchestrator is
             address[] memory sellingTokens,
             uint256[] memory sellingAmounts,
             uint256[] memory sellingEstimatedUnderlyingAmounts
-        ) = internalStatesOrchestrator.getOrders(true);
+        ) = InternalStateOrchestrator.getOrders(true);
 
         currentPhase = LiquidityUpkeepPhase.BuyingLeg;
 
@@ -358,7 +358,7 @@ contract LiquidityOrchestrator is
             address[] memory buyingTokens,
             uint256[] memory buyingAmounts,
             uint256[] memory buyingEstimatedUnderlyingAmounts
-        ) = internalStatesOrchestrator.getOrders(false);
+        ) = InternalStateOrchestrator.getOrders(false);
 
         currentPhase = LiquidityUpkeepPhase.ProcessVaultOperations;
 
@@ -370,7 +370,7 @@ contract LiquidityOrchestrator is
         }
 
         // slither-disable-next-line reentrancy-no-eth
-        internalStatesOrchestrator.updateBufferAmount(deltaBufferAmount);
+        InternalStateOrchestrator.updateBufferAmount(deltaBufferAmount);
         deltaBufferAmount = 0;
     }
 
@@ -439,7 +439,7 @@ contract LiquidityOrchestrator is
                 uint256 totalAssetsForRedeem,
                 uint256 totalAssetsForDeposit,
                 uint256 finalTotalAssets
-            ) = internalStatesOrchestrator.getVaultTotalAssetsAll(vault);
+            ) = InternalStateOrchestrator.getVaultTotalAssetsAll(vault);
 
             _processSingleVaultOperations(vault, totalAssetsForDeposit, totalAssetsForRedeem, finalTotalAssets);
         }
@@ -469,7 +469,7 @@ contract LiquidityOrchestrator is
             vaultContract.fulfillDeposit(totalAssetsForDeposit);
         }
 
-        (address[] memory tokens, uint256[] memory shares) = internalStatesOrchestrator.getVaultPortfolio(vault);
+        (address[] memory tokens, uint256[] memory shares) = InternalStateOrchestrator.getVaultPortfolio(vault);
         vaultContract.updateVaultState(tokens, shares, finalTotalAssets);
 
         if (config.isDecommissioningVault(vault)) {

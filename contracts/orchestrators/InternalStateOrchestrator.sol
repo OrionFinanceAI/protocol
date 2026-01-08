@@ -19,7 +19,7 @@ import { EventsLib } from "../libraries/EventsLib.sol";
 import { UtilitiesLib } from "../libraries/UtilitiesLib.sol";
 
 /**
- * @title Internal States Orchestrator
+ * @title Internal State Orchestrator
  * @notice Contract that orchestrates internal state management
  * @author Orion Finance
  * @dev This contract is responsible for:
@@ -30,7 +30,7 @@ import { UtilitiesLib } from "../libraries/UtilitiesLib.sol";
  *      - Trigger the Liquidity Orchestrator.
  * @custom:security-contact security@orionfinance.ai
  */
-contract InternalStatesOrchestrator is
+contract InternalStateOrchestrator is
     Initializable,
     Ownable2StepUpgradeable,
     ReentrancyGuardUpgradeable,

@@ -80,7 +80,7 @@ library EventsLib {
     event VaultStateUpdated(uint256 indexed newTotalAssets);
 
     // ====================================
-    // === Internal States Orchestrator ===
+    // === Internal State Orchestrator ===
     // ====================================
 
     /// @notice The automation registry address has been updated.
