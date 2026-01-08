@@ -7,7 +7,6 @@ import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import "./OrionVault.sol";
 import "../interfaces/IOrionConfig.sol";
 import "../interfaces/IOrionTransparentVault.sol";
-import "../interfaces/IOrionStrategist.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { EventsLib } from "../libraries/EventsLib.sol";
 
