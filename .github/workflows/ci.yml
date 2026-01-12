@@ -13,17 +13,17 @@ jobs:
 
     steps:
       - name: "Check out the repo"
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
         with:
           submodules: recursive
 
       - name: "Install Pnpm"
-        uses: pnpm/action-setup@v2
+        uses: pnpm/action-setup@v4
         with:
           version: "8"
 
       - name: "Setup Node.js"
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v6
         with:
           cache: pnpm
           node-version: lts/*
@@ -76,17 +76,17 @@ jobs:
 
     steps:
       - name: "Check out the repo"
-        uses: "actions/checkout@v3"
+        uses: "actions/checkout@v6"
         with:
           submodules: recursive
 
       - name: "Install Pnpm"
-        uses: pnpm/action-setup@v2
+        uses: pnpm/action-setup@v4
         with:
           version: "8"
 
       - name: "Setup Node.js"
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v6
         with:
           cache: pnpm
           node-version: lts/*
@@ -118,17 +118,17 @@ jobs:
 
     steps:
       - name: "Check out the repo"
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
         with:
           submodules: recursive
 
       - name: "Install Pnpm"
-        uses: pnpm/action-setup@v2
+        uses: pnpm/action-setup@v4
         with:
           version: "8"
 
       - name: "Setup Node.js"
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v6
         with:
           cache: pnpm
           node-version: lts/*

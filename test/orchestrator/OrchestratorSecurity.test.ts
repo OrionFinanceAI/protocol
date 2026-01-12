@@ -12,7 +12,7 @@
  * WHAT THIS FILE TESTS:
  * ======================
  *
- * 1. INTERNALSTATESORCHESTRATOR (ISO) SECURITY (2 tests)
+ * 1. InternalStateOrchestrator (ISO) SECURITY (2 tests)
  *
  *    a) Malicious Payload Protection - Single Phase Execution
  *       - Tests that ISO ignores malicious performData payloads
@@ -97,7 +97,7 @@ import {
   MockERC4626Asset,
   OrionAssetERC4626ExecutionAdapter,
   OrionConfig,
-  InternalStatesOrchestrator,
+  InternalStateOrchestrator,
   LiquidityOrchestrator,
   TransparentVaultFactory,
   OrionTransparentVault,
@@ -122,7 +122,7 @@ describe("Orchestrator Security", function () {
   let mockAsset3: MockERC4626Asset;
   let orionPriceAdapter: OrionAssetERC4626PriceAdapter;
   let orionExecutionAdapter: OrionAssetERC4626ExecutionAdapter;
-  let internalStatesOrchestrator: InternalStatesOrchestrator;
+  let InternalStateOrchestrator: InternalStateOrchestrator;
   let liquidityOrchestrator: LiquidityOrchestrator;
   let absoluteVault: OrionTransparentVault;
   let highWaterMarkVault: OrionTransparentVault;
@@ -207,7 +207,7 @@ describe("Orchestrator Security", function () {
     const deployed = await deployUpgradeableProtocol(owner, underlyingAsset, automationRegistry);
 
     orionConfig = deployed.orionConfig;
-    internalStatesOrchestrator = deployed.internalStatesOrchestrator;
+    InternalStateOrchestrator = deployed.InternalStateOrchestrator;
     liquidityOrchestrator = deployed.liquidityOrchestrator;
     transparentVaultFactory = deployed.transparentVaultFactory;
 
@@ -228,15 +228,15 @@ describe("Orchestrator Security", function () {
     await orionPriceAdapter.waitForDeployment();
 
     // Configure protocol
-    await internalStatesOrchestrator.connect(owner).updateProtocolFees(10, 1000);
+    await InternalStateOrchestrator.connect(owner).updateProtocolFees(10, 1000);
 
-    await expect(internalStatesOrchestrator.connect(owner).updateProtocolFees(51, 0)).to.be.revertedWithCustomError(
-      internalStatesOrchestrator,
+    await expect(InternalStateOrchestrator.connect(owner).updateProtocolFees(51, 0)).to.be.revertedWithCustomError(
+      InternalStateOrchestrator,
       "InvalidArguments",
     );
 
-    await expect(internalStatesOrchestrator.connect(owner).updateProtocolFees(0, 2001)).to.be.revertedWithCustomError(
-      internalStatesOrchestrator,
+    await expect(InternalStateOrchestrator.connect(owner).updateProtocolFees(0, 2001)).to.be.revertedWithCustomError(
+      InternalStateOrchestrator,
       "InvalidArguments",
     );
 
@@ -601,7 +601,7 @@ describe("Orchestrator Security", function () {
       ),
     );
   });
-  describe("Security Tests - InternalStatesOrchestrator InvalidState Protection", function () {
+  describe("Security Tests - InternalStateOrchestrator InvalidState Protection", function () {
     const createMaliciousPerformData = (action: string, minibatchIndex: number = 0) => {
       const actionHash = ethers.keccak256(ethers.toUtf8Bytes(action));
       const actionBytes4 = actionHash.slice(0, 10);
@@ -609,36 +609,36 @@ describe("Orchestrator Security", function () {
     };
 
     it("should ignore malicious payloads and execute correct action for current phase", async function () {
-      const epochDuration = await internalStatesOrchestrator.epochDuration();
+      const epochDuration = await InternalStateOrchestrator.epochDuration();
       await time.increase(epochDuration + 1n);
 
-      const [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
+      const [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await InternalStateOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
 
       // Malicious payload for buffer() should be ignored - correct action for current phase is executed
       const maliciousData = createMaliciousPerformData("buffer()", 0);
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(maliciousData);
+      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(maliciousData);
 
       // Should still be in PreprocessingTransparentVaults or progressed to next phase, not buffer phase
-      const currentPhase = await internalStatesOrchestrator.currentPhase();
+      const currentPhase = await InternalStateOrchestrator.currentPhase();
       expect(currentPhase).to.not.equal(2); // Not Buffering - malicious payload was ignored
     });
 
     it("should ignore malicious payloads and execute correct minibatch action for current phase", async function () {
-      const epochDuration = await internalStatesOrchestrator.epochDuration();
+      const epochDuration = await InternalStateOrchestrator.epochDuration();
       await time.increase(epochDuration + 1n);
 
-      const [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
+      const [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await InternalStateOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
 
       // Malicious payload for buffer() should be ignored - correct action for current phase is executed
       const maliciousData = createMaliciousPerformData("buffer()", 0);
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(maliciousData);
+      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(maliciousData);
 
       // Should still be in PreprocessingTransparentVaults or progressed to next phase, not buffer phase
-      const currentPhase = await internalStatesOrchestrator.currentPhase();
+      const currentPhase = await InternalStateOrchestrator.currentPhase();
       expect(currentPhase).to.not.equal(2); // Not Buffering - malicious payload was ignored
     });
   });
@@ -651,34 +651,34 @@ describe("Orchestrator Security", function () {
     };
 
     it("should revert with InvalidState when trying to execute phases out of order", async function () {
-      const epochDuration = await internalStatesOrchestrator.epochDuration();
+      const epochDuration = await InternalStateOrchestrator.epochDuration();
       await time.increase(epochDuration + 1n);
 
-      let [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
+      let [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await InternalStateOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
 
       // Process all vaults in preprocessing phase - continue until we reach buffering phase
-      while ((await internalStatesOrchestrator.currentPhase()) === 1n) {
-        [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-        await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      while ((await InternalStateOrchestrator.currentPhase()) === 1n) {
+        [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+        await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
       }
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // Buffering
+      expect(await InternalStateOrchestrator.currentPhase()).to.equal(2); // Buffering
 
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
+      [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await InternalStateOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
 
       // Process all vaults in postprocessing phase - continue until we reach building orders phase
-      while ((await internalStatesOrchestrator.currentPhase()) === 3n) {
-        [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-        await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      while ((await InternalStateOrchestrator.currentPhase()) === 3n) {
+        [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+        await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
       }
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
+      expect(await InternalStateOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
 
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Back to Idle
+      [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await InternalStateOrchestrator.currentPhase()).to.equal(0); // Back to Idle
 
       const [_liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
       await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);

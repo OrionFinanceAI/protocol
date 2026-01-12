@@ -10,7 +10,7 @@ import {
   UpgradeableBeacon,
   MockUnderlyingAsset,
   PriceAdapterRegistry,
-  InternalStatesOrchestrator,
+  InternalStateOrchestrator,
   LiquidityOrchestrator,
 } from "../typechain-types";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
@@ -533,7 +533,7 @@ describe("Upgrade Tests", function () {
   describe("Direct upgradeToAndCall", function () {
     let orionConfig: OrionConfig;
     let priceAdapterRegistry: PriceAdapterRegistry;
-    let internalStatesOrchestrator: InternalStatesOrchestrator;
+    let InternalStateOrchestrator: InternalStateOrchestrator;
     let liquidityOrchestrator: LiquidityOrchestrator;
     let transparentVaultFactory: TransparentVaultFactory;
 
@@ -541,7 +541,7 @@ describe("Upgrade Tests", function () {
       const deployed = await deployUpgradeableProtocol(owner);
       orionConfig = deployed.orionConfig;
       priceAdapterRegistry = deployed.priceAdapterRegistry;
-      internalStatesOrchestrator = deployed.internalStatesOrchestrator;
+      InternalStateOrchestrator = deployed.InternalStateOrchestrator;
       liquidityOrchestrator = deployed.liquidityOrchestrator;
       transparentVaultFactory = deployed.transparentVaultFactory;
     });
@@ -589,25 +589,25 @@ describe("Upgrade Tests", function () {
       ).to.be.revertedWithCustomError(priceAdapterRegistry, "OwnableUnauthorizedAccount");
     });
 
-    it("Should cover InternalStatesOrchestrator._authorizeUpgrade via direct upgradeToAndCall", async function () {
-      const InternalStatesOrchestratorFactory = await ethers.getContractFactory("InternalStatesOrchestrator");
-      const newImpl = await InternalStatesOrchestratorFactory.deploy();
+    it("Should cover InternalStateOrchestrator._authorizeUpgrade via direct upgradeToAndCall", async function () {
+      const InternalStateOrchestratorFactory = await ethers.getContractFactory("InternalStateOrchestrator");
+      const newImpl = await InternalStateOrchestratorFactory.deploy();
       await newImpl.waitForDeployment();
 
       // Call upgradeToAndCall directly, executing _authorizeUpgrade
-      await internalStatesOrchestrator.connect(owner).upgradeToAndCall(await newImpl.getAddress(), "0x");
+      await InternalStateOrchestrator.connect(owner).upgradeToAndCall(await newImpl.getAddress(), "0x");
 
-      expect(await internalStatesOrchestrator.owner()).to.equal(owner.address);
+      expect(await InternalStateOrchestrator.owner()).to.equal(owner.address);
     });
 
-    it("Should cover InternalStatesOrchestrator._authorizeUpgrade revert on non-owner", async function () {
-      const InternalStatesOrchestratorFactory = await ethers.getContractFactory("InternalStatesOrchestrator");
-      const newImpl = await InternalStatesOrchestratorFactory.deploy();
+    it("Should cover InternalStateOrchestrator._authorizeUpgrade revert on non-owner", async function () {
+      const InternalStateOrchestratorFactory = await ethers.getContractFactory("InternalStateOrchestrator");
+      const newImpl = await InternalStateOrchestratorFactory.deploy();
       await newImpl.waitForDeployment();
 
       await expect(
-        internalStatesOrchestrator.connect(user).upgradeToAndCall(await newImpl.getAddress(), "0x"),
-      ).to.be.revertedWithCustomError(internalStatesOrchestrator, "OwnableUnauthorizedAccount");
+        InternalStateOrchestrator.connect(user).upgradeToAndCall(await newImpl.getAddress(), "0x"),
+      ).to.be.revertedWithCustomError(InternalStateOrchestrator, "OwnableUnauthorizedAccount");
     });
 
     it("Should cover LiquidityOrchestrator._authorizeUpgrade via direct upgradeToAndCall", async function () {

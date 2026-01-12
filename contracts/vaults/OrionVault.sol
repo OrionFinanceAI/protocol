@@ -7,6 +7,8 @@ import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgrad
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import "@openzeppelin/contracts/proxy/beacon/IBeacon.sol";
+import "@openzeppelin/contracts/utils/StorageSlot.sol";
 import "../interfaces/IOrionConfig.sol";
 import "../interfaces/IOrionVault.sol";
 import "../interfaces/IInternalStateOrchestrator.sol";
@@ -51,8 +53,8 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     address public strategist;
     /// @notice OrionConfig contract
     IOrionConfig public config;
-    /// @notice Internal states orchestrator
-    IInternalStateOrchestrator public internalStatesOrchestrator;
+    /// @notice Internal state orchestrator
+    IInternalStateOrchestrator public internalStateOrchestrator;
     /// @notice Liquidity orchestrator
     ILiquidityOrchestrator public liquidityOrchestrator;
     /// @notice Deposit access control contract (address(0) = permissionless)
@@ -137,12 +139,6 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         _;
     }
 
-    /// @dev Restricts function to only internal states orchestrator
-    modifier onlyInternalStatesOrchestrator() {
-        if (msg.sender != address(internalStatesOrchestrator)) revert ErrorsLib.NotAuthorized();
-        _;
-    }
-
     /// @dev Restricts function to only liquidity orchestrator
     modifier onlyLiquidityOrchestrator() {
         if (msg.sender != address(liquidityOrchestrator)) revert ErrorsLib.NotAuthorized();
@@ -191,7 +187,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         manager = manager_;
         strategist = strategist_;
         config = config_;
-        internalStatesOrchestrator = IInternalStateOrchestrator(config_.internalStatesOrchestrator());
+        internalStateOrchestrator = IInternalStateOrchestrator(config_.internalStateOrchestrator());
         liquidityOrchestrator = ILiquidityOrchestrator(config_.liquidityOrchestrator());
         depositAccessControl = depositAccessControl_;
 
@@ -342,6 +338,15 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         isDecommissioning = true;
     }
 
+    function implementation() external view returns (address) {
+        bytes32 beaconSlot = 0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50;
+        address beacon = StorageSlot.getAddressSlot(beaconSlot).value;
+        if (beacon == address(0)) {
+            return address(0);
+        }
+        return IBeacon(beacon).implementation();
+    }
+
     /// --------- LP FUNCTIONS ---------
 
     /// @inheritdoc IOrionVault
@@ -459,6 +464,41 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         return _vaultWhitelistedAssets.values();
     }
 
+    /// @inheritdoc IOrionVault
+    function updateStrategist(address newStrategist) external onlyManager {
+        strategist = newStrategist;
+        emit StrategistUpdated(newStrategist);
+    }
+
+    /// @inheritdoc IOrionVault
+    function setDepositAccessControl(address newDepositAccessControl) external onlyManager {
+        // No extra checks, manager has right to fully stop deposits
+        depositAccessControl = newDepositAccessControl;
+        emit DepositAccessControlUpdated(newDepositAccessControl);
+    }
+
+    /// @inheritdoc IOrionVault
+    function updateVaultWhitelist(address[] calldata assets) external onlyManager {
+        // Clear existing whitelist
+        _vaultWhitelistedAssets.clear();
+
+        for (uint256 i = 0; i < assets.length; ++i) {
+            address token = assets[i];
+
+            if (!config.isWhitelisted(token)) revert ErrorsLib.TokenNotWhitelisted(token);
+
+            bool inserted = _vaultWhitelistedAssets.add(token);
+            if (!inserted) revert ErrorsLib.AlreadyRegistered();
+        }
+
+        if (!_vaultWhitelistedAssets.contains(this.asset())) {
+            // slither-disable-next-line unused-return
+            _vaultWhitelistedAssets.add(this.asset());
+        }
+
+        emit VaultWhitelistUpdated(assets);
+    }
+
     /// @notice Update the fee model parameters with cooldown protection
     /// @param feeType The fee type (0=ABSOLUTE, 1=HURDLE, 2=HIGH_WATER_MARK, 3=HURDLE_HWM)
     /// @param performanceFee The performance fee
@@ -485,7 +525,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         // Set when new rates become effective
         newFeeRatesTimestamp = block.timestamp + config.feeChangeCooldownDuration();
 
-        emit EventsLib.VaultFeeChangeScheduled(address(this));
+        emit EventsLib.VaultFeeChangeScheduled(feeType, performanceFee, managementFee, newFeeRatesTimestamp);
     }
 
     /// @notice Returns the active fee model (old during cooldown, new after)
@@ -510,11 +550,10 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     }
 
     /// @inheritdoc IOrionVault
-    function vaultFee(uint256 activeTotalAssets) external view returns (uint256) {
-        uint256 managementFeeAmount = _managementFeeAmount(activeTotalAssets);
-        uint256 intermediateTotalAssets = activeTotalAssets - managementFeeAmount;
-        uint256 performanceFeeAmount = _performanceFeeAmount(intermediateTotalAssets);
-        return managementFeeAmount + performanceFeeAmount;
+    function vaultFee(uint256 activeTotalAssets) external view returns (uint256 managementFee, uint256 performanceFee) {
+        managementFee = _managementFeeAmount(activeTotalAssets);
+        uint256 intermediateTotalAssets = activeTotalAssets - managementFee;
+        performanceFee = _performanceFeeAmount(intermediateTotalAssets);
     }
 
     /// @notice Calculate management fee amount
@@ -525,7 +564,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         if (activeFees.managementFee == 0) return 0;
 
         uint256 annualFeeAmount = uint256(activeFees.managementFee).mulDiv(feeTotalAssets, BASIS_POINTS_FACTOR);
-        return annualFeeAmount.mulDiv(internalStatesOrchestrator.epochDuration(), YEAR_IN_SECONDS);
+        return annualFeeAmount.mulDiv(internalStateOrchestrator.epochDuration(), YEAR_IN_SECONDS);
     }
 
     /// @notice Calculate performance fee amount
@@ -547,7 +586,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         if (activeSharePrice < benchmark || divisor == 0) return 0;
         uint256 feeRate = uint256(activeFees.performanceFee).mulDiv(activeSharePrice - divisor, divisor);
         uint256 performanceFeeAmount = feeRate.mulDiv(feeTotalAssets, BASIS_POINTS_FACTOR);
-        return performanceFeeAmount.mulDiv(internalStatesOrchestrator.epochDuration(), YEAR_IN_SECONDS);
+        return performanceFeeAmount.mulDiv(internalStateOrchestrator.epochDuration(), YEAR_IN_SECONDS);
     }
 
     /// @notice Get benchmark value based on fee model type
@@ -582,7 +621,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     function _getHurdlePrice(uint256 currentSharePrice) internal view returns (uint256) {
         uint256 riskFreeRate = config.riskFreeRate();
 
-        uint256 hurdleReturn = riskFreeRate.mulDiv(internalStatesOrchestrator.epochDuration(), YEAR_IN_SECONDS);
+        uint256 hurdleReturn = riskFreeRate.mulDiv(internalStateOrchestrator.epochDuration(), YEAR_IN_SECONDS);
         return currentSharePrice.mulDiv(BASIS_POINTS_FACTOR + hurdleReturn, BASIS_POINTS_FACTOR);
     }
 
@@ -593,16 +632,11 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
 
         pendingVaultFees -= amount;
         liquidityOrchestrator.transferVaultFees(amount);
+
+        emit VaultFeesClaimed(msg.sender, amount);
     }
 
-    /// @inheritdoc IOrionVault
-    function setDepositAccessControl(address newDepositAccessControl) external onlyManager {
-        // No extra checks, manager has right to fully stop deposits
-        depositAccessControl = newDepositAccessControl;
-        emit DepositAccessControlUpdated(newDepositAccessControl);
-    }
-
-    /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
+    /// --------- INTERNAL STATE ORCHESTRATOR FUNCTIONS ---------
 
     /// @inheritdoc IOrionVault
     function pendingDeposit(uint256 fulfillBatchSize) external view returns (uint256) {
@@ -643,12 +677,13 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     }
 
     /// @inheritdoc IOrionVault
-    function accrueVaultFees(uint256 feeAmount) external onlyInternalStatesOrchestrator {
-        if (feeAmount == 0) return;
+    function accrueVaultFees(uint256 managementFee, uint256 performanceFee) external onlyLiquidityOrchestrator {
+        if (managementFee == 0 && performanceFee == 0) return;
 
-        pendingVaultFees += feeAmount;
+        uint256 totalFee = managementFee + performanceFee;
+        pendingVaultFees += totalFee;
 
-        emit VaultFeesAccrued(feeAmount, pendingVaultFees);
+        emit VaultFeesAccrued(managementFee, performanceFee);
     }
 
     /// @inheritdoc IOrionVault
@@ -731,7 +766,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
             // Transfer underlying assets from liquidity orchestrator to the user
             liquidityOrchestrator.transferRedemptionFunds(user, underlyingAmount);
 
-            emit Redeem(address(this), user, underlyingAmount, userShares);
+            emit Redeem(user, underlyingAmount, userShares);
         }
     }
 

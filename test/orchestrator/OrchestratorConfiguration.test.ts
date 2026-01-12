@@ -74,7 +74,7 @@ import {
   MockERC4626Asset,
   OrionAssetERC4626ExecutionAdapter,
   OrionConfig,
-  InternalStatesOrchestrator,
+  InternalStateOrchestrator,
   LiquidityOrchestrator,
   TransparentVaultFactory,
   OrionTransparentVault,
@@ -99,7 +99,7 @@ describe("Orchestrator Configuration", function () {
   let mockAsset3: MockERC4626Asset;
   let orionPriceAdapter: OrionAssetERC4626PriceAdapter;
   let orionExecutionAdapter: OrionAssetERC4626ExecutionAdapter;
-  let internalStatesOrchestrator: InternalStatesOrchestrator;
+  let InternalStateOrchestrator: InternalStateOrchestrator;
   let liquidityOrchestrator: LiquidityOrchestrator;
   let absoluteVault: OrionTransparentVault;
   let highWaterMarkVault: OrionTransparentVault;
@@ -183,7 +183,7 @@ describe("Orchestrator Configuration", function () {
     const deployed = await deployUpgradeableProtocol(owner, underlyingAsset, automationRegistry);
 
     orionConfig = deployed.orionConfig;
-    internalStatesOrchestrator = deployed.internalStatesOrchestrator;
+    InternalStateOrchestrator = deployed.InternalStateOrchestrator;
     liquidityOrchestrator = deployed.liquidityOrchestrator;
     transparentVaultFactory = deployed.transparentVaultFactory;
 
@@ -204,15 +204,15 @@ describe("Orchestrator Configuration", function () {
     await orionPriceAdapter.waitForDeployment();
 
     // Configure protocol
-    await internalStatesOrchestrator.connect(owner).updateProtocolFees(10, 1000);
+    await InternalStateOrchestrator.connect(owner).updateProtocolFees(10, 1000);
 
-    await expect(internalStatesOrchestrator.connect(owner).updateProtocolFees(51, 0)).to.be.revertedWithCustomError(
-      internalStatesOrchestrator,
+    await expect(InternalStateOrchestrator.connect(owner).updateProtocolFees(51, 0)).to.be.revertedWithCustomError(
+      InternalStateOrchestrator,
       "InvalidArguments",
     );
 
-    await expect(internalStatesOrchestrator.connect(owner).updateProtocolFees(0, 2001)).to.be.revertedWithCustomError(
-      internalStatesOrchestrator,
+    await expect(InternalStateOrchestrator.connect(owner).updateProtocolFees(0, 2001)).to.be.revertedWithCustomError(
+      InternalStateOrchestrator,
       "InvalidArguments",
     );
 
@@ -581,69 +581,69 @@ describe("Orchestrator Configuration", function () {
   describe("configuration", function () {
     it("should allow owner to update epoch duration", async function () {
       const newEpochDuration = 2 * 24 * 60 * 60; // 2 days
-      await internalStatesOrchestrator.updateEpochDuration(newEpochDuration);
-      expect(await internalStatesOrchestrator.epochDuration()).to.equal(newEpochDuration);
+      await InternalStateOrchestrator.updateEpochDuration(newEpochDuration);
+      expect(await InternalStateOrchestrator.epochDuration()).to.equal(newEpochDuration);
     });
 
     it("should allow owner to update minibatch sizes", async function () {
-      await expect(internalStatesOrchestrator.updateMinibatchSize(2)).to.not.be.reverted;
+      await expect(InternalStateOrchestrator.updateMinibatchSize(2)).to.not.be.reverted;
     });
 
     it("should allow owner to update protocol fees", async function () {
-      await internalStatesOrchestrator.updateProtocolFees(50, 100); // 0.5% volume fee, 1% revenue share
-      expect(await internalStatesOrchestrator.vFeeCoefficient()).to.equal(50);
-      expect(await internalStatesOrchestrator.rsFeeCoefficient()).to.equal(100);
+      await InternalStateOrchestrator.updateProtocolFees(50, 100); // 0.5% volume fee, 1% revenue share
+      expect(await InternalStateOrchestrator.vFeeCoefficient()).to.equal(50);
+      expect(await InternalStateOrchestrator.rsFeeCoefficient()).to.equal(100);
     });
 
     it("should revert when updating protocol fees with invalid arguments", async function () {
       // Test with volume fee coefficient exceeding maximum
-      await expect(internalStatesOrchestrator.updateProtocolFees(101, 100)).to.be.revertedWithCustomError(
-        internalStatesOrchestrator,
+      await expect(InternalStateOrchestrator.updateProtocolFees(101, 100)).to.be.revertedWithCustomError(
+        InternalStateOrchestrator,
         "InvalidArguments",
       );
 
       // Test with revenue share fee coefficient exceeding maximum
-      await expect(internalStatesOrchestrator.updateProtocolFees(50, 2001)).to.be.revertedWithCustomError(
-        internalStatesOrchestrator,
+      await expect(InternalStateOrchestrator.updateProtocolFees(50, 2001)).to.be.revertedWithCustomError(
+        InternalStateOrchestrator,
         "InvalidArguments",
       );
 
       // Test with both coefficients exceeding maximum
-      await expect(internalStatesOrchestrator.updateProtocolFees(101, 2001)).to.be.revertedWithCustomError(
-        internalStatesOrchestrator,
+      await expect(InternalStateOrchestrator.updateProtocolFees(101, 2001)).to.be.revertedWithCustomError(
+        InternalStateOrchestrator,
         "InvalidArguments",
       );
     });
 
     it("should not allow non-owner to update configuration", async function () {
       await expect(
-        internalStatesOrchestrator.connect(strategist).updateEpochDuration(86400),
-      ).to.be.revertedWithCustomError(internalStatesOrchestrator, "NotAuthorized");
+        InternalStateOrchestrator.connect(strategist).updateEpochDuration(86400),
+      ).to.be.revertedWithCustomError(InternalStateOrchestrator, "NotAuthorized");
     });
 
     it("should revert when updating automation registry with zero address", async function () {
       await expect(
-        internalStatesOrchestrator.updateAutomationRegistry(ethers.ZeroAddress),
-      ).to.be.revertedWithCustomError(internalStatesOrchestrator, "ZeroAddress");
+        InternalStateOrchestrator.updateAutomationRegistry(ethers.ZeroAddress),
+      ).to.be.revertedWithCustomError(InternalStateOrchestrator, "ZeroAddress");
     });
 
     it("should revert when updating automation registry when system is not idle", async function () {
       // Fast forward time to trigger upkeep and make system not idle
-      const epochDuration = await internalStatesOrchestrator.epochDuration();
+      const epochDuration = await InternalStateOrchestrator.epochDuration();
       await time.increase(epochDuration + 1n);
 
-      const [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      const [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
     });
 
     it("should successfully update automation registry and emit event", async function () {
       const newAutomationRegistry = user.address;
 
-      await expect(internalStatesOrchestrator.updateAutomationRegistry(newAutomationRegistry))
-        .to.emit(internalStatesOrchestrator, "AutomationRegistryUpdated")
+      await expect(InternalStateOrchestrator.updateAutomationRegistry(newAutomationRegistry))
+        .to.emit(InternalStateOrchestrator, "AutomationRegistryUpdated")
         .withArgs(newAutomationRegistry);
 
-      expect(await internalStatesOrchestrator.automationRegistry()).to.equal(newAutomationRegistry);
+      expect(await InternalStateOrchestrator.automationRegistry()).to.equal(newAutomationRegistry);
 
       await expect(liquidityOrchestrator.updateAutomationRegistry(newAutomationRegistry))
         .to.emit(liquidityOrchestrator, "AutomationRegistryUpdated")
