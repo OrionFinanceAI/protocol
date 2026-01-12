@@ -43,8 +43,7 @@ library EventsLib {
     event MaxFulfillBatchSizeUpdated(uint256 indexed maxFulfillBatchSize);
 
     /// @notice A vault fee model change has been scheduled.
-    /// @param vault The address of the vault.
-    event VaultFeeChangeScheduled(address indexed vault);
+    event VaultFeeChangeScheduled();
 
     /// @notice A protocol fee change has been scheduled.
     /// @param vFeeCoefficient The new volume fee coefficient.
@@ -72,11 +71,10 @@ library EventsLib {
     // =======================
 
     /// @notice A new order has been submitted.
-    /// @param vault The address of the vault that received the order.
     /// @param strategist The address of the strategist who submitted the order.
     /// @param assets Array of token addresses in the order.
     /// @param weights Array of weights in the order (parallel to assets array).
-    event OrderSubmitted(address indexed vault, address indexed strategist, address[] assets, uint256[] weights);
+    event OrderSubmitted(address indexed strategist, address[] assets, uint256[] weights);
 
     /// @notice The vault's state has been updated with complete portfolio information.
     /// @param newTotalAssets The new total assets value for the vault.

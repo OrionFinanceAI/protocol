@@ -48,11 +48,10 @@ interface IOrionVault is IERC4626 {
     event VaultFeeModelUpdated(uint8 indexed mode, uint16 indexed performanceFee, uint16 indexed managementFee);
 
     /// @notice A redemption request has been fulfilled.
-    /// @param vault The address of the vault where the redemption was fulfilled.
     /// @param user The address of the user whose redemption was fulfilled.
     /// @param redeemAmount The amount of assets redeemed by the user.
     /// @param sharesBurned The number of shares burned for the user.
-    event Redeem(address indexed vault, address indexed user, uint256 indexed redeemAmount, uint256 sharesBurned);
+    event Redeem(address indexed user, uint256 indexed redeemAmount, uint256 sharesBurned);
 
     /// @notice The vault whitelist has been updated.
     /// @param assets The new whitelist of assets.

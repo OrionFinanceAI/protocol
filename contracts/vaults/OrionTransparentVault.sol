@@ -108,7 +108,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
         // Validate that the total weight is 100%
         if (totalWeight != 10 ** config.strategistIntentDecimals()) revert ErrorsLib.InvalidTotalWeight();
 
-        emit EventsLib.OrderSubmitted(address(this), msg.sender, assets, weights);
+        emit EventsLib.OrderSubmitted(msg.sender, assets, weights);
     }
 
     // --------- INTERNAL STATE ORCHESTRATOR FUNCTIONS ---------

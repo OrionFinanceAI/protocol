@@ -485,7 +485,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         // Set when new rates become effective
         newFeeRatesTimestamp = block.timestamp + config.feeChangeCooldownDuration();
 
-        emit EventsLib.VaultFeeChangeScheduled(address(this));
+        emit EventsLib.VaultFeeChangeScheduled();
     }
 
     /// @notice Returns the active fee model (old during cooldown, new after)
@@ -731,7 +731,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
             // Transfer underlying assets from liquidity orchestrator to the user
             liquidityOrchestrator.transferRedemptionFunds(user, underlyingAmount);
 
-            emit Redeem(address(this), user, underlyingAmount, userShares);
+            emit Redeem(user, underlyingAmount, userShares);
         }
     }
 
