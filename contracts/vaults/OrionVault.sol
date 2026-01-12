@@ -622,7 +622,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         pendingVaultFees -= amount;
         liquidityOrchestrator.transferVaultFees(amount);
 
-        emit VaultFeesClaimed(amount);
+        emit VaultFeesClaimed(msg.sender, amount);
     }
 
     /// --------- INTERNAL STATE ORCHESTRATOR FUNCTIONS ---------
