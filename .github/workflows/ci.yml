@@ -23,7 +23,7 @@ jobs:
           version: "8"
 
       - name: "Setup Node.js"
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v6
         with:
           cache: pnpm
           node-version: lts/*
@@ -86,7 +86,7 @@ jobs:
           version: "8"
 
       - name: "Setup Node.js"
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v6
         with:
           cache: pnpm
           node-version: lts/*
@@ -128,7 +128,7 @@ jobs:
           version: "8"
 
       - name: "Setup Node.js"
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v6
         with:
           cache: pnpm
           node-version: lts/*
