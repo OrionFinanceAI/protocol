@@ -100,6 +100,14 @@ interface IOrionVault is IERC4626 {
         Math.Rounding rounding
     ) external view returns (uint256);
 
+    /// @notice Returns the implementation address of this proxy contract
+    /// @dev This function enables third-party protocol integrations to verify
+    ///      that the implementation address has not been modified unexpectedly.
+    ///      It reads the beacon address from the ERC-1967 storage slot and
+    ///      returns the implementation address from the beacon.
+    /// @return The address of the implementation contract
+    function implementation() external view returns (address);
+
     /// --------- CONFIG FUNCTIONS ---------
 
     /// @notice Override intent to 100% underlying asset for decommissioning
