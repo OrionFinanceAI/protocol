@@ -92,10 +92,19 @@ library EventsLib {
 
     /// @notice The vault's state has been updated with complete portfolio information.
     /// @param newTotalAssets The new total assets value for the vault.
+    /// @param totalSupply The total supply of the vault.
+    /// @param currentSharePrice The current share price of the vault.
+    /// @param highWaterMark The new high watermark value for the vault.
     /// @param tokens Array of token addresses in the portfolio.
     /// @param shares Array of shares per asset (parallel to tokens array).
-    /// @param highWaterMark The new high watermark value for the vault.
-    event VaultStateUpdated(uint256 indexed newTotalAssets, address[] tokens, uint256[] shares, uint256 highWaterMark);
+    event VaultStateUpdated(
+        uint256 indexed newTotalAssets,
+        uint256 indexed totalSupply,
+        uint256 indexed currentSharePrice,
+        uint256 highWaterMark,
+        address[] tokens,
+        uint256[] shares
+    );
 
     // ====================================
     // === Internal State Orchestrator ===
