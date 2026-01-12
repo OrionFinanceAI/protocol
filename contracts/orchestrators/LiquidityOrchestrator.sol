@@ -234,6 +234,10 @@ contract LiquidityOrchestrator is
         internalStateOrchestrator.subtractPendingProtocolFees(amount);
 
         IERC20(underlyingAsset).safeTransfer(msg.sender, amount);
+
+        emit EventsLib.ProtocolFeesClaimed(amount);
+        // TODO: when pendingProtocolFees states defined in LO, emit event also when accrued.
+        // Do so by accruing component, like done for vault fees.
     }
 
     /* -------------------------------------------------------------------------- */

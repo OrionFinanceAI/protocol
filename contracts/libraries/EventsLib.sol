@@ -136,6 +136,10 @@ library EventsLib {
     /// @param adapter The address of the execution adapter.
     event ExecutionAdapterSet(address indexed asset, address indexed adapter);
 
+    /// @notice Protocol fees have been claimed.
+    /// @param amount The amount of protocol fees claimed.
+    event ProtocolFeesClaimed(uint256 indexed amount);
+
     /// @notice Enumeration of available vault types.
     enum VaultType {
         Transparent,
