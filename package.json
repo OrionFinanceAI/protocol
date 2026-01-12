@@ -74,7 +74,7 @@
   },
   "dependencies": {
     "@chainlink/contracts": "^1.4.0",
-    "@fhevm/solidity": "^0.8.0",
+    "@fhevm/solidity": "^0.10.0",
     "@openzeppelin/contracts": "^5.4.0",
     "@openzeppelin/contracts-upgradeable": "^5.4.0",
     "encrypted-types": "^0.0.4"
