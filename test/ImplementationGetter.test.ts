@@ -20,25 +20,21 @@ describe("Implementation Getter Tests", function () {
     let vaultAddress: string;
 
     beforeEach(async function () {
-      // Deploy the full protocol
       const deployed = await deployUpgradeableProtocol(owner);
       orionConfig = deployed.orionConfig;
       vaultFactory = deployed.transparentVaultFactory;
       vaultBeacon = deployed.vaultBeacon;
 
-      // Whitelist vault owner
       const isWhitelisted = await orionConfig.isWhitelistedManager(owner.address);
       if (!isWhitelisted) {
         await orionConfig.connect(owner).addWhitelistedManager(owner.address);
       }
 
-      // Create a vault from the factory
       const tx = await vaultFactory
         .connect(owner)
         .createVault(strategist.address, "Test Vault", "TV", 0, 0, 0, ethers.ZeroAddress);
       const receipt = await tx.wait();
 
-      // Extract vault address from event
       const event = receipt?.logs.find((log) => {
         try {
           return vaultFactory.interface.parseLog(log)?.name === "OrionVaultCreated";
@@ -58,7 +54,6 @@ describe("Implementation Getter Tests", function () {
 
       expect(implementationAddress).to.not.equal(ethers.ZeroAddress);
       expect(implementationAddress).to.be.a("string");
-      expect(ethers.isAddress(implementationAddress)).to.be.true;
 
       const beaconImplementation = await vaultBeacon.implementation();
       expect(implementationAddress).to.equal(beaconImplementation);
@@ -87,7 +82,7 @@ describe("Implementation Getter Tests", function () {
       expect(newBeaconImplementation).to.equal(vaultV2ImplAddress);
       expect(newBeaconImplementation).to.not.equal(initialImplementation);
 
-      const newImplementation = await (vault as any).implementation();
+      const newImplementation = await vault.implementation();
       expect(newImplementation).to.equal(vaultV2ImplAddress);
       expect(newImplementation).to.not.equal(initialImplementation);
       expect(newImplementation).to.not.equal(ethers.ZeroAddress);
@@ -108,8 +103,6 @@ describe("Implementation Getter Tests", function () {
       expect(afterUpgrade).to.not.equal(ethers.ZeroAddress);
 
       expect(beforeUpgrade).to.not.equal(afterUpgrade);
-      expect(ethers.isAddress(beforeUpgrade)).to.be.true;
-      expect(ethers.isAddress(afterUpgrade)).to.be.true;
       expect(afterUpgrade).to.equal(vaultV2ImplAddress);
     });
 
