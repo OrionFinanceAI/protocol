@@ -79,20 +79,26 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
     /// @inheritdoc IOrionTransparentVault
     function submitIntent(IntentPosition[] calldata intent) external onlyStrategist {
-        if (intent.length == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
+        uint256 len = intent.length;
+        if (len == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
 
         _portfolioIntent.clear();
 
-        // Extract asset addresses for validation
-        address[] memory assets = new address[](intent.length);
+        address[] memory assets = new address[](len);
+        uint256[] memory weights = new uint256[](len);
 
         uint256 totalWeight = 0;
-        uint16 intentLength = uint16(intent.length);
-        for (uint16 i = 0; i < intentLength; ++i) {
-            address token = intent[i].token;
-            uint32 weight = intent[i].weight;
+        IntentPosition calldata pos;
+
+        for (uint256 i; i < len; ++i) {
+            pos = intent[i];
+            address token = pos.token;
+            uint32 weight = pos.weight;
+
             assets[i] = token;
-            bool inserted = _portfolioIntent.set(token, weight);
+            weights[i] = weight;
+
+            bool inserted = _portfolioIntent.set(token, uint32(weight));
             if (!inserted) revert ErrorsLib.TokenAlreadyInOrder(token);
             totalWeight += weight;
         }
@@ -102,7 +108,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
         // Validate that the total weight is 100%
         if (totalWeight != 10 ** config.strategistIntentDecimals()) revert ErrorsLib.InvalidTotalWeight();
 
-        emit EventsLib.OrderSubmitted(msg.sender);
+        emit EventsLib.OrderSubmitted(address(this), msg.sender, assets, weights);
     }
 
     // --------- INTERNAL STATE ORCHESTRATOR FUNCTIONS ---------

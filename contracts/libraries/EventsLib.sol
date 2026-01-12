@@ -71,20 +71,18 @@ library EventsLib {
     // === Vault Lifecycle ===
     // =======================
 
-    /// @notice A new order has been submitted by a strategist.
+    /// @notice A new order has been submitted.
+    /// @param vault The address of the vault that received the order.
     /// @param strategist The address of the strategist who submitted the order.
-    event OrderSubmitted(address indexed strategist);
-
+    /// @param assets Array of token addresses in the order.
+    /// @param weights Array of weights in the order (parallel to assets array).
+    event OrderSubmitted(address indexed vault, address indexed strategist, address[] assets, uint256[] weights);
 
     /// @notice The vault's state has been updated with complete portfolio information.
     /// @param newTotalAssets The new total assets value for the vault.
     /// @param tokens Array of token addresses in the portfolio.
     /// @param shares Array of shares per asset (parallel to tokens array).
-    event VaultStateUpdated(
-        uint256 indexed newTotalAssets,
-        address[] tokens,
-        uint256[] shares
-    );
+    event VaultStateUpdated(uint256 indexed newTotalAssets, address[] tokens, uint256[] shares);
 
     // ====================================
     // === Internal State Orchestrator ===

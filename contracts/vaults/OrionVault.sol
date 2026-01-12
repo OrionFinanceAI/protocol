@@ -52,7 +52,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     /// @notice OrionConfig contract
     IOrionConfig public config;
     /// @notice Internal state orchestrator
-    IInternalStateOrchestrator public InternalStateOrchestrator;
+    IInternalStateOrchestrator public internalStateOrchestrator;
     /// @notice Liquidity orchestrator
     ILiquidityOrchestrator public liquidityOrchestrator;
     /// @notice Deposit access control contract (address(0) = permissionless)
@@ -139,7 +139,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
 
     /// @dev Restricts function to only internal state orchestrator
     modifier onlyInternalStateOrchestrator() {
-        if (msg.sender != address(InternalStateOrchestrator)) revert ErrorsLib.NotAuthorized();
+        if (msg.sender != address(internalStateOrchestrator)) revert ErrorsLib.NotAuthorized();
         _;
     }
 
@@ -191,7 +191,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         manager = manager_;
         strategist = strategist_;
         config = config_;
-        InternalStateOrchestrator = IInternalStateOrchestrator(config_.InternalStateOrchestrator());
+        internalStateOrchestrator = IInternalStateOrchestrator(config_.InternalStateOrchestrator());
         liquidityOrchestrator = ILiquidityOrchestrator(config_.liquidityOrchestrator());
         depositAccessControl = depositAccessControl_;
 
@@ -525,7 +525,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         if (activeFees.managementFee == 0) return 0;
 
         uint256 annualFeeAmount = uint256(activeFees.managementFee).mulDiv(feeTotalAssets, BASIS_POINTS_FACTOR);
-        return annualFeeAmount.mulDiv(InternalStateOrchestrator.epochDuration(), YEAR_IN_SECONDS);
+        return annualFeeAmount.mulDiv(internalStateOrchestrator.epochDuration(), YEAR_IN_SECONDS);
     }
 
     /// @notice Calculate performance fee amount
@@ -547,7 +547,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         if (activeSharePrice < benchmark || divisor == 0) return 0;
         uint256 feeRate = uint256(activeFees.performanceFee).mulDiv(activeSharePrice - divisor, divisor);
         uint256 performanceFeeAmount = feeRate.mulDiv(feeTotalAssets, BASIS_POINTS_FACTOR);
-        return performanceFeeAmount.mulDiv(InternalStateOrchestrator.epochDuration(), YEAR_IN_SECONDS);
+        return performanceFeeAmount.mulDiv(internalStateOrchestrator.epochDuration(), YEAR_IN_SECONDS);
     }
 
     /// @notice Get benchmark value based on fee model type
@@ -582,7 +582,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     function _getHurdlePrice(uint256 currentSharePrice) internal view returns (uint256) {
         uint256 riskFreeRate = config.riskFreeRate();
 
-        uint256 hurdleReturn = riskFreeRate.mulDiv(InternalStateOrchestrator.epochDuration(), YEAR_IN_SECONDS);
+        uint256 hurdleReturn = riskFreeRate.mulDiv(internalStateOrchestrator.epochDuration(), YEAR_IN_SECONDS);
         return currentSharePrice.mulDiv(BASIS_POINTS_FACTOR + hurdleReturn, BASIS_POINTS_FACTOR);
     }
 
