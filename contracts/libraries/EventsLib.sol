@@ -75,9 +75,16 @@ library EventsLib {
     /// @param strategist The address of the strategist who submitted the order.
     event OrderSubmitted(address indexed strategist);
 
-    /// @notice The vault's state has been updated with new total assets.
+
+    /// @notice The vault's state has been updated with complete portfolio information.
     /// @param newTotalAssets The new total assets value for the vault.
-    event VaultStateUpdated(uint256 indexed newTotalAssets);
+    /// @param tokens Array of token addresses in the portfolio.
+    /// @param shares Array of shares per asset (parallel to tokens array).
+    event VaultStateUpdated(
+        uint256 indexed newTotalAssets,
+        address[] tokens,
+        uint256[] shares
+    );
 
     // ====================================
     // === Internal State Orchestrator ===
