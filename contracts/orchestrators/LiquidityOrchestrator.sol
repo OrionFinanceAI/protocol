@@ -89,6 +89,9 @@ contract LiquidityOrchestrator is
     /*                                 EPOCH STATE                                */
     /* -------------------------------------------------------------------------- */
 
+    /// @notice Epoch counter
+    uint256 public epochCounter;
+
     /// @notice Delta buffer amount for current epoch
     int256 public deltaBufferAmount;
 
@@ -253,6 +256,7 @@ contract LiquidityOrchestrator is
     /// @inheritdoc ILiquidityOrchestrator
     function advanceIdlePhase() external onlyInternalStateOrchestrator {
         currentPhase = LiquidityUpkeepPhase.SellingLeg;
+        emit EventsLib.EpochStart(epochCounter);
     }
 
     /* -------------------------------------------------------------------------- */
@@ -324,10 +328,7 @@ contract LiquidityOrchestrator is
             _processBuyLeg();
         } else if (currentPhase == LiquidityUpkeepPhase.ProcessVaultOperations) {
             _processVaultOperations();
-            internalStateOrchestrator.updateNextUpdateTime();
         }
-
-        emit EventsLib.PortfolioRebalanced();
     }
 
     /* -------------------------------------------------------------------------- */
@@ -431,6 +432,9 @@ contract LiquidityOrchestrator is
             i1 = uint16(transparentVaults.length);
             currentPhase = LiquidityUpkeepPhase.Idle;
             currentMinibatchIndex = 0;
+            internalStateOrchestrator.updateNextUpdateTime();
+            emit EventsLib.EpochEnd(epochCounter);
+            ++epochCounter;
         }
 
         for (uint16 i = i0; i < i1; ++i) {

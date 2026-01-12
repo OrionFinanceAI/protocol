@@ -118,8 +118,13 @@ library EventsLib {
     // === Liquidity Orchestrator ===
     // ================================
 
+    /// @notice A new epoch has started.
+    /// @param epochCounter The current epoch counter.
+    event EpochStart(uint256 indexed epochCounter);
+
     /// @notice The portfolio has been rebalanced.
-    event PortfolioRebalanced();
+    /// @param epochCounter The current epoch counter.
+    event EpochEnd(uint256 indexed epochCounter);
 
     /// @notice A price adapter has been set for an asset.
     /// @param asset The address of the asset.
