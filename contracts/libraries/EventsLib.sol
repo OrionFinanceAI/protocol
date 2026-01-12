@@ -43,12 +43,26 @@ library EventsLib {
     event MaxFulfillBatchSizeUpdated(uint256 indexed maxFulfillBatchSize);
 
     /// @notice A vault fee model change has been scheduled.
-    event VaultFeeChangeScheduled();
+    /// @param feeType The new fee type.
+    /// @param performanceFee The new performance fee.
+    /// @param managementFee The new management fee.
+    /// @param newFeeRatesTimestamp The timestamp when the new fee rates become effective.
+    event VaultFeeChangeScheduled(
+        uint8 indexed feeType,
+        uint16 indexed performanceFee,
+        uint16 indexed managementFee,
+        uint256 newFeeRatesTimestamp
+    );
 
     /// @notice A protocol fee change has been scheduled.
     /// @param vFeeCoefficient The new volume fee coefficient.
     /// @param rsFeeCoefficient The new revenue share fee coefficient.
-    event ProtocolFeeChangeScheduled(uint16 indexed vFeeCoefficient, uint16 indexed rsFeeCoefficient);
+    /// @param newProtocolFeeRatesTimestamp The timestamp when the new protocol fee rates become effective.
+    event ProtocolFeeChangeScheduled(
+        uint16 indexed vFeeCoefficient,
+        uint16 indexed rsFeeCoefficient,
+        uint256 indexed newProtocolFeeRatesTimestamp
+    );
 
     /// @notice The guardian address has been updated.
     /// @param guardian The new guardian address.

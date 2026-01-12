@@ -169,38 +169,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
         emit EventsLib.VaultStateUpdated(newTotalAssets, tokens, shares, feeModel.highWaterMark);
     }
 
-    /// --------- MANAGER FUNCTIONS ---------
-
-    /// @inheritdoc IOrionVault
-    function updateStrategist(address newStrategist) external onlyManager {
-        strategist = newStrategist;
-        emit StrategistUpdated(newStrategist);
-    }
-
-    /// @inheritdoc IOrionVault
-    function updateVaultWhitelist(address[] calldata assets) external onlyManager {
-        // Clear existing whitelist
-        _vaultWhitelistedAssets.clear();
-
-        for (uint256 i = 0; i < assets.length; ++i) {
-            address token = assets[i];
-
-            if (!config.isWhitelisted(token)) revert ErrorsLib.TokenNotWhitelisted(token);
-
-            bool inserted = _vaultWhitelistedAssets.add(token);
-            if (!inserted) revert ErrorsLib.AlreadyRegistered();
-        }
-
-        if (!_vaultWhitelistedAssets.contains(this.asset())) {
-            // slither-disable-next-line unused-return
-            _vaultWhitelistedAssets.add(this.asset());
-        }
-
-        emit VaultWhitelistUpdated(assets);
-    }
-
-    /// @notice Remove an asset from the vault whitelist and modify intent accordingly
-    /// @param asset The asset to remove from the whitelist
+    /// @inheritdoc IOrionTransparentVault
     function removeFromVaultWhitelist(address asset) external onlyConfig {
         // slither-disable-next-line unused-return
         _vaultWhitelistedAssets.remove(asset);

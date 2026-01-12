@@ -191,7 +191,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         manager = manager_;
         strategist = strategist_;
         config = config_;
-        internalStateOrchestrator = IInternalStateOrchestrator(config_.InternalStateOrchestrator());
+        internalStateOrchestrator = IInternalStateOrchestrator(config_.internalStateOrchestrator());
         liquidityOrchestrator = ILiquidityOrchestrator(config_.liquidityOrchestrator());
         depositAccessControl = depositAccessControl_;
 
@@ -459,6 +459,41 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         return _vaultWhitelistedAssets.values();
     }
 
+    /// @inheritdoc IOrionVault
+    function updateStrategist(address newStrategist) external onlyManager {
+        strategist = newStrategist;
+        emit StrategistUpdated(newStrategist);
+    }
+
+    /// @inheritdoc IOrionVault
+    function setDepositAccessControl(address newDepositAccessControl) external onlyManager {
+        // No extra checks, manager has right to fully stop deposits
+        depositAccessControl = newDepositAccessControl;
+        emit DepositAccessControlUpdated(newDepositAccessControl);
+    }
+
+    /// @inheritdoc IOrionVault
+    function updateVaultWhitelist(address[] calldata assets) external onlyManager {
+        // Clear existing whitelist
+        _vaultWhitelistedAssets.clear();
+
+        for (uint256 i = 0; i < assets.length; ++i) {
+            address token = assets[i];
+
+            if (!config.isWhitelisted(token)) revert ErrorsLib.TokenNotWhitelisted(token);
+
+            bool inserted = _vaultWhitelistedAssets.add(token);
+            if (!inserted) revert ErrorsLib.AlreadyRegistered();
+        }
+
+        if (!_vaultWhitelistedAssets.contains(this.asset())) {
+            // slither-disable-next-line unused-return
+            _vaultWhitelistedAssets.add(this.asset());
+        }
+
+        emit VaultWhitelistUpdated(assets);
+    }
+
     /// @notice Update the fee model parameters with cooldown protection
     /// @param feeType The fee type (0=ABSOLUTE, 1=HURDLE, 2=HIGH_WATER_MARK, 3=HURDLE_HWM)
     /// @param performanceFee The performance fee
@@ -485,7 +520,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         // Set when new rates become effective
         newFeeRatesTimestamp = block.timestamp + config.feeChangeCooldownDuration();
 
-        emit EventsLib.VaultFeeChangeScheduled();
+        emit EventsLib.VaultFeeChangeScheduled(feeType, performanceFee, managementFee, newFeeRatesTimestamp);
     }
 
     /// @notice Returns the active fee model (old during cooldown, new after)
@@ -593,13 +628,6 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
 
         pendingVaultFees -= amount;
         liquidityOrchestrator.transferVaultFees(amount);
-    }
-
-    /// @inheritdoc IOrionVault
-    function setDepositAccessControl(address newDepositAccessControl) external onlyManager {
-        // No extra checks, manager has right to fully stop deposits
-        depositAccessControl = newDepositAccessControl;
-        emit DepositAccessControlUpdated(newDepositAccessControl);
     }
 
     /// --------- INTERNAL STATE ORCHESTRATOR FUNCTIONS ---------

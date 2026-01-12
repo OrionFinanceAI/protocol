@@ -39,8 +39,8 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
 
     /// @notice Sets the internal state orchestrator address
     /// @dev Can only be called by the contract owner
-    /// @param _InternalStateOrchestrator The address of the internal state orchestrator
-    function setInternalStateOrchestrator(address _InternalStateOrchestrator) external;
+    /// @param internalStateOrchestrator The address of the internal state orchestrator
+    function setInternalStateOrchestrator(address internalStateOrchestrator) external;
 
     /// @notice Sets the target buffer ratio
     /// @param _targetBufferRatio The new target buffer ratio

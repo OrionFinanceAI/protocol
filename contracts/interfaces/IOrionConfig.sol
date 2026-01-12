@@ -12,7 +12,7 @@ interface IOrionConfig {
     /// @notice Returns the address of the internal state orchestrator contract
     /// @dev This orchestrator manages the internal state transitions of the protocol
     /// @return The address of the internal state orchestrator
-    function InternalStateOrchestrator() external view returns (address);
+    function internalStateOrchestrator() external view returns (address);
 
     /// @notice Returns the address of the liquidity orchestrator contract
     /// @dev This orchestrator manages liquidity operations and coordination

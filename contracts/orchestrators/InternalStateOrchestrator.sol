@@ -258,7 +258,7 @@ contract InternalStateOrchestrator is
         // Set when new rates become effective
         newProtocolFeeRatesTimestamp = block.timestamp + config.feeChangeCooldownDuration();
 
-        emit EventsLib.ProtocolFeeChangeScheduled(_vFeeCoefficient, _rsFeeCoefficient);
+        emit EventsLib.ProtocolFeeChangeScheduled(_vFeeCoefficient, _rsFeeCoefficient, newProtocolFeeRatesTimestamp);
     }
 
     /// @notice Returns the active protocol fees (old during cooldown, new after)
