@@ -145,8 +145,10 @@ contract InternalStateOrchestrator is
     /// @notice Buffer amount [assets]
     uint256 public bufferAmount;
 
-    /// @notice Vault fees per vault address [assets]
-    mapping(address => uint256) public vaultFees;
+    /// @notice Management fees per vault address [assets]
+    mapping(address => uint256) public vaultManagementFees;
+    /// @notice Performance fees per vault address [assets]
+    mapping(address => uint256) public vaultPerformanceFees;
 
     /// @dev Restricts function to only owner or automation registry
     modifier onlyAuthorizedTrigger() {
@@ -370,7 +372,8 @@ contract InternalStateOrchestrator is
 
             delete _currentEpoch.vaultPortfolioTokens[vault];
             delete _currentEpoch.vaultPortfolioShares[vault];
-            delete vaultFees[vault];
+            delete vaultManagementFees[vault];
+            delete vaultPerformanceFees[vault];
         }
         delete _currentEpoch.tokens;
 
@@ -444,15 +447,8 @@ contract InternalStateOrchestrator is
             totalAssets -= protocolVolumeFee;
 
             // STEP 3 & 4: VAULT FEES (Management + Performance)
-            uint256 vaultFee = vault.vaultFee(totalAssets);
-
-            totalAssets -= vaultFee;
+            totalAssets = _processVaultFees(vault, totalAssets, activeRsFee);
             _currentEpoch.vaultsTotalAssetsForFulfillRedeem[address(vault)] = totalAssets;
-
-            uint256 protocolRevenueShareFee = uint256(activeRsFee).mulDiv(vaultFee, BASIS_POINTS_FACTOR);
-            pendingProtocolFees += protocolRevenueShareFee;
-            vaultFee -= protocolRevenueShareFee;
-            vaultFees[address(vault)] = vaultFee;
 
             // STEP 5: WITHDRAWAL EXCHANGE RATE (based on post-fee totalAssets)
             uint256 pendingRedeem = vault.convertToAssetsWithPITTotalAssets(
@@ -579,6 +575,35 @@ contract InternalStateOrchestrator is
             _currentEpoch.tokens.push(token);
             _currentEpoch.tokenExists[token] = true;
         }
+    }
+
+    /// @notice Processes vault fees and calculates net fees after protocol revenue share
+    /// @param vault The vault to process fees for
+    /// @param totalAssets The total assets before fees
+    /// @param activeRsFee The active revenue share fee coefficient
+    /// @return The total assets after deducting vault fees
+    function _processVaultFees(
+        IOrionTransparentVault vault,
+        uint256 totalAssets,
+        uint16 activeRsFee
+    ) internal returns (uint256) {
+        (uint256 managementFee, uint256 performanceFee) = vault.vaultFee(totalAssets);
+        uint256 totalVaultFee = managementFee + performanceFee;
+
+        if (totalVaultFee == 0) {
+            vaultManagementFees[address(vault)] = 0;
+            vaultPerformanceFees[address(vault)] = 0;
+            return totalAssets;
+        }
+
+        uint256 protocolRevenueShareFee = uint256(activeRsFee).mulDiv(totalVaultFee, BASIS_POINTS_FACTOR);
+        pendingProtocolFees += protocolRevenueShareFee;
+
+        uint256 managementFeeProtocolShare = protocolRevenueShareFee.mulDiv(managementFee, totalVaultFee);
+        vaultManagementFees[address(vault)] = managementFee - managementFeeProtocolShare;
+        vaultPerformanceFees[address(vault)] = performanceFee - (protocolRevenueShareFee - managementFeeProtocolShare);
+
+        return totalAssets - totalVaultFee;
     }
 
     /// @notice Builds selling and buying orders based on portfolio differences
@@ -726,8 +751,8 @@ contract InternalStateOrchestrator is
     }
 
     /// @inheritdoc IInternalStateOrchestrator
-    function getVaultFee(address vault) external view returns (uint256) {
-        return vaultFees[vault];
+    function getVaultFee(address vault) external view returns (uint256 managementFee, uint256 performanceFee) {
+        return (vaultManagementFees[vault], vaultPerformanceFees[vault]);
     }
 
     /// @inheritdoc IInternalStateOrchestrator

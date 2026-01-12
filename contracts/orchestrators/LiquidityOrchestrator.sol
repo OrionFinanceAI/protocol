@@ -478,10 +478,8 @@ contract LiquidityOrchestrator is
             vaultContract.fulfillDeposit(totalAssetsForDeposit);
         }
 
-        uint256 vaultFee = internalStateOrchestrator.getVaultFee(vault);
-        if (vaultFee > 0) {
-            IOrionVault(vault).accrueVaultFees(vaultFee);
-        }
+        (uint256 managementFee, uint256 performanceFee) = internalStateOrchestrator.getVaultFee(vault);
+        IOrionVault(vault).accrueVaultFees(managementFee, performanceFee);
 
         (address[] memory tokens, uint256[] memory shares) = internalStateOrchestrator.getVaultPortfolio(vault);
         vaultContract.updateVaultState(tokens, shares, finalTotalAssets);

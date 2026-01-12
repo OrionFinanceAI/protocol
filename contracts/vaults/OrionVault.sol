@@ -539,11 +539,10 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     }
 
     /// @inheritdoc IOrionVault
-    function vaultFee(uint256 activeTotalAssets) external view returns (uint256) {
-        uint256 managementFeeAmount = _managementFeeAmount(activeTotalAssets);
-        uint256 intermediateTotalAssets = activeTotalAssets - managementFeeAmount;
-        uint256 performanceFeeAmount = _performanceFeeAmount(intermediateTotalAssets);
-        return managementFeeAmount + performanceFeeAmount;
+    function vaultFee(uint256 activeTotalAssets) external view returns (uint256 managementFee, uint256 performanceFee) {
+        managementFee = _managementFeeAmount(activeTotalAssets);
+        uint256 intermediateTotalAssets = activeTotalAssets - managementFee;
+        performanceFee = _performanceFeeAmount(intermediateTotalAssets);
     }
 
     /// @notice Calculate management fee amount
@@ -667,12 +666,13 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     }
 
     /// @inheritdoc IOrionVault
-    function accrueVaultFees(uint256 feeAmount) external onlyLiquidityOrchestrator {
-        if (feeAmount == 0) return;
+    function accrueVaultFees(uint256 managementFee, uint256 performanceFee) external onlyLiquidityOrchestrator {
+        if (managementFee == 0 && performanceFee == 0) return;
 
-        pendingVaultFees += feeAmount;
+        uint256 totalFee = managementFee + performanceFee;
+        pendingVaultFees += totalFee;
 
-        emit VaultFeesAccrued(feeAmount);
+        emit VaultFeesAccrued(managementFee, performanceFee);
     }
 
     /// @inheritdoc IOrionVault

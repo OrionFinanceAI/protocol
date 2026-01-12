@@ -58,8 +58,9 @@ interface IOrionVault is IERC4626 {
     event VaultWhitelistUpdated(address[] assets);
 
     /// @notice Fees have been accrued.
-    /// @param feeAmount The amount of fees associated with the current epoch.
-    event VaultFeesAccrued(uint256 feeAmount);
+    /// @param managementFee The amount of management fees accrued.
+    /// @param performanceFee The amount of performance fees accrued.
+    event VaultFeesAccrued(uint256 managementFee, uint256 performanceFee);
 
     /// @notice Fees have been claimed.
     /// @param feeAmount The amount of fees claimed.
@@ -183,10 +184,11 @@ interface IOrionVault is IERC4626 {
 
     /// @notice Calculate the vault's fee based on total assets
     /// @param totalAssets The total assets under management
-    /// @return The vault fee amount in underlying asset units
+    /// @return managementFee The management fee amount in underlying asset units
+    /// @return performanceFee The performance fee amount in underlying asset units
     /// @dev Warning: Calling this function mid-epoch may return inaccurate results
     ///      since fees are calculated based on the full epoch duration
-    function vaultFee(uint256 totalAssets) external view returns (uint256);
+    function vaultFee(uint256 totalAssets) external view returns (uint256 managementFee, uint256 performanceFee);
 
     /// --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
 
@@ -199,6 +201,7 @@ interface IOrionVault is IERC4626 {
     function fulfillRedeem(uint256 redeemTotalAssets) external;
 
     /// @notice Accrue vault fees for a specific epoch
-    /// @param feeAmount The amount of vault fees to accrue in underlying asset units
-    function accrueVaultFees(uint256 feeAmount) external;
+    /// @param managementFee The amount of management fees to accrue in underlying asset units
+    /// @param performanceFee The amount of performance fees to accrue in underlying asset units
+    function accrueVaultFees(uint256 managementFee, uint256 performanceFee) external;
 }
