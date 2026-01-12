@@ -166,7 +166,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
             feeModel.highWaterMark = currentSharePrice;
         }
 
-        emit EventsLib.VaultStateUpdated(newTotalAssets, tokens, shares);
+        emit EventsLib.VaultStateUpdated(newTotalAssets, tokens, shares, feeModel.highWaterMark);
     }
 
     /// --------- MANAGER FUNCTIONS ---------
