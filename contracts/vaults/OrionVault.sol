@@ -137,12 +137,6 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         _;
     }
 
-    /// @dev Restricts function to only internal state orchestrator
-    modifier onlyInternalStateOrchestrator() {
-        if (msg.sender != address(internalStateOrchestrator)) revert ErrorsLib.NotAuthorized();
-        _;
-    }
-
     /// @dev Restricts function to only liquidity orchestrator
     modifier onlyLiquidityOrchestrator() {
         if (msg.sender != address(liquidityOrchestrator)) revert ErrorsLib.NotAuthorized();
@@ -671,12 +665,12 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     }
 
     /// @inheritdoc IOrionVault
-    function accrueVaultFees(uint256 feeAmount) external onlyInternalStateOrchestrator {
+    function accrueVaultFees(uint256 feeAmount) external onlyLiquidityOrchestrator {
         if (feeAmount == 0) return;
 
         pendingVaultFees += feeAmount;
 
-        emit VaultFeesAccrued(feeAmount, pendingVaultFees);
+        emit VaultFeesAccrued(feeAmount);
     }
 
     /// @inheritdoc IOrionVault

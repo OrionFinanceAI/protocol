@@ -145,6 +145,9 @@ contract InternalStateOrchestrator is
     /// @notice Buffer amount [assets]
     uint256 public bufferAmount;
 
+    /// @notice Vault fees per vault address [assets]
+    mapping(address => uint256) public vaultFees;
+
     /// @dev Restricts function to only owner or automation registry
     modifier onlyAuthorizedTrigger() {
         if (msg.sender != owner() && msg.sender != automationRegistry) {
@@ -367,6 +370,7 @@ contract InternalStateOrchestrator is
 
             delete _currentEpoch.vaultPortfolioTokens[vault];
             delete _currentEpoch.vaultPortfolioShares[vault];
+            delete vaultFees[vault];
         }
         delete _currentEpoch.tokens;
 
@@ -448,7 +452,7 @@ contract InternalStateOrchestrator is
             uint256 protocolRevenueShareFee = uint256(activeRsFee).mulDiv(vaultFee, BASIS_POINTS_FACTOR);
             pendingProtocolFees += protocolRevenueShareFee;
             vaultFee -= protocolRevenueShareFee;
-            vault.accrueVaultFees(vaultFee);
+            vaultFees[address(vault)] = vaultFee;
 
             // STEP 5: WITHDRAWAL EXCHANGE RATE (based on post-fee totalAssets)
             uint256 pendingRedeem = vault.convertToAssetsWithPITTotalAssets(
@@ -719,6 +723,11 @@ contract InternalStateOrchestrator is
     function getVaultPortfolio(address vault) external view returns (address[] memory tokens, uint256[] memory shares) {
         tokens = _currentEpoch.vaultPortfolioTokens[vault];
         shares = _currentEpoch.vaultPortfolioShares[vault];
+    }
+
+    /// @inheritdoc IInternalStateOrchestrator
+    function getVaultFee(address vault) external view returns (uint256) {
+        return vaultFees[vault];
     }
 
     /// @inheritdoc IInternalStateOrchestrator

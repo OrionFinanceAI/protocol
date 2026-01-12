@@ -58,9 +58,8 @@ interface IOrionVault is IERC4626 {
     event VaultWhitelistUpdated(address[] assets);
 
     /// @notice Fees have been accrued.
-    /// @param feeAmount The amount of fees accrued in underlying asset units.
-    /// @param pendingVaultFees The total pending vault fees in underlying asset units.
-    event VaultFeesAccrued(uint256 indexed feeAmount, uint256 indexed pendingVaultFees);
+    /// @param feeAmount The amount of fees associated with the current epoch.
+    event VaultFeesAccrued(uint256 feeAmount);
 
     /// @notice The deposit access control contract has been updated.
     /// @param newDepositAccessControl The new deposit access control contract address (address(0) = permissionless).
