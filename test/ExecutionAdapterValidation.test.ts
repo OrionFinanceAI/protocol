@@ -59,9 +59,7 @@ describe("Execution Adapter Validation - Comprehensive Tests", function () {
     await mockSwapExecutor.waitForDeployment();
 
     // Deploy execution adapter
-    const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
-      "ERC4626ExecutionAdapter",
-    );
+    const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
     erc4626ExecutionAdapter = (await ERC4626ExecutionAdapterFactory.deploy(
       await orionConfig.getAddress(),
       await mockSwapExecutor.getAddress(),

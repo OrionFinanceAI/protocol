@@ -74,9 +74,7 @@ describe("Price Adapter", function () {
       const mockSwapExecutor = await MockSwapExecutorFactory.deploy();
       await mockSwapExecutor.waitForDeployment();
 
-      const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
-        "ERC4626ExecutionAdapter",
-      );
+      const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
       const erc4626ExecutionAdapter = await ERC4626ExecutionAdapterFactory.deploy(
         await orionConfig.getAddress(),
         await mockSwapExecutor.getAddress(),
@@ -147,9 +145,7 @@ describe("Price Adapter", function () {
       const mockSwapExecutor = await MockSwapExecutorFactory.deploy();
       await mockSwapExecutor.waitForDeployment();
 
-      const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
-        "ERC4626ExecutionAdapter",
-      );
+      const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
       const erc4626ExecutionAdapter = await ERC4626ExecutionAdapterFactory.deploy(
         await orionConfig.getAddress(),
         await mockSwapExecutor.getAddress(),
@@ -194,9 +190,7 @@ describe("Price Adapter", function () {
       mockSwapExecutor = (await MockSwapExecutorFactory.deploy()) as unknown as MockSwapExecutor;
       await mockSwapExecutor.waitForDeployment();
 
-      const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
-        "ERC4626ExecutionAdapter",
-      );
+      const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
       erc4626ExecutionAdapter = (await ERC4626ExecutionAdapterFactory.deploy(
         await orionConfig.getAddress(),
         await mockSwapExecutor.getAddress(),

@@ -92,9 +92,7 @@ describe("Whitelist and Vault Removal Flows", function () {
     const mockSwapExecutor = await MockSwapExecutorFactory.deploy();
     await mockSwapExecutor.waitForDeployment();
 
-    const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
-      "ERC4626ExecutionAdapter",
-    );
+    const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
     orionExecutionAdapter = (await ERC4626ExecutionAdapterFactory.deploy(
       await orionConfig.getAddress(),
       await mockSwapExecutor.getAddress(),
