@@ -77,9 +77,6 @@ library ErrorsLib {
     /// @param expected The expected value.
     error SlippageExceeded(address asset, uint256 actual, uint256 expected);
 
-    /// @notice Swap execution failed to meet output requirements.
-    error SwapFailed();
-
     /// @notice Insufficient output from swap execution.
     /// @param received The amount received from the swap.
     /// @param minimum The minimum amount required.
@@ -87,9 +84,6 @@ library ErrorsLib {
 
     /// @notice Swap executor address is invalid or not set.
     error InvalidSwapExecutor();
-
-    /// @notice Caller is not authorized for this operation.
-    error UnauthorizedCaller();
 
     /// @notice Price data from oracle is stale or outdated.
     error StalePrice();

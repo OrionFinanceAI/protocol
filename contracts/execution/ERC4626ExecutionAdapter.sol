@@ -58,7 +58,7 @@ contract ERC4626ExecutionAdapter is IExecutionAdapterWithRouting {
 
     modifier onlyLiquidityOrchestrator() {
         if (msg.sender != address(liquidityOrchestrator)) {
-            revert ErrorsLib.UnauthorizedCaller();
+            revert ErrorsLib.NotAuthorized();
         }
         _;
     }

@@ -28,7 +28,6 @@ contract UniswapV3SwapExecutor is ISwapExecutor {
     using SafeERC20 for IERC20;
 
     /// @notice Uniswap V3 swap router
-    // solhint-disable-next-line immutable-vars-naming, use-natspec
     ISwapRouter public immutable swapRouter;
 
     /**
@@ -39,14 +38,7 @@ contract UniswapV3SwapExecutor is ISwapExecutor {
         if (_swapRouter == address(0)) revert ErrorsLib.ZeroAddress();
         swapRouter = ISwapRouter(_swapRouter);
     }
-
     /// @inheritdoc ISwapExecutor
-    /// @param tokenIn Address of the input token
-    /// @param tokenOut Address of the output token
-    /// @param amountOut Exact amount of output tokens desired
-    /// @param amountInMax Maximum amount of input tokens to spend
-    /// @param routeParams Encoded Uniswap pool parameters (uint24 fee)
-    /// @return amountIn Actual amount of input tokens spent
     function swapExactOutput(
         address tokenIn,
         address tokenOut,
@@ -88,12 +80,6 @@ contract UniswapV3SwapExecutor is ISwapExecutor {
     }
 
     /// @inheritdoc ISwapExecutor
-    /// @param tokenIn Address of the input token
-    /// @param tokenOut Address of the output token
-    /// @param amountIn Exact amount of input tokens to spend
-    /// @param amountOutMin Minimum amount of output tokens to receive
-    /// @param routeParams Encoded Uniswap pool parameters (uint24 fee)
-    /// @return amountOut Actual amount of output tokens received
     function swapExactInput(
         address tokenIn,
         address tokenOut,
@@ -126,10 +112,5 @@ contract UniswapV3SwapExecutor is ISwapExecutor {
 
         // Clean up approval
         IERC20(tokenIn).forceApprove(address(swapRouter), 0);
-
-        // Verify minimum output was met (router should revert, but double-check)
-        if (amountOut < amountOutMin) {
-            revert ErrorsLib.InsufficientSwapOutput(amountOut, amountOutMin);
-        }
     }
 }
