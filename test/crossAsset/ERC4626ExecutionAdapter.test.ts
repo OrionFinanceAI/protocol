@@ -78,17 +78,7 @@ describe("ERC4626ExecutionAdapter", function () {
   before(async function () {
     this.timeout(120000); // 2 minutes for mainnet forking
 
-    // Fork mainnet at latest block
-    await network.provider.request({
-      method: "hardhat_reset",
-      params: [
-        {
-          forking: {
-            jsonRpcUrl: process.env.MAINNET_RPC_URL || process.env.RPC_URL || "https://eth.llamarpc.com",
-          },
-        },
-      ],
-    });
+    // Forking is configured in hardhat.config.ts
 
     [owner] = await ethers.getSigners();
 
@@ -156,17 +146,18 @@ describe("ERC4626ExecutionAdapter", function () {
     });
 
     it("Should fund test accounts with USDC", async function () {
-      // Use hardhat_setStorageAt to give liquidityOrchestrator USDC
-      // USDC storage slot for balances is slot 9
-      const loAddress = await liquidityOrchestrator.getAddress();
-      const balanceSlot = ethers.solidityPackedKeccak256(["uint256", "uint256"], [loAddress, 9]);
+      // Use impersonated whale to transfer USDC to liquidityOrchestrator
+      // This avoids hardhat_setStorageAt which isn't supported in forked mode
+      const usdcWhale = await ethers.getImpersonatedSigner(MAINNET.USDC_WHALE);
 
-      // Set balance to INITIAL_USDC_BALANCE
-      await network.provider.send("hardhat_setStorageAt", [
-        MAINNET.USDC,
-        balanceSlot,
-        ethers.toBeHex(INITIAL_USDC_BALANCE, 32),
-      ]);
+      // Fund whale with ETH for gas
+      await owner.sendTransaction({
+        to: MAINNET.USDC_WHALE,
+        value: ethers.parseEther("10"),
+      });
+
+      const loAddress = await liquidityOrchestrator.getAddress();
+      await usdc.connect(usdcWhale).transfer(loAddress, INITIAL_USDC_BALANCE);
 
       const balance = await usdc.balanceOf(loAddress);
       expect(balance).to.equal(INITIAL_USDC_BALANCE);

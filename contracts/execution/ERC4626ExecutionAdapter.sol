@@ -28,7 +28,11 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
  * 2. Exact-output swaps for buy (guarantee exact vault deposit amount)
  * 3. Exact-input swaps for sell (convert all underlying received)
  * 4. All approvals are transient and zeroed immediately after use
- * 5. Adapter never holds funds between transactions (dust acceptable)
+ * 5. Adapter never holds funds between transactions
+ *
+ * Note on dust accumulation:
+ * The adapter may accumulate negligible dust amounts in vault underlying due to vault rounding.
+ * This is acceptable per the architecture design and does not affect security or user funds.
  *
  * @custom:security-contact security@orionfinance.ai
  */
@@ -37,20 +41,55 @@ contract ERC4626ExecutionAdapter is IExecutionAdapterWithRouting {
     using Math for uint256;
 
     /// @notice Basis points factor for slippage calculations
-    uint256 public constant BASIS_POINTS_FACTOR = 10000;
+    uint256 public constant BASIS_POINTS_FACTOR = 10_000;
 
     /// @notice Orion protocol configuration contract
     // solhint-disable-next-line immutable-vars-naming, use-natspec
     IOrionConfig public immutable config;
-    /// @notice Protocol numeraire token (USDC)
+    /// @notice Protocol underlying asset (USDC)
     // solhint-disable-next-line immutable-vars-naming, use-natspec
-    IERC20 public immutable numeraireToken;
+    IERC20 public immutable underlyingAsset;
     /// @notice Liquidity orchestrator contract
     // solhint-disable-next-line immutable-vars-naming, use-natspec
     ILiquidityOrchestrator public immutable liquidityOrchestrator;
     /// @notice Swap executor for DEX operations
     // solhint-disable-next-line immutable-vars-naming, use-natspec
     ISwapExecutor public immutable swapExecutor;
+
+    modifier onlyLiquidityOrchestrator() {
+        if (msg.sender != address(liquidityOrchestrator)) {
+            revert ErrorsLib.UnauthorizedCaller();
+        }
+        _;
+    }
+
+    /**
+     * @notice Calculate maximum amount with slippage applied
+     * @param estimatedAmount The estimated amount
+     * @return maxAmount Maximum amount including slippage tolerance
+     * @dev TODO: Move slippage calculation to LiquidityOrchestrator
+     */
+    function _calculateMaxWithSlippage(uint256 estimatedAmount) internal view returns (uint256 maxAmount) {
+        return
+            estimatedAmount.mulDiv(
+                BASIS_POINTS_FACTOR + liquidityOrchestrator.slippageTolerance(),
+                BASIS_POINTS_FACTOR
+            );
+    }
+
+    /**
+     * @notice Calculate minimum amount with slippage applied
+     * @param estimatedAmount The estimated amount
+     * @return minAmount Minimum amount including slippage tolerance
+     * @dev TODO: Move slippage calculation to LiquidityOrchestrator
+     */
+    function _calculateMinWithSlippage(uint256 estimatedAmount) internal view returns (uint256 minAmount) {
+        return
+            estimatedAmount.mulDiv(
+                BASIS_POINTS_FACTOR - liquidityOrchestrator.slippageTolerance(),
+                BASIS_POINTS_FACTOR
+            );
+    }
 
     /**
      * @notice Constructor
@@ -63,24 +102,36 @@ contract ERC4626ExecutionAdapter is IExecutionAdapterWithRouting {
         }
 
         config = IOrionConfig(configAddress);
-        numeraireToken = config.underlyingAsset(); // USDC
+        underlyingAsset = config.underlyingAsset(); // USDC
         liquidityOrchestrator = ILiquidityOrchestrator(config.liquidityOrchestrator());
         swapExecutor = ISwapExecutor(swapExecutorAddress);
     }
 
     /// @inheritdoc IExecutionAdapter
     function validateExecutionAdapter(address asset) external view override {
-        // Verify asset implements ERC4626
-        try IERC4626(asset).asset() returns (address) {
-            // Asset implements ERC4626 - additional validation
+        IERC4626 vault = IERC4626(asset);
+
+        // Verify asset implements ERC4626 and get underlying
+        address vaultUnderlying;
+        try vault.asset() returns (address underlying) {
+            vaultUnderlying = underlying;
         } catch {
-            // Asset does not implement ERC4626
             revert ErrorsLib.InvalidAdapter(asset);
         }
 
         // Verify vault decimals match config
-        try IERC20Metadata(asset).decimals() returns (uint8 decimals) {
-            if (decimals != config.getTokenDecimals(asset)) {
+        try IERC20Metadata(asset).decimals() returns (uint8 vaultDecimals) {
+            if (vaultDecimals != config.getTokenDecimals(asset)) {
+                revert ErrorsLib.InvalidAdapter(asset);
+            }
+        } catch {
+            revert ErrorsLib.InvalidAdapter(asset);
+        }
+
+        // Verify vault underlying decimals are registered
+        try IERC20Metadata(vaultUnderlying).decimals() returns (uint8 underlyingDecimals) {
+            uint8 configDecimals = config.getTokenDecimals(vaultUnderlying);
+            if (configDecimals == 0 || underlyingDecimals != configDecimals) {
                 revert ErrorsLib.InvalidAdapter(asset);
             }
         } catch {
@@ -92,10 +143,10 @@ contract ERC4626ExecutionAdapter is IExecutionAdapterWithRouting {
     function buy(
         address vaultAsset,
         uint256 sharesAmount,
-        uint256 estimatedNumeraireAmount
-    ) external onlyLiquidityOrchestrator returns (uint256 spentNumeraireAmount) {
+        uint256 estimatedUnderlyingAmount
+    ) external onlyLiquidityOrchestrator returns (uint256 executionUnderlyingAmount) {
         // Call routing version with empty params
-        return _buyWithRouting(vaultAsset, sharesAmount, estimatedNumeraireAmount, "");
+        return _buyWithRouting(vaultAsset, sharesAmount, estimatedUnderlyingAmount, "");
     }
 
     /// @inheritdoc IExecutionAdapterWithRouting
@@ -103,10 +154,10 @@ contract ERC4626ExecutionAdapter is IExecutionAdapterWithRouting {
     function buy(
         address vaultAsset,
         uint256 sharesAmount,
-        uint256 estimatedNumeraireAmount,
+        uint256 estimatedUnderlyingAmount,
         bytes calldata routeParams
-    ) external onlyLiquidityOrchestrator returns (uint256 spentNumeraireAmount) {
-        return _buyWithRouting(vaultAsset, sharesAmount, estimatedNumeraireAmount, routeParams);
+    ) external onlyLiquidityOrchestrator returns (uint256 executionUnderlyingAmount) {
+        return _buyWithRouting(vaultAsset, sharesAmount, estimatedUnderlyingAmount, routeParams);
     }
 
     /// @dev Internal implementation of buy with routing
@@ -114,9 +165,9 @@ contract ERC4626ExecutionAdapter is IExecutionAdapterWithRouting {
     function _buyWithRouting(
         address vaultAsset,
         uint256 sharesAmount,
-        uint256 estimatedNumeraireAmount,
+        uint256 estimatedUnderlyingAmount,
         bytes memory routeParams
-    ) internal returns (uint256 spentNumeraireAmount) {
+    ) internal returns (uint256 executionUnderlyingAmount) {
         // Atomically validate all assumptions
         this.validateExecutionAdapter(vaultAsset);
 
@@ -127,53 +178,42 @@ contract ERC4626ExecutionAdapter is IExecutionAdapterWithRouting {
         // previewMint returns underlying needed to mint exact sharesAmount
         uint256 underlyingNeeded = vault.previewMint(sharesAmount);
 
-        // Step 2: Calculate max numeraire with slippage envelope
+        // Step 2: Calculate max underlying with slippage envelope
         // This single envelope covers BOTH swap and vault operations
-        uint256 maxNumeraire = estimatedNumeraireAmount.mulDiv(
-            BASIS_POINTS_FACTOR + liquidityOrchestrator.slippageTolerance(),
-            BASIS_POINTS_FACTOR
-        );
+        uint256 maxUnderlying = _calculateMaxWithSlippage(estimatedUnderlyingAmount);
 
-        uint256 numeraireSpentOnSwap = 0;
+        uint256 underlyingSpentOnSwap = 0;
 
         // Step 3-6: Handle same-asset vs cross-asset scenarios
-        if (vaultUnderlying == address(numeraireToken)) {
-            // Same-asset: vault's underlying IS the numeraire (e.g., USDC vault)
+        if (vaultUnderlying == address(underlyingAsset)) {
+            // Same-asset: vault's underlying IS the protocol underlying (e.g., USDC vault)
             // No swap needed - pull exact amount needed by vault
             // Note: We pull underlyingNeeded which vault.previewMint() calculated
-            // The LO approved maxNumeraire, so this will revert if underlyingNeeded > maxNumeraire
-            numeraireToken.safeTransferFrom(msg.sender, address(this), underlyingNeeded);
-            numeraireSpentOnSwap = underlyingNeeded;
+            // The LO approved maxUnderlying, so this will revert if underlyingNeeded > maxUnderlying
+            underlyingAsset.safeTransferFrom(msg.sender, address(this), underlyingNeeded);
+            underlyingSpentOnSwap = underlyingNeeded;
         } else {
             // Cross-asset: vault's underlying is different (e.g., WETH, WBTC)
-            // Need to swap numeraire → underlying
+            // Need to swap underlying → vault asset
 
-            // Pull max numeraire from LO to cover swap slippage
-            numeraireToken.safeTransferFrom(msg.sender, address(this), maxNumeraire);
+            // Pull max underlying from LO to cover swap slippage
+            underlyingAsset.safeTransferFrom(msg.sender, address(this), maxUnderlying);
 
-            // Step 4: Approve swap executor to spend numeraire
-            numeraireToken.forceApprove(address(swapExecutor), maxNumeraire);
+            // Step 4: Approve swap executor to spend underlying
+            underlyingAsset.forceApprove(address(swapExecutor), maxUnderlying);
 
-            // Step 5: Execute exact-output swap (USDC → underlying)
+            // Step 5: Execute exact-output swap (USDC → vault underlying)
             // SwapExecutor guarantees exact underlyingNeeded output or reverts
-            try
-                swapExecutor.swapExactOutput(
-                    address(numeraireToken), // tokenIn: USDC
-                    vaultUnderlying, // tokenOut: WETH/WBTC/etc
-                    underlyingNeeded, // amountOut: exact amount needed
-                    maxNumeraire, // amountInMax: slippage limit
-                    routeParams // venue-specific routing
-                )
-            returns (uint256 actualNumeraireSpent) {
-                numeraireSpentOnSwap = actualNumeraireSpent;
-            } catch {
-                // Clean up before revert
-                numeraireToken.forceApprove(address(swapExecutor), 0);
-                revert ErrorsLib.SwapFailed();
-            }
+            underlyingSpentOnSwap = swapExecutor.swapExactOutput(
+                address(underlyingAsset),
+                vaultUnderlying,
+                underlyingNeeded,
+                maxUnderlying,
+                routeParams
+            );
 
             // Step 6: Clean up swap executor approval
-            numeraireToken.forceApprove(address(swapExecutor), 0);
+            underlyingAsset.forceApprove(address(swapExecutor), 0);
         }
 
         // Step 7: Approve vault to spend underlying
@@ -186,31 +226,28 @@ contract ERC4626ExecutionAdapter is IExecutionAdapterWithRouting {
         // Step 9: Clean up vault approval
         IERC20(vaultUnderlying).forceApprove(vaultAsset, 0);
 
-        // Step 10: Refund excess numeraire to LO (if swap used less than max)
-        uint256 numeraireBalance = numeraireToken.balanceOf(address(this));
-        if (numeraireBalance > 0) {
-            numeraireToken.safeTransfer(msg.sender, numeraireBalance);
+        // Step 10: Refund excess underlying to LO (if swap used less than max)
+        uint256 underlyingBalance = underlyingAsset.balanceOf(address(this));
+        if (underlyingBalance > 0) {
+            underlyingAsset.safeTransfer(msg.sender, underlyingBalance);
         }
 
         // Step 11: Push exact shares to LO
         IERC20(vaultAsset).safeTransfer(msg.sender, sharesAmount);
 
-        // Step 12: Return actual numeraire spent
-        // LO will enforce slippage by comparing spentNumeraireAmount vs estimatedNumeraireAmount
-        spentNumeraireAmount = numeraireSpentOnSwap;
-
-        // Note: Adapter may accumulate dust in vaultUnderlying if vault rounding leaves residual
-        // This is acceptable per the architecture - dust amounts are negligible
+        // Step 12: Return actual underlying spent
+        // LO will enforce slippage by comparing executionUnderlyingAmount vs estimatedUnderlyingAmount
+        executionUnderlyingAmount = underlyingSpentOnSwap;
     }
 
     /// @inheritdoc IExecutionAdapter
     function sell(
         address vaultAsset,
         uint256 sharesAmount,
-        uint256 estimatedNumeraireAmount
-    ) external onlyLiquidityOrchestrator returns (uint256 receivedNumeraireAmount) {
+        uint256 estimatedUnderlyingAmount
+    ) external onlyLiquidityOrchestrator returns (uint256 executionUnderlyingAmount) {
         // Call routing version with empty params
-        return _sellWithRouting(vaultAsset, sharesAmount, estimatedNumeraireAmount, "");
+        return _sellWithRouting(vaultAsset, sharesAmount, estimatedUnderlyingAmount, "");
     }
 
     /// @inheritdoc IExecutionAdapterWithRouting
@@ -218,10 +255,10 @@ contract ERC4626ExecutionAdapter is IExecutionAdapterWithRouting {
     function sell(
         address vaultAsset,
         uint256 sharesAmount,
-        uint256 estimatedNumeraireAmount,
+        uint256 estimatedUnderlyingAmount,
         bytes calldata routeParams
-    ) external onlyLiquidityOrchestrator returns (uint256 receivedNumeraireAmount) {
-        return _sellWithRouting(vaultAsset, sharesAmount, estimatedNumeraireAmount, routeParams);
+    ) external onlyLiquidityOrchestrator returns (uint256 executionUnderlyingAmount) {
+        return _sellWithRouting(vaultAsset, sharesAmount, estimatedUnderlyingAmount, routeParams);
     }
 
     /// @dev Internal implementation of sell with routing
@@ -229,9 +266,9 @@ contract ERC4626ExecutionAdapter is IExecutionAdapterWithRouting {
     function _sellWithRouting(
         address vaultAsset,
         uint256 sharesAmount,
-        uint256 estimatedNumeraireAmount,
+        uint256 estimatedUnderlyingAmount,
         bytes memory routeParams
-    ) internal returns (uint256 receivedNumeraireAmount) {
+    ) internal returns (uint256 executionUnderlyingAmount) {
         // Atomically validate all assumptions
         this.validateExecutionAdapter(vaultAsset);
 
@@ -246,59 +283,41 @@ contract ERC4626ExecutionAdapter is IExecutionAdapterWithRouting {
             msg.sender // owner: LO owns the shares
         );
 
-        // Step 2: Calculate min numeraire with slippage envelope
-        uint256 minNumeraire = estimatedNumeraireAmount.mulDiv(
-            BASIS_POINTS_FACTOR - liquidityOrchestrator.slippageTolerance(),
-            BASIS_POINTS_FACTOR
-        );
+        // Step 2: Calculate min underlying with slippage envelope
+        uint256 minUnderlying = _calculateMinWithSlippage(estimatedUnderlyingAmount);
 
-        uint256 numeraireReceived = 0;
+        uint256 protocolUnderlyingReceived = 0;
 
         // Step 3-5: Handle same-asset vs cross-asset scenarios
-        if (vaultUnderlying == address(numeraireToken)) {
-            // Same-asset: vault's underlying IS the numeraire (e.g., USDC vault)
-            // No swap needed - underlying received IS numeraire
-            numeraireReceived = underlyingReceived;
+        if (vaultUnderlying == address(underlyingAsset)) {
+            // Same-asset: vault's underlying IS the protocol underlying (e.g., USDC vault)
+            // No swap needed - underlying received IS protocol underlying
+            protocolUnderlyingReceived = underlyingReceived;
         } else {
             // Cross-asset: vault's underlying is different (e.g., WETH, WBTC)
-            // Need to swap underlying → numeraire
+            // Need to swap vault underlying → protocol underlying
 
-            // Step 3: Approve swap executor to spend underlying
+            // Step 3: Approve swap executor to spend vault underlying
             IERC20(vaultUnderlying).forceApprove(address(swapExecutor), underlyingReceived);
 
-            // Step 4: Execute exact-input swap (underlying → USDC)
+            // Step 4: Execute exact-input swap (vault underlying → USDC)
             // We swap ALL underlying received from vault redeem
-            try
-                swapExecutor.swapExactInput(
-                    vaultUnderlying, // tokenIn: WETH/WBTC/etc
-                    address(numeraireToken), // tokenOut: USDC
-                    underlyingReceived, // amountIn: all underlying from vault
-                    minNumeraire, // amountOutMin: slippage protection
-                    routeParams // venue-specific routing
-                )
-            returns (uint256 actualNumeraireReceived) {
-                numeraireReceived = actualNumeraireReceived;
-            } catch {
-                // Clean up before revert
-                IERC20(vaultUnderlying).forceApprove(address(swapExecutor), 0);
-                revert ErrorsLib.SwapFailed();
-            }
+            protocolUnderlyingReceived = swapExecutor.swapExactInput(
+                vaultUnderlying,
+                address(underlyingAsset),
+                underlyingReceived,
+                minUnderlying,
+                routeParams
+            );
 
             // Step 5: Clean up swap executor approval
             IERC20(vaultUnderlying).forceApprove(address(swapExecutor), 0);
         }
 
-        // Step 6: Push all numeraire to LO
-        numeraireToken.safeTransfer(msg.sender, numeraireReceived);
+        // Step 6: Push all protocol underlying to LO
+        underlyingAsset.safeTransfer(msg.sender, protocolUnderlyingReceived);
 
-        // LO will enforce slippage by comparing receivedNumeraireAmount vs estimatedNumeraireAmount
-        receivedNumeraireAmount = numeraireReceived;
-    }
-
-    modifier onlyLiquidityOrchestrator() {
-        if (msg.sender != address(liquidityOrchestrator)) {
-            revert ErrorsLib.UnauthorizedCaller();
-        }
-        _;
+        // LO will enforce slippage by comparing executionUnderlyingAmount vs estimatedUnderlyingAmount
+        executionUnderlyingAmount = protocolUnderlyingReceived;
     }
 }
