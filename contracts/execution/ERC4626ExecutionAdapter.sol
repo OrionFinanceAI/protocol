@@ -24,7 +24,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
  * - Sell: LO (shares) → Vault (shares→underlying) → SwapExecutor (underlying→USDC) → LO (USDC)
  *
  * Security invariants:
- * 1. Single slippage envelope covers both swap and vault operations
+ * 1. LiquidityOrchestrator handles slippage calculations and approvals
  * 2. Exact-output swaps for buy (guarantee exact vault deposit amount)
  * 3. Exact-input swaps for sell (convert all underlying received)
  * 4. All approvals are transient and zeroed immediately after use
@@ -61,34 +61,6 @@ contract ERC4626ExecutionAdapter is IExecutionAdapterWithRouting {
             revert ErrorsLib.NotAuthorized();
         }
         _;
-    }
-
-    /**
-     * @notice Calculate maximum amount with slippage applied
-     * @param estimatedAmount The estimated amount
-     * @return maxAmount Maximum amount including slippage tolerance
-     * @dev TODO: Move slippage calculation to LiquidityOrchestrator
-     */
-    function _calculateMaxWithSlippage(uint256 estimatedAmount) internal view returns (uint256 maxAmount) {
-        return
-            estimatedAmount.mulDiv(
-                BASIS_POINTS_FACTOR + liquidityOrchestrator.slippageTolerance(),
-                BASIS_POINTS_FACTOR
-            );
-    }
-
-    /**
-     * @notice Calculate minimum amount with slippage applied
-     * @param estimatedAmount The estimated amount
-     * @return minAmount Minimum amount including slippage tolerance
-     * @dev TODO: Move slippage calculation to LiquidityOrchestrator
-     */
-    function _calculateMinWithSlippage(uint256 estimatedAmount) internal view returns (uint256 minAmount) {
-        return
-            estimatedAmount.mulDiv(
-                BASIS_POINTS_FACTOR - liquidityOrchestrator.slippageTolerance(),
-                BASIS_POINTS_FACTOR
-            );
     }
 
     /**
@@ -165,7 +137,7 @@ contract ERC4626ExecutionAdapter is IExecutionAdapterWithRouting {
     function _buyWithRouting(
         address vaultAsset,
         uint256 sharesAmount,
-        uint256 estimatedUnderlyingAmount,
+        uint256 /* estimatedUnderlyingAmount */,
         bytes memory routeParams
     ) internal returns (uint256 executionUnderlyingAmount) {
         // Atomically validate all assumptions
@@ -178,9 +150,9 @@ contract ERC4626ExecutionAdapter is IExecutionAdapterWithRouting {
         // previewMint returns underlying needed to mint exact sharesAmount
         uint256 underlyingNeeded = vault.previewMint(sharesAmount);
 
-        // Step 2: Calculate max underlying with slippage envelope
-        // This single envelope covers BOTH swap and vault operations
-        uint256 maxUnderlying = _calculateMaxWithSlippage(estimatedUnderlyingAmount);
+        // Step 2: Get max underlying from LO's allowance
+        // LO calculates and approves max amount with slippage
+        uint256 maxUnderlying = underlyingAsset.allowance(msg.sender, address(this));
 
         uint256 underlyingSpentOnSwap = 0;
 
@@ -266,7 +238,7 @@ contract ERC4626ExecutionAdapter is IExecutionAdapterWithRouting {
     function _sellWithRouting(
         address vaultAsset,
         uint256 sharesAmount,
-        uint256 estimatedUnderlyingAmount,
+        uint256 /* estimatedUnderlyingAmount */,
         bytes memory routeParams
     ) internal returns (uint256 executionUnderlyingAmount) {
         // Atomically validate all assumptions
@@ -283,12 +255,9 @@ contract ERC4626ExecutionAdapter is IExecutionAdapterWithRouting {
             msg.sender // owner: LO owns the shares
         );
 
-        // Step 2: Calculate min underlying with slippage envelope
-        uint256 minUnderlying = _calculateMinWithSlippage(estimatedUnderlyingAmount);
-
         uint256 protocolUnderlyingReceived = 0;
 
-        // Step 3-5: Handle same-asset vs cross-asset scenarios
+        // Step 2-4: Handle same-asset vs cross-asset scenarios
         if (vaultUnderlying == address(underlyingAsset)) {
             // Same-asset: vault's underlying IS the protocol underlying (e.g., USDC vault)
             // No swap needed - underlying received IS protocol underlying
@@ -297,16 +266,17 @@ contract ERC4626ExecutionAdapter is IExecutionAdapterWithRouting {
             // Cross-asset: vault's underlying is different (e.g., WETH, WBTC)
             // Need to swap vault underlying → protocol underlying
 
-            // Step 3: Approve swap executor to spend vault underlying
+            // Step 2: Approve swap executor to spend vault underlying
             IERC20(vaultUnderlying).forceApprove(address(swapExecutor), underlyingReceived);
 
-            // Step 4: Execute exact-input swap (vault underlying → USDC)
+            // Step 3: Execute exact-input swap (vault underlying → USDC)
             // We swap ALL underlying received from vault redeem
+            // SwapExecutor will enforce minimum output based on DEX slippage protection
             protocolUnderlyingReceived = swapExecutor.swapExactInput(
                 vaultUnderlying,
                 address(underlyingAsset),
                 underlyingReceived,
-                minUnderlying,
+                0, // No minimum - LO will check final amount against estimatedUnderlyingAmount
                 routeParams
             );
 
