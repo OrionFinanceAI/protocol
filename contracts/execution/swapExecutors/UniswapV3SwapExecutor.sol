@@ -6,7 +6,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ErrorsLib } from "../../libraries/ErrorsLib.sol";
 import { ISwapRouter } from "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
-
+import { IExecutionAdapter } from "../../interfaces/IExecutionAdapter.sol";
 /**
  * @title UniswapV3SwapExecutor
  * @notice Executes token swaps via Uniswap V3 router
@@ -24,7 +24,7 @@ import { ISwapRouter } from "@uniswap/v3-periphery/contracts/interfaces/ISwapRou
  *
  * @custom:security-contact security@orionfinance.ai
  */
-contract UniswapV3SwapExecutor is ISwapExecutor {
+contract UniswapV3SwapExecutor is IExecutionAdapter, ISwapExecutor {
     using SafeERC20 for IERC20;
 
     /// @notice Uniswap V3 swap router
@@ -38,6 +38,22 @@ contract UniswapV3SwapExecutor is ISwapExecutor {
         if (_swapRouter == address(0)) revert ErrorsLib.ZeroAddress();
         swapRouter = ISwapRouter(_swapRouter);
     }
+
+    /// @inheritdoc IExecutionAdapter
+    function validateExecutionAdapter(address asset) external view override {
+        // TODO. Implement validation.
+    }
+
+    /// @inheritdoc IExecutionAdapter
+    function buy(address asset, uint256 sharesAmount, uint256 estimatedUnderlyingAmount) external override returns (uint256 executionUnderlyingAmount) {
+        // TODO. Implement buy.
+    }
+
+    /// @inheritdoc IExecutionAdapter
+    function sell(address asset, uint256 sharesAmount, uint256 estimatedUnderlyingAmount) external override returns (uint256 executionUnderlyingAmount) {
+        // TODO. Implement sell.
+    }
+
     /// @inheritdoc ISwapExecutor
     function swapExactOutput(
         address tokenIn,
