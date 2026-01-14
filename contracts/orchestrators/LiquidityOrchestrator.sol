@@ -406,7 +406,11 @@ contract LiquidityOrchestrator is
         // Execute sell through adapter, pull shares from this contract and push underlying assets to it.
         uint256 executionUnderlyingAmount = adapter.sell(asset, sharesAmount, estimatedUnderlyingAmount);
 
-        //after checks we fail here in executeSell
+        // Validate slippage: ensure we received at least the minimum acceptable amount
+        uint256 minUnderlyingAmount = _calculateMinWithSlippage(estimatedUnderlyingAmount);
+        if (executionUnderlyingAmount < minUnderlyingAmount) {
+            revert ErrorsLib.SlippageExceeded(asset, executionUnderlyingAmount, minUnderlyingAmount);
+        }
 
         // Clean up approval
         IERC20(asset).forceApprove(address(adapter), 0);
@@ -422,7 +426,8 @@ contract LiquidityOrchestrator is
         IExecutionAdapter adapter = executionAdapterOf[asset];
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
 
-        // Calculate max amount with slippage
+        // Slippage enforcement: approve only max amount (estimated + slippage buffer)
+        // Adapter reads this allowance to determine spending limit
         uint256 maxUnderlyingAmount = _calculateMaxWithSlippage(estimatedUnderlyingAmount);
 
         // Approve adapter to spend underlying assets
