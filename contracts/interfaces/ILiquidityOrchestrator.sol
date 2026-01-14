@@ -59,6 +59,11 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @dev Can only be called by the Orion Config contract.
     function setExecutionAdapter(address asset, IExecutionAdapter adapter) external;
 
+    /// @notice Returns the execution adapter for a given asset
+    /// @param asset The address of the asset
+    /// @return The execution adapter for the asset
+    function executionAdapterOf(address asset) external view returns (IExecutionAdapter);
+
     /// @notice Return deposit funds to a user who cancelled their deposit request
     /// @dev Called by vault contracts when users cancel deposit requests
     /// @param user The user to return funds to

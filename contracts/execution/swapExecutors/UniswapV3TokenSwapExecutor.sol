@@ -6,52 +6,42 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ErrorsLib } from "../../libraries/ErrorsLib.sol";
 import { ISwapRouter } from "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
-import { IExecutionAdapter } from "../../interfaces/IExecutionAdapter.sol";
+
 /**
- * @title UniswapV3SwapExecutor
+ * @title UniswapV3TokenSwapExecutor
  * @notice Executes token swaps via Uniswap V3 router
  * @author Orion Finance
- * @dev Supports both exact-input and exact-output swaps with configurable routing
+ * @dev Dedicated token swap executor for arbitrary token pairs via Uniswap V3
  *
  * Route Parameters Format (abi.encode):
- * - uint24 fee: Pool fee tier (500, 3000, or 10000 for 0.05%, 0.3%, or 1%)
+ * - uint24 fee: Uniswap V3 fee tier (500 = 0.05%, 3000 = 0.3%, 10000 = 1%)
+ *
+ * Architecture:
+ * - Stateless swap execution
+ * - No slippage logic (enforced by caller)
+ * - No oracle dependency
+ * - Optimized for volatile token pairs (USDC/WETH, USDC/WBTC, etc.)
  *
  * Security:
- * - Respects amountInMax/amountOutMin limits set by caller
  * - All approvals are transient and zeroed after use
  * - Refunds unused input tokens to caller
- * - Stateless execution (no storage variables)
+ * - Respects amountInMax and amountOutMin limits
  *
  * @custom:security-contact security@orionfinance.ai
  */
-contract UniswapV3SwapExecutor is IExecutionAdapter, ISwapExecutor {
+contract UniswapV3TokenSwapExecutor is ISwapExecutor {
     using SafeERC20 for IERC20;
 
-    /// @notice Uniswap V3 swap router
+    /// @notice Uniswap V3 SwapRouter contract
     ISwapRouter public immutable swapRouter;
 
     /**
      * @notice Constructor
-     * @param _swapRouter Uniswap V3 SwapRouter address
+     * @param swapRouterAddress Uniswap V3 SwapRouter address
      */
-    constructor(address _swapRouter) {
-        if (_swapRouter == address(0)) revert ErrorsLib.ZeroAddress();
-        swapRouter = ISwapRouter(_swapRouter);
-    }
-
-    /// @inheritdoc IExecutionAdapter
-    function validateExecutionAdapter(address asset) external view override {
-        // TODO. Implement validation.
-    }
-
-    /// @inheritdoc IExecutionAdapter
-    function buy(address asset, uint256 sharesAmount, uint256 estimatedUnderlyingAmount) external override returns (uint256 executionUnderlyingAmount) {
-        // TODO. Implement buy.
-    }
-
-    /// @inheritdoc IExecutionAdapter
-    function sell(address asset, uint256 sharesAmount, uint256 estimatedUnderlyingAmount) external override returns (uint256 executionUnderlyingAmount) {
-        // TODO. Implement sell.
+    constructor(address swapRouterAddress) {
+        if (swapRouterAddress == address(0)) revert ErrorsLib.ZeroAddress();
+        swapRouter = ISwapRouter(swapRouterAddress);
     }
 
     /// @inheritdoc ISwapExecutor
@@ -62,25 +52,25 @@ contract UniswapV3SwapExecutor is IExecutionAdapter, ISwapExecutor {
         uint256 amountInMax,
         bytes calldata routeParams
     ) external returns (uint256 amountIn) {
-        // Decode route parameters
+        // Decode fee tier from route params
         uint24 fee = abi.decode(routeParams, (uint24));
 
-        // Pull tokenIn from caller (adapter)
+        // Pull max input from caller
         IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amountInMax);
 
-        // Approve router to spend tokenIn
+        // Approve router
         IERC20(tokenIn).forceApprove(address(swapRouter), amountInMax);
 
-        // Execute exact-output swap
+        // Execute exact output swap
         ISwapRouter.ExactOutputSingleParams memory params = ISwapRouter.ExactOutputSingleParams({
             tokenIn: tokenIn,
             tokenOut: tokenOut,
             fee: fee,
-            recipient: msg.sender, // Send output directly to adapter
+            recipient: msg.sender,
             deadline: block.timestamp,
             amountOut: amountOut,
             amountInMaximum: amountInMax,
-            sqrtPriceLimitX96: 0 // No price limit (amountInMax enforces bounds)
+            sqrtPriceLimitX96: 0
         });
 
         amountIn = swapRouter.exactOutputSingle(params);
@@ -88,7 +78,7 @@ contract UniswapV3SwapExecutor is IExecutionAdapter, ISwapExecutor {
         // Clean up approval
         IERC20(tokenIn).forceApprove(address(swapRouter), 0);
 
-        // Refund unused tokenIn to caller
+        // Refund unused input
         uint256 unusedBalance = IERC20(tokenIn).balanceOf(address(this));
         if (unusedBalance > 0) {
             IERC20(tokenIn).safeTransfer(msg.sender, unusedBalance);
@@ -103,30 +93,35 @@ contract UniswapV3SwapExecutor is IExecutionAdapter, ISwapExecutor {
         uint256 amountOutMin,
         bytes calldata routeParams
     ) external returns (uint256 amountOut) {
-        // Decode route parameters
+        // Decode fee tier from route params
         uint24 fee = abi.decode(routeParams, (uint24));
 
-        // Pull tokenIn from caller (adapter)
+        // Pull input from caller
         IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amountIn);
 
-        // Approve router to spend tokenIn
+        // Approve router
         IERC20(tokenIn).forceApprove(address(swapRouter), amountIn);
 
-        // Execute exact-input swap
+        // Execute exact input swap
         ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
             tokenIn: tokenIn,
             tokenOut: tokenOut,
             fee: fee,
-            recipient: msg.sender, // Send output directly to adapter
+            recipient: msg.sender,
             deadline: block.timestamp,
             amountIn: amountIn,
             amountOutMinimum: amountOutMin,
-            sqrtPriceLimitX96: 0 // No price limit (amountOutMin enforces bounds)
+            sqrtPriceLimitX96: 0
         });
 
         amountOut = swapRouter.exactInputSingle(params);
 
         // Clean up approval
         IERC20(tokenIn).forceApprove(address(swapRouter), 0);
+
+        // Verify minimum output (router should enforce, but double-check)
+        if (amountOut < amountOutMin) {
+            revert ErrorsLib.InsufficientSwapOutput(amountOut, amountOutMin);
+        }
     }
 }
