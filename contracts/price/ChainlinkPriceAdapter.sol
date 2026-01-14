@@ -33,20 +33,17 @@ contract ChainlinkPriceAdapter is IPriceAdapter {
     // solhint-disable-next-line immutable-vars-naming, use-natspec
     uint8 public immutable priceAdapterDecimals;
 
-    /// @notice Mapping of asset to Chainlink feed address
-    mapping(address => address) public feedOf;
+    /// @notice Feed configuration struct
+    struct FeedConfig {
+        address feed; // Chainlink aggregator address
+        bool isInverse; // Whether feed returns inverse pricing
+        uint256 maxStaleness; // Maximum acceptable staleness in seconds
+        uint256 minPrice; // Minimum acceptable price
+        uint256 maxPrice; // Maximum acceptable price
+    }
 
-    /// @notice Mapping to track if a feed returns inverse pricing
-    mapping(address => bool) public isInverseFeed;
-
-    /// @notice Maximum acceptable price staleness in seconds
-    mapping(address => uint256) public maxStaleness;
-
-    /// @notice Minimum acceptable price (prevents oracle manipulation to zero)
-    mapping(address => uint256) public minPrice;
-
-    /// @notice Maximum acceptable price (prevents oracle manipulation)
-    mapping(address => uint256) public maxPrice;
+    /// @notice Mapping of asset to feed configuration
+    mapping(address => FeedConfig) public feedConfigOf;
 
     /// @notice Decimals used for inverse calculation
     uint8 public constant INVERSE_DECIMALS = 18;
@@ -113,23 +110,25 @@ contract ChainlinkPriceAdapter is IPriceAdapter {
             revert ErrorsLib.InvalidAdapter(asset);
         }
 
-        feedOf[asset] = feed;
-        isInverseFeed[asset] = inverse;
-        maxStaleness[asset] = _maxStaleness;
-        minPrice[asset] = _minPrice;
-        maxPrice[asset] = _maxPrice;
+        feedConfigOf[asset] = FeedConfig({
+            feed: feed,
+            isInverse: inverse,
+            maxStaleness: _maxStaleness,
+            minPrice: _minPrice,
+            maxPrice: _maxPrice
+        });
 
         emit FeedConfigured(asset, feed, inverse, _maxStaleness, _minPrice, _maxPrice);
     }
 
     /// @inheritdoc IPriceAdapter
     function validatePriceAdapter(address asset) external view override {
-        address feed = feedOf[asset];
-        if (feed == address(0)) revert ErrorsLib.InvalidAdapter(asset);
+        FeedConfig memory feedConfig = feedConfigOf[asset];
+        if (feedConfig.feed == address(0)) revert ErrorsLib.InvalidAdapter(asset);
 
         // Verify feed is callable
         // slither-disable-next-line unused-return
-        try AggregatorV3Interface(feed).decimals() returns (uint8 feedDecimals) {
+        try AggregatorV3Interface(feedConfig.feed).decimals() returns (uint8 feedDecimals) {
             // Feed is valid - decimals retrieved successfully
             feedDecimals; // Silence unused variable warning
         } catch {
@@ -140,10 +139,10 @@ contract ChainlinkPriceAdapter is IPriceAdapter {
     /// @inheritdoc IPriceAdapter
     // solhint-disable-next-line code-complexity, function-max-lines, use-natspec
     function getPriceData(address asset) external view override returns (uint256 price, uint8 decimals) {
-        address feed = feedOf[asset];
-        if (feed == address(0)) revert ErrorsLib.AdapterNotSet();
+        FeedConfig memory feedConfig = feedConfigOf[asset];
+        if (feedConfig.feed == address(0)) revert ErrorsLib.AdapterNotSet();
 
-        AggregatorV3Interface chainlinkFeed = AggregatorV3Interface(feed);
+        AggregatorV3Interface chainlinkFeed = AggregatorV3Interface(feedConfig.feed);
 
         // Fetch latest round data
         (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound) = chainlinkFeed
@@ -155,7 +154,7 @@ contract ChainlinkPriceAdapter is IPriceAdapter {
         if (answer <= 0) revert ErrorsLib.InvalidPrice();
 
         // Check 2: Verify data is not stale
-        if (block.timestamp - updatedAt > maxStaleness[asset]) {
+        if (block.timestamp - updatedAt > feedConfig.maxStaleness) {
             revert ErrorsLib.StalePrice();
         }
 
@@ -172,12 +171,12 @@ contract ChainlinkPriceAdapter is IPriceAdapter {
         uint8 feedDecimals = chainlinkFeed.decimals();
 
         // Check 6: Validate price bounds
-        if (rawPrice < minPrice[asset] || rawPrice > maxPrice[asset]) {
+        if (rawPrice < feedConfig.minPrice || rawPrice > feedConfig.maxPrice) {
             revert ErrorsLib.PriceOutOfBounds();
         }
 
         // Handle inverse feeds (e.g., USDC/ETH → ETH/USDC)
-        if (isInverseFeed[asset]) {
+        if (feedConfig.isInverse) {
             // Invert: price = (10^INVERSE_DECIMALS)^2 / rawPrice
             // Adjust decimals accordingly
             uint256 inversePrecision = 10 ** INVERSE_DECIMALS;
