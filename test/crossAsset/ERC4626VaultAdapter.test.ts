@@ -20,9 +20,10 @@ import { ethers, network } from "hardhat";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import {
   OrionConfig,
+  ERC4626VaultAdapter,
   UniswapV3TokenSwapExecutor,
   ChainlinkPriceAdapter,
-  ERC4626PriceAdapter,
+  MockERC4626VaultPriceAdapter,
   IERC4626,
   IERC20,
   MockLiquidityOrchestrator,
@@ -63,7 +64,7 @@ describe("ERC4626VaultAdapter", function () {
 
   // Price adapters
   let chainlinkAdapter: ChainlinkPriceAdapter;
-  let vaultPriceAdapter: ERC4626PriceAdapter;
+  let vaultPriceAdapter: MockERC4626VaultPriceAdapter;
 
   // Tokens
   let usdc: IERC20;
@@ -127,7 +128,7 @@ describe("ERC4626VaultAdapter", function () {
       await mockConfig.setLiquidityOrchestrator(await liquidityOrchestrator.getAddress());
 
       // Deploy vault price adapter
-      const VaultPriceAdapterFactory = await ethers.getContractFactory("ERC4626PriceAdapter");
+      const VaultPriceAdapterFactory = await ethers.getContractFactory("MockERC4626VaultPriceAdapter");
       vaultPriceAdapter = await VaultPriceAdapterFactory.deploy(await orionConfig.getAddress());
 
       // Deploy token swap executor (for WETH token swaps)
@@ -355,6 +356,117 @@ describe("ERC4626VaultAdapter", function () {
 
       expect(usdcAllowance).to.equal(0);
       expect(wethAllowance).to.equal(0);
+    });
+  });
+
+  describe("Validation Tests", function () {
+    it("Should reject non-ERC4626 assets", async function () {
+      // Try to validate a regular ERC20 (USDC) which is not ERC4626
+      await expect(vaultAdapter.validateExecutionAdapter(MAINNET.USDC)).to.be.revertedWithCustomError(
+        vaultAdapter,
+        "InvalidAdapter",
+      );
+    });
+
+    it("Should reject vault with no swap executor for underlying", async function () {
+      // Deploy a mock vault with WBTC underlying (no swap executor registered)
+      const MockERC4626Factory = await ethers.getContractFactory("MockERC4626Asset");
+      const mockVault = await MockERC4626Factory.deploy(MAINNET.WBTC, "Mock WBTC Vault", "mWBTC");
+      await mockVault.waitForDeployment();
+
+      // MockOrionConfig returns hardcoded 18 decimals for all tokens
+      // Should fail validation because WBTC has no swap executor registered in LO
+      await expect(vaultAdapter.validateExecutionAdapter(await mockVault.getAddress())).to.be.revertedWithCustomError(
+        vaultAdapter,
+        "InvalidAdapter",
+      );
+    });
+  });
+
+  describe("Share Accounting Precision", function () {
+    let initialUSDCBalance: bigint;
+
+    before(async function () {
+      // Fund for precision tests
+      const usdcWhale = await ethers.getImpersonatedSigner(MAINNET.USDC_WHALE);
+      await owner.sendTransaction({
+        to: MAINNET.USDC_WHALE,
+        value: ethers.parseEther("10"),
+      });
+
+      const fundAmount = ethers.parseUnits("50000", USDC_DECIMALS);
+      await usdc.connect(usdcWhale).transfer(loSigner.address, fundAmount);
+      initialUSDCBalance = await usdc.balanceOf(loSigner.address);
+    });
+
+    it("Should mint exact shares requested via buy()", async function () {
+      const exactShares = ethers.parseUnits("2.5", 18); // Request exactly 2.5 shares
+
+      // Calculate cost
+      const wethNeeded = await morphoWETH.convertToAssets(exactShares);
+      const [wethPrice, priceDecimals] = await chainlinkAdapter.getPriceData(MAINNET.WETH);
+      const estimatedCost =
+        (wethNeeded * wethPrice) / BigInt(10 ** (WETH_DECIMALS + Number(priceDecimals) - USDC_DECIMALS));
+
+      const maxUSDC = (estimatedCost * (10000n + BigInt(SLIPPAGE_TOLERANCE))) / 10000n;
+      await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), maxUSDC);
+
+      await vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, exactShares, estimatedCost);
+
+      // Verify EXACTLY 2.5 shares received (no drift)
+      const sharesBalance = await morphoWETH.balanceOf(loSigner.address);
+      expect(sharesBalance).to.equal(exactShares);
+      console.log(`  Requested: ${ethers.formatUnits(exactShares, 18)} shares`);
+      console.log(`  Received:  ${ethers.formatUnits(sharesBalance, 18)} shares`);
+    });
+
+    it("Should handle multiple sequential buy operations with no drift", async function () {
+      const buyAmount = ethers.parseUnits("0.5", 18); // Buy 0.5 shares each time
+      const iterations = 3;
+
+      let totalSharesExpected = await morphoWETH.balanceOf(loSigner.address);
+
+      for (let i = 0; i < iterations; i++) {
+        const wethNeeded = await morphoWETH.convertToAssets(buyAmount);
+        const [wethPrice, priceDecimals] = await chainlinkAdapter.getPriceData(MAINNET.WETH);
+        const estimatedCost =
+          (wethNeeded * wethPrice) / BigInt(10 ** (WETH_DECIMALS + Number(priceDecimals) - USDC_DECIMALS));
+
+        const maxUSDC = (estimatedCost * (10000n + BigInt(SLIPPAGE_TOLERANCE))) / 10000n;
+        await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), maxUSDC);
+
+        await vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, buyAmount, estimatedCost);
+
+        totalSharesExpected += buyAmount;
+
+        const currentBalance = await morphoWETH.balanceOf(loSigner.address);
+        expect(currentBalance).to.equal(totalSharesExpected);
+        console.log(`  Iteration ${i + 1}: ${ethers.formatUnits(currentBalance, 18)} shares (no drift)`);
+      }
+    });
+
+    it("Should refund excess underlying when swap uses less than max", async function () {
+      const sharesAmount = ethers.parseUnits("0.2", 18);
+      const balanceBefore = await usdc.balanceOf(loSigner.address);
+
+      const wethNeeded = await morphoWETH.convertToAssets(sharesAmount);
+      const [wethPrice, priceDecimals] = await chainlinkAdapter.getPriceData(MAINNET.WETH);
+      const estimatedCost =
+        (wethNeeded * wethPrice) / BigInt(10 ** (WETH_DECIMALS + Number(priceDecimals) - USDC_DECIMALS));
+
+      const maxUSDC = (estimatedCost * (10000n + BigInt(SLIPPAGE_TOLERANCE))) / 10000n;
+      await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), maxUSDC);
+
+      await vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, sharesAmount, estimatedCost);
+
+      const balanceAfter = await usdc.balanceOf(loSigner.address);
+      const actualSpent = balanceBefore - balanceAfter;
+
+      // Actual spent should be less than max (refund occurred)
+      expect(actualSpent).to.be.lt(maxUSDC);
+      console.log(`  Max approved: ${ethers.formatUnits(maxUSDC, USDC_DECIMALS)} USDC`);
+      console.log(`  Actual spent: ${ethers.formatUnits(actualSpent, USDC_DECIMALS)} USDC`);
+      console.log(`  Refunded: ${ethers.formatUnits(maxUSDC - actualSpent, USDC_DECIMALS)} USDC`);
     });
   });
 

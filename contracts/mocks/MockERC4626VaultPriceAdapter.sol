@@ -10,10 +10,10 @@ import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
- * @title ERC4626PriceAdapter
- * @notice Price adapter for ERC4626 vaults supporting both same-asset and cross-asset pricing
+ * @title MockERC4626VaultPriceAdapter
+ * @notice Mock price adapter for ERC4626 vaults for testing
  * @author Orion Finance
- * @dev Composes vault share → underlying → USDC pricing via oracle
+ * @dev Test-only adapter. Composes vault share → underlying → USDC pricing via oracle
  *
  * Pricing Flow:
  * 1. Get vault share → underlying conversion rate (via ERC4626.convertToAssets)
@@ -39,23 +39,22 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
  *
  * @custom:security-contact security@orionfinance.ai
  */
-contract ERC4626PriceAdapter is IPriceAdapter {
+contract MockERC4626VaultPriceAdapter is IPriceAdapter {
     using Math for uint256;
 
     /// @notice Orion protocol configuration contract
-    // solhint-disable-next-line immutable-vars-naming, use-natspec
     IOrionConfig public immutable config;
+
     /// @notice Price adapter registry for underlying asset prices
-    // solhint-disable-next-line immutable-vars-naming, use-natspec
     IPriceAdapterRegistry public immutable priceRegistry;
-    /// @notice Protocol numeraire token (USDC)
-    // solhint-disable-next-line immutable-vars-naming, use-natspec
-    IERC20Metadata public immutable numeraireToken;
-    /// @notice Numeraire token decimals (6 for USDC)
-    // solhint-disable-next-line immutable-vars-naming, use-natspec
-    uint8 public immutable numeraireDecimals;
+
+    /// @notice Protocol underlying asset (USDC)
+    IERC20Metadata public immutable underlyingAsset;
+
+    /// @notice Underlying asset decimals (6 for USDC)
+    uint8 public immutable underlyingDecimals;
+
     /// @notice Price adapter decimals for normalization (14)
-    // solhint-disable-next-line immutable-vars-naming, use-natspec
     uint8 public immutable priceAdapterDecimals;
 
     /**
@@ -67,8 +66,8 @@ contract ERC4626PriceAdapter is IPriceAdapter {
 
         config = IOrionConfig(configAddress);
         priceRegistry = IPriceAdapterRegistry(config.priceAdapterRegistry());
-        numeraireToken = IERC20Metadata(address(config.underlyingAsset()));
-        numeraireDecimals = numeraireToken.decimals();
+        underlyingAsset = IERC20Metadata(address(config.underlyingAsset()));
+        underlyingDecimals = underlyingAsset.decimals();
         priceAdapterDecimals = config.priceAdapterDecimals();
     }
 
@@ -80,8 +79,8 @@ contract ERC4626PriceAdapter is IPriceAdapter {
             underlying = _underlying;
             if (underlying == address(0)) revert ErrorsLib.InvalidAdapter(asset);
 
-            // Verify underlying is NOT the numeraire (use standard adapter for that)
-            if (underlying == address(numeraireToken)) {
+            // Verify underlying is NOT the protocol underlying (use standard adapter for that)
+            if (underlying == address(underlyingAsset)) {
                 revert ErrorsLib.InvalidAdapter(asset);
             }
         } catch {
