@@ -9,7 +9,7 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import {
-  UniswapV3SwapExecutor,
+  UniswapV3TokenSwapExecutor,
   CurveSwapExecutor,
   MockUniswapV3Router,
   MockUnderlyingAsset,
@@ -20,8 +20,8 @@ describe("Swap Executors - Unit Tests", function () {
   let adapter: SignerWithAddress;
   let user: SignerWithAddress;
 
-  describe("UniswapV3SwapExecutor", function () {
-    let executor: UniswapV3SwapExecutor;
+  describe("UniswapV3TokenSwapExecutor", function () {
+    let executor: UniswapV3TokenSwapExecutor;
     let mockRouter: MockUniswapV3Router;
     let mockTokenIn: MockUnderlyingAsset;
     let mockTokenOut: MockUnderlyingAsset;
@@ -42,8 +42,9 @@ describe("Swap Executors - Unit Tests", function () {
       mockRouter = routerDeployed as unknown as MockUniswapV3Router;
 
       // Deploy executor
-      const ExecutorFactory = await ethers.getContractFactory("UniswapV3SwapExecutor");
-      executor = await ExecutorFactory.deploy(await mockRouter.getAddress());
+      const ExecutorFactory = await ethers.getContractFactory("UniswapV3TokenSwapExecutor");
+      const executorDeployed = await ExecutorFactory.deploy(await mockRouter.getAddress());
+      executor = executorDeployed as unknown as UniswapV3TokenSwapExecutor;
     });
 
     describe("Exact-Output Swap", function () {
