@@ -241,7 +241,7 @@ describe("ERC4626ExecutionAdapter", function () {
       await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), maxUSDC);
 
       // Execute buy
-      const tx = await vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, sharesAmount, estimatedUSDCCost);
+      const tx = await vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, sharesAmount);
 
       const receipt = await tx.wait();
       console.log(`  Gas used: ${receipt!.gasUsed.toLocaleString()}`);
@@ -269,8 +269,7 @@ describe("ERC4626ExecutionAdapter", function () {
 
       await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), tooLowAllowance);
 
-      await expect(vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, sharesAmount, estimatedUSDCCost)).to.be
-        .reverted; // Should revert due to insufficient allowance/slippage
+      await expect(vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, sharesAmount)).to.be.reverted; // Should revert due to insufficient allowance/slippage
     });
   });
 
@@ -303,7 +302,7 @@ describe("ERC4626ExecutionAdapter", function () {
       await morphoWETH.connect(loSigner).approve(await vaultAdapter.getAddress(), sharesToSell);
 
       // Execute sell (LO validates final amount, adapter passes 0 as minAmount)
-      const tx = await vaultAdapter.connect(loSigner).sell(MAINNET.MORPHO_WETH, sharesToSell, estimatedUSDCReceived);
+      const tx = await vaultAdapter.connect(loSigner).sell(MAINNET.MORPHO_WETH, sharesToSell);
 
       const receipt = await tx.wait();
       console.log(`  Gas used: ${receipt!.gasUsed.toLocaleString()}`);
@@ -408,7 +407,7 @@ describe("ERC4626ExecutionAdapter", function () {
       const maxUSDC = (estimatedCost * (10000n + BigInt(SLIPPAGE_TOLERANCE))) / 10000n;
       await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), maxUSDC);
 
-      await vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, exactShares, estimatedCost);
+      await vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, exactShares);
 
       // Verify EXACTLY 2.5 shares received (no drift)
       const sharesBalance = await morphoWETH.balanceOf(loSigner.address);
@@ -432,7 +431,7 @@ describe("ERC4626ExecutionAdapter", function () {
         const maxUSDC = (estimatedCost * (10000n + BigInt(SLIPPAGE_TOLERANCE))) / 10000n;
         await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), maxUSDC);
 
-        await vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, buyAmount, estimatedCost);
+        await vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, buyAmount);
 
         totalSharesExpected += buyAmount;
 
@@ -454,7 +453,7 @@ describe("ERC4626ExecutionAdapter", function () {
       const maxUSDC = (estimatedCost * (10000n + BigInt(SLIPPAGE_TOLERANCE))) / 10000n;
       await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), maxUSDC);
 
-      await vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, sharesAmount, estimatedCost);
+      await vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, sharesAmount);
 
       const balanceAfter = await usdc.balanceOf(loSigner.address);
       const actualSpent = balanceBefore - balanceAfter;
@@ -491,7 +490,7 @@ describe("ERC4626ExecutionAdapter", function () {
       const maxUSDC = (estimatedCost * (10000n + BigInt(SLIPPAGE_TOLERANCE))) / 10000n;
       await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), maxUSDC);
 
-      const tx = await vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, sharesAmount, estimatedCost);
+      const tx = await vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, sharesAmount);
 
       const receipt = await tx.wait();
       console.log(`  Buy gas cost: ${receipt!.gasUsed.toLocaleString()}`);
@@ -502,15 +501,10 @@ describe("ERC4626ExecutionAdapter", function () {
 
     it("Should benchmark sell operation gas cost", async function () {
       const sharesToSell = await morphoWETH.balanceOf(loSigner.address);
-      const wethToReceive = await morphoWETH.convertToAssets(sharesToSell);
-      const [wethPrice, priceDecimals] = await chainlinkAdapter.getPriceData(MAINNET.WETH);
-
-      const estimatedReceive =
-        (wethToReceive * wethPrice) / BigInt(10 ** (WETH_DECIMALS + Number(priceDecimals) - USDC_DECIMALS));
 
       await morphoWETH.connect(loSigner).approve(await vaultAdapter.getAddress(), sharesToSell);
 
-      const tx = await vaultAdapter.connect(loSigner).sell(MAINNET.MORPHO_WETH, sharesToSell, estimatedReceive);
+      const tx = await vaultAdapter.connect(loSigner).sell(MAINNET.MORPHO_WETH, sharesToSell);
 
       const receipt = await tx.wait();
       console.log(`  Sell gas cost: ${receipt!.gasUsed.toLocaleString()}`);
