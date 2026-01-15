@@ -10,7 +10,7 @@ import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
- * @title MockERC4626VaultPriceAdapter
+ * @title MockERC4626PriceAdapter
  * @notice Mock price adapter for ERC4626 vaults for testing
  * @author Orion Finance
  * @dev Test-only adapter. Composes vault share → underlying → USDC pricing via oracle
@@ -39,7 +39,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
  *
  * @custom:security-contact security@orionfinance.ai
  */
-contract MockERC4626VaultPriceAdapter is IPriceAdapter {
+contract MockERC4626PriceAdapter is IPriceAdapter {
     using Math for uint256;
 
     /// @notice Orion protocol configuration contract
@@ -132,8 +132,6 @@ contract MockERC4626VaultPriceAdapter is IPriceAdapter {
         // - underlyingPerShare = 1.05e18 (WETH, 18 decimals)
         // - underlyingPriceInNumeraire = 3000e14 (price in 14 decimals)
         // - Result = (1.05e18 × 3000e14) / 1e18 = 3150e14
-
-        uint8 underlyingDecimals = config.getTokenDecimals(underlying);
 
         uint256 priceInNumeraire = underlyingPerShare.mulDiv(underlyingPriceInNumeraire, 10 ** underlyingDecimals);
 

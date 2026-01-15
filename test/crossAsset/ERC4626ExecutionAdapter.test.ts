@@ -23,7 +23,7 @@ import {
   ERC4626ExecutionAdapter,
   UniswapV3TokenSwapExecutor,
   ChainlinkPriceAdapter,
-  MockERC4626VaultPriceAdapter,
+  MockERC4626PriceAdapter,
   IERC4626,
   IERC20,
   MockLiquidityOrchestrator,
@@ -64,7 +64,7 @@ describe("ERC4626ExecutionAdapter", function () {
 
   // Price adapters
   let chainlinkAdapter: ChainlinkPriceAdapter;
-  let vaultPriceAdapter: MockERC4626VaultPriceAdapter;
+  let vaultPriceAdapter: MockERC4626PriceAdapter;
 
   // Tokens
   let usdc: IERC20;
@@ -128,7 +128,7 @@ describe("ERC4626ExecutionAdapter", function () {
       await mockConfig.setLiquidityOrchestrator(await liquidityOrchestrator.getAddress());
 
       // Deploy vault price adapter
-      const VaultPriceAdapterFactory = await ethers.getContractFactory("MockERC4626VaultPriceAdapter");
+      const VaultPriceAdapterFactory = await ethers.getContractFactory("MockERC4626PriceAdapter");
       vaultPriceAdapter = await VaultPriceAdapterFactory.deploy(await orionConfig.getAddress());
 
       // Deploy token swap executor (for WETH token swaps)
