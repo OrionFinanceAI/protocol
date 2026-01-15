@@ -184,17 +184,7 @@ contract ChainlinkPriceAdapter is IPriceAdapter {
             feedDecimals = INVERSE_DECIMALS;
         }
 
-        // Normalize to priceAdapterDecimals
-        uint256 normalizedPrice;
-        if (priceAdapterDecimals > feedDecimals) {
-            normalizedPrice = rawPrice * (10 ** (priceAdapterDecimals - feedDecimals));
-        } else if (priceAdapterDecimals < feedDecimals) {
-            normalizedPrice = rawPrice / (10 ** (feedDecimals - priceAdapterDecimals));
-        } else {
-            normalizedPrice = rawPrice;
-        }
-
-        return (normalizedPrice, priceAdapterDecimals);
+        return (rawPrice, feedDecimals);
     }
 
     /**
