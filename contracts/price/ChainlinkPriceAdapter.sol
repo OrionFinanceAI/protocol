@@ -100,7 +100,7 @@ contract ChainlinkPriceAdapter is IPriceAdapter {
         if (msg.sender != owner) revert ErrorsLib.NotAuthorized();
         if (asset == address(0) || feed == address(0)) revert ErrorsLib.ZeroAddress();
         if (_maxStaleness == 0) revert ErrorsLib.InvalidArguments();
-        if (_minPrice >= _maxPrice) revert ErrorsLib.InvalidArguments();
+        if (_minPrice > _maxPrice) revert ErrorsLib.InvalidArguments();
 
         // Validate feed is callable
         // slither-disable-next-line unused-return

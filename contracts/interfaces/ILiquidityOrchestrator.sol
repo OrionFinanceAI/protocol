@@ -37,10 +37,10 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @param newAutomationRegistry The new automation registry address
     function updateAutomationRegistry(address newAutomationRegistry) external;
 
-    /// @notice Sets the internal states orchestrator address
+    /// @notice Sets the internal state orchestrator address
     /// @dev Can only be called by the contract owner
-    /// @param _internalStatesOrchestrator The address of the internal states orchestrator
-    function setInternalStatesOrchestrator(address _internalStatesOrchestrator) external;
+    /// @param internalStateOrchestrator The address of the internal state orchestrator
+    function setInternalStateOrchestrator(address internalStateOrchestrator) external;
 
     /// @notice Sets the target buffer ratio
     /// @param _targetBufferRatio The new target buffer ratio
@@ -99,7 +99,7 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     function withdraw(uint256 assets, address receiver) external;
 
     /// @notice Advances the idle phase
-    /// @dev Called by the internal states orchestrator to advance the idle phase
+    /// @dev Called by the internal state orchestrator to advance the idle phase
     function advanceIdlePhase() external;
 
     /// @notice Pauses the contract

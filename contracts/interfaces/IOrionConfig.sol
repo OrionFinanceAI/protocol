@@ -9,10 +9,10 @@ import "../libraries/EventsLib.sol";
 /// @author Orion Finance
 /// @custom:security-contact security@orionfinance.ai
 interface IOrionConfig {
-    /// @notice Returns the address of the internal states orchestrator contract
+    /// @notice Returns the address of the internal state orchestrator contract
     /// @dev This orchestrator manages the internal state transitions of the protocol
-    /// @return The address of the internal states orchestrator
-    function internalStatesOrchestrator() external view returns (address);
+    /// @return The address of the internal state orchestrator
+    function internalStateOrchestrator() external view returns (address);
 
     /// @notice Returns the address of the liquidity orchestrator contract
     /// @dev This orchestrator manages liquidity operations and coordination
@@ -47,10 +47,10 @@ interface IOrionConfig {
     /// @return The guardian address
     function guardian() external view returns (address);
 
-    /// @notice Sets the internal states orchestrator for the protocol
+    /// @notice Sets the internal state orchestrator for the protocol
     /// @dev Can only be called by the contract owner
-    /// @param orchestrator The address of the internal states orchestrator
-    function setInternalStatesOrchestrator(address orchestrator) external;
+    /// @param orchestrator The address of the internal state orchestrator
+    function setInternalStateOrchestrator(address orchestrator) external;
 
     /// @notice Sets the liquidity orchestrator for the protocol
     /// @dev Can only be called by the contract owner
@@ -155,7 +155,7 @@ interface IOrionConfig {
     function completeVaultDecommissioning(address vault) external;
 
     /// @notice Checks if the system is idle
-    /// @dev This function checks if both the liquidity orchestrator and the internal states orchestrator are idle
+    /// @dev This function checks if both the liquidity orchestrator and the internal state orchestrator are idle
     /// @return True if the system is idle, false otherwise
     function isSystemIdle() external view returns (bool);
 

@@ -8,16 +8,15 @@ import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/I
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
-import { ISwapRouter } from "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
 import { ILiquidityOrchestrator } from "../interfaces/ILiquidityOrchestrator.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 /**
- * @title ERC4626VaultAdapter
- * @notice ERC4626 vault adapter that delegates swaps to token-specific swap executors
+ * @title ERC4626ExecutionAdapter
+ * @notice ERC4626 execution adapter that delegates swaps to token-specific swap executors
  * @author Orion Finance
  * @dev Architecture:
- * - Handles same-asset flows: USDC → USDC vault (no swap)
+ * - Handles same-asset flows: USDC → vault (no swap)
  * - Handles cross-asset flows: USDC → SwapExecutor → underlying → vault
  * - Gets swap executor from LO's executionAdapterOf[vaultUnderlying]
  *
@@ -33,7 +32,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
  *
  * @custom:security-contact security@orionfinance.ai
  */
-contract ERC4626VaultAdapter is IExecutionAdapter, ISwapExecutor {
+contract ERC4626ExecutionAdapter is IExecutionAdapter {
     using SafeERC20 for IERC20;
     using Math for uint256;
 
@@ -95,8 +94,7 @@ contract ERC4626VaultAdapter is IExecutionAdapter, ISwapExecutor {
     /// @inheritdoc IExecutionAdapter
     function buy(
         address vaultAsset,
-        uint256 sharesAmount,
-        uint256 /* estimatedUnderlyingAmount */
+        uint256 sharesAmount
     ) external override onlyLiquidityOrchestrator returns (uint256 executionUnderlyingAmount) {
         return _buyInternal(vaultAsset, sharesAmount, "");
     }
@@ -104,8 +102,7 @@ contract ERC4626VaultAdapter is IExecutionAdapter, ISwapExecutor {
     /// @inheritdoc IExecutionAdapter
     function sell(
         address vaultAsset,
-        uint256 sharesAmount,
-        uint256 /* estimatedUnderlyingAmount */
+        uint256 sharesAmount
     ) external override onlyLiquidityOrchestrator returns (uint256 executionUnderlyingAmount) {
         return _sellInternal(vaultAsset, sharesAmount, "");
     }
@@ -171,7 +168,10 @@ contract ERC4626VaultAdapter is IExecutionAdapter, ISwapExecutor {
 
         // Approve vault and mint shares
         IERC20(vaultUnderlying).forceApprove(vaultAsset, underlyingNeeded);
+
+        // slither-disable-next-line unused-return
         vault.mint(sharesAmount, address(this));
+
         IERC20(vaultUnderlying).forceApprove(vaultAsset, 0);
 
         // Transfer shares to LO
@@ -231,33 +231,5 @@ contract ERC4626VaultAdapter is IExecutionAdapter, ISwapExecutor {
         underlyingAsset.safeTransfer(msg.sender, protocolUnderlyingReceived);
 
         executionUnderlyingAmount = protocolUnderlyingReceived;
-    }
-
-    /// @inheritdoc ISwapExecutor
-    /// @dev This function is intentionally not implemented for vault adapters.
-    ///      Swap functionality should be provided by dedicated swap executor contracts.
-    ///      Vault adapters delegate to swap executors via executionAdapterOf mapping.
-    function swapExactOutput(
-        address /* tokenIn */,
-        address /* tokenOut */,
-        uint256 /* amountOut */,
-        uint256 /* amountInMax */,
-        bytes calldata /* routeParams */
-    ) external pure returns (uint256) {
-        revert("Use dedicated swap executor");
-    }
-
-    /// @inheritdoc ISwapExecutor
-    /// @dev This function is intentionally not implemented for vault adapters.
-    ///      Swap functionality should be provided by dedicated swap executor contracts.
-    ///      Vault adapters delegate to swap executors via executionAdapterOf mapping.
-    function swapExactInput(
-        address /* tokenIn */,
-        address /* tokenOut */,
-        uint256 /* amountIn */,
-        uint256 /* amountOutMin */,
-        bytes calldata /* routeParams */
-    ) external pure returns (uint256) {
-        revert("Use dedicated swap executor");
     }
 }

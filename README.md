@@ -33,6 +33,9 @@
 [discord]: https://discord.gg/8bAXxPSPdw
 [discord-badge]: https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white
 
+[docs]: https://docs.orionfinance.ai/
+[docs-badge]: https://img.shields.io/badge/Documentation-Read%20the%20Docs-blue?style=for-the-badge&logo=readthedocs&logoColor=white
+
 
 
 ## About
@@ -40,6 +43,14 @@
 Orion Finance is a portfolio management protocol designed to optimize onchain capital efficiency while preserving privacy for managers and auditability for users. It enables anyone to create, manage, and invest in structured portfolios through modular, yield-bearing vaults. 
 
 At its core, Orion is building a next-generation infrastructure that democratizes access to advanced portfolio strategies and lowers the barrier to entry for managers to participate in a marketplace of indexes and actively managed DeFi products.
+
+<div align="center">
+  
+[![Documentation][docs-badge]][docs]
+
+</div>
+
+For comprehensive documentation, including setup guides, API references, and developer resources, visit [docs.orionfinance.ai](https://docs.orionfinance.ai/).
 
 ## Licences
 

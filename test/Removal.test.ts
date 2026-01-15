@@ -10,7 +10,7 @@ import {
   MockERC4626Asset,
   ERC4626ExecutionAdapter,
   OrionConfig,
-  InternalStatesOrchestrator,
+  InternalStateOrchestrator,
   LiquidityOrchestrator,
   TransparentVaultFactory,
   OrionTransparentVault,
@@ -23,9 +23,9 @@ describe("Whitelist and Vault Removal Flows", function () {
   let underlyingAsset: MockUnderlyingAsset;
   let mockAsset1: MockERC4626Asset;
   let mockAsset2: MockERC4626Asset;
-  let orionPriceAdapter: MockPriceAdapter;
-  let orionExecutionAdapter: ERC4626ExecutionAdapter;
-  let internalStatesOrchestrator: InternalStatesOrchestrator;
+  let PriceAdapter: ERC4626PriceAdapter;
+  let ExecutionAdapter: ERC4626ExecutionAdapter;
+  let InternalStateOrchestrator: InternalStateOrchestrator;
   let liquidityOrchestrator: LiquidityOrchestrator;
   let testVault: OrionTransparentVault;
 
@@ -75,17 +75,17 @@ describe("Whitelist and Vault Removal Flows", function () {
     const deployed = await deployUpgradeableProtocol(owner, underlyingAsset, automationRegistry);
 
     orionConfig = deployed.orionConfig;
-    internalStatesOrchestrator = deployed.internalStatesOrchestrator;
+    InternalStateOrchestrator = deployed.InternalStateOrchestrator;
     liquidityOrchestrator = deployed.liquidityOrchestrator;
     transparentVaultFactory = deployed.transparentVaultFactory;
 
     // Deploy price adapter
     const MockPriceAdapterFactory = await ethers.getContractFactory("MockPriceAdapter");
-    orionPriceAdapter = (await MockPriceAdapterFactory.deploy()) as unknown as MockPriceAdapter;
-    await orionPriceAdapter.waitForDeployment();
+    PriceAdapter = (await MockPriceAdapterFactory.deploy()) as unknown as MockPriceAdapter;
+    await PriceAdapter.waitForDeployment();
 
     // Configure protocol
-    await internalStatesOrchestrator.connect(owner).updateProtocolFees(10, 1000);
+    await InternalStateOrchestrator.connect(owner).updateProtocolFees(10, 1000);
     await liquidityOrchestrator.setTargetBufferRatio(100); // 1% target buffer ratio
 
     const MockSwapExecutorFactory = await ethers.getContractFactory("MockSwapExecutor");
@@ -93,21 +93,21 @@ describe("Whitelist and Vault Removal Flows", function () {
     await mockSwapExecutor.waitForDeployment();
 
     const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
-    orionExecutionAdapter = (await ERC4626ExecutionAdapterFactory.deploy(
+    ExecutionAdapter = (await ERC4626ExecutionAdapterFactory.deploy(
       await orionConfig.getAddress(),
       await mockSwapExecutor.getAddress(),
     )) as unknown as ERC4626ExecutionAdapter;
-    await orionExecutionAdapter.waitForDeployment();
+    await ExecutionAdapter.waitForDeployment();
 
     await orionConfig.addWhitelistedAsset(
       await mockAsset1.getAddress(),
-      await orionPriceAdapter.getAddress(),
-      await orionExecutionAdapter.getAddress(),
+      await PriceAdapter.getAddress(),
+      await ExecutionAdapter.getAddress(),
     );
     await orionConfig.addWhitelistedAsset(
       await mockAsset2.getAddress(),
-      await orionPriceAdapter.getAddress(),
-      await orionExecutionAdapter.getAddress(),
+      await PriceAdapter.getAddress(),
+      await ExecutionAdapter.getAddress(),
     );
 
     const testVaultTx = await transparentVaultFactory
@@ -153,35 +153,35 @@ describe("Whitelist and Vault Removal Flows", function () {
     await testVault.connect(strategist).submitIntent(intent);
 
     // Step 2: Trigger orchestrators to process the intent and build orders
-    const epochDuration = await internalStatesOrchestrator.epochDuration();
+    const epochDuration = await InternalStateOrchestrator.epochDuration();
     await time.increase(epochDuration + 1n);
 
-    // Process InternalStatesOrchestrator phases
-    let [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-    await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
+    // Process InternalStateOrchestrator phases
+    let [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+    await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    expect(await InternalStateOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
 
     // Process all vaults in preprocessing phase
-    while ((await internalStatesOrchestrator.currentPhase()) === 1n) {
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    while ((await InternalStateOrchestrator.currentPhase()) === 1n) {
+      [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
     }
-    expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // Buffering
+    expect(await InternalStateOrchestrator.currentPhase()).to.equal(2); // Buffering
 
-    [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-    await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    expect(await internalStatesOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
+    [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+    await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    expect(await InternalStateOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
 
     // Process all vaults in postprocessing phase
-    while ((await internalStatesOrchestrator.currentPhase()) === 3n) {
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    while ((await InternalStateOrchestrator.currentPhase()) === 3n) {
+      [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
     }
-    expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
+    expect(await InternalStateOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
 
-    [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-    await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Back to Idle
+    [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+    await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    expect(await InternalStateOrchestrator.currentPhase()).to.equal(0); // Back to Idle
 
     // Step 3: Trigger liquidity orchestrator to execute trades and get assets
     let [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
@@ -214,32 +214,32 @@ describe("Whitelist and Vault Removal Flows", function () {
     // Step 5: Wait for new epoch and retrigger orchestrators to process the removal
     await time.increase(epochDuration + 1n);
 
-    // Process InternalStatesOrchestrator phases again
-    [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-    await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
+    // Process InternalStateOrchestrator phases again
+    [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+    await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    expect(await InternalStateOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
 
     // Process all vaults in preprocessing phase
-    while ((await internalStatesOrchestrator.currentPhase()) === 1n) {
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    while ((await InternalStateOrchestrator.currentPhase()) === 1n) {
+      [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
     }
-    expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // Buffering
+    expect(await InternalStateOrchestrator.currentPhase()).to.equal(2); // Buffering
 
-    [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-    await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    expect(await internalStatesOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
+    [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+    await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    expect(await InternalStateOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
 
     // Process all vaults in postprocessing phase
-    while ((await internalStatesOrchestrator.currentPhase()) === 3n) {
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    while ((await InternalStateOrchestrator.currentPhase()) === 3n) {
+      [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
     }
-    expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
+    expect(await InternalStateOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
 
-    [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-    await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Back to Idle
+    [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+    await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    expect(await InternalStateOrchestrator.currentPhase()).to.equal(0); // Back to Idle
 
     // Step 5.5: Trigger liquidity orchestrator to execute trades
     let [liquidityUpkeepNeeded2, liquidityPerformData2] = await liquidityOrchestrator.checkUpkeep("0x");
@@ -262,7 +262,7 @@ describe("Whitelist and Vault Removal Flows", function () {
     expect(mockAsset1BalanceAfter).to.equal(0);
 
     // Verify that the system is in a consistent state
-    expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Idle
+    expect(await InternalStateOrchestrator.currentPhase()).to.equal(0); // Idle
     expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
   });
 
@@ -281,35 +281,35 @@ describe("Whitelist and Vault Removal Flows", function () {
     await testVault.connect(strategist).submitIntent(intent);
 
     // Step 2: Trigger orchestrators to process the intent and build orders
-    const epochDuration = await internalStatesOrchestrator.epochDuration();
+    const epochDuration = await InternalStateOrchestrator.epochDuration();
     await time.increase(epochDuration + 1n);
 
-    // Process InternalStatesOrchestrator phases
-    let [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-    await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
+    // Process InternalStateOrchestrator phases
+    let [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+    await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    expect(await InternalStateOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
 
     // Process all vaults in preprocessing phase
-    while ((await internalStatesOrchestrator.currentPhase()) === 1n) {
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    while ((await InternalStateOrchestrator.currentPhase()) === 1n) {
+      [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
     }
-    expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // Buffering
+    expect(await InternalStateOrchestrator.currentPhase()).to.equal(2); // Buffering
 
-    [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-    await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    expect(await internalStatesOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
+    [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+    await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    expect(await InternalStateOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
 
     // Process all vaults in postprocessing phase
-    while ((await internalStatesOrchestrator.currentPhase()) === 3n) {
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    while ((await InternalStateOrchestrator.currentPhase()) === 3n) {
+      [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
     }
-    expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
+    expect(await InternalStateOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
 
-    [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-    await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Back to Idle
+    [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+    await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    expect(await InternalStateOrchestrator.currentPhase()).to.equal(0); // Back to Idle
 
     // Step 3: Trigger liquidity orchestrator to execute trades and get assets
     let [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
@@ -342,32 +342,32 @@ describe("Whitelist and Vault Removal Flows", function () {
     // Step 5: Wait for new epoch and retrigger orchestrators to process the removal
     await time.increase(epochDuration + 1n);
 
-    // Process InternalStatesOrchestrator phases again
-    [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-    await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
+    // Process InternalStateOrchestrator phases again
+    [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+    await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    expect(await InternalStateOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
 
     // Process all vaults in preprocessing phase
-    while ((await internalStatesOrchestrator.currentPhase()) === 1n) {
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    while ((await InternalStateOrchestrator.currentPhase()) === 1n) {
+      [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
     }
-    expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // Buffering
+    expect(await InternalStateOrchestrator.currentPhase()).to.equal(2); // Buffering
 
-    [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-    await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    expect(await internalStatesOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
+    [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+    await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    expect(await InternalStateOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
 
     // Process all vaults in postprocessing phase
-    while ((await internalStatesOrchestrator.currentPhase()) === 3n) {
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    while ((await InternalStateOrchestrator.currentPhase()) === 3n) {
+      [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
     }
-    expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
+    expect(await InternalStateOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
 
-    [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-    await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Back to Idle
+    [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+    await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    expect(await InternalStateOrchestrator.currentPhase()).to.equal(0); // Back to Idle
 
     // Step 5.5: Trigger liquidity orchestrator to execute trades
     let [liquidityUpkeepNeeded2, liquidityPerformData2] = await liquidityOrchestrator.checkUpkeep("0x");
@@ -390,7 +390,7 @@ describe("Whitelist and Vault Removal Flows", function () {
     expect(mockAsset1BalanceAfter).to.equal(0);
 
     // Verify that the system is in a consistent state
-    expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Idle
+    expect(await InternalStateOrchestrator.currentPhase()).to.equal(0); // Idle
     expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
   });
 
@@ -413,35 +413,35 @@ describe("Whitelist and Vault Removal Flows", function () {
     await testVault.connect(strategist).submitIntent(intent);
 
     // Step 2: Trigger orchestrators to process the intent and build orders
-    const epochDuration = await internalStatesOrchestrator.epochDuration();
+    const epochDuration = await InternalStateOrchestrator.epochDuration();
     await time.increase(epochDuration + 1n);
 
-    // Process InternalStatesOrchestrator phases
-    let [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-    await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
+    // Process InternalStateOrchestrator phases
+    let [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+    await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    expect(await InternalStateOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
 
     // Process all vaults in preprocessing phase
-    while ((await internalStatesOrchestrator.currentPhase()) === 1n) {
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    while ((await InternalStateOrchestrator.currentPhase()) === 1n) {
+      [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
     }
-    expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // Buffering
+    expect(await InternalStateOrchestrator.currentPhase()).to.equal(2); // Buffering
 
-    [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-    await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    expect(await internalStatesOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
+    [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+    await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    expect(await InternalStateOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
 
     // Process all vaults in postprocessing phase
-    while ((await internalStatesOrchestrator.currentPhase()) === 3n) {
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    while ((await InternalStateOrchestrator.currentPhase()) === 3n) {
+      [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
     }
-    expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
+    expect(await InternalStateOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
 
-    [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-    await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Back to Idle
+    [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+    await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    expect(await InternalStateOrchestrator.currentPhase()).to.equal(0); // Back to Idle
 
     // Step 3: Trigger liquidity orchestrator to execute trades and get assets
     let [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
@@ -479,32 +479,32 @@ describe("Whitelist and Vault Removal Flows", function () {
     await time.increase(epochDuration + 1n);
 
     // Step 4: Trigger orchestrators again so that liquidity orchestrator completes vault decommissioning
-    // First, trigger internal states orchestrator to process the decommissioning vault
-    [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-    await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
+    // First, trigger internal state orchestrator to process the decommissioning vault
+    [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+    await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    expect(await InternalStateOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
 
     // Process all vaults in preprocessing phase (including decommissioning vault)
-    while ((await internalStatesOrchestrator.currentPhase()) === 1n) {
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    while ((await InternalStateOrchestrator.currentPhase()) === 1n) {
+      [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
     }
-    expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // Buffering
+    expect(await InternalStateOrchestrator.currentPhase()).to.equal(2); // Buffering
 
-    [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-    await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    expect(await internalStatesOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
+    [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+    await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    expect(await InternalStateOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
 
     // Process all vaults in postprocessing phase (including decommissioning vault)
-    while ((await internalStatesOrchestrator.currentPhase()) === 3n) {
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    while ((await InternalStateOrchestrator.currentPhase()) === 3n) {
+      [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
     }
-    expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
+    expect(await InternalStateOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
 
-    [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-    await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Back to Idle
+    [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+    await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    expect(await InternalStateOrchestrator.currentPhase()).to.equal(0); // Back to Idle
 
     // Now trigger liquidity orchestrator to complete vault decommissioning
     [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
@@ -578,14 +578,14 @@ describe("Whitelist and Vault Removal Flows", function () {
     // Verify vault is decommissioning
     void expect(await testVault.isDecommissioning()).to.be.true;
 
-    const epochDuration = await internalStatesOrchestrator.epochDuration();
+    const epochDuration = await InternalStateOrchestrator.epochDuration();
     await time.increase(epochDuration + 1n);
 
     // Process one full epoch cycle to have some assets
-    let [upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+    let [upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
     while (upkeepNeeded) {
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      [upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      [upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
     }
 
     [upkeepNeeded, performData] = await liquidityOrchestrator.checkUpkeep("0x");
@@ -612,14 +612,14 @@ describe("Whitelist and Vault Removal Flows", function () {
 
     await testVault.connect(strategist).submitIntent([{ token: await mockAsset1.getAddress(), weight: 1000000000 }]);
 
-    const epochDuration = await internalStatesOrchestrator.epochDuration();
+    const epochDuration = await InternalStateOrchestrator.epochDuration();
     await time.increase(epochDuration + 1n);
 
     // Process epochs to fulfill the deposit
-    let [upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-    while (upkeepNeeded || (await internalStatesOrchestrator.currentPhase()) !== 0n) {
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      [upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
+    let [upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+    while (upkeepNeeded || (await InternalStateOrchestrator.currentPhase()) !== 0n) {
+      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      [upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
     }
 
     let [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");

@@ -101,6 +101,12 @@ interface IInternalStateOrchestrator is AutomationCompatibleInterface {
     /// @return shares The array of portfolio shares for each token [shares]
     function getVaultPortfolio(address vault) external view returns (address[] memory tokens, uint256[] memory shares);
 
+    /// @notice Get the vault fees for a specific vault
+    /// @param vault The vault address
+    /// @return managementFee The management fee amount [assets]
+    /// @return performanceFee The performance fee amount [assets]
+    function getVaultFee(address vault) external view returns (uint256 managementFee, uint256 performanceFee);
+
     /// @notice Pauses the contract
     /// @dev Can only be called by OrionConfig for emergency situations
     function pause() external;

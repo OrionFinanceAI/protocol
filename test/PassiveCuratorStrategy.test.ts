@@ -10,7 +10,7 @@ import {
   MockERC4626Asset,
   ERC4626ExecutionAdapter,
   OrionConfig,
-  InternalStatesOrchestrator,
+  InternalStateOrchestrator,
   LiquidityOrchestrator,
   TransparentVaultFactory,
   OrionTransparentVault,
@@ -27,9 +27,9 @@ describe("Passive Strategist", function () {
   let mockAsset2: MockERC4626Asset;
   let mockAsset3: MockERC4626Asset;
   let mockAsset4: MockERC4626Asset;
-  let orionPriceAdapter: MockPriceAdapter;
+  let orionPriceAdapter: ERC4626PriceAdapter;
   let orionExecutionAdapter: ERC4626ExecutionAdapter;
-  let internalStatesOrchestrator: InternalStatesOrchestrator;
+  let InternalStateOrchestrator: InternalStateOrchestrator;
   let liquidityOrchestrator: LiquidityOrchestrator;
   let transparentVault: OrionTransparentVault;
   let passiveStrategist: KBestTvlWeightedAverage;
@@ -108,7 +108,7 @@ describe("Passive Strategist", function () {
     const deployed = await deployUpgradeableProtocol(owner, underlyingAsset, automationRegistry);
 
     orionConfig = deployed.orionConfig;
-    internalStatesOrchestrator = deployed.internalStatesOrchestrator;
+    InternalStateOrchestrator = deployed.InternalStateOrchestrator;
     liquidityOrchestrator = deployed.liquidityOrchestrator;
     transparentVaultFactory = deployed.transparentVaultFactory;
 
@@ -118,7 +118,7 @@ describe("Passive Strategist", function () {
     await orionPriceAdapter.waitForDeployment();
 
     // Configure protocol
-    await internalStatesOrchestrator.connect(owner).updateProtocolFees(10, 1000);
+    await InternalStateOrchestrator.connect(owner).updateProtocolFees(10, 1000);
     await liquidityOrchestrator.setTargetBufferRatio(100); // 1% target buffer ratio
 
     const MockSwapExecutorFactory = await ethers.getContractFactory("MockSwapExecutor");
@@ -320,41 +320,41 @@ describe("Passive Strategist", function () {
   describe("Vault Integration with Passive Strategist", function () {
     it("should get intent from passive strategist during orchestrator execution", async function () {
       // Fast forward time to trigger upkeep
-      const epochDuration = await internalStatesOrchestrator.epochDuration();
+      const epochDuration = await InternalStateOrchestrator.epochDuration();
       await time.increase(epochDuration + 1n);
 
       // Start the upkeep cycle
-      let [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
+      let [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await InternalStateOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
 
       // Continue with buffering
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(2); // Buffering
+      [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await InternalStateOrchestrator.currentPhase()).to.equal(2); // Buffering
 
       // Continue with postprocessing
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
+      [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await InternalStateOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
 
       // This is where the vault's getIntent() is called.
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
+      [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await InternalStateOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
 
       // Complete the cycle
-      [_upkeepNeeded, performData] = await internalStatesOrchestrator.checkUpkeep("0x");
-      await internalStatesOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await internalStatesOrchestrator.currentPhase()).to.equal(0); // Back to Idle
+      [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await InternalStateOrchestrator.currentPhase()).to.equal(0); // Back to Idle
 
       // Verify that orders were built based on the passive strategist's intent
 
       const [_sellingTokens, _sellingAmounts, _sellingEstimatedUnderlyingAmounts] =
-        await internalStatesOrchestrator.getOrders(true);
+        await InternalStateOrchestrator.getOrders(true);
 
       const [buyingTokens, _buyingAmounts, _buyingEstimatedUnderlyingAmounts] =
-        await internalStatesOrchestrator.getOrders(false);
+        await InternalStateOrchestrator.getOrders(false);
 
       // Should have buying orders for the assets selected by the passive strategist
       expect(buyingTokens.length).to.be.greaterThan(0);

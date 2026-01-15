@@ -5,12 +5,12 @@ import "solidity-docgen";
 import * as dotenv from "dotenv";
 import { HardhatUserConfig } from "hardhat/config";
 
-dotenv.config();
+dotenv.config({ quiet: true });
 
 const config: HardhatUserConfig = {
   defaultNetwork: "hardhat",
   docgen: {
-    outputDir: "../docs/docs/developer/api",
+    outputDir: "./docs/",
     pages: "files",
     exclude: ["mocks", "test"],
   },
@@ -45,7 +45,7 @@ const config: HardhatUserConfig = {
       forking: process.env.MAINNET_RPC_URL
         ? {
             url: process.env.MAINNET_RPC_URL,
-            blockNumber: undefined, // Use latest block
+            blockNumber: 24200000,
           }
         : undefined,
     },

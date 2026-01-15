@@ -7,7 +7,6 @@ import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import "./OrionVault.sol";
 import "../interfaces/IOrionConfig.sol";
 import "../interfaces/IOrionTransparentVault.sol";
-import "../interfaces/IOrionStrategist.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { EventsLib } from "../libraries/EventsLib.sol";
 
@@ -80,19 +79,24 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
     /// @inheritdoc IOrionTransparentVault
     function submitIntent(IntentPosition[] calldata intent) external onlyStrategist {
-        if (intent.length == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
+        uint256 len = intent.length;
+        if (len == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
 
         _portfolioIntent.clear();
 
-        // Extract asset addresses for validation
-        address[] memory assets = new address[](intent.length);
+        address[] memory assets = new address[](len);
+        uint256[] memory weights = new uint256[](len);
 
         uint256 totalWeight = 0;
-        uint16 intentLength = uint16(intent.length);
-        for (uint16 i = 0; i < intentLength; ++i) {
-            address token = intent[i].token;
-            uint32 weight = intent[i].weight;
+
+        for (uint256 i; i < len; ++i) {
+            IntentPosition calldata pos = intent[i];
+            address token = pos.token;
+            uint32 weight = pos.weight;
+
             assets[i] = token;
+            weights[i] = weight;
+
             bool inserted = _portfolioIntent.set(token, weight);
             if (!inserted) revert ErrorsLib.TokenAlreadyInOrder(token);
             totalWeight += weight;
@@ -103,10 +107,10 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
         // Validate that the total weight is 100%
         if (totalWeight != 10 ** config.strategistIntentDecimals()) revert ErrorsLib.InvalidTotalWeight();
 
-        emit EventsLib.OrderSubmitted(msg.sender);
+        emit EventsLib.OrderSubmitted(msg.sender, assets, weights);
     }
 
-    // --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
+    // --------- INTERNAL STATE ORCHESTRATOR FUNCTIONS ---------
 
     /// @inheritdoc IOrionTransparentVault
     function getPortfolio() external view returns (address[] memory tokens, uint256[] memory sharesPerAsset) {
@@ -161,42 +165,17 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
             feeModel.highWaterMark = currentSharePrice;
         }
 
-        // Emit event for tracking state updates
-        emit EventsLib.VaultStateUpdated(newTotalAssets);
+        emit EventsLib.VaultStateUpdated(
+            newTotalAssets,
+            totalSupply(),
+            currentSharePrice,
+            feeModel.highWaterMark,
+            tokens,
+            shares
+        );
     }
 
-    /// --------- MANAGER FUNCTIONS ---------
-
-    /// @inheritdoc IOrionVault
-    function updateStrategist(address newStrategist) external onlyManager {
-        strategist = newStrategist;
-        emit StrategistUpdated(newStrategist);
-    }
-
-    /// @inheritdoc IOrionVault
-    function updateVaultWhitelist(address[] calldata assets) external onlyManager {
-        // Clear existing whitelist
-        _vaultWhitelistedAssets.clear();
-
-        for (uint256 i = 0; i < assets.length; ++i) {
-            address token = assets[i];
-
-            if (!config.isWhitelisted(token)) revert ErrorsLib.TokenNotWhitelisted(token);
-
-            bool inserted = _vaultWhitelistedAssets.add(token);
-            if (!inserted) revert ErrorsLib.AlreadyRegistered();
-        }
-
-        if (!_vaultWhitelistedAssets.contains(this.asset())) {
-            // slither-disable-next-line unused-return
-            _vaultWhitelistedAssets.add(this.asset());
-        }
-
-        emit VaultWhitelistUpdated(assets);
-    }
-
-    /// @notice Remove an asset from the vault whitelist and modify intent accordingly
-    /// @param asset The asset to remove from the whitelist
+    /// @inheritdoc IOrionTransparentVault
     function removeFromVaultWhitelist(address asset) external onlyConfig {
         // slither-disable-next-line unused-return
         _vaultWhitelistedAssets.remove(asset);

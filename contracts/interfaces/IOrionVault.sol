@@ -48,20 +48,24 @@ interface IOrionVault is IERC4626 {
     event VaultFeeModelUpdated(uint8 indexed mode, uint16 indexed performanceFee, uint16 indexed managementFee);
 
     /// @notice A redemption request has been fulfilled.
-    /// @param vault The address of the vault where the redemption was fulfilled.
     /// @param user The address of the user whose redemption was fulfilled.
     /// @param redeemAmount The amount of assets redeemed by the user.
     /// @param sharesBurned The number of shares burned for the user.
-    event Redeem(address indexed vault, address indexed user, uint256 indexed redeemAmount, uint256 sharesBurned);
+    event Redeem(address indexed user, uint256 indexed redeemAmount, uint256 indexed sharesBurned);
 
     /// @notice The vault whitelist has been updated.
     /// @param assets The new whitelist of assets.
     event VaultWhitelistUpdated(address[] assets);
 
     /// @notice Fees have been accrued.
-    /// @param feeAmount The amount of fees accrued in underlying asset units.
-    /// @param pendingVaultFees The total pending vault fees in underlying asset units.
-    event VaultFeesAccrued(uint256 indexed feeAmount, uint256 indexed pendingVaultFees);
+    /// @param managementFee The amount of management fees accrued.
+    /// @param performanceFee The amount of performance fees accrued.
+    event VaultFeesAccrued(uint256 indexed managementFee, uint256 indexed performanceFee);
+
+    /// @notice Fees have been claimed.
+    /// @param manager The address of the manager who claimed the fees.
+    /// @param feeAmount The amount of fees claimed.
+    event VaultFeesClaimed(address indexed manager, uint256 indexed feeAmount);
 
     /// @notice The deposit access control contract has been updated.
     /// @param newDepositAccessControl The new deposit access control contract address (address(0) = permissionless).
@@ -96,11 +100,15 @@ interface IOrionVault is IERC4626 {
         Math.Rounding rounding
     ) external view returns (uint256);
 
-    /// --------- CONFIG FUNCTIONS ---------
+    /// @notice Returns the implementation address of this proxy contract
+    /// @dev This function enables third-party protocol integrations to verify
+    ///      that the implementation address has not been modified unexpectedly.
+    ///      It reads the beacon address from the ERC-1967 storage slot and
+    ///      returns the implementation address from the beacon.
+    /// @return The address of the implementation contract
+    function implementation() external view returns (address);
 
-    /// @notice Remove an asset from the vault whitelist
-    /// @param asset The asset to remove from the whitelist
-    function removeFromVaultWhitelist(address asset) external;
+    /// --------- CONFIG FUNCTIONS ---------
 
     /// @notice Override intent to 100% underlying asset for decommissioning
     /// @dev Can only be called by the OrionConfig contract
@@ -169,7 +177,7 @@ interface IOrionVault is IERC4626 {
     ///      to ensure the deposit access control is capable of performing its duties.
     function setDepositAccessControl(address newDepositAccessControl) external;
 
-    /// --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
+    /// --------- INTERNAL STATE ORCHESTRATOR FUNCTIONS ---------
 
     /// @notice Get total pending deposit amount across all users
     /// @param fulfillBatchSize The maximum number of requests to process per fulfill call
@@ -185,10 +193,11 @@ interface IOrionVault is IERC4626 {
 
     /// @notice Calculate the vault's fee based on total assets
     /// @param totalAssets The total assets under management
-    /// @return The vault fee amount in underlying asset units
+    /// @return managementFee The management fee amount in underlying asset units
+    /// @return performanceFee The performance fee amount in underlying asset units
     /// @dev Warning: Calling this function mid-epoch may return inaccurate results
     ///      since fees are calculated based on the full epoch duration
-    function vaultFee(uint256 totalAssets) external view returns (uint256);
+    function vaultFee(uint256 totalAssets) external view returns (uint256 managementFee, uint256 performanceFee);
 
     /// --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
 
@@ -201,6 +210,7 @@ interface IOrionVault is IERC4626 {
     function fulfillRedeem(uint256 redeemTotalAssets) external;
 
     /// @notice Accrue vault fees for a specific epoch
-    /// @param feeAmount The amount of vault fees to accrue in underlying asset units
-    function accrueVaultFees(uint256 feeAmount) external;
+    /// @param managementFee The amount of management fees to accrue in underlying asset units
+    /// @param performanceFee The amount of performance fees to accrue in underlying asset units
+    function accrueVaultFees(uint256 managementFee, uint256 performanceFee) external;
 }

@@ -43,13 +43,26 @@ library EventsLib {
     event MaxFulfillBatchSizeUpdated(uint256 indexed maxFulfillBatchSize);
 
     /// @notice A vault fee model change has been scheduled.
-    /// @param vault The address of the vault.
-    event VaultFeeChangeScheduled(address indexed vault);
+    /// @param feeType The new fee type.
+    /// @param performanceFee The new performance fee.
+    /// @param managementFee The new management fee.
+    /// @param newFeeRatesTimestamp The timestamp when the new fee rates become effective.
+    event VaultFeeChangeScheduled(
+        uint8 indexed feeType,
+        uint16 indexed performanceFee,
+        uint16 indexed managementFee,
+        uint256 newFeeRatesTimestamp
+    );
 
     /// @notice A protocol fee change has been scheduled.
     /// @param vFeeCoefficient The new volume fee coefficient.
     /// @param rsFeeCoefficient The new revenue share fee coefficient.
-    event ProtocolFeeChangeScheduled(uint16 indexed vFeeCoefficient, uint16 indexed rsFeeCoefficient);
+    /// @param newProtocolFeeRatesTimestamp The timestamp when the new protocol fee rates become effective.
+    event ProtocolFeeChangeScheduled(
+        uint16 indexed vFeeCoefficient,
+        uint16 indexed rsFeeCoefficient,
+        uint256 indexed newProtocolFeeRatesTimestamp
+    );
 
     /// @notice The guardian address has been updated.
     /// @param guardian The new guardian address.
@@ -71,16 +84,30 @@ library EventsLib {
     // === Vault Lifecycle ===
     // =======================
 
-    /// @notice A new order has been submitted by a strategist.
+    /// @notice A new order has been submitted.
     /// @param strategist The address of the strategist who submitted the order.
-    event OrderSubmitted(address indexed strategist);
+    /// @param assets Array of token addresses in the order.
+    /// @param weights Array of weights in the order (parallel to assets array).
+    event OrderSubmitted(address indexed strategist, address[] assets, uint256[] weights);
 
-    /// @notice The vault's state has been updated with new total assets.
+    /// @notice The vault's state has been updated with complete portfolio information.
     /// @param newTotalAssets The new total assets value for the vault.
-    event VaultStateUpdated(uint256 indexed newTotalAssets);
+    /// @param totalSupply The total supply of the vault.
+    /// @param currentSharePrice The current share price of the vault.
+    /// @param highWaterMark The new high watermark value for the vault.
+    /// @param tokens Array of token addresses in the portfolio.
+    /// @param shares Array of shares per asset (parallel to tokens array).
+    event VaultStateUpdated(
+        uint256 indexed newTotalAssets,
+        uint256 indexed totalSupply,
+        uint256 indexed currentSharePrice,
+        uint256 highWaterMark,
+        address[] tokens,
+        uint256[] shares
+    );
 
     // ====================================
-    // === Internal States Orchestrator ===
+    // === Internal State Orchestrator ===
     // ====================================
 
     /// @notice The automation registry address has been updated.
@@ -91,8 +118,13 @@ library EventsLib {
     // === Liquidity Orchestrator ===
     // ================================
 
+    /// @notice A new epoch has started.
+    /// @param epochCounter The current epoch counter.
+    event EpochStart(uint256 indexed epochCounter);
+
     /// @notice The portfolio has been rebalanced.
-    event PortfolioRebalanced();
+    /// @param epochCounter The current epoch counter.
+    event EpochEnd(uint256 indexed epochCounter);
 
     /// @notice A price adapter has been set for an asset.
     /// @param asset The address of the asset.
@@ -103,6 +135,10 @@ library EventsLib {
     /// @param asset The address of the asset.
     /// @param adapter The address of the execution adapter.
     event ExecutionAdapterSet(address indexed asset, address indexed adapter);
+
+    /// @notice Protocol fees have been claimed.
+    /// @param amount The amount of protocol fees claimed.
+    event ProtocolFeesClaimed(uint256 indexed amount);
 
     /// @notice Enumeration of available vault types.
     enum VaultType {
@@ -133,6 +169,10 @@ library EventsLib {
         address depositAccessControl,
         VaultType vaultType
     );
+
+    /// @notice An Orion Vault has been decommissioned.
+    /// @param vault The address of the decommissioned vault.
+    event OrionVaultDecommissioned(address indexed vault);
 
     /// @notice The vault beacon has been updated.
     /// @param newBeacon The address of the new vault beacon.

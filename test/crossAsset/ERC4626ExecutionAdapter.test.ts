@@ -1,9 +1,9 @@
 /**
- * ERC4626VaultAdapter E2E Tests
+ * ERC4626ExecutionAdapter E2E Tests
  *
  * Tests the new architecture where:
  * 1. Token swap executors are registered for tokens (WETH → UniswapV3TokenSwapExecutor)
- * 2. Vault adapters are registered for vaults (Morpho WETH vault → ERC4626VaultAdapter)
+ * 2. Vault adapters are registered for vaults (Morpho WETH vault → ERC4626ExecutionAdapter)
  * 3. Vault adapters delegate to swap executors via LO's executionAdapterOf mapping
  *
  * Test Coverage:
@@ -20,7 +20,7 @@ import { ethers, network } from "hardhat";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import {
   OrionConfig,
-  ERC4626VaultAdapter,
+  ERC4626ExecutionAdapter,
   UniswapV3TokenSwapExecutor,
   ChainlinkPriceAdapter,
   MockERC4626VaultPriceAdapter,
@@ -51,7 +51,7 @@ const MAINNET = {
   WETH_WHALE: "0x4d5f47fa6a74757f35c14fd3a6ef8e3c9bc514e8", // Aave
 };
 
-describe("ERC4626VaultAdapter", function () {
+describe("ERC4626ExecutionAdapter", function () {
   let owner: SignerWithAddress;
 
   let orionConfig: OrionConfig;
@@ -59,7 +59,7 @@ describe("ERC4626VaultAdapter", function () {
   let loSigner: SignerWithAddress; // Impersonated signer for LO contract
 
   // Adapters
-  let vaultAdapter: ERC4626VaultAdapter;
+  let vaultAdapter: ERC4626ExecutionAdapter;
   let tokenSwapExecutor: UniswapV3TokenSwapExecutor;
 
   // Price adapters
@@ -136,7 +136,7 @@ describe("ERC4626VaultAdapter", function () {
       tokenSwapExecutor = await TokenSwapExecutorFactory.deploy(MAINNET.UNISWAP_ROUTER);
 
       // Deploy vault adapter (for ERC4626 vaults)
-      const VaultAdapterFactory = await ethers.getContractFactory("ERC4626VaultAdapter");
+      const VaultAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
       vaultAdapter = await VaultAdapterFactory.deploy(
         await orionConfig.getAddress(),
         await liquidityOrchestrator.getAddress(),
@@ -384,8 +384,6 @@ describe("ERC4626VaultAdapter", function () {
   });
 
   describe("Share Accounting Precision", function () {
-    let initialUSDCBalance: bigint;
-
     before(async function () {
       // Fund for precision tests
       const usdcWhale = await ethers.getImpersonatedSigner(MAINNET.USDC_WHALE);
@@ -396,7 +394,6 @@ describe("ERC4626VaultAdapter", function () {
 
       const fundAmount = ethers.parseUnits("50000", USDC_DECIMALS);
       await usdc.connect(usdcWhale).transfer(loSigner.address, fundAmount);
-      initialUSDCBalance = await usdc.balanceOf(loSigner.address);
     });
 
     it("Should mint exact shares requested via buy()", async function () {

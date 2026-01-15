@@ -186,11 +186,8 @@ describe("Execution Adapter Validation - Comprehensive Tests", function () {
         await underlyingAsset.connect(loSigner).approve(await erc4626ExecutionAdapter.getAddress(), underlyingAmount);
 
         // Should succeed because validation passes
-        await expect(
-          erc4626ExecutionAdapter
-            .connect(loSigner)
-            .buy(await erc4626Vault.getAddress(), sharesAmount, underlyingAmount),
-        ).to.not.be.reverted;
+        await expect(erc4626ExecutionAdapter.connect(loSigner).buy(await erc4626Vault.getAddress(), sharesAmount)).to
+          .not.be.reverted;
 
         await ethers.provider.send("hardhat_stopImpersonatingAccount", [await liquidityOrchestrator.getAddress()]);
       });
@@ -209,15 +206,12 @@ describe("Execution Adapter Validation - Comprehensive Tests", function () {
 
         await underlyingAsset.mint(await liquidityOrchestrator.getAddress(), underlyingAmount);
         await underlyingAsset.connect(loSigner).approve(await erc4626ExecutionAdapter.getAddress(), underlyingAmount);
-        await erc4626ExecutionAdapter
-          .connect(loSigner)
-          .buy(await erc4626Vault.getAddress(), sharesAmount, sharesAmount);
+        await erc4626ExecutionAdapter.connect(loSigner).buy(await erc4626Vault.getAddress(), sharesAmount);
 
         // Now sell
         await erc4626Vault.connect(loSigner).approve(await erc4626ExecutionAdapter.getAddress(), sharesAmount);
-        await expect(
-          erc4626ExecutionAdapter.connect(loSigner).sell(await erc4626Vault.getAddress(), sharesAmount, sharesAmount),
-        ).to.not.be.reverted;
+        await expect(erc4626ExecutionAdapter.connect(loSigner).sell(await erc4626Vault.getAddress(), sharesAmount)).to
+          .not.be.reverted;
 
         await ethers.provider.send("hardhat_stopImpersonatingAccount", [await liquidityOrchestrator.getAddress()]);
       });
@@ -300,11 +294,8 @@ describe("Execution Adapter Validation - Comprehensive Tests", function () {
         await underlyingAsset.mint(await liquidityOrchestrator.getAddress(), underlyingAmount);
         await underlyingAsset.connect(loSigner).approve(await erc4626ExecutionAdapter.getAddress(), underlyingAmount);
 
-        await expect(
-          erc4626ExecutionAdapter
-            .connect(loSigner)
-            .buy(await erc4626Vault.getAddress(), sharesAmount, underlyingAmount),
-        ).to.not.be.reverted;
+        await expect(erc4626ExecutionAdapter.connect(loSigner).buy(await erc4626Vault.getAddress(), sharesAmount)).to
+          .not.be.reverted;
 
         await ethers.provider.send("hardhat_stopImpersonatingAccount", [await liquidityOrchestrator.getAddress()]);
       });
@@ -324,9 +315,7 @@ describe("Execution Adapter Validation - Comprehensive Tests", function () {
         await underlyingAsset.connect(loSigner).approve(await erc4626ExecutionAdapter.getAddress(), underlyingAmount);
 
         const balanceBefore = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
-        await erc4626ExecutionAdapter
-          .connect(loSigner)
-          .buy(await erc4626Vault.getAddress(), sharesAmount, underlyingAmount);
+        await erc4626ExecutionAdapter.connect(loSigner).buy(await erc4626Vault.getAddress(), sharesAmount);
         const balanceAfter = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
 
         const spent = balanceBefore - balanceAfter;
@@ -352,9 +341,7 @@ describe("Execution Adapter Validation - Comprehensive Tests", function () {
 
         await underlyingAsset.mint(await liquidityOrchestrator.getAddress(), underlyingAmount);
         await underlyingAsset.connect(loSigner).approve(await erc4626ExecutionAdapter.getAddress(), underlyingAmount);
-        await erc4626ExecutionAdapter
-          .connect(loSigner)
-          .buy(await erc4626Vault.getAddress(), sharesAmount, underlyingAmount);
+        await erc4626ExecutionAdapter.connect(loSigner).buy(await erc4626Vault.getAddress(), sharesAmount);
 
         await ethers.provider.send("hardhat_stopImpersonatingAccount", [await liquidityOrchestrator.getAddress()]);
       });
@@ -371,9 +358,8 @@ describe("Execution Adapter Validation - Comprehensive Tests", function () {
 
         await erc4626Vault.connect(loSigner).approve(await erc4626ExecutionAdapter.getAddress(), sharesAmount);
 
-        await expect(
-          erc4626ExecutionAdapter.connect(loSigner).sell(await erc4626Vault.getAddress(), sharesAmount, sharesAmount),
-        ).to.not.be.reverted;
+        await expect(erc4626ExecutionAdapter.connect(loSigner).sell(await erc4626Vault.getAddress(), sharesAmount)).to
+          .not.be.reverted;
 
         await ethers.provider.send("hardhat_stopImpersonatingAccount", [await liquidityOrchestrator.getAddress()]);
       });
@@ -391,9 +377,7 @@ describe("Execution Adapter Validation - Comprehensive Tests", function () {
         await erc4626Vault.connect(loSigner).approve(await erc4626ExecutionAdapter.getAddress(), sharesAmount);
 
         const underlyingBefore = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
-        await erc4626ExecutionAdapter
-          .connect(loSigner)
-          .sell(await erc4626Vault.getAddress(), sharesAmount, sharesAmount);
+        await erc4626ExecutionAdapter.connect(loSigner).sell(await erc4626Vault.getAddress(), sharesAmount);
         const underlyingAfter = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
 
         const received = underlyingAfter - underlyingBefore;
@@ -433,9 +417,7 @@ describe("Execution Adapter Validation - Comprehensive Tests", function () {
       await underlyingAsset.connect(loSigner).approve(await erc4626ExecutionAdapter.getAddress(), underlyingAmount);
 
       // Buy operation - validates and checks slippage
-      await erc4626ExecutionAdapter
-        .connect(loSigner)
-        .buy(await erc4626Vault.getAddress(), sharesAmount, underlyingAmount);
+      await erc4626ExecutionAdapter.connect(loSigner).buy(await erc4626Vault.getAddress(), sharesAmount);
 
       // Verify shares received
       const sharesBalance = await erc4626Vault.balanceOf(await liquidityOrchestrator.getAddress());
@@ -448,12 +430,7 @@ describe("Execution Adapter Validation - Comprehensive Tests", function () {
       // Sell operation - validates and checks slippage
       await erc4626Vault.connect(loSigner).approve(await erc4626ExecutionAdapter.getAddress(), sharesAmount);
 
-      // Get the expected underlying amount from previewRedeem
-      const expectedUnderlyingFromRedeem = await erc4626Vault.previewRedeem(sharesAmount);
-
-      await erc4626ExecutionAdapter
-        .connect(loSigner)
-        .sell(await erc4626Vault.getAddress(), sharesAmount, expectedUnderlyingFromRedeem);
+      await erc4626ExecutionAdapter.connect(loSigner).sell(await erc4626Vault.getAddress(), sharesAmount);
 
       // Verify shares sold
       const finalSharesBalance = await erc4626Vault.balanceOf(await liquidityOrchestrator.getAddress());
@@ -488,11 +465,8 @@ describe("Execution Adapter Validation - Comprehensive Tests", function () {
       await underlyingAsset.mint(await liquidityOrchestrator.getAddress(), underlyingAmount);
       await underlyingAsset.connect(loSigner).approve(await erc4626ExecutionAdapter.getAddress(), underlyingAmount);
 
-      await expect(
-        erc4626ExecutionAdapter
-          .connect(loSigner)
-          .buy(await erc4626Vault.getAddress(), sharesAmount, (underlyingAmount * 1015n) / 100n),
-      ).to.not.be.reverted;
+      await expect(erc4626ExecutionAdapter.connect(loSigner).buy(await erc4626Vault.getAddress(), sharesAmount)).to.not
+        .be.reverted;
 
       await ethers.provider.send("hardhat_stopImpersonatingAccount", [await liquidityOrchestrator.getAddress()]);
     });
