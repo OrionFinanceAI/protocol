@@ -6,21 +6,50 @@ import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/I
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
+import { IPriceAdapterRegistry } from "../interfaces/IPriceAdapterRegistry.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 /**
  * @title ERC4626PriceAdapter
  * @notice Price adapter for ERC-4626 vaults.
  * @author Orion Finance
+ * @dev Composes vault share → underlying → USDC pricing via oracle
+ *
+ * Pricing Flow:
+ * 1. Get vault share → underlying conversion rate (via ERC4626.convertToAssets)
+ * 2. Get underlying → USDC price (via PriceAdapterRegistry oracle)
+ * 3. Multiply: (underlying/share) × (USDC/underlying) = USDC/share
+ *
+ * Example (Cross-asset):
+ * - Vault: Yearn WETH (yvWETH)
+ * - 1 yvWETH = 1.05 WETH (vault appreciation)
+ * - 1 WETH = 3000 USDC (from Chainlink oracle)
+ * - Result: 1 yvWETH = 1.05 × 3000 = 3150 USDC
+ *
+ * Security:
+ * - Validates underlying has price feed during registration
+ * - Uses protocol's price adapter decimals for normalization (14 decimals)
+ * - Handles arbitrary underlying decimals (WBTC=8, WETH=18, etc.)
+ * - Does NOT support same-asset vaults (underlying == USDC)
+ *
  * @custom:security-contact security@orionfinance.ai
  */
 contract ERC4626PriceAdapter is IPriceAdapter {
+    using Math for uint256;
+
     /// @notice Orion Config contract address
-    IOrionConfig public config;
+    IOrionConfig public immutable config;
 
-    /// @notice Underlying asset address
-    address public underlyingAsset;
+    /// @notice Price adapter registry for underlying asset prices
+    IPriceAdapterRegistry public immutable priceRegistry;
 
-    /// @notice Decimals of the underlying asset
-    uint8 public underlyingAssetDecimals;
+    /// @notice Protocol underlying asset (USDC)
+    IERC20Metadata public immutable underlyingAsset;
+
+    /// @notice Underlying asset decimals (6 for USDC)
+    uint8 public immutable underlyingDecimals;
+
+    /// @notice Price adapter decimals for normalization (14)
+    uint8 public immutable priceAdapterDecimals;
 
     /// @notice Constructor
     /// @param configAddress The address of the OrionConfig contract
@@ -28,14 +57,42 @@ contract ERC4626PriceAdapter is IPriceAdapter {
         if (configAddress == address(0)) revert ErrorsLib.ZeroAddress();
 
         config = IOrionConfig(configAddress);
-        underlyingAsset = address(config.underlyingAsset());
-        underlyingAssetDecimals = IERC20Metadata(underlyingAsset).decimals();
+        priceRegistry = IPriceAdapterRegistry(config.priceAdapterRegistry());
+        underlyingAsset = IERC20Metadata(address(config.underlyingAsset()));
+        underlyingDecimals = underlyingAsset.decimals();
+        priceAdapterDecimals = config.priceAdapterDecimals();
     }
 
     /// @inheritdoc IPriceAdapter
     function validatePriceAdapter(address asset) external view {
-        try IERC4626(asset).asset() returns (address underlying) {
-            if (underlying != underlyingAsset) revert ErrorsLib.InvalidAdapter(asset);
+        // 1. Verify asset implements IERC4626
+        address underlying = address(0);
+        try IERC4626(asset).asset() returns (address _underlying) {
+            underlying = _underlying;
+            if (underlying == address(0)) revert ErrorsLib.InvalidAdapter(asset);
+
+            // Verify underlying is NOT the protocol underlying (use standard adapter for that)
+            if (underlying == address(underlyingAsset)) {
+                revert ErrorsLib.InvalidAdapter(asset);
+            }
+        } catch {
+            revert ErrorsLib.InvalidAdapter(asset);
+        }
+
+        // 2. Verify underlying has a price feed registered
+        // This is CRITICAL - we need underlying → USDC pricing
+        // slither-disable-next-line unused-return
+        try priceRegistry.getPrice(underlying) returns (uint256) {
+            // Price feed exists and is callable
+        } catch {
+            revert ErrorsLib.InvalidAdapter(asset);
+        }
+
+        // 3. Verify vault decimals are registered in config
+        try IERC20Metadata(asset).decimals() returns (uint8 decimals) {
+            if (decimals != config.getTokenDecimals(asset)) {
+                revert ErrorsLib.InvalidAdapter(asset);
+            }
         } catch {
             revert ErrorsLib.InvalidAdapter(asset);
         }
@@ -43,25 +100,34 @@ contract ERC4626PriceAdapter is IPriceAdapter {
 
     /// @inheritdoc IPriceAdapter
     function getPriceData(address vaultAsset) external view returns (uint256 price, uint8 decimals) {
-        uint8 vaultAssetDecimals = IERC20Metadata(vaultAsset).decimals();
-        uint256 oneShare = 10 ** vaultAssetDecimals;
+        IERC4626 vault = IERC4626(vaultAsset);
+        address underlying = vault.asset();
 
-        // Floor rounding here, previewMint uses ceil in execution, buffer to deal with rounding errors.
-        uint256 vaultUnderlyingAssetAmount = IERC4626(vaultAsset).convertToAssets(oneShare);
+        // Step 1: Get vault share → underlying conversion
+        // Calculate how much underlying per 1 vault share
+        uint8 vaultDecimals = IERC20Metadata(vaultAsset).decimals();
+        uint256 oneShare = 10 ** vaultDecimals;
+        uint256 underlyingPerShare = vault.convertToAssets(oneShare);
 
-        // TODO
-        // underlyingAssetDecimals = IERC4626(vault).asset().decimals()
+        // Step 2: Get underlying → USDC price from oracle
+        // Price is already normalized to priceAdapterDecimals (14 decimals)
+        uint256 underlyingPriceInNumeraire = priceRegistry.getPrice(underlying);
 
-        // [ERC4626/WBTC]
-        // uint256 underlyingAssetPrice, uint8 underlyingAssetPriceDecimals = IPriceAdapter(address feedAdapterAddress).getPrice(vaultUnderlyingAsset)
-        // WBTC/USDC
-        // underlyingAssetAmount = vaultUnderlyingAssetAmount * underlyingAssetPrice) // ERC4626/USDC
+        // Step 3: Compose prices
+        // Formula: (underlying/share) × (USDC/underlying) = USDC/share
+        //
+        // underlyingPerShare is in underlying decimals
+        // underlyingPriceInNumeraire is in priceAdapterDecimals
+        // Result should be in priceAdapterDecimals
+        //
+        // Example:
+        // - underlyingPerShare = 1.05e18 (WETH, 18 decimals)
+        // - underlyingPriceInNumeraire = 3000e14 (price in 14 decimals)
+        // - Result = (1.05e18 × 3000e14) / 1e18 = 3150e14
 
-        // 1 ERC4626/WBTC = 1*10000
-        // 1 WBTC/USDC = 1000000
+        uint8 underlyingDecimalsLocal = IERC20Metadata(underlying).decimals();
+        uint256 priceInNumeraire = underlyingPerShare.mulDiv(underlyingPriceInNumeraire, 10 ** underlyingDecimalsLocal);
 
-        // 1 ERC4626/USDC = 1*10000 * 1000000 = 10000000000
-
-        // return (underlyingAssetAmount, underlyingAssetDecimals+underlyingAssetPriceDecimals);
+        return (priceInNumeraire, priceAdapterDecimals);
     }
 }
