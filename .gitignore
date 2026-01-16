@@ -26,6 +26,7 @@ docs/
 res/
 running_node/
 artifacts/
+edr-cache/
 
 # files
 *.env
