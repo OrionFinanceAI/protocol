@@ -42,12 +42,16 @@ const config: HardhatUserConfig = {
     hardhat: {
       chainId: 31337,
       initialBaseFeePerGas: 0,
-      forking: process.env.MAINNET_RPC_URL
+      // No forking by default - fast for unit tests
+      // Set FORK_MAINNET=true to enable mainnet forking
+      ...(process.env.FORK_MAINNET === "true" && process.env.MAINNET_RPC_URL
         ? {
-            url: process.env.MAINNET_RPC_URL,
-            blockNumber: 24200000,
+            forking: {
+              url: process.env.MAINNET_RPC_URL,
+              blockNumber: 24200000,
+            },
           }
-        : undefined,
+        : {}),
     },
   },
   etherscan: {
