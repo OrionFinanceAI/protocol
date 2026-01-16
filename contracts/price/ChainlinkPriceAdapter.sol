@@ -104,9 +104,7 @@ contract ChainlinkPriceAdapter is IPriceAdapter {
 
         // Validate feed is callable
         // slither-disable-next-line unused-return
-        try AggregatorV3Interface(feed).decimals() returns (uint8) {
-            // Feed is valid
-        } catch {
+        try AggregatorV3Interface(feed).decimals() returns (uint8) {} catch {
             revert ErrorsLib.InvalidAdapter(asset);
         }
 

@@ -33,7 +33,7 @@ contract UniswapV3TokenSwapExecutor is ISwapExecutor {
     using SafeERC20 for IERC20;
 
     /// @notice Uniswap V3 SwapRouter contract
-    ISwapRouter public immutable swapRouter;
+    ISwapRouter public immutable SWAP_ROUTER;
 
     /**
      * @notice Constructor
@@ -41,7 +41,7 @@ contract UniswapV3TokenSwapExecutor is ISwapExecutor {
      */
     constructor(address swapRouterAddress) {
         if (swapRouterAddress == address(0)) revert ErrorsLib.ZeroAddress();
-        swapRouter = ISwapRouter(swapRouterAddress);
+        SWAP_ROUTER = ISwapRouter(swapRouterAddress);
     }
 
     /// @inheritdoc ISwapExecutor
@@ -59,7 +59,7 @@ contract UniswapV3TokenSwapExecutor is ISwapExecutor {
         IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amountInMax);
 
         // Approve router
-        IERC20(tokenIn).forceApprove(address(swapRouter), amountInMax);
+        IERC20(tokenIn).forceApprove(address(SWAP_ROUTER), amountInMax);
 
         // Execute exact output swap
         ISwapRouter.ExactOutputSingleParams memory params = ISwapRouter.ExactOutputSingleParams({
@@ -73,10 +73,10 @@ contract UniswapV3TokenSwapExecutor is ISwapExecutor {
             sqrtPriceLimitX96: 0
         });
 
-        amountIn = swapRouter.exactOutputSingle(params);
+        amountIn = SWAP_ROUTER.exactOutputSingle(params);
 
         // Clean up approval
-        IERC20(tokenIn).forceApprove(address(swapRouter), 0);
+        IERC20(tokenIn).forceApprove(address(SWAP_ROUTER), 0);
 
         // Refund unused input
         uint256 unusedBalance = IERC20(tokenIn).balanceOf(address(this));
@@ -100,7 +100,7 @@ contract UniswapV3TokenSwapExecutor is ISwapExecutor {
         IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amountIn);
 
         // Approve router
-        IERC20(tokenIn).forceApprove(address(swapRouter), amountIn);
+        IERC20(tokenIn).forceApprove(address(SWAP_ROUTER), amountIn);
 
         // Execute exact input swap
         ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
@@ -114,10 +114,10 @@ contract UniswapV3TokenSwapExecutor is ISwapExecutor {
             sqrtPriceLimitX96: 0
         });
 
-        amountOut = swapRouter.exactInputSingle(params);
+        amountOut = SWAP_ROUTER.exactInputSingle(params);
 
         // Clean up approval
-        IERC20(tokenIn).forceApprove(address(swapRouter), 0);
+        IERC20(tokenIn).forceApprove(address(SWAP_ROUTER), 0);
 
         // Verify minimum output (router should enforce, but double-check)
         if (amountOut < amountOutMin) {
