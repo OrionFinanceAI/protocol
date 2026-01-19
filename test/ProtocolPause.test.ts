@@ -52,7 +52,6 @@ import {
   MockERC4626Asset,
   OrionAssetERC4626ExecutionAdapter,
   OrionConfig,
-  InternalStateOrchestrator,
   LiquidityOrchestrator,
   OrionTransparentVault,
 } from "../typechain-types";
@@ -64,7 +63,6 @@ describe("Protocol Pause Functionality", function () {
   let erc4626Asset: MockERC4626Asset;
   let adapter: OrionAssetERC4626ExecutionAdapter;
   let config: OrionConfig;
-  let InternalStateOrchestrator: InternalStateOrchestrator;
   let liquidityOrchestrator: LiquidityOrchestrator;
   let transparentVault: OrionTransparentVault;
 
@@ -90,7 +88,6 @@ describe("Protocol Pause Functionality", function () {
 
     underlyingAsset = deployed.underlyingAsset;
     config = deployed.orionConfig;
-    InternalStateOrchestrator = deployed.InternalStateOrchestrator;
     liquidityOrchestrator = deployed.liquidityOrchestrator;
 
     // Mint tokens to users
@@ -196,7 +193,6 @@ describe("Protocol Pause Functionality", function () {
       await expect(config.connect(guardian).pauseAll()).to.emit(config, "ProtocolPaused").withArgs(guardian.address);
 
       // Verify orchestrators are paused
-      void expect(await InternalStateOrchestrator.paused()).to.be.true;
       void expect(await liquidityOrchestrator.paused()).to.be.true;
     });
 
@@ -204,7 +200,6 @@ describe("Protocol Pause Functionality", function () {
       await expect(config.connect(owner).pauseAll()).to.emit(config, "ProtocolPaused").withArgs(owner.address);
 
       // Verify all contracts are paused
-      void expect(await InternalStateOrchestrator.paused()).to.be.true;
       void expect(await liquidityOrchestrator.paused()).to.be.true;
     });
 
@@ -212,7 +207,6 @@ describe("Protocol Pause Functionality", function () {
       await expect(config.connect(user1).pauseAll()).to.be.revertedWithCustomError(config, "NotAuthorized");
 
       // Verify nothing is paused
-      void expect(await InternalStateOrchestrator.paused()).to.be.false;
       void expect(await liquidityOrchestrator.paused()).to.be.false;
     });
   });
@@ -227,7 +221,6 @@ describe("Protocol Pause Functionality", function () {
       await expect(config.connect(owner).unpauseAll()).to.emit(config, "ProtocolUnpaused").withArgs(owner.address);
 
       // Verify orchestrators are unpaused
-      void expect(await InternalStateOrchestrator.paused()).to.be.false;
       void expect(await liquidityOrchestrator.paused()).to.be.false;
     });
 
@@ -238,7 +231,6 @@ describe("Protocol Pause Functionality", function () {
       );
 
       // Verify everything is still paused
-      void expect(await InternalStateOrchestrator.paused()).to.be.true;
       void expect(await liquidityOrchestrator.paused()).to.be.true;
     });
 
@@ -249,7 +241,6 @@ describe("Protocol Pause Functionality", function () {
       );
 
       // Verify everything is still paused
-      void expect(await InternalStateOrchestrator.paused()).to.be.true;
       void expect(await liquidityOrchestrator.paused()).to.be.true;
     });
   });
@@ -258,14 +249,6 @@ describe("Protocol Pause Functionality", function () {
     beforeEach(async function () {
       // Pause protocol
       await config.connect(guardian).pauseAll();
-    });
-
-    it("should prevent InternalStateOrchestrator.performUpkeep() when paused", async function () {
-      const performData = "0x";
-
-      await expect(
-        InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData),
-      ).to.be.revertedWithCustomError(InternalStateOrchestrator, "EnforcedPause");
     });
 
     it("should prevent LiquidityOrchestrator.performUpkeep() when paused", async function () {
@@ -289,28 +272,6 @@ describe("Protocol Pause Functionality", function () {
   });
 
   describe("5. Individual Contract Pause Access Control", function () {
-    it("should prevent non-OrionConfig from calling pause() on InternalStateOrchestrator", async function () {
-      await expect(InternalStateOrchestrator.connect(owner).pause()).to.be.revertedWithCustomError(
-        InternalStateOrchestrator,
-        "NotAuthorized",
-      );
-
-      await expect(InternalStateOrchestrator.connect(guardian).pause()).to.be.revertedWithCustomError(
-        InternalStateOrchestrator,
-        "NotAuthorized",
-      );
-    });
-
-    it("should prevent non-OrionConfig from calling unpause() on InternalStateOrchestrator", async function () {
-      // Pause first
-      await config.connect(guardian).pauseAll();
-
-      await expect(InternalStateOrchestrator.connect(owner).unpause()).to.be.revertedWithCustomError(
-        InternalStateOrchestrator,
-        "NotAuthorized",
-      );
-    });
-
     it("should prevent non-OrionConfig from calling pause() on LiquidityOrchestrator", async function () {
       await expect(liquidityOrchestrator.connect(owner).pause()).to.be.revertedWithCustomError(
         liquidityOrchestrator,
@@ -352,25 +313,21 @@ describe("Protocol Pause Functionality", function () {
     it("should handle multiple pause/unpause cycles", async function () {
       // Cycle 1: Pause and unpause
       await config.connect(guardian).pauseAll();
-      void expect(await InternalStateOrchestrator.paused()).to.be.true;
       void expect(await liquidityOrchestrator.paused()).to.be.true;
 
       await config.connect(owner).unpauseAll();
-      void expect(await InternalStateOrchestrator.paused()).to.be.false;
       void expect(await liquidityOrchestrator.paused()).to.be.false;
       // Cycle 2: Pause and unpause again
       await config.connect(owner).pauseAll(); // Owner can also pause
-      void expect(await InternalStateOrchestrator.paused()).to.be.true;
       void expect(await liquidityOrchestrator.paused()).to.be.true;
 
       await config.connect(owner).unpauseAll();
-      void expect(await InternalStateOrchestrator.paused()).to.be.false;
       void expect(await liquidityOrchestrator.paused()).to.be.false;
 
-      await time.increase(await InternalStateOrchestrator.epochDuration());
-      const [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+      await time.increase(await liquidityOrchestrator.epochDuration());
+      const [_upkeepNeeded, performData] = await liquidityOrchestrator.checkUpkeep("0x");
 
-      await expect(InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData)).to.not.be.reverted;
+      await expect(liquidityOrchestrator.connect(automationRegistry).performUpkeep(performData)).to.not.be.reverted;
     });
 
     it("should preserve state across pause/unpause", async function () {
@@ -397,15 +354,16 @@ describe("Protocol Pause Functionality", function () {
 
     it("should block epoch progression when paused", async function () {
       // Start an epoch
-      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep("0x");
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep("0x");
 
       // Pause protocol
       await config.connect(guardian).pauseAll();
 
       // Cannot continue epoch
-      await expect(
-        InternalStateOrchestrator.connect(automationRegistry).performUpkeep("0x"),
-      ).to.be.revertedWithCustomError(InternalStateOrchestrator, "EnforcedPause");
+      await expect(liquidityOrchestrator.connect(automationRegistry).performUpkeep("0x")).to.be.revertedWithCustomError(
+        liquidityOrchestrator,
+        "EnforcedPause",
+      );
 
       await expect(liquidityOrchestrator.connect(automationRegistry).performUpkeep("0x")).to.be.revertedWithCustomError(
         liquidityOrchestrator,

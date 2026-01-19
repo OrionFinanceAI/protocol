@@ -110,6 +110,9 @@ contract LiquidityOrchestrator is
     /// @notice Pending protocol fees [assets]
     uint256 public pendingProtocolFees;
 
+    /// @notice Transparent vaults associated to the current epoch
+    address[] public transparentVaultsEpoch;
+
     /* -------------------------------------------------------------------------- */
     /*                                MODIFIERS                                   */
     /* -------------------------------------------------------------------------- */
@@ -365,17 +368,40 @@ contract LiquidityOrchestrator is
 
     /// @notice Handles the start of the upkeep
     function _handleStart() internal {
-        // TODO
-        currentPhase = LiquidityUpkeepPhase.StateCommitment;
-        emit EventsLib.EpochStart(epochCounter);
+        // Build filtered vault lists for this epoch
+        _buildTransparentVaultsEpoch();
+
+        if (transparentVaultsEpoch.length > 0) {
+            currentPhase = LiquidityUpkeepPhase.StateCommitment;
+
+            // TODO
+            // (uint16 activeVFee, uint16 activeRsFee) = config.activeProtocolFees();
+            // TODO: given this call is block-number dependent,
+            // consider storing a snapshot of the fee params here before
+            // hashing.
+            // TODO: get snapshot of investment universe prices: registry.getPrice
+            // TODO: Build Merkle Root from full epoch state.
+
+            emit EventsLib.EpochStart(epochCounter);
+        }
+    }
+
+    /// @notice Build filtered transparent vaults list for the epoch
+    function _buildTransparentVaultsEpoch() internal {
+        address[] memory allTransparent = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
+        delete transparentVaultsEpoch;
+
+        uint256 maxFulfillBatchSize = config.maxFulfillBatchSize();
+        for (uint16 i = 0; i < allTransparent.length; ++i) {
+            address v = allTransparent[i];
+            if (IOrionVault(v).pendingDeposit(maxFulfillBatchSize) + IOrionVault(v).totalAssets() == 0) continue;
+            transparentVaultsEpoch.push(v);
+        }
     }
 
     /// @notice Handles the state commitment
     function _processStateCommitment() internal {
-        // (uint16 activeVFee, uint16 activeRsFee) = config.activeProtocolFees();
-        // TODO: given this call is block-number dependent, consider storing a snapshot of the fee params here before
-        // hashing.
-        // TODO: get snapshot of investment universe prices: registry.getPrice
+        // TODO: Build Merkle Root from full epoch state.
 
         currentPhase = LiquidityUpkeepPhase.SellingLeg;
     }

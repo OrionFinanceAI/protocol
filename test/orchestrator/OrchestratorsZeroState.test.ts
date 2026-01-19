@@ -7,7 +7,6 @@ import { deployUpgradeableProtocol } from "../helpers/deployUpgradeable";
 
 import {
   OrionConfig,
-  InternalStateOrchestrator,
   LiquidityOrchestrator,
   TransparentVaultFactory,
   OrionTransparentVault,
@@ -16,7 +15,6 @@ import {
 
 describe("Orchestrators - zero deposits and zero intents", function () {
   let orionConfig: OrionConfig;
-  let InternalStateOrchestrator: InternalStateOrchestrator;
   let liquidityOrchestrator: LiquidityOrchestrator;
   let transparentVaultFactory: TransparentVaultFactory;
   let transparentVault: OrionTransparentVault;
@@ -34,7 +32,6 @@ describe("Orchestrators - zero deposits and zero intents", function () {
 
     underlyingAsset = deployed.underlyingAsset;
     orionConfig = deployed.orionConfig;
-    InternalStateOrchestrator = deployed.InternalStateOrchestrator;
     liquidityOrchestrator = deployed.liquidityOrchestrator;
     transparentVaultFactory = deployed.transparentVaultFactory;
 
@@ -71,13 +68,13 @@ describe("Orchestrators - zero deposits and zero intents", function () {
 
   it("completes upkeep with zero TVL and zero intents without errors", async function () {
     // Fast forward time to trigger upkeep
-    const epochDuration = await InternalStateOrchestrator.epochDuration();
+    const epochDuration = await liquidityOrchestrator.epochDuration();
     await time.increase(epochDuration + 1n);
 
     // Start
-    const [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-    await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    expect(await InternalStateOrchestrator.currentPhase()).to.equal(0);
+    const [_upkeepNeeded, performData] = await liquidityOrchestrator.checkUpkeep("0x");
+    await liquidityOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    expect(await liquidityOrchestrator.currentPhase()).to.equal(0);
   });
 
   it("should not move forward when vault has no total assets and no pending deposits but has valid intent", async function () {

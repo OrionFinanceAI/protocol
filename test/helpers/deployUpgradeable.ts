@@ -4,7 +4,6 @@ import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import {
   OrionConfig,
   PriceAdapterRegistry,
-  InternalStateOrchestrator,
   LiquidityOrchestrator,
   TransparentVaultFactory,
   OrionTransparentVault,
@@ -18,7 +17,6 @@ import {
 export interface UpgradeableProtocolContracts {
   orionConfig: OrionConfig;
   priceAdapterRegistry: PriceAdapterRegistry;
-  InternalStateOrchestrator: InternalStateOrchestrator;
   liquidityOrchestrator: LiquidityOrchestrator;
   transparentVaultFactory: TransparentVaultFactory;
   vaultBeacon: UpgradeableBeacon;
@@ -31,7 +29,6 @@ export interface UpgradeableProtocolContracts {
  * This deploys:
  * - OrionConfig (UUPS)
  * - PriceAdapterRegistry (UUPS)
- * - InternalStateOrchestrator (UUPS)
  * - LiquidityOrchestrator (UUPS)
  * - TransparentVaultFactory (UUPS)
  * - UpgradeableBeacon for vaults
@@ -74,7 +71,7 @@ export async function deployUpgradeableProtocol(
   )) as unknown as PriceAdapterRegistry;
   await priceAdapterRegistry.waitForDeployment();
 
-  // 3. Deploy LiquidityOrchestrator (UUPS) - MUST be before InternalStateOrchestrator
+  // 3. Deploy LiquidityOrchestrator (UUPS)
   const LiquidityOrchestratorFactory = await ethers.getContractFactory("LiquidityOrchestrator");
   const liquidityOrchestrator = (await upgrades.deployProxy(
     LiquidityOrchestratorFactory,
@@ -83,20 +80,11 @@ export async function deployUpgradeableProtocol(
   )) as unknown as LiquidityOrchestrator;
   await liquidityOrchestrator.waitForDeployment();
 
-  // 4. Set LiquidityOrchestrator and PriceAdapterRegistry in config BEFORE deploying InternalStateOrchestrator
+  // 4. Set LiquidityOrchestrator and PriceAdapterRegistry in config
   await orionConfig.setLiquidityOrchestrator(await liquidityOrchestrator.getAddress());
   await orionConfig.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
 
-  // 5. Deploy InternalStateOrchestrator (UUPS) - reads liquidityOrchestrator and priceAdapterRegistry from config
-  const InternalStateOrchestratorFactory = await ethers.getContractFactory("InternalStateOrchestrator");
-  const InternalStateOrchestrator = (await upgrades.deployProxy(
-    InternalStateOrchestratorFactory,
-    [owner.address, await orionConfig.getAddress(), automationReg.address],
-    { initializer: "initialize", kind: "uups" },
-  )) as unknown as InternalStateOrchestrator;
-  await InternalStateOrchestrator.waitForDeployment();
-
-  // 6. Deploy UpgradeableBeacon for vaults
+  // 5. Deploy UpgradeableBeacon for vaults
   const VaultImplFactory = await ethers.getContractFactory("OrionTransparentVault");
   const vaultImpl = await VaultImplFactory.deploy();
   await vaultImpl.waitForDeployment();
@@ -110,7 +98,7 @@ export async function deployUpgradeableProtocol(
   )) as unknown as UpgradeableBeacon;
   await vaultBeacon.waitForDeployment();
 
-  // 7. Deploy TransparentVaultFactory (UUPS)
+  // 6. Deploy TransparentVaultFactory (UUPS)
   const TransparentVaultFactoryFactory = await ethers.getContractFactory("TransparentVaultFactory");
   const transparentVaultFactory = (await upgrades.deployProxy(
     TransparentVaultFactoryFactory,
@@ -119,17 +107,12 @@ export async function deployUpgradeableProtocol(
   )) as unknown as TransparentVaultFactory;
   await transparentVaultFactory.waitForDeployment();
 
-  // 8. Configure OrionConfig with remaining deployed contracts
-  await orionConfig.setInternalStateOrchestrator(await InternalStateOrchestrator.getAddress());
+  // 7. Configure OrionConfig with remaining deployed contracts
   await orionConfig.setVaultFactory(await transparentVaultFactory.getAddress());
-
-  // 9. Link orchestrators (LiquidityOrchestrator needs InternalStateOrchestrator reference)
-  await liquidityOrchestrator.setInternalStateOrchestrator(await InternalStateOrchestrator.getAddress());
 
   return {
     orionConfig,
     priceAdapterRegistry,
-    InternalStateOrchestrator,
     liquidityOrchestrator,
     transparentVaultFactory,
     vaultBeacon,

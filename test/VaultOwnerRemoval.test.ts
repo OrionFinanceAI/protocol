@@ -4,13 +4,7 @@ import "@openzeppelin/hardhat-upgrades";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import type { Signer } from "ethers";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
-import {
-  OrionConfig,
-  OrionTransparentVault,
-  InternalStateOrchestrator,
-  LiquidityOrchestrator,
-  TransparentVaultFactory,
-} from "../typechain-types";
+import { OrionConfig, OrionTransparentVault, LiquidityOrchestrator, TransparentVaultFactory } from "../typechain-types";
 
 /**
  * @title Vault Owner Removal Tests
@@ -32,7 +26,6 @@ describe("Vault Owner Removal - Automatic Decommissioning", function () {
 
     const usdc = deployed.underlyingAsset;
     const config = deployed.orionConfig;
-    const InternalStateOrchestrator: InternalStateOrchestrator = deployed.InternalStateOrchestrator;
     const liquidityOrchestrator: LiquidityOrchestrator = deployed.liquidityOrchestrator;
     const vaultFactory = deployed.transparentVaultFactory;
 
@@ -49,7 +42,6 @@ describe("Vault Owner Removal - Automatic Decommissioning", function () {
       usdc,
       config,
       vaultFactory,
-      InternalStateOrchestrator,
       liquidityOrchestrator,
     };
   }
@@ -168,7 +160,7 @@ describe("Vault Owner Removal - Automatic Decommissioning", function () {
     });
 
     it("should revert if system is not idle", async function () {
-      const { config, vaultFactory, manager1, strategist1, InternalStateOrchestrator, owner, usdc } =
+      const { config, vaultFactory, manager1, strategist1, liquidityOrchestrator, owner, usdc } =
         await loadFixture(deployFixture);
 
       // Create a vault with deposits to ensure processing happens
@@ -186,10 +178,10 @@ describe("Vault Owner Removal - Automatic Decommissioning", function () {
       await ethers.provider.send("evm_mine", []);
 
       // Start the epoch (system will not be idle)
-      await InternalStateOrchestrator.connect(owner).performUpkeep("0x");
+      await liquidityOrchestrator.connect(owner).performUpkeep("0x");
 
       // Verify system is not idle
-      const currentPhase = await InternalStateOrchestrator.currentPhase();
+      const currentPhase = await liquidityOrchestrator.currentPhase();
       void expect(currentPhase).to.not.equal(0n);
 
       // Try to remove vault owner while system is not idle

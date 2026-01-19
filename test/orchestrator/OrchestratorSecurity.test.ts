@@ -97,7 +97,6 @@ import {
   MockERC4626Asset,
   OrionAssetERC4626ExecutionAdapter,
   OrionConfig,
-  InternalStateOrchestrator,
   LiquidityOrchestrator,
   TransparentVaultFactory,
   OrionTransparentVault,
@@ -122,7 +121,6 @@ describe("Orchestrator Security", function () {
   let mockAsset3: MockERC4626Asset;
   let orionPriceAdapter: OrionAssetERC4626PriceAdapter;
   let orionExecutionAdapter: OrionAssetERC4626ExecutionAdapter;
-  let InternalStateOrchestrator: InternalStateOrchestrator;
   let liquidityOrchestrator: LiquidityOrchestrator;
   let absoluteVault: OrionTransparentVault;
   let highWaterMarkVault: OrionTransparentVault;
@@ -207,7 +205,6 @@ describe("Orchestrator Security", function () {
     const deployed = await deployUpgradeableProtocol(owner, underlyingAsset, automationRegistry);
 
     orionConfig = deployed.orionConfig;
-    InternalStateOrchestrator = deployed.InternalStateOrchestrator;
     liquidityOrchestrator = deployed.liquidityOrchestrator;
     transparentVaultFactory = deployed.transparentVaultFactory;
 
@@ -228,15 +225,15 @@ describe("Orchestrator Security", function () {
     await orionPriceAdapter.waitForDeployment();
 
     // Configure protocol
-    await InternalStateOrchestrator.connect(owner).updateProtocolFees(10, 1000);
+    await orionConfig.connect(owner).updateProtocolFees(10, 1000);
 
-    await expect(InternalStateOrchestrator.connect(owner).updateProtocolFees(51, 0)).to.be.revertedWithCustomError(
-      InternalStateOrchestrator,
+    await expect(orionConfig.connect(owner).updateProtocolFees(51, 0)).to.be.revertedWithCustomError(
+      orionConfig,
       "InvalidArguments",
     );
 
-    await expect(InternalStateOrchestrator.connect(owner).updateProtocolFees(0, 2001)).to.be.revertedWithCustomError(
-      InternalStateOrchestrator,
+    await expect(orionConfig.connect(owner).updateProtocolFees(0, 2001)).to.be.revertedWithCustomError(
+      orionConfig,
       "InvalidArguments",
     );
 
@@ -609,6 +606,9 @@ describe("Orchestrator Security", function () {
     };
 
     it("should ignore malicious payloads and execute correct action for current phase", async function () {
+      // TODO: use helper function to process full epoch, taking
+      // zkVM orchestrator fixture as input.
+
       const epochDuration = await InternalStateOrchestrator.epochDuration();
       await time.increase(epochDuration + 1n);
 
@@ -626,6 +626,9 @@ describe("Orchestrator Security", function () {
     });
 
     it("should ignore malicious payloads and execute correct minibatch action for current phase", async function () {
+      // TODO: use helper function to process full epoch, taking
+      // zkVM orchestrator fixture as input.
+
       const epochDuration = await InternalStateOrchestrator.epochDuration();
       await time.increase(epochDuration + 1n);
 
@@ -651,6 +654,9 @@ describe("Orchestrator Security", function () {
     };
 
     it("should revert with InvalidState when trying to execute phases out of order", async function () {
+      // TODO: use helper function to process full epoch, taking
+      // zkVM orchestrator fixture as input.
+
       const epochDuration = await InternalStateOrchestrator.epochDuration();
       await time.increase(epochDuration + 1n);
 

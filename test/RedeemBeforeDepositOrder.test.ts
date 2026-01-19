@@ -30,7 +30,6 @@ import {
   MockPriceAdapter,
   MockExecutionAdapter,
   OrionConfig,
-  InternalStateOrchestrator,
   LiquidityOrchestrator,
   TransparentVaultFactory,
   OrionTransparentVault,
@@ -42,7 +41,6 @@ describe("Redeem Before Deposit Order Verification", function () {
   let mockPriceAdapter: MockPriceAdapter;
   let mockExecutionAdapter: MockExecutionAdapter;
   let orionConfig: OrionConfig;
-  let InternalStateOrchestrator: InternalStateOrchestrator;
   let liquidityOrchestrator: LiquidityOrchestrator;
   let transparentVaultFactory: TransparentVaultFactory;
   let vault: OrionTransparentVault;
@@ -60,6 +58,9 @@ describe("Redeem Before Deposit Order Verification", function () {
   const NEW_DEPOSIT_AMOUNT = ethers.parseUnits("10", UNDERLYING_DECIMALS); // 10 USDC
 
   let epochDuration: bigint;
+
+  // TODO: use helper function to process full epoch, taking
+  // zkVM orchestrator fixture as input.
 
   async function processInternalStateOrchestrator(): Promise<void> {
     let [upkeepNeeded] = await InternalStateOrchestrator.checkUpkeep("0x");
@@ -116,7 +117,6 @@ describe("Redeem Before Deposit Order Verification", function () {
     const deployed = await deployUpgradeableProtocol(owner, underlyingAsset, automationRegistry);
 
     orionConfig = deployed.orionConfig;
-    InternalStateOrchestrator = deployed.InternalStateOrchestrator;
     liquidityOrchestrator = deployed.liquidityOrchestrator;
     transparentVaultFactory = deployed.transparentVaultFactory;
 
@@ -163,7 +163,7 @@ describe("Redeem Before Deposit Order Verification", function () {
       },
     ]);
 
-    epochDuration = await InternalStateOrchestrator.epochDuration();
+    epochDuration = await liquidityOrchestrator.epochDuration();
 
     // Setup initial state: Deposit 100 USDC and fulfill to establish baseline
     await underlyingAsset.mint(initialDepositor.address, INITIAL_ASSETS);

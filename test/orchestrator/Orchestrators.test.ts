@@ -8,7 +8,6 @@ import {
   MockERC4626Asset,
   OrionAssetERC4626ExecutionAdapter,
   OrionConfig,
-  InternalStateOrchestrator,
   LiquidityOrchestrator,
   TransparentVaultFactory,
   OrionTransparentVault,
@@ -35,7 +34,6 @@ describe("Orchestrators", function () {
   let orionPriceAdapter: OrionAssetERC4626PriceAdapter;
   let orionExecutionAdapter: OrionAssetERC4626ExecutionAdapter;
   let priceAdapterRegistry: PriceAdapterRegistry;
-  let InternalStateOrchestrator: InternalStateOrchestrator;
   let liquidityOrchestrator: LiquidityOrchestrator;
   let absoluteVault: OrionTransparentVault;
   let highWaterMarkVault: OrionTransparentVault;
@@ -177,30 +175,19 @@ describe("Orchestrators", function () {
     await orionConfig.setLiquidityOrchestrator(await liquidityOrchestrator.getAddress());
     await orionConfig.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
 
-    const InternalStateOrchestratorFactory = await ethers.getContractFactory("InternalStateOrchestrator");
-    InternalStateOrchestrator = (await upgrades.deployProxy(
-      InternalStateOrchestratorFactory,
-      [owner.address, await orionConfig.getAddress(), automationRegistry.address],
-      { initializer: "initialize", kind: "uups" },
-    )) as unknown as InternalStateOrchestrator;
-    await InternalStateOrchestrator.waitForDeployment();
-
-    await orionConfig.setInternalStateOrchestrator(await InternalStateOrchestrator.getAddress());
     await orionConfig.setVaultFactory(await transparentVaultFactory.getAddress());
 
-    await InternalStateOrchestrator.connect(owner).updateProtocolFees(10, 1000);
+    await orionConfig.connect(owner).updateProtocolFees(10, 1000);
 
-    await expect(InternalStateOrchestrator.connect(owner).updateProtocolFees(51, 0)).to.be.revertedWithCustomError(
-      InternalStateOrchestrator,
+    await expect(orionConfig.connect(owner).updateProtocolFees(51, 0)).to.be.revertedWithCustomError(
+      orionConfig,
       "InvalidArguments",
     );
 
-    await expect(InternalStateOrchestrator.connect(owner).updateProtocolFees(0, 2001)).to.be.revertedWithCustomError(
-      InternalStateOrchestrator,
+    await expect(orionConfig.connect(owner).updateProtocolFees(0, 2001)).to.be.revertedWithCustomError(
+      orionConfig,
       "InvalidArguments",
     );
-
-    await liquidityOrchestrator.setInternalStateOrchestrator(await InternalStateOrchestrator.getAddress());
 
     await expect(liquidityOrchestrator.setTargetBufferRatio(0)).to.be.revertedWithCustomError(
       liquidityOrchestrator,

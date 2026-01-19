@@ -13,15 +13,13 @@ describe("OrionVault Exchange Rate Tests", function () {
 
   // Test fixture setup
   async function deployVaultFixture() {
-    const [owner, strategist, lp1, lp2, lp3, InternalStateOrchestratorSigner, liquidityOrchestratorSigner, attacker] =
-      await ethers.getSigners();
+    const [owner, strategist, lp1, lp2, lp3, liquidityOrchestratorSigner, attacker] = await ethers.getSigners();
 
     const deployed = await deployUpgradeableProtocol(owner);
 
     const underlyingAsset = deployed.underlyingAsset;
     const config = deployed.orionConfig;
     const factory = deployed.transparentVaultFactory;
-    const InternalStateOrchestrator = deployed.InternalStateOrchestrator;
     const liquidityOrchestratorContract = deployed.liquidityOrchestrator;
 
     // Set protocol parameters
@@ -72,9 +70,6 @@ describe("OrionVault Exchange Rate Tests", function () {
       lp1,
       lp2,
       lp3,
-      InternalStateOrchestrator: InternalStateOrchestrator,
-      InternalStateOrchestratorSigner,
-      InternalStateOrchestratorAddress: await InternalStateOrchestrator.getAddress(),
       liquidityOrchestrator: liquidityOrchestratorSigner,
       liquidityOrchestratorContract,
       liquidityOrchestratorAddress: await liquidityOrchestratorContract.getAddress(),

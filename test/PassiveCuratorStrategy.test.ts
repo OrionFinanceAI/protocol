@@ -10,7 +10,6 @@ import {
   MockERC4626Asset,
   OrionAssetERC4626ExecutionAdapter,
   OrionConfig,
-  InternalStateOrchestrator,
   LiquidityOrchestrator,
   TransparentVaultFactory,
   OrionTransparentVault,
@@ -29,7 +28,6 @@ describe("Passive Strategist", function () {
   let mockAsset4: MockERC4626Asset;
   let orionPriceAdapter: OrionAssetERC4626PriceAdapter;
   let orionExecutionAdapter: OrionAssetERC4626ExecutionAdapter;
-  let InternalStateOrchestrator: InternalStateOrchestrator;
   let liquidityOrchestrator: LiquidityOrchestrator;
   let transparentVault: OrionTransparentVault;
   let passiveStrategist: KBestTvlWeightedAverage;
@@ -108,7 +106,6 @@ describe("Passive Strategist", function () {
     const deployed = await deployUpgradeableProtocol(owner, underlyingAsset, automationRegistry);
 
     orionConfig = deployed.orionConfig;
-    InternalStateOrchestrator = deployed.InternalStateOrchestrator;
     liquidityOrchestrator = deployed.liquidityOrchestrator;
     transparentVaultFactory = deployed.transparentVaultFactory;
 
@@ -120,7 +117,7 @@ describe("Passive Strategist", function () {
     await orionPriceAdapter.waitForDeployment();
 
     // Configure protocol
-    await InternalStateOrchestrator.connect(owner).updateProtocolFees(10, 1000);
+    await orionConfig.connect(owner).updateProtocolFees(10, 1000);
     await liquidityOrchestrator.setTargetBufferRatio(100); // 1% target buffer ratio
 
     const OrionAssetERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
@@ -318,14 +315,17 @@ describe("Passive Strategist", function () {
 
   describe("Vault Integration with Passive Strategist", function () {
     it("should get intent from passive strategist during orchestrator execution", async function () {
+      // TODO: use helper function to process full epoch, taking
+      // zkVM orchestrator fixture as input.
+
       // Fast forward time to trigger upkeep
-      const epochDuration = await InternalStateOrchestrator.epochDuration();
+      const epochDuration = await liquidityOrchestrator.epochDuration();
       await time.increase(epochDuration + 1n);
 
       // Start the upkeep cycle
-      let [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await InternalStateOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
+      let [_upkeepNeeded, performData] = await liquidityOrchestrator.checkUpkeep("0x");
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      expect(await liquidityOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
 
       // Continue with buffering
       [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");

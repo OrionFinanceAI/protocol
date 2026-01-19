@@ -10,7 +10,6 @@ import {
   MockERC4626Asset,
   OrionAssetERC4626ExecutionAdapter,
   OrionConfig,
-  InternalStateOrchestrator,
   LiquidityOrchestrator,
   TransparentVaultFactory,
   OrionTransparentVault,
@@ -25,7 +24,6 @@ describe("Whitelist and Vault Removal Flows", function () {
   let mockAsset2: MockERC4626Asset;
   let orionPriceAdapter: OrionAssetERC4626PriceAdapter;
   let orionExecutionAdapter: OrionAssetERC4626ExecutionAdapter;
-  let InternalStateOrchestrator: InternalStateOrchestrator;
   let liquidityOrchestrator: LiquidityOrchestrator;
   let testVault: OrionTransparentVault;
 
@@ -75,7 +73,6 @@ describe("Whitelist and Vault Removal Flows", function () {
     const deployed = await deployUpgradeableProtocol(owner, underlyingAsset, automationRegistry);
 
     orionConfig = deployed.orionConfig;
-    InternalStateOrchestrator = deployed.InternalStateOrchestrator;
     liquidityOrchestrator = deployed.liquidityOrchestrator;
     transparentVaultFactory = deployed.transparentVaultFactory;
 
@@ -87,7 +84,7 @@ describe("Whitelist and Vault Removal Flows", function () {
     await orionPriceAdapter.waitForDeployment();
 
     // Configure protocol
-    await InternalStateOrchestrator.connect(owner).updateProtocolFees(10, 1000);
+    await orionConfig.connect(owner).updateProtocolFees(10, 1000);
     await liquidityOrchestrator.setTargetBufferRatio(100); // 1% target buffer ratio
 
     const OrionAssetERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
@@ -151,8 +148,11 @@ describe("Whitelist and Vault Removal Flows", function () {
     ];
     await testVault.connect(strategist).submitIntent(intent);
 
+    // TODO: use helper function to process full epoch, taking
+    // zkVM orchestrator fixture as input.
+
     // Step 2: Trigger orchestrators to process the intent and build orders
-    const epochDuration = await InternalStateOrchestrator.epochDuration();
+    const epochDuration = await liquidityOrchestrator.epochDuration();
     await time.increase(epochDuration + 1n);
 
     // Process InternalStateOrchestrator phases
@@ -279,6 +279,9 @@ describe("Whitelist and Vault Removal Flows", function () {
     ];
     await testVault.connect(strategist).submitIntent(intent);
 
+    // TODO: use helper function to process full epoch, taking
+    // zkVM orchestrator fixture as input.
+
     // Step 2: Trigger orchestrators to process the intent and build orders
     const epochDuration = await InternalStateOrchestrator.epochDuration();
     await time.increase(epochDuration + 1n);
@@ -337,6 +340,9 @@ describe("Whitelist and Vault Removal Flows", function () {
     // Verify the asset is no longer whitelisted
     await expect(await orionConfig.isWhitelisted(await mockAsset1.getAddress())).to.be.false;
     await expect(await orionConfig.isWhitelisted(await mockAsset2.getAddress())).to.be.true;
+
+    // TODO: use helper function to process full epoch, taking
+    // zkVM orchestrator fixture as input.
 
     // Step 5: Wait for new epoch and retrigger orchestrators to process the removal
     await time.increase(epochDuration + 1n);
@@ -411,6 +417,9 @@ describe("Whitelist and Vault Removal Flows", function () {
     ];
     await testVault.connect(strategist).submitIntent(intent);
 
+    // TODO: use helper function to process full epoch, taking
+    // zkVM orchestrator fixture as input.
+
     // Step 2: Trigger orchestrators to process the intent and build orders
     const epochDuration = await InternalStateOrchestrator.epochDuration();
     await time.increase(epochDuration + 1n);
@@ -474,6 +483,9 @@ describe("Whitelist and Vault Removal Flows", function () {
       testVault,
       "SynchronousCallDisabled",
     );
+
+    // TODO: use helper function to process full epoch, taking
+    // zkVM orchestrator fixture as input.
 
     await time.increase(epochDuration + 1n);
 
@@ -576,6 +588,9 @@ describe("Whitelist and Vault Removal Flows", function () {
 
     // Verify vault is decommissioning
     void expect(await testVault.isDecommissioning()).to.be.true;
+
+    // TODO: use helper function to process full epoch, taking
+    // zkVM orchestrator fixture as input.
 
     const epochDuration = await InternalStateOrchestrator.epochDuration();
     await time.increase(epochDuration + 1n);
