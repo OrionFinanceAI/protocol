@@ -113,6 +113,9 @@ contract LiquidityOrchestrator is
     /// @notice Transparent vaults associated to the current epoch
     address[] public transparentVaultsEpoch;
 
+    /// @notice Prices of assets in the current epoch
+    mapping(address => uint256) public pricesEpoch;
+
     /* -------------------------------------------------------------------------- */
     /*                                MODIFIERS                                   */
     /* -------------------------------------------------------------------------- */
@@ -368,6 +371,8 @@ contract LiquidityOrchestrator is
     }
 
     /// @notice Handles the start of the upkeep
+    /// @dev No need to delete prices as they are either overwritten or associated with
+    /// non-whitelisted assets.
     function _handleStart() internal {
         // Build filtered vault lists for this epoch
         _buildTransparentVaultsEpoch();
@@ -380,11 +385,10 @@ contract LiquidityOrchestrator is
             // TODO: given this call is block-number dependent,
             // consider storing a snapshot of the fee params here before
             // hashing.
-            // TODO: get snapshot of investment universe prices: registry.getPrice
+
             address[] memory assets = config.getAllWhitelistedAssets();
             for (uint16 i = 0; i < assets.length; ++i) {
-                uint256 price = priceAdapterRegistry.getPrice(assets[i]);
-                // TODO: store prices in array.
+                pricesEpoch[assets[i]] = priceAdapterRegistry.getPrice(assets[i]);
             }
 
             emit EventsLib.EpochStart(epochCounter);
