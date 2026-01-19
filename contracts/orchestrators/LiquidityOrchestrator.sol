@@ -119,6 +119,8 @@ contract LiquidityOrchestrator is
         uint16 activeVFeeCoefficient;
         /// @notice Active revenue share fee coefficient for current epoch (snapshot at epoch start)
         uint16 activeRsFeeCoefficient;
+        /// @notice Active fee model for each vault in current epoch (snapshot at epoch start)
+        mapping(address => IOrionVault.FeeModel) feeModel;
     }
 
     /// @notice Current epoch state
@@ -393,7 +395,8 @@ contract LiquidityOrchestrator is
             // Snapshot vault fee types at epoch start to ensure consistency throughout the epoch
             for (uint16 i = 0; i < _currentEpoch.vaultsEpoch.length; ++i) {
                 address vault = _currentEpoch.vaultsEpoch[i];
-                // TODO.
+                IOrionVault.FeeModel memory feeModel = IOrionVault(vault).activeFeeModel();
+                _currentEpoch.feeModel[vault] = feeModel;
             }
 
             address[] memory assets = config.getAllWhitelistedAssets();

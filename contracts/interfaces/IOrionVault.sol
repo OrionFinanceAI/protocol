@@ -113,6 +113,10 @@ interface IOrionVault is IERC4626 {
     /// @return Pending vault fees amount
     function pendingVaultFees() external view returns (uint256);
 
+    /// @notice Returns the active fee model (old during cooldown, new after)
+    /// @return The currently active fee model
+    function activeFeeModel() external view returns (FeeModel memory);
+
     /// @notice Convert shares to assets with point in time total assets.
     /// @param shares The amount of shares to convert.
     /// @param pointInTimeTotalAssets The point in time total assets.

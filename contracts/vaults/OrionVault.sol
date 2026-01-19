@@ -490,7 +490,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         if (managementFee > MAX_MANAGEMENT_FEE) revert ErrorsLib.InvalidArguments();
 
         // Store old fee model for cooldown period
-        oldFeeModel = _activeFeeModel();
+        oldFeeModel = activeFeeModel();
 
         // Update to new fee model immediately in storage
         feeModel.feeType = FeeType(feeType);
@@ -503,9 +503,8 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         emit EventsLib.VaultFeeChangeScheduled(feeType, performanceFee, managementFee, newFeeRatesTimestamp);
     }
 
-    /// @notice Returns the active fee model (old during cooldown, new after)
-    /// @return The currently active fee model
-    function _activeFeeModel() internal view returns (FeeModel memory) {
+    /// @inheritdoc IOrionVault
+    function activeFeeModel() public view returns (FeeModel memory) {
         // If we're still in cooldown period, return old rates
         if (newFeeRatesTimestamp > block.timestamp) {
             return oldFeeModel;
@@ -535,7 +534,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     /// @param feeTotalAssets The total assets to calculate management fee for
     /// @return The management fee amount in underlying asset units
     function _managementFeeAmount(uint256 feeTotalAssets) internal view returns (uint256) {
-        FeeModel memory activeFees = _activeFeeModel();
+        FeeModel memory activeFees = activeFeeModel();
         if (activeFees.managementFee == 0) return 0;
 
         uint256 annualFeeAmount = uint256(activeFees.managementFee).mulDiv(feeTotalAssets, BASIS_POINTS_FACTOR);
@@ -547,7 +546,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     /// @param feeTotalAssets The total assets to calculate performance fee for
     /// @return The performance fee amount in underlying asset units
     function _performanceFeeAmount(uint256 feeTotalAssets) internal view returns (uint256) {
-        FeeModel memory activeFees = _activeFeeModel();
+        FeeModel memory activeFees = activeFeeModel();
         if (activeFees.performanceFee == 0) return 0;
 
         uint256 activeSharePrice = convertToAssetsWithPITTotalAssets(
