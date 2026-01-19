@@ -71,6 +71,30 @@ interface IOrionVault is IERC4626 {
     /// @param newDepositAccessControl The new deposit access control contract address (address(0) = permissionless).
     event DepositAccessControlUpdated(address indexed newDepositAccessControl);
 
+    // --------- ENUMS AND STRUCTS ---------
+
+    /// @notice Fee type
+    enum FeeType {
+        ABSOLUTE, // Fee based on the latest return, no hurdles or high water mark (HWM)
+        SOFT_HURDLE, // Fee unlocked after hurdle rate is reached
+        HARD_HURDLE, // Fee only above a fixed hurdle rate
+        HIGH_WATER_MARK, // Fee only on gains above the previous peak
+        HURDLE_HWM // Combination of (hard) hurdle rate and HWM
+    }
+
+    /// @notice Fee model
+    /// @dev This struct is used to define the fee model for the vault
+    struct FeeModel {
+        /// @notice Fee type
+        FeeType feeType;
+        /// @notice Performance fee - charged on the performance of the vault
+        uint16 performanceFee;
+        /// @notice Management fee - charged on the total assets of the vault
+        uint16 managementFee;
+        /// @notice High watermark for performance fees
+        uint256 highWaterMark;
+    }
+
     // --------- GETTERS ---------
 
     /// @notice Orion config getter

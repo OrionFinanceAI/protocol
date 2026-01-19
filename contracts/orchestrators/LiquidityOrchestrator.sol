@@ -11,10 +11,10 @@ import "../interfaces/ILiquidityOrchestrator.sol";
 import "../interfaces/IOrionConfig.sol";
 import "../interfaces/IPriceAdapterRegistry.sol";
 import "../libraries/EventsLib.sol";
+import "../interfaces/IOrionVault.sol";
 import "../interfaces/IOrionTransparentVault.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "../interfaces/IOrionVault.sol";
 import "../interfaces/IExecutionAdapter.sol";
 import "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -104,17 +104,25 @@ contract LiquidityOrchestrator is
     /// @notice Buffer amount [assets]
     uint256 public bufferAmount;
 
-    /// @notice Delta buffer amount for current epoch
-    int256 public deltaBufferAmount;
-
     /// @notice Pending protocol fees [assets]
     uint256 public pendingProtocolFees;
 
-    /// @notice Transparent vaults associated to the current epoch
-    address[] public transparentVaultsEpoch;
+    /// @notice Struct to hold epoch state data
+    struct EpochState {
+        /// @notice Delta buffer amount for current epoch [assets]
+        int256 deltaBufferAmount;
+        /// @notice Transparent vaults associated to the current epoch
+        address[] vaultsEpoch;
+        /// @notice Prices of assets in the current epoch [priceAdapterDecimals]
+        mapping(address => uint256) pricesEpoch;
+        /// @notice Active volume fee coefficient for current epoch (snapshot at epoch start)
+        uint16 activeVFeeCoefficient;
+        /// @notice Active revenue share fee coefficient for current epoch (snapshot at epoch start)
+        uint16 activeRsFeeCoefficient;
+    }
 
-    /// @notice Prices of assets in the current epoch
-    mapping(address => uint256) public pricesEpoch;
+    /// @notice Current epoch state
+    EpochState internal _currentEpoch;
 
     /* -------------------------------------------------------------------------- */
     /*                                MODIFIERS                                   */
@@ -261,8 +269,7 @@ contract LiquidityOrchestrator is
 
     /// @inheritdoc ILiquidityOrchestrator
     function getPriceOf(address token) external view returns (uint256 price) {
-        // TODO: implement
-        return 0;
+        return _currentEpoch.pricesEpoch[token];
     }
 
     /* -------------------------------------------------------------------------- */
@@ -347,9 +354,9 @@ contract LiquidityOrchestrator is
     /// @notice Performs the upkeep
     function performUpkeep(bytes calldata) external override onlyAuthorizedTrigger nonReentrant whenNotPaused {
         if (currentPhase == LiquidityUpkeepPhase.Idle && _shouldTriggerUpkeep()) {
-            _handleStart(); // TODO
+            _handleStart();
         } else if (currentPhase == LiquidityUpkeepPhase.StateCommitment) {
-            _processStateCommitment(); // TODO
+            _processStateCommitment();
         } else if (currentPhase == LiquidityUpkeepPhase.SellingLeg) {
             _processSellLeg();
         } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
@@ -375,20 +382,23 @@ contract LiquidityOrchestrator is
     /// non-whitelisted assets.
     function _handleStart() internal {
         // Build filtered vault lists for this epoch
-        _buildTransparentVaultsEpoch();
+        _buildVaultsEpoch();
 
-        if (transparentVaultsEpoch.length > 0) {
+        if (_currentEpoch.vaultsEpoch.length > 0) {
             currentPhase = LiquidityUpkeepPhase.StateCommitment;
 
-            // TODO
-            // (uint16 activeVFee, uint16 activeRsFee) = config.activeProtocolFees();
-            // TODO: given this call is block-number dependent,
-            // consider storing a snapshot of the fee params here before
-            // hashing.
+            // Snapshot protocol fees at epoch start to ensure consistency throughout the epoch
+            (_currentEpoch.activeVFeeCoefficient, _currentEpoch.activeRsFeeCoefficient) = config.activeProtocolFees();
+
+            // Snapshot vault fee types at epoch start to ensure consistency throughout the epoch
+            for (uint16 i = 0; i < _currentEpoch.vaultsEpoch.length; ++i) {
+                address vault = _currentEpoch.vaultsEpoch[i];
+                // TODO.
+            }
 
             address[] memory assets = config.getAllWhitelistedAssets();
             for (uint16 i = 0; i < assets.length; ++i) {
-                pricesEpoch[assets[i]] = priceAdapterRegistry.getPrice(assets[i]);
+                _currentEpoch.pricesEpoch[assets[i]] = priceAdapterRegistry.getPrice(assets[i]);
             }
 
             emit EventsLib.EpochStart(epochCounter);
@@ -396,15 +406,15 @@ contract LiquidityOrchestrator is
     }
 
     /// @notice Build filtered transparent vaults list for the epoch
-    function _buildTransparentVaultsEpoch() internal {
+    function _buildVaultsEpoch() internal {
         address[] memory allTransparent = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
-        delete transparentVaultsEpoch;
+        delete _currentEpoch.vaultsEpoch;
 
         uint256 maxFulfillBatchSize = config.maxFulfillBatchSize();
         for (uint16 i = 0; i < allTransparent.length; ++i) {
             address v = allTransparent[i];
             if (IOrionVault(v).pendingDeposit(maxFulfillBatchSize) + IOrionVault(v).totalAssets() == 0) continue;
-            transparentVaultsEpoch.push(v);
+            _currentEpoch.vaultsEpoch.push(v);
         }
     }
 
@@ -450,8 +460,8 @@ contract LiquidityOrchestrator is
             _executeBuy(token, amount, buyingEstimatedUnderlyingAmounts[i]);
         }
 
-        _updateBufferAmount(deltaBufferAmount);
-        deltaBufferAmount = 0;
+        _updateBufferAmount(_currentEpoch.deltaBufferAmount);
+        _currentEpoch.deltaBufferAmount = 0;
     }
 
     /// @notice Updates the buffer amount based on execution vs estimated amounts
@@ -481,7 +491,7 @@ contract LiquidityOrchestrator is
         // Clean up approval
         IERC20(asset).forceApprove(address(adapter), 0);
 
-        deltaBufferAmount += executionUnderlyingAmount.toInt256() - estimatedUnderlyingAmount.toInt256();
+        _currentEpoch.deltaBufferAmount += executionUnderlyingAmount.toInt256() - estimatedUnderlyingAmount.toInt256();
     }
 
     /// @notice Executes a buy order
@@ -505,7 +515,7 @@ contract LiquidityOrchestrator is
         // Clean up approval
         IERC20(underlyingAsset).forceApprove(address(adapter), 0);
 
-        deltaBufferAmount += estimatedUnderlyingAmount.toInt256() - executionUnderlyingAmount.toInt256();
+        _currentEpoch.deltaBufferAmount += estimatedUnderlyingAmount.toInt256() - executionUnderlyingAmount.toInt256();
     }
 
     /// @notice Handles the vault operations

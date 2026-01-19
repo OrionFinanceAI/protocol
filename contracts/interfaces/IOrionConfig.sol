@@ -47,6 +47,11 @@ interface IOrionConfig {
     /// @param _rsFeeCoefficient The new revenue share fee coefficient
     function updateProtocolFees(uint16 _vFeeCoefficient, uint16 _rsFeeCoefficient) external;
 
+    /// @notice Returns the active protocol fees (old during cooldown, new after)
+    /// @return vFee The active volume fee coefficient
+    /// @return rsFee The active revenue share fee coefficient
+    function activeProtocolFees() external view returns (uint16 vFee, uint16 rsFee);
+
     /// @notice Sets the liquidity orchestrator for the protocol
     /// @dev Can only be called by the contract owner
     /// @param orchestrator The address of the liquidity orchestrator
