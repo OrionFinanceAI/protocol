@@ -11,7 +11,6 @@ import "@openzeppelin/contracts/proxy/beacon/IBeacon.sol";
 import "@openzeppelin/contracts/utils/StorageSlot.sol";
 import "../interfaces/IOrionConfig.sol";
 import "../interfaces/IOrionVault.sol";
-import "../interfaces/IInternalStateOrchestrator.sol";
 import "../interfaces/ILiquidityOrchestrator.sol";
 import "../interfaces/IOrionAccessControl.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
@@ -53,8 +52,6 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     address public strategist;
     /// @notice OrionConfig contract
     IOrionConfig public config;
-    /// @notice Internal state orchestrator
-    IInternalStateOrchestrator public internalStateOrchestrator;
     /// @notice Liquidity orchestrator
     ILiquidityOrchestrator public liquidityOrchestrator;
     /// @notice Deposit access control contract (address(0) = permissionless)
@@ -187,7 +184,6 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         manager = manager_;
         strategist = strategist_;
         config = config_;
-        internalStateOrchestrator = IInternalStateOrchestrator(config_.internalStateOrchestrator());
         liquidityOrchestrator = ILiquidityOrchestrator(config_.liquidityOrchestrator());
         depositAccessControl = depositAccessControl_;
 
@@ -338,6 +334,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         isDecommissioning = true;
     }
 
+    /// @inheritdoc IOrionVault
     function implementation() external view returns (address) {
         bytes32 beaconSlot = 0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50;
         address beacon = StorageSlot.getAddressSlot(beaconSlot).value;
@@ -564,7 +561,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         if (activeFees.managementFee == 0) return 0;
 
         uint256 annualFeeAmount = uint256(activeFees.managementFee).mulDiv(feeTotalAssets, BASIS_POINTS_FACTOR);
-        return annualFeeAmount.mulDiv(internalStateOrchestrator.epochDuration(), YEAR_IN_SECONDS);
+        return annualFeeAmount.mulDiv(liquidityOrchestrator.epochDuration(), YEAR_IN_SECONDS);
     }
 
     /// @notice Calculate performance fee amount
@@ -586,7 +583,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         if (activeSharePrice < benchmark || divisor == 0) return 0;
         uint256 feeRate = uint256(activeFees.performanceFee).mulDiv(activeSharePrice - divisor, divisor);
         uint256 performanceFeeAmount = feeRate.mulDiv(feeTotalAssets, BASIS_POINTS_FACTOR);
-        return performanceFeeAmount.mulDiv(internalStateOrchestrator.epochDuration(), YEAR_IN_SECONDS);
+        return performanceFeeAmount.mulDiv(liquidityOrchestrator.epochDuration(), YEAR_IN_SECONDS);
     }
 
     /// @notice Get benchmark value based on fee model type
@@ -621,7 +618,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     function _getHurdlePrice(uint256 currentSharePrice) internal view returns (uint256) {
         uint256 riskFreeRate = config.riskFreeRate();
 
-        uint256 hurdleReturn = riskFreeRate.mulDiv(internalStateOrchestrator.epochDuration(), YEAR_IN_SECONDS);
+        uint256 hurdleReturn = riskFreeRate.mulDiv(liquidityOrchestrator.epochDuration(), YEAR_IN_SECONDS);
         return currentSharePrice.mulDiv(BASIS_POINTS_FACTOR + hurdleReturn, BASIS_POINTS_FACTOR);
     }
 

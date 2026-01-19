@@ -12,6 +12,7 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @notice Upkeep phase enum for liquidity orchestration
     enum LiquidityUpkeepPhase {
         Idle,
+        StateCommitment,
         SellingLeg,
         BuyingLeg,
         ProcessVaultOperations
@@ -29,6 +30,27 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @return The slippage tolerance
     function slippageTolerance() external view returns (uint256);
 
+    /// @notice Returns the current buffer amount
+    /// @return The current buffer amount
+    function bufferAmount() external view returns (uint256);
+
+    /// @notice Returns the pending protocol fees
+    /// @return The pending protocol fees
+    function pendingProtocolFees() external view returns (uint256);
+
+    /// @notice Returns the epoch duration
+    /// @return The epoch duration in seconds
+    function epochDuration() external view returns (uint32);
+
+    /// @notice Updates the epoch duration
+    /// @param newEpochDuration The new epoch duration in seconds
+    function updateEpochDuration(uint32 newEpochDuration) external;
+
+    /// @notice Get price for a specific token
+    /// @param token The token to get the price of
+    /// @return price The corresponding price [shares/assets]
+    function getPriceOf(address token) external view returns (uint256 price);
+
     /// @notice Updates the minibatch size for fulfill deposit and redeem processing
     /// @param _minibatchSize The new minibatch size
     function updateMinibatchSize(uint8 _minibatchSize) external;
@@ -36,11 +58,6 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @notice Updates the Chainlink Automation Registry address
     /// @param newAutomationRegistry The new automation registry address
     function updateAutomationRegistry(address newAutomationRegistry) external;
-
-    /// @notice Sets the internal state orchestrator address
-    /// @dev Can only be called by the contract owner
-    /// @param internalStateOrchestrator The address of the internal state orchestrator
-    function setInternalStateOrchestrator(address internalStateOrchestrator) external;
 
     /// @notice Sets the target buffer ratio
     /// @param _targetBufferRatio The new target buffer ratio
@@ -92,10 +109,6 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @param assets The amount of underlying assets to withdraw
     /// @param receiver The address to receive the underlying assets
     function withdraw(uint256 assets, address receiver) external;
-
-    /// @notice Advances the idle phase
-    /// @dev Called by the internal state orchestrator to advance the idle phase
-    function advanceIdlePhase() external;
 
     /// @notice Pauses the contract
     /// @dev Can only be called by OrionConfig for emergency situations

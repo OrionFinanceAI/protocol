@@ -9,11 +9,6 @@ import "../libraries/EventsLib.sol";
 /// @author Orion Finance
 /// @custom:security-contact security@orionfinance.ai
 interface IOrionConfig {
-    /// @notice Returns the address of the internal state orchestrator contract
-    /// @dev This orchestrator manages the internal state transitions of the protocol
-    /// @return The address of the internal state orchestrator
-    function internalStateOrchestrator() external view returns (address);
-
     /// @notice Returns the address of the liquidity orchestrator contract
     /// @dev This orchestrator manages liquidity operations and coordination
     /// @return The address of the liquidity orchestrator
@@ -47,10 +42,10 @@ interface IOrionConfig {
     /// @return The guardian address
     function guardian() external view returns (address);
 
-    /// @notice Sets the internal state orchestrator for the protocol
-    /// @dev Can only be called by the contract owner
-    /// @param orchestrator The address of the internal state orchestrator
-    function setInternalStateOrchestrator(address orchestrator) external;
+    /// @notice Updates the protocol fees
+    /// @param _vFeeCoefficient The new volume fee coefficient
+    /// @param _rsFeeCoefficient The new revenue share fee coefficient
+    function updateProtocolFees(uint16 _vFeeCoefficient, uint16 _rsFeeCoefficient) external;
 
     /// @notice Sets the liquidity orchestrator for the protocol
     /// @dev Can only be called by the contract owner

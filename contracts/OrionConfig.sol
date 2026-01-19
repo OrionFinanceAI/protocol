@@ -16,7 +16,6 @@ import "./interfaces/IPriceAdapterRegistry.sol";
 import "./interfaces/ILiquidityOrchestrator.sol";
 import "./interfaces/IPriceAdapter.sol";
 import "./interfaces/IExecutionAdapter.sol";
-import "./interfaces/IInternalStateOrchestrator.sol";
 
 /**
  *     ██████╗ ██████╗ ██╗ ██████╗ ███╗   ██╗    ███████╗██╗███╗   ██╗ █████╗ ███╗   ██╗ ██████╗███████╗
@@ -39,8 +38,6 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
 
     /// @notice Underlying asset address
     IERC20 public underlyingAsset;
-    /// @notice Address of the internal state orchestrator
-    address public internalStateOrchestrator;
     /// @notice Address of the liquidity orchestrator
     address public liquidityOrchestrator;
     /// @notice Address of the transparent vault factory
@@ -77,6 +74,19 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     EnumerableSet.AddressSet private encryptedVaults;
     EnumerableSet.AddressSet private decommissioningInProgressVaults;
     EnumerableSet.AddressSet private decommissionedVaults;
+
+    /// @notice Old volume fee coefficient (used during cooldown period)
+    uint16 private oldVFeeCoefficient;
+    /// @notice Old revenue share fee coefficient (used during cooldown period)
+    uint16 private oldRsFeeCoefficient;
+
+    /// @notice Volume fee coefficient
+    uint16 public vFeeCoefficient;
+    /// @notice Revenue share fee coefficient
+    uint16 public rsFeeCoefficient;
+
+    /// @notice Timestamp when new protocol fee rates become effective
+    uint256 public newProtocolFeeRatesTimestamp;
 
     modifier onlyFactories() {
         if (msg.sender != transparentVaultFactory) revert ErrorsLib.NotAuthorized();
@@ -127,10 +137,37 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     // === Protocol Configuration ===
 
     /// @inheritdoc IOrionConfig
-    function setInternalStateOrchestrator(address orchestrator) external onlyOwner {
-        if (orchestrator == address(0)) revert ErrorsLib.ZeroAddress();
-        if (internalStateOrchestrator != address(0)) revert ErrorsLib.AlreadyRegistered();
-        internalStateOrchestrator = orchestrator;
+    function updateProtocolFees(uint16 _vFeeCoefficient, uint16 _rsFeeCoefficient) external onlyOwner {
+        /// Maximum volume fee: 0.5%
+        /// Maximum revenue share fee: 20%
+        if (_vFeeCoefficient > 50 || _rsFeeCoefficient > 2_000) revert ErrorsLib.InvalidArguments();
+        if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+
+        // Store old fees for cooldown period
+        (uint16 oldVFee, uint16 oldRsFee) = activeProtocolFees();
+        oldVFeeCoefficient = oldVFee;
+        oldRsFeeCoefficient = oldRsFee;
+
+        // Update to new fees immediately in storage
+        vFeeCoefficient = _vFeeCoefficient;
+        rsFeeCoefficient = _rsFeeCoefficient;
+
+        // Set when new rates become effective
+        newProtocolFeeRatesTimestamp = block.timestamp + feeChangeCooldownDuration;
+
+        emit EventsLib.ProtocolFeeChangeScheduled(_vFeeCoefficient, _rsFeeCoefficient, newProtocolFeeRatesTimestamp);
+    }
+
+    /// @notice Returns the active protocol fees (old during cooldown, new after)
+    /// @return vFee The active volume fee coefficient
+    /// @return rsFee The active revenue share fee coefficient
+    function activeProtocolFees() public view returns (uint16 vFee, uint16 rsFee) {
+        // If we're still in cooldown period, return old rates
+        if (newProtocolFeeRatesTimestamp > block.timestamp) {
+            return (oldVFeeCoefficient, oldRsFeeCoefficient);
+        }
+        // Otherwise return new rates
+        return (vFeeCoefficient, rsFeeCoefficient);
     }
 
     /// @inheritdoc IOrionConfig
@@ -219,11 +256,10 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
 
     /// @notice Pauses all protocol operations across orchestrators
     /// @dev Can only be called by guardian or owner
-    ///      Pauses InternalStateOrchestrator and LiquidityOrchestrator
+    ///      Pauses LiquidityOrchestrator
     function pauseAll() external {
         if (msg.sender != guardian && msg.sender != owner()) revert ErrorsLib.NotAuthorized();
 
-        IInternalStateOrchestrator(internalStateOrchestrator).pause();
         ILiquidityOrchestrator(liquidityOrchestrator).pause();
 
         emit EventsLib.ProtocolPaused(msg.sender);
@@ -231,9 +267,8 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
 
     /// @notice Unpauses all protocol operations across orchestrators
     /// @dev Can only be called by owner (not guardian: requires owner approval to resume)
-    ///      Unpauses InternalStateOrchestrator and LiquidityOrchestrator
+    ///      Unpauses LiquidityOrchestrator
     function unpauseAll() external onlyOwner {
-        IInternalStateOrchestrator(internalStateOrchestrator).unpause();
         ILiquidityOrchestrator(liquidityOrchestrator).unpause();
 
         emit EventsLib.ProtocolUnpaused(msg.sender);
@@ -431,9 +466,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     function isSystemIdle() public view returns (bool) {
         return
             ILiquidityOrchestrator(liquidityOrchestrator).currentPhase() ==
-            ILiquidityOrchestrator.LiquidityUpkeepPhase.Idle &&
-            IInternalStateOrchestrator(internalStateOrchestrator).currentPhase() ==
-            IInternalStateOrchestrator.InternalUpkeepPhase.Idle;
+            ILiquidityOrchestrator.LiquidityUpkeepPhase.Idle;
     }
 
     /// @inheritdoc IOrionConfig

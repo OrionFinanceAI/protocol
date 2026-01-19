@@ -9,7 +9,7 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "../interfaces/ILiquidityOrchestrator.sol";
 import "../interfaces/IOrionConfig.sol";
-import "../interfaces/IInternalStateOrchestrator.sol";
+import "../interfaces/IPriceAdapterRegistry.sol";
 import "../libraries/EventsLib.sol";
 import "../interfaces/IOrionTransparentVault.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
@@ -54,11 +54,11 @@ contract LiquidityOrchestrator is
     /// @notice Orion Config contract address
     IOrionConfig public config;
 
-    /// @notice Internal State Orchestrator contract address
-    IInternalStateOrchestrator public internalStateOrchestrator;
-
     /// @notice Underlying asset address
     address public underlyingAsset;
+
+    /// @notice Price Adapter Registry contract
+    IPriceAdapterRegistry public priceAdapterRegistry;
 
     /// @notice Execution adapters mapping for assets
     mapping(address => IExecutionAdapter) public executionAdapterOf;
@@ -66,6 +66,12 @@ contract LiquidityOrchestrator is
     /* -------------------------------------------------------------------------- */
     /*                               UPKEEP STATE                                 */
     /* -------------------------------------------------------------------------- */
+
+    /// @notice Epoch duration
+    uint32 public epochDuration;
+
+    /// @notice Timestamp when the next upkeep is allowed
+    uint256 private _nextUpdateTime;
 
     /// @notice Minibatch size for fulfill deposit and redeem processing
     uint8 public minibatchSize;
@@ -85,6 +91,9 @@ contract LiquidityOrchestrator is
     /// @notice Maximum minibatch size
     uint8 public constant MAX_MINIBATCH_SIZE = 8;
 
+    /// @notice Maximum epoch duration (2 weeks)
+    uint32 public constant MAX_EPOCH_DURATION = 14 days;
+
     /* -------------------------------------------------------------------------- */
     /*                                 EPOCH STATE                                */
     /* -------------------------------------------------------------------------- */
@@ -92,29 +101,30 @@ contract LiquidityOrchestrator is
     /// @notice Epoch counter
     uint256 public epochCounter;
 
+    /// @notice Buffer amount [assets]
+    uint256 public bufferAmount;
+
     /// @notice Delta buffer amount for current epoch
     int256 public deltaBufferAmount;
+
+    /// @notice Pending protocol fees [assets]
+    uint256 public pendingProtocolFees;
 
     /* -------------------------------------------------------------------------- */
     /*                                MODIFIERS                                   */
     /* -------------------------------------------------------------------------- */
 
-    /// @dev Restricts function to only owner or Chainlink Automation Registry
+    /// @dev Restricts function to only owner or automation registry
     modifier onlyAuthorizedTrigger() {
         if (msg.sender != owner() && msg.sender != automationRegistry) {
             revert ErrorsLib.NotAuthorized();
         }
         _;
     }
+
     /// @dev Restricts function to only Orion Config contract
     modifier onlyConfig() {
         if (msg.sender != address(config)) revert ErrorsLib.NotAuthorized();
-        _;
-    }
-
-    /// @dev Restricts function to only Internal State Orchestrator contract
-    modifier onlyInternalStateOrchestrator() {
-        if (msg.sender != address(internalStateOrchestrator)) revert ErrorsLib.NotAuthorized();
         _;
     }
 
@@ -155,11 +165,24 @@ contract LiquidityOrchestrator is
         currentPhase = LiquidityUpkeepPhase.Idle;
         minibatchSize = 1;
         slippageTolerance = 0;
+
+        epochDuration = 1 days;
+        _nextUpdateTime = block.timestamp + epochDuration;
     }
 
     /* -------------------------------------------------------------------------- */
     /*                                OWNER FUNCTIONS                             */
     /* -------------------------------------------------------------------------- */
+
+    /// @inheritdoc ILiquidityOrchestrator
+    function updateEpochDuration(uint32 newEpochDuration) external onlyOwnerOrGuardian {
+        if (newEpochDuration == 0) revert ErrorsLib.InvalidArguments();
+        if (newEpochDuration > MAX_EPOCH_DURATION) revert ErrorsLib.InvalidArguments();
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+
+        epochDuration = newEpochDuration;
+        _nextUpdateTime = Math.min(block.timestamp + epochDuration, _nextUpdateTime);
+    }
 
     /// @inheritdoc ILiquidityOrchestrator
     function updateMinibatchSize(uint8 _minibatchSize) external onlyOwnerOrGuardian {
@@ -178,13 +201,6 @@ contract LiquidityOrchestrator is
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function setInternalStateOrchestrator(address _internalStateOrchestrator) external onlyOwner {
-        if (_internalStateOrchestrator == address(0)) revert ErrorsLib.ZeroAddress();
-        if (address(internalStateOrchestrator) != address(0)) revert ErrorsLib.AlreadyRegistered();
-        internalStateOrchestrator = IInternalStateOrchestrator(_internalStateOrchestrator);
-    }
-
-    /// @inheritdoc ILiquidityOrchestrator
     function setTargetBufferRatio(uint256 _targetBufferRatio) external onlyOwner {
         if (_targetBufferRatio == 0) revert ErrorsLib.InvalidArguments();
         // 5%
@@ -198,30 +214,25 @@ contract LiquidityOrchestrator is
     /// @inheritdoc ILiquidityOrchestrator
     function depositLiquidity(uint256 amount) external {
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
-        if (internalStateOrchestrator.currentPhase() != IInternalStateOrchestrator.InternalUpkeepPhase.Idle)
-            revert ErrorsLib.SystemNotIdle();
+        if (currentPhase == LiquidityUpkeepPhase.StateCommitment) revert ErrorsLib.NotAuthorized();
 
         // Transfer underlying assets from the caller to this contract
         IERC20(underlyingAsset).safeTransferFrom(msg.sender, address(this), amount);
 
-        // Update buffer amount in the internal state orchestrator
-        internalStateOrchestrator.updateBufferAmount(int256(amount));
+        // Update buffer amount
+        _updateBufferAmount(int256(amount));
     }
 
     /// @inheritdoc ILiquidityOrchestrator
     function withdrawLiquidity(uint256 amount) external onlyOwner {
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
-        if (internalStateOrchestrator.currentPhase() != IInternalStateOrchestrator.InternalUpkeepPhase.Idle)
-            revert ErrorsLib.SystemNotIdle();
-
-        // Get current buffer amount from internal state orchestrator
-        uint256 currentBufferAmount = internalStateOrchestrator.bufferAmount();
+        if (currentPhase == LiquidityUpkeepPhase.StateCommitment) revert ErrorsLib.NotAuthorized();
 
         // Safety check: ensure withdrawal doesn't make buffer negative
-        if (amount > currentBufferAmount) revert ErrorsLib.InsufficientAmount();
+        if (amount > bufferAmount) revert ErrorsLib.InsufficientAmount();
 
-        // Update buffer amount in the internal state orchestrator
-        internalStateOrchestrator.updateBufferAmount(-int256(amount));
+        // Update buffer amount
+        _updateBufferAmount(-int256(amount));
 
         // Transfer underlying assets to the owner
         IERC20(underlyingAsset).safeTransfer(msg.sender, amount);
@@ -231,13 +242,20 @@ contract LiquidityOrchestrator is
     function claimProtocolFees(uint256 amount) external onlyOwner {
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
 
-        internalStateOrchestrator.subtractPendingProtocolFees(amount);
+        if (amount > pendingProtocolFees) revert ErrorsLib.InsufficientAmount();
+        pendingProtocolFees -= amount;
 
         IERC20(underlyingAsset).safeTransfer(msg.sender, amount);
 
         emit EventsLib.ProtocolFeesClaimed(amount);
-        // TODO: when pendingProtocolFees states defined in LO, emit event also when accrued.
+        // TODO: when pendingProtocolFees states updated in LO, emit event also when accrued.
         // Do so by accruing component, like done for vault fees.
+    }
+
+    /// @inheritdoc ILiquidityOrchestrator
+    function getPriceOf(address token) external view returns (uint256 price) {
+        // TODO: implement
+        return 0;
     }
 
     /* -------------------------------------------------------------------------- */
@@ -251,16 +269,6 @@ contract LiquidityOrchestrator is
 
         executionAdapterOf[asset] = adapter;
         emit EventsLib.ExecutionAdapterSet(asset, address(adapter));
-    }
-
-    /* -------------------------------------------------------------------------- */
-    /*                  INTERNAL STATE ORCHESTRATOR FUNCTIONS                    */
-    /* -------------------------------------------------------------------------- */
-
-    /// @inheritdoc ILiquidityOrchestrator
-    function advanceIdlePhase() external onlyInternalStateOrchestrator {
-        currentPhase = LiquidityUpkeepPhase.SellingLeg;
-        emit EventsLib.EpochStart(epochCounter);
     }
 
     /* -------------------------------------------------------------------------- */
@@ -309,10 +317,15 @@ contract LiquidityOrchestrator is
     /* -------------------------------------------------------------------------- */
 
     /// @notice Checks if the upkeep is needed
+    /// @dev https://docs.chain.link/chainlink-automation/reference/automation-interfaces
     /// @return upkeepNeeded Whether the upkeep is needed
     /// @return performData Empty bytes
     function checkUpkeep(bytes calldata) external view override returns (bool upkeepNeeded, bytes memory performData) {
-        if (currentPhase == LiquidityUpkeepPhase.SellingLeg) {
+        if (currentPhase == LiquidityUpkeepPhase.Idle && _shouldTriggerUpkeep()) {
+            upkeepNeeded = true;
+        } else if (currentPhase == LiquidityUpkeepPhase.StateCommitment) {
+            upkeepNeeded = true;
+        } else if (currentPhase == LiquidityUpkeepPhase.SellingLeg) {
             upkeepNeeded = true;
         } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
             upkeepNeeded = true;
@@ -326,7 +339,11 @@ contract LiquidityOrchestrator is
 
     /// @notice Performs the upkeep
     function performUpkeep(bytes calldata) external override onlyAuthorizedTrigger nonReentrant whenNotPaused {
-        if (currentPhase == LiquidityUpkeepPhase.SellingLeg) {
+        if (currentPhase == LiquidityUpkeepPhase.Idle && _shouldTriggerUpkeep()) {
+            _handleStart(); // TODO
+        } else if (currentPhase == LiquidityUpkeepPhase.StateCommitment) {
+            _processStateCommitment(); // TODO
+        } else if (currentPhase == LiquidityUpkeepPhase.SellingLeg) {
             _processSellLeg();
         } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
             _processBuyLeg();
@@ -339,13 +356,37 @@ contract LiquidityOrchestrator is
     /*                                INTERNAL FUNCTIONS                          */
     /* -------------------------------------------------------------------------- */
 
+    /// @notice Checks if upkeep should be triggered based on time
+    /// @return True if upkeep should be triggered
+    function _shouldTriggerUpkeep() internal view returns (bool) {
+        // slither-disable-next-line timestamp
+        return block.timestamp > _nextUpdateTime;
+    }
+
+    /// @notice Handles the start of the upkeep
+    function _handleStart() internal {
+        // TODO
+        currentPhase = LiquidityUpkeepPhase.StateCommitment;
+        emit EventsLib.EpochStart(epochCounter);
+    }
+
+    /// @notice Handles the state commitment
+    function _processStateCommitment() internal {
+        // (uint16 activeVFee, uint16 activeRsFee) = config.activeProtocolFees();
+        // TODO: given this call is block-number dependent, consider storing a snapshot of the fee params here before
+        // hashing.
+        // TODO: get snapshot of investment universe prices: registry.getPrice
+
+        currentPhase = LiquidityUpkeepPhase.SellingLeg;
+    }
+
     /// @notice Handles the sell action
     function _processSellLeg() internal {
         (
             address[] memory sellingTokens,
             uint256[] memory sellingAmounts,
             uint256[] memory sellingEstimatedUnderlyingAmounts
-        ) = internalStateOrchestrator.getOrders(true);
+        ) = (new address[](0), new uint256[](0), new uint256[](0)); // TODO: implement getOrders(true);
 
         currentPhase = LiquidityUpkeepPhase.BuyingLeg;
 
@@ -358,12 +399,12 @@ contract LiquidityOrchestrator is
     }
 
     /// @notice Handles the buy action
+    // slither-disable-next-line reentrancy-no-eth
     function _processBuyLeg() internal {
-        (
-            address[] memory buyingTokens,
-            uint256[] memory buyingAmounts,
-            uint256[] memory buyingEstimatedUnderlyingAmounts
-        ) = internalStateOrchestrator.getOrders(false);
+        address[] memory buyingTokens = new address[](0);
+        uint256[] memory buyingAmounts = new uint256[](0);
+        uint256[] memory buyingEstimatedUnderlyingAmounts = new uint256[](0);
+        // TODO: implement getOrders(false);
 
         currentPhase = LiquidityUpkeepPhase.ProcessVaultOperations;
 
@@ -374,9 +415,18 @@ contract LiquidityOrchestrator is
             _executeBuy(token, amount, buyingEstimatedUnderlyingAmounts[i]);
         }
 
-        // slither-disable-next-line reentrancy-no-eth
-        internalStateOrchestrator.updateBufferAmount(deltaBufferAmount);
+        _updateBufferAmount(deltaBufferAmount);
         deltaBufferAmount = 0;
+    }
+
+    /// @notice Updates the buffer amount based on execution vs estimated amounts
+    /// @param deltaAmount The amount to add/subtract from the buffer (can be negative)
+    function _updateBufferAmount(int256 deltaAmount) internal {
+        if (deltaAmount > 0) {
+            bufferAmount += uint256(deltaAmount);
+        } else if (deltaAmount < 0) {
+            bufferAmount -= uint256(-deltaAmount);
+        }
     }
 
     /// @notice Executes a sell order
@@ -436,18 +486,15 @@ contract LiquidityOrchestrator is
             i1 = uint16(transparentVaults.length);
             currentPhase = LiquidityUpkeepPhase.Idle;
             currentMinibatchIndex = 0;
-            internalStateOrchestrator.updateNextUpdateTime();
+            _nextUpdateTime = block.timestamp + epochDuration;
             emit EventsLib.EpochEnd(epochCounter);
             ++epochCounter;
         }
 
         for (uint16 i = i0; i < i1; ++i) {
             address vault = transparentVaults[i];
-            (
-                uint256 totalAssetsForRedeem,
-                uint256 totalAssetsForDeposit,
-                uint256 finalTotalAssets
-            ) = internalStateOrchestrator.getVaultTotalAssetsAll(vault);
+            (uint256 totalAssetsForRedeem, uint256 totalAssetsForDeposit, uint256 finalTotalAssets) = (0, 0, 0);
+            // TODO: implement getVaultTotalAssetsAll(vault);
 
             _processSingleVaultOperations(vault, totalAssetsForDeposit, totalAssetsForRedeem, finalTotalAssets);
         }
@@ -478,10 +525,12 @@ contract LiquidityOrchestrator is
             vaultContract.fulfillDeposit(totalAssetsForDeposit);
         }
 
-        (uint256 managementFee, uint256 performanceFee) = internalStateOrchestrator.getVaultFee(vault);
+        (uint256 managementFee, uint256 performanceFee) = (0, 0); // TODO: implement getVaultFee(vault);
         IOrionVault(vault).accrueVaultFees(managementFee, performanceFee);
 
-        (address[] memory tokens, uint256[] memory shares) = internalStateOrchestrator.getVaultPortfolio(vault);
+        address[] memory tokens = new address[](0);
+        uint256[] memory shares = new uint256[](0);
+        // TODO: implement getVaultPortfolio(vault);
         vaultContract.updateVaultState(tokens, shares, finalTotalAssets);
 
         if (config.isDecommissioningVault(vault)) {

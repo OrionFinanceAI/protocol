@@ -60,12 +60,12 @@ interface IOrionVault is IERC4626 {
     /// @notice Fees have been accrued.
     /// @param managementFee The amount of management fees accrued.
     /// @param performanceFee The amount of performance fees accrued.
-    event VaultFeesAccrued(uint256 managementFee, uint256 performanceFee);
+    event VaultFeesAccrued(uint256 indexed managementFee, uint256 indexed performanceFee);
 
     /// @notice Fees have been claimed.
     /// @param manager The address of the manager who claimed the fees.
     /// @param feeAmount The amount of fees claimed.
-    event VaultFeesClaimed(address manager, uint256 feeAmount);
+    event VaultFeesClaimed(address indexed manager, uint256 indexed feeAmount);
 
     /// @notice The deposit access control contract has been updated.
     /// @param newDepositAccessControl The new deposit access control contract address (address(0) = permissionless).
