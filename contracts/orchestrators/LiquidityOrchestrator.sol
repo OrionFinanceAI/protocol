@@ -121,6 +121,8 @@ contract LiquidityOrchestrator is
         uint16 activeRsFeeCoefficient;
         /// @notice Active fee model for each vault in current epoch (snapshot at epoch start)
         mapping(address => IOrionVault.FeeModel) feeModel;
+        /// @notice Epoch state root of the epoch state commitment
+        bytes32 epochStateRoot;
     }
 
     /// @notice Current epoch state
@@ -274,6 +276,20 @@ contract LiquidityOrchestrator is
         return _currentEpoch.pricesEpoch[token];
     }
 
+    /// @inheritdoc ILiquidityOrchestrator
+    function getActiveProtocolFees()
+        external
+        view
+        returns (uint16 activeVFeeCoefficient, uint16 activeRsFeeCoefficient)
+    {
+        return (_currentEpoch.activeVFeeCoefficient, _currentEpoch.activeRsFeeCoefficient);
+    }
+
+    /// @inheritdoc ILiquidityOrchestrator
+    function getVaultFees(address vault) external view returns (IOrionVault.FeeModel memory) {
+        return _currentEpoch.feeModel[vault];
+    }
+
     /* -------------------------------------------------------------------------- */
     /*                                CONFIG FUNCTIONS                            */
     /* -------------------------------------------------------------------------- */
@@ -423,9 +439,212 @@ contract LiquidityOrchestrator is
 
     /// @notice Handles the state commitment
     function _processStateCommitment() internal {
-        // TODO: Build Merkle Root from full epoch state.
-
+        // Build epoch state root from full epoch state
+        _currentEpoch.epochStateRoot = _buildEpochStateRoot();
         currentPhase = LiquidityUpkeepPhase.SellingLeg;
+    }
+
+    /// @notice Builds an epoch state root hash from the full epoch state
+    /// @return The epoch state root hash
+    function _buildEpochStateRoot() internal view returns (bytes32) {
+        address[] memory assets = config.getAllWhitelistedAssets();
+        uint256[] memory assetPrices = _getAssetPrices(assets);
+        address[] memory vaults = _currentEpoch.vaultsEpoch;
+        VaultStateData memory vaultData = _getVaultStateData(vaults);
+
+        bytes32 protocolStateHash = _buildProtocolStateHash();
+        bytes32 assetsHash = _aggregateAssetLeaves(assets, assetPrices);
+        bytes32 vaultsHash = _aggregateVaultLeaves(vaults, vaultData);
+        return keccak256(abi.encode(protocolStateHash, assetsHash, vaultsHash));
+    }
+
+    /// @notice Builds the protocol state hash from static epoch parameters
+    /// @return The protocol state hash
+    function _buildProtocolStateHash() internal view returns (bytes32) {
+        return
+            keccak256(
+                abi.encode(
+                    _currentEpoch.activeVFeeCoefficient,
+                    _currentEpoch.activeRsFeeCoefficient,
+                    _currentEpoch.deltaBufferAmount,
+                    config.maxFulfillBatchSize(),
+                    targetBufferRatio,
+                    bufferAmount
+                )
+            );
+    }
+
+    /// @notice Computes the leaf hash for a single asset
+    /// @param assetAddress The address of the asset
+    /// @param assetPrice The price of the asset
+    /// @return The asset leaf hash
+    function _computeAssetLeaf(address assetAddress, uint256 assetPrice) internal pure returns (bytes32) {
+        return keccak256(abi.encode(assetAddress, assetPrice));
+    }
+
+    /// @notice Aggregates asset leaves using sequential folding
+    /// @param assets Array of asset addresses
+    /// @param assetPrices Array of asset prices
+    /// @return The aggregated assets hash
+    function _aggregateAssetLeaves(
+        address[] memory assets,
+        uint256[] memory assetPrices
+    ) internal pure returns (bytes32) {
+        bytes32 assetsHash = bytes32(0);
+        for (uint16 i = 0; i < assets.length; ++i) {
+            bytes32 assetLeaf = _computeAssetLeaf(assets[i], assetPrices[i]);
+            assetsHash = keccak256(abi.encode(assetsHash, assetLeaf));
+        }
+        return assetsHash;
+    }
+
+    /// @notice Computes the portfolio hash for a vault
+    /// @param portfolioTokens Array of portfolio token addresses
+    /// @param portfolioShares Array of portfolio token shares
+    /// @return The portfolio hash
+    function _computePortfolioHash(
+        address[] memory portfolioTokens,
+        uint256[] memory portfolioShares
+    ) internal pure returns (bytes32) {
+        return keccak256(abi.encode(portfolioTokens, portfolioShares));
+    }
+
+    /// @notice Computes the intent hash for a vault
+    /// @param intentTokens Array of intent token addresses
+    /// @param intentWeights Array of intent token weights
+    /// @return The intent hash
+    function _computeIntentHash(
+        address[] memory intentTokens,
+        uint32[] memory intentWeights
+    ) internal pure returns (bytes32) {
+        return keccak256(abi.encode(intentTokens, intentWeights));
+    }
+
+    /// @notice Computes the leaf hash for a single vault
+    /// @param vaultAddress The address of the vault
+    /// @param feeType The fee type
+    /// @param performanceFee The performance fee
+    /// @param managementFee The management fee
+    /// @param highWaterMark The high water mark
+    /// @param pendingRedeem The pending redeem amount
+    /// @param pendingDeposit The pending deposit amount
+    /// @param portfolioHash The portfolio hash
+    /// @param intentHash The intent hash
+    /// @return The vault leaf hash
+    function _computeVaultLeaf(
+        address vaultAddress,
+        uint8 feeType,
+        uint16 performanceFee,
+        uint16 managementFee,
+        uint256 highWaterMark,
+        uint256 pendingRedeem,
+        uint256 pendingDeposit,
+        bytes32 portfolioHash,
+        bytes32 intentHash
+    ) internal pure returns (bytes32) {
+        return
+            keccak256(
+                abi.encode(
+                    vaultAddress,
+                    feeType,
+                    performanceFee,
+                    managementFee,
+                    highWaterMark,
+                    pendingRedeem,
+                    pendingDeposit,
+                    portfolioHash,
+                    intentHash
+                )
+            );
+    }
+
+    /// @notice Aggregates vault leaves using sequential folding
+    /// @param vaults Array of vault addresses
+    /// @param vaultData Struct containing all vault state data
+    /// @return The aggregated vaults hash
+    function _aggregateVaultLeaves(
+        address[] memory vaults,
+        VaultStateData memory vaultData
+    ) internal pure returns (bytes32) {
+        bytes32 vaultsHash = bytes32(0);
+        for (uint16 i = 0; i < vaults.length; ++i) {
+            bytes32 portfolioHash = _computePortfolioHash(vaultData.portfolioTokens[i], vaultData.portfolioShares[i]);
+
+            bytes32 intentHash = _computeIntentHash(vaultData.intentTokens[i], vaultData.intentWeights[i]);
+
+            bytes32 vaultLeaf = _computeVaultLeaf(
+                vaults[i],
+                vaultData.feeTypes[i],
+                vaultData.performanceFees[i],
+                vaultData.managementFees[i],
+                vaultData.highWaterMarks[i],
+                vaultData.pendingRedeems[i],
+                vaultData.pendingDeposits[i],
+                portfolioHash,
+                intentHash
+            );
+
+            // Fold into aggregate
+            vaultsHash = keccak256(abi.encode(vaultsHash, vaultLeaf));
+        }
+        return vaultsHash;
+    }
+
+    /// @notice Struct to hold vault state data
+    struct VaultStateData {
+        uint8[] feeTypes;
+        uint16[] performanceFees;
+        uint16[] managementFees;
+        uint256[] highWaterMarks;
+        uint256[] pendingRedeems;
+        uint256[] pendingDeposits;
+        address[][] portfolioTokens;
+        uint256[][] portfolioShares;
+        address[][] intentTokens;
+        uint32[][] intentWeights;
+    }
+
+    /// @notice Gets asset prices for the epoch
+    /// @param assets Array of asset addresses
+    /// @return assetPrices Array of asset prices
+    function _getAssetPrices(address[] memory assets) internal view returns (uint256[] memory assetPrices) {
+        assetPrices = new uint256[](assets.length);
+        for (uint16 i = 0; i < assets.length; ++i) {
+            assetPrices[i] = _currentEpoch.pricesEpoch[assets[i]];
+        }
+    }
+
+    /// @notice Gets vault state data for all vaults in the epoch
+    /// @param vaults Array of vault addresses
+    /// @return vaultData Struct containing all vault state data
+    function _getVaultStateData(address[] memory vaults) internal view returns (VaultStateData memory vaultData) {
+        uint256 maxFulfillBatchSize = config.maxFulfillBatchSize();
+        uint16 vaultCount = uint16(vaults.length);
+
+        vaultData.feeTypes = new uint8[](vaultCount);
+        vaultData.performanceFees = new uint16[](vaultCount);
+        vaultData.managementFees = new uint16[](vaultCount);
+        vaultData.highWaterMarks = new uint256[](vaultCount);
+        vaultData.pendingRedeems = new uint256[](vaultCount);
+        vaultData.pendingDeposits = new uint256[](vaultCount);
+        vaultData.portfolioTokens = new address[][](vaultCount);
+        vaultData.portfolioShares = new uint256[][](vaultCount);
+        vaultData.intentTokens = new address[][](vaultCount);
+        vaultData.intentWeights = new uint32[][](vaultCount);
+
+        for (uint16 i = 0; i < vaultCount; ++i) {
+            IOrionTransparentVault vault = IOrionTransparentVault(vaults[i]);
+            IOrionVault.FeeModel memory feeModel = _currentEpoch.feeModel[vaults[i]];
+
+            vaultData.feeTypes[i] = uint8(feeModel.feeType);
+            vaultData.performanceFees[i] = feeModel.performanceFee;
+            vaultData.managementFees[i] = feeModel.managementFee;
+            vaultData.highWaterMarks[i] = feeModel.highWaterMark;
+            vaultData.pendingRedeems[i] = vault.pendingRedeem(maxFulfillBatchSize);
+            vaultData.pendingDeposits[i] = vault.pendingDeposit(maxFulfillBatchSize);
+            (vaultData.portfolioTokens[i], vaultData.portfolioShares[i]) = vault.getPortfolio();
+            (vaultData.intentTokens[i], vaultData.intentWeights[i]) = vault.getIntent();
+        }
     }
 
     /// @notice Handles the sell action

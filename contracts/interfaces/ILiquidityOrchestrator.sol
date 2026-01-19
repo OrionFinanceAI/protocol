@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import "@chainlink/contracts/src/v0.8/automation/AutomationCompatible.sol";
 import "./IExecutionAdapter.sol";
+import "./IOrionVault.sol";
 
 /// @title ILiquidityOrchestrator
 /// @notice Interface for the liquidity orchestrator
@@ -50,6 +51,21 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @param token The token to get the price of
     /// @return price The corresponding price [shares/assets]
     function getPriceOf(address token) external view returns (uint256 price);
+
+    /// @notice Returns the active protocol fees for the current epoch
+    /// @dev These are snapshotted at epoch start to ensure consistency throughout the epoch
+    /// @return activeVFeeCoefficient The active volume fee coefficient
+    /// @return activeRsFeeCoefficient The active revenue share fee coefficient
+    function getActiveProtocolFees()
+        external
+        view
+        returns (uint16 activeVFeeCoefficient, uint16 activeRsFeeCoefficient);
+
+    /// @notice Returns the active fee model for a specific vault in the current epoch
+    /// @dev The fee model is snapshotted at epoch start to ensure consistency throughout the epoch
+    /// @param vault The address of the vault
+    /// @return The active fee model for the vault
+    function getVaultFees(address vault) external view returns (IOrionVault.FeeModel memory);
 
     /// @notice Updates the minibatch size for fulfill deposit and redeem processing
     /// @param _minibatchSize The new minibatch size

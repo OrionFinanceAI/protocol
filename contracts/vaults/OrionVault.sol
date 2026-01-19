@@ -524,30 +524,39 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     }
 
     /// @inheritdoc IOrionVault
-    function vaultFee(uint256 activeTotalAssets) external view returns (uint256 managementFee, uint256 performanceFee) {
-        managementFee = _managementFeeAmount(activeTotalAssets);
+    function vaultFee(
+        uint256 activeTotalAssets,
+        FeeModel calldata snapshotFeeModel
+    ) external view returns (uint256 managementFee, uint256 performanceFee) {
+        managementFee = _managementFeeAmount(activeTotalAssets, snapshotFeeModel);
         uint256 intermediateTotalAssets = activeTotalAssets - managementFee;
-        performanceFee = _performanceFeeAmount(intermediateTotalAssets);
+        performanceFee = _performanceFeeAmount(intermediateTotalAssets, snapshotFeeModel);
     }
 
     /// @notice Calculate management fee amount
     /// @param feeTotalAssets The total assets to calculate management fee for
+    /// @param snapshotFeeModel The fee model to use for calculation
     /// @return The management fee amount in underlying asset units
-    function _managementFeeAmount(uint256 feeTotalAssets) internal view returns (uint256) {
-        FeeModel memory activeFees = activeFeeModel();
-        if (activeFees.managementFee == 0) return 0;
+    function _managementFeeAmount(
+        uint256 feeTotalAssets,
+        FeeModel calldata snapshotFeeModel
+    ) internal view returns (uint256) {
+        if (snapshotFeeModel.managementFee == 0) return 0;
 
-        uint256 annualFeeAmount = uint256(activeFees.managementFee).mulDiv(feeTotalAssets, BASIS_POINTS_FACTOR);
+        uint256 annualFeeAmount = uint256(snapshotFeeModel.managementFee).mulDiv(feeTotalAssets, BASIS_POINTS_FACTOR);
         return annualFeeAmount.mulDiv(liquidityOrchestrator.epochDuration(), YEAR_IN_SECONDS);
     }
 
     /// @notice Calculate performance fee amount
     /// @dev Performance fee calculation depends on the FeeType
     /// @param feeTotalAssets The total assets to calculate performance fee for
+    /// @param snapshotFeeModel The fee model to use for calculation
     /// @return The performance fee amount in underlying asset units
-    function _performanceFeeAmount(uint256 feeTotalAssets) internal view returns (uint256) {
-        FeeModel memory activeFees = activeFeeModel();
-        if (activeFees.performanceFee == 0) return 0;
+    function _performanceFeeAmount(
+        uint256 feeTotalAssets,
+        FeeModel calldata snapshotFeeModel
+    ) internal view returns (uint256) {
+        if (snapshotFeeModel.performanceFee == 0) return 0;
 
         uint256 activeSharePrice = convertToAssetsWithPITTotalAssets(
             10 ** decimals(),
@@ -555,26 +564,30 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
             Math.Rounding.Floor
         );
 
-        (uint256 benchmark, uint256 divisor) = _getBenchmark(activeFees.feeType);
+        (uint256 benchmark, uint256 divisor) = _getBenchmark(snapshotFeeModel.feeType, snapshotFeeModel.highWaterMark);
 
         if (activeSharePrice < benchmark || divisor == 0) return 0;
-        uint256 feeRate = uint256(activeFees.performanceFee).mulDiv(activeSharePrice - divisor, divisor);
+        uint256 feeRate = uint256(snapshotFeeModel.performanceFee).mulDiv(activeSharePrice - divisor, divisor);
         uint256 performanceFeeAmount = feeRate.mulDiv(feeTotalAssets, BASIS_POINTS_FACTOR);
         return performanceFeeAmount.mulDiv(liquidityOrchestrator.epochDuration(), YEAR_IN_SECONDS);
     }
 
     /// @notice Get benchmark value based on fee model type
     /// @param feeType The fee type to get benchmark for
+    /// @param highWaterMark The high water mark value to use
     /// @return benchmark The benchmark value
     /// @return divisor The divisor value
-    function _getBenchmark(FeeType feeType) internal view returns (uint256 benchmark, uint256 divisor) {
+    function _getBenchmark(
+        FeeType feeType,
+        uint256 highWaterMark
+    ) internal view returns (uint256 benchmark, uint256 divisor) {
         uint256 currentSharePrice = convertToAssets(10 ** decimals());
 
         if (feeType == FeeType.ABSOLUTE) {
             benchmark = currentSharePrice;
             divisor = benchmark;
         } else if (feeType == FeeType.HIGH_WATER_MARK) {
-            benchmark = feeModel.highWaterMark;
+            benchmark = highWaterMark;
             divisor = benchmark;
         } else if (feeType == FeeType.SOFT_HURDLE) {
             benchmark = _getHurdlePrice(currentSharePrice);
@@ -583,7 +596,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
             benchmark = _getHurdlePrice(currentSharePrice);
             divisor = benchmark;
         } else if (feeType == FeeType.HURDLE_HWM) {
-            benchmark = Math.max(feeModel.highWaterMark, _getHurdlePrice(currentSharePrice));
+            benchmark = Math.max(highWaterMark, _getHurdlePrice(currentSharePrice));
             divisor = benchmark;
         }
         return (benchmark, divisor);

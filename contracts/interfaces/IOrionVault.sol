@@ -219,13 +219,18 @@ interface IOrionVault is IERC4626 {
     /// @dev This returns share amounts, not underlying asset amounts
     function pendingRedeem(uint256 fulfillBatchSize) external view returns (uint256);
 
-    /// @notice Calculate the vault's fee based on total assets
+    /// @notice Calculate the vault's fee based on total assets using a specific fee model
     /// @param totalAssets The total assets under management
+    /// @param snapshotFeeModel The fee model to use for calculation (typically from epoch snapshot)
     /// @return managementFee The management fee amount in underlying asset units
     /// @return performanceFee The performance fee amount in underlying asset units
-    /// @dev Warning: Calling this function mid-epoch may return inaccurate results
-    ///      since fees are calculated based on the full epoch duration
-    function vaultFee(uint256 totalAssets) external view returns (uint256 managementFee, uint256 performanceFee);
+    /// @dev This function allows zk circuits to use snapshotted fee models from Merkle roots
+    ///      to ensure consistent fee calculations that match the epoch state commitment.
+    ///      Pass the snapshotted fee model from the epoch state to ensure consistency.
+    function vaultFee(
+        uint256 totalAssets,
+        FeeModel memory snapshotFeeModel
+    ) external view returns (uint256 managementFee, uint256 performanceFee);
 
     /// --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
 
