@@ -96,17 +96,17 @@ describe("Orchestrators - zero deposits and zero intents", function () {
     expect(intentTokens.length).to.be.gt(0);
 
     // Fast forward time to trigger upkeep
-    const epochDuration = await InternalStateOrchestrator.epochDuration();
+    const epochDuration = await liquidityOrchestrator.epochDuration();
     await time.increase(epochDuration + 1n);
 
     // Check that upkeep is needed
-    const [upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+    const [upkeepNeeded, performData] = await liquidityOrchestrator.checkUpkeep("0x");
     void expect(upkeepNeeded).to.be.true;
 
     // Perform upkeep - should complete but not move to next phase
-    await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    await liquidityOrchestrator.connect(automationRegistry).performUpkeep(performData);
 
     // Should remain in Idle phase (0) because no vaults were processed
-    expect(await InternalStateOrchestrator.currentPhase()).to.equal(0);
+    expect(await liquidityOrchestrator.currentPhase()).to.equal(0);
   });
 });
