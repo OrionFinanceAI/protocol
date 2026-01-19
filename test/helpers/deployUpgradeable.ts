@@ -62,7 +62,7 @@ export async function deployUpgradeableProtocol(
   })) as unknown as OrionConfig;
   await orionConfig.waitForDeployment();
 
-  // 2. Deploy PriceAdapterRegistry (UUPS)
+  // 2. Deploy PriceAdapterRegistry (UUPS) and set in config
   const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistry");
   const priceAdapterRegistry = (await upgrades.deployProxy(
     PriceAdapterRegistryFactory,
@@ -70,6 +70,8 @@ export async function deployUpgradeableProtocol(
     { initializer: "initialize", kind: "uups" },
   )) as unknown as PriceAdapterRegistry;
   await priceAdapterRegistry.waitForDeployment();
+
+  await orionConfig.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
 
   // 3. Deploy LiquidityOrchestrator (UUPS)
   const LiquidityOrchestratorFactory = await ethers.getContractFactory("LiquidityOrchestrator");
@@ -80,9 +82,8 @@ export async function deployUpgradeableProtocol(
   )) as unknown as LiquidityOrchestrator;
   await liquidityOrchestrator.waitForDeployment();
 
-  // 4. Set LiquidityOrchestrator and PriceAdapterRegistry in config
+  // 4. Set LiquidityOrchestrator in config
   await orionConfig.setLiquidityOrchestrator(await liquidityOrchestrator.getAddress());
-  await orionConfig.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
 
   // 5. Deploy UpgradeableBeacon for vaults
   const VaultImplFactory = await ethers.getContractFactory("OrionTransparentVault");

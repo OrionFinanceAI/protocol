@@ -163,6 +163,7 @@ contract LiquidityOrchestrator is
 
         config = IOrionConfig(config_);
         underlyingAsset = address(config.underlyingAsset());
+        priceAdapterRegistry = IPriceAdapterRegistry(config.priceAdapterRegistry());
 
         automationRegistry = automationRegistry_;
         currentPhase = LiquidityUpkeepPhase.Idle;
@@ -380,7 +381,11 @@ contract LiquidityOrchestrator is
             // consider storing a snapshot of the fee params here before
             // hashing.
             // TODO: get snapshot of investment universe prices: registry.getPrice
-            // TODO: Build Merkle Root from full epoch state.
+            address[] memory assets = config.getAllWhitelistedAssets();
+            for (uint16 i = 0; i < assets.length; ++i) {
+                uint256 price = priceAdapterRegistry.getPrice(assets[i]);
+                // TODO: store prices in array.
+            }
 
             emit EventsLib.EpochStart(epochCounter);
         }
