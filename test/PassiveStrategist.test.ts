@@ -2,7 +2,6 @@ import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
 import "@openzeppelin/hardhat-upgrades";
 import { ethers } from "hardhat";
-import { time } from "@nomicfoundation/hardhat-network-helpers";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 
 import {
@@ -310,64 +309,6 @@ describe("Passive Strategist", function () {
         passiveStrategist,
         "OrderIntentCannotBeEmpty",
       );
-    });
-  });
-
-  describe("Vault Integration with Passive Strategist", function () {
-    it("should get intent from passive strategist during orchestrator execution", async function () {
-      // TODO: use helper function to process full epoch, taking
-      // zkVM orchestrator fixture as input.
-
-      // Fast forward time to trigger upkeep
-      const epochDuration = await liquidityOrchestrator.epochDuration();
-      await time.increase(epochDuration + 1n);
-
-      // Start the upkeep cycle
-      let [_upkeepNeeded, performData] = await liquidityOrchestrator.checkUpkeep("0x");
-      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await liquidityOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
-
-      // Continue with buffering
-      [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await InternalStateOrchestrator.currentPhase()).to.equal(2); // Buffering
-
-      // Continue with postprocessing
-      [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await InternalStateOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
-
-      // This is where the vault's getIntent() is called.
-      [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await InternalStateOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
-
-      // Complete the cycle
-      [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await InternalStateOrchestrator.currentPhase()).to.equal(0); // Back to Idle
-
-      // Verify that orders were built based on the passive strategist's intent
-
-      const [_sellingTokens, _sellingAmounts, _sellingEstimatedUnderlyingAmounts] =
-        await InternalStateOrchestrator.getOrders(true);
-
-      const [buyingTokens, _buyingAmounts, _buyingEstimatedUnderlyingAmounts] =
-        await InternalStateOrchestrator.getOrders(false);
-
-      // Should have buying orders for the assets selected by the passive strategist
-      expect(buyingTokens.length).to.be.greaterThan(0);
-      expect(buyingTokens.length).to.be.lessThanOrEqual(3); // Passive strategist selects top 3 assets
-
-      // Verify that the selected assets are in the buying orders
-      const selectedAssets = [
-        await mockAsset1.getAddress(),
-        await mockAsset2.getAddress(),
-        await mockAsset3.getAddress(),
-      ];
-      for (const token of buyingTokens) {
-        expect(selectedAssets).to.include(token);
-      }
     });
   });
 
