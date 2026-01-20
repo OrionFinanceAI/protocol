@@ -48,7 +48,7 @@ const config: HardhatUserConfig = {
         ? {
             forking: {
               url: process.env.MAINNET_RPC_URL,
-              blockNumber: 24200000,
+              // Use latest block for fresh prices
             },
           }
         : {}),
