@@ -17,6 +17,7 @@
     "compile:sepolia": "cross-env TS_NODE_TRANSPILE_ONLY=true hardhat compile --network sepolia",
     "coverage": "SOLIDITY_COVERAGE=true hardhat coverage",
     "deploy:sepolia": "hardhat run protocol-ops/deploy.ts --network sepolia",
+    "deploy:protocol:localhost": "hardhat run scripts/deployProtocolLocalhost.ts --network localhost",
     "docgen": "hardhat docgen",
     "lint": "pnpm lint:sol && pnpm lint:ts && pnpm prettier:check",
     "lint:sol": "solhint --max-warnings 20 \"contracts/**/*.sol\"",

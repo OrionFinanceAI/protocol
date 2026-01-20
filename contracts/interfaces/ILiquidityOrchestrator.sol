@@ -67,6 +67,10 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @return The active fee model for the vault
     function getVaultFees(address vault) external view returns (IOrionVault.FeeModel memory);
 
+    /// @notice Returns the epoch state root
+    /// @return The epoch state root
+    function getEpochStateRoot() external view returns (bytes32);
+
     /// @notice Updates the minibatch size for fulfill deposit and redeem processing
     /// @param _minibatchSize The new minibatch size
     function updateMinibatchSize(uint8 _minibatchSize) external;

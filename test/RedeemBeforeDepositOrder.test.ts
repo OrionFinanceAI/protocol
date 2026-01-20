@@ -23,6 +23,7 @@ import { ethers } from "hardhat";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
 import { expect } from "chai";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
+import { processFullEpoch } from "./helpers/orchestratorHelpers";
 
 import {
   MockUnderlyingAsset,
@@ -58,31 +59,6 @@ describe("Redeem Before Deposit Order Verification", function () {
   const NEW_DEPOSIT_AMOUNT = ethers.parseUnits("10", UNDERLYING_DECIMALS); // 10 USDC
 
   let epochDuration: bigint;
-
-  // TODO: use helper function to process full epoch, taking
-  // zkVM orchestrator fixture as input.
-
-  async function processInternalStateOrchestrator(): Promise<void> {
-    let [upkeepNeeded] = await InternalStateOrchestrator.checkUpkeep("0x");
-    while (upkeepNeeded) {
-      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep("0x");
-      [upkeepNeeded] = await InternalStateOrchestrator.checkUpkeep("0x");
-    }
-  }
-
-  async function processLiquidityOrchestrator(): Promise<void> {
-    let [upkeepNeeded] = await liquidityOrchestrator.checkUpkeep("0x");
-    while (upkeepNeeded) {
-      await liquidityOrchestrator.connect(automationRegistry).performUpkeep("0x");
-      [upkeepNeeded] = await liquidityOrchestrator.checkUpkeep("0x");
-    }
-  }
-
-  async function processFullEpoch(): Promise<void> {
-    await time.increase(epochDuration + 1n);
-    await processInternalStateOrchestrator();
-    await processLiquidityOrchestrator();
-  }
 
   async function captureVaultState() {
     return {
@@ -170,7 +146,7 @@ describe("Redeem Before Deposit Order Verification", function () {
     await underlyingAsset.connect(initialDepositor).approve(await vault.getAddress(), INITIAL_ASSETS);
     await vault.connect(initialDepositor).requestDeposit(INITIAL_ASSETS);
 
-    await processFullEpoch();
+    await processFullEpoch(liquidityOrchestrator, automationRegistry);
 
     const initialState = await captureVaultState();
     // Note: 1% buffer was allocated, so totalAssets = 99 USDC (100 - 1)
@@ -292,7 +268,7 @@ describe("Redeem Before Deposit Order Verification", function () {
       await vault.connect(newDepositor).requestDeposit(NEW_DEPOSIT_AMOUNT);
 
       // Process epoch
-      await processFullEpoch();
+      await processFullEpoch(liquidityOrchestrator, automationRegistry);
 
       // Verify redeemer got fair value
       const redeemerBalance = await underlyingAsset.balanceOf(redeemer.address);

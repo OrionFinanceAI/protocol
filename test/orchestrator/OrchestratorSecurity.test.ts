@@ -91,6 +91,7 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
 import { deployUpgradeableProtocol } from "../helpers/deployUpgradeable";
+import { processFullEpoch } from "../helpers/orchestratorHelpers";
 
 import {
   MockUnderlyingAsset,
@@ -606,8 +607,9 @@ describe("Orchestrator Security", function () {
     };
 
     it("should ignore malicious payloads and execute correct action for current phase", async function () {
-      // TODO: use helper function to process full epoch, taking
-      // zkVM orchestrator fixture as input.
+      await processFullEpoch(liquidityOrchestrator, automationRegistry);
+
+      // TODO: refacto this testfile to support the new orchestrator API.
 
       const epochDuration = await InternalStateOrchestrator.epochDuration();
       await time.increase(epochDuration + 1n);

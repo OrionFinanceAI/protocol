@@ -290,6 +290,11 @@ contract LiquidityOrchestrator is
         return _currentEpoch.feeModel[vault];
     }
 
+    /// @inheritdoc ILiquidityOrchestrator
+    function getEpochStateRoot() external view returns (bytes32) {
+        return _currentEpoch.epochStateRoot;
+    }
+
     /* -------------------------------------------------------------------------- */
     /*                                CONFIG FUNCTIONS                            */
     /* -------------------------------------------------------------------------- */

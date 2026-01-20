@@ -1,6 +1,6 @@
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
+import { time } from "@nomicfoundation/hardhat-network-helpers";
 import { expect } from "chai";
-import { time } from "hardhat";
 
 import { LiquidityOrchestrator } from "../../typechain-types";
 

@@ -27,6 +27,8 @@ res/
 running_node/
 artifacts/
 
+scripts/*.ts
+
 # files
 *.env
 *.log
