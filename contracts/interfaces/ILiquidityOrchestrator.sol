@@ -47,29 +47,33 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @param newEpochDuration The new epoch duration in seconds
     function updateEpochDuration(uint32 newEpochDuration) external;
 
-    /// @notice Get price for a specific token
-    /// @param token The token to get the price of
-    /// @return price The corresponding price [shares/assets]
-    function getPriceOf(address token) external view returns (uint256 price);
+    /// @notice Struct representing the full epoch state view
+    /// @dev This struct contains all epoch state data in a returnable format
+    struct EpochStateView {
+        /// @notice Delta buffer amount for current epoch [assets]
+        int256 deltaBufferAmount;
+        /// @notice Transparent vaults associated to the current epoch
+        address[] vaultsEpoch;
+        /// @notice Asset addresses in the epoch (parallel to assetPrices)
+        address[] assets;
+        /// @notice Prices of assets in the current epoch [priceAdapterDecimals] (parallel to assets)
+        uint256[] assetPrices;
+        /// @notice Active volume fee coefficient for current epoch (snapshot at epoch start)
+        uint16 activeVFeeCoefficient;
+        /// @notice Active revenue share fee coefficient for current epoch (snapshot at epoch start)
+        uint16 activeRsFeeCoefficient;
+        /// @notice Vault addresses (parallel to vaultFeeModels)
+        address[] vaultAddresses;
+        /// @notice Active fee models for vaults in current epoch (snapshot at epoch start) (parallel to vaultAddresses)
+        IOrionVault.FeeModel[] vaultFeeModels;
+        /// @notice Epoch state root of the epoch state commitment
+        bytes32 epochStateRoot;
+    }
 
-    /// @notice Returns the active protocol fees for the current epoch
-    /// @dev These are snapshotted at epoch start to ensure consistency throughout the epoch
-    /// @return activeVFeeCoefficient The active volume fee coefficient
-    /// @return activeRsFeeCoefficient The active revenue share fee coefficient
-    function getActiveProtocolFees()
-        external
-        view
-        returns (uint16 activeVFeeCoefficient, uint16 activeRsFeeCoefficient);
-
-    /// @notice Returns the active fee model for a specific vault in the current epoch
-    /// @dev The fee model is snapshotted at epoch start to ensure consistency throughout the epoch
-    /// @param vault The address of the vault
-    /// @return The active fee model for the vault
-    function getVaultFees(address vault) external view returns (IOrionVault.FeeModel memory);
-
-    /// @notice Returns the epoch state root
-    /// @return The epoch state root
-    function getEpochStateRoot() external view returns (bytes32);
+    /// @notice Returns the full epoch state
+    /// @dev Returns all epoch state data in a single struct. Use this instead of individual getters.
+    /// @return The complete epoch state view
+    function getEpochState() external view returns (EpochStateView memory);
 
     /// @notice Updates the minibatch size for fulfill deposit and redeem processing
     /// @param _minibatchSize The new minibatch size

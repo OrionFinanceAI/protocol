@@ -272,27 +272,29 @@ contract LiquidityOrchestrator is
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function getPriceOf(address token) external view returns (uint256 price) {
-        return _currentEpoch.pricesEpoch[token];
-    }
+    function getEpochState() external view returns (ILiquidityOrchestrator.EpochStateView memory) {
+        address[] memory assets = config.getAllWhitelistedAssets();
+        uint256[] memory assetPrices = _getAssetPrices(assets);
+        address[] memory vaults = _currentEpoch.vaultsEpoch;
 
-    /// @inheritdoc ILiquidityOrchestrator
-    function getActiveProtocolFees()
-        external
-        view
-        returns (uint16 activeVFeeCoefficient, uint16 activeRsFeeCoefficient)
-    {
-        return (_currentEpoch.activeVFeeCoefficient, _currentEpoch.activeRsFeeCoefficient);
-    }
+        // Build vault fee models array
+        IOrionVault.FeeModel[] memory vaultFeeModels = new IOrionVault.FeeModel[](vaults.length);
+        for (uint16 i = 0; i < vaults.length; ++i) {
+            vaultFeeModels[i] = _currentEpoch.feeModel[vaults[i]];
+        }
 
-    /// @inheritdoc ILiquidityOrchestrator
-    function getVaultFees(address vault) external view returns (IOrionVault.FeeModel memory) {
-        return _currentEpoch.feeModel[vault];
-    }
-
-    /// @inheritdoc ILiquidityOrchestrator
-    function getEpochStateRoot() external view returns (bytes32) {
-        return _currentEpoch.epochStateRoot;
+        return
+            ILiquidityOrchestrator.EpochStateView({
+                deltaBufferAmount: _currentEpoch.deltaBufferAmount,
+                vaultsEpoch: vaults,
+                assets: assets,
+                assetPrices: assetPrices,
+                activeVFeeCoefficient: _currentEpoch.activeVFeeCoefficient,
+                activeRsFeeCoefficient: _currentEpoch.activeRsFeeCoefficient,
+                vaultAddresses: vaults,
+                vaultFeeModels: vaultFeeModels,
+                epochStateRoot: _currentEpoch.epochStateRoot
+            });
     }
 
     /* -------------------------------------------------------------------------- */
