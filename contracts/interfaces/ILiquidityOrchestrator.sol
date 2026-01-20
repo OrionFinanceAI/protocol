@@ -19,6 +19,38 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
         ProcessVaultOperations
     }
 
+    /// @notice Struct to hold vault state data
+    struct VaultStateData {
+        uint8[] feeTypes;
+        uint16[] performanceFees;
+        uint16[] managementFees;
+        uint256[] highWaterMarks;
+        uint256[] pendingRedeems;
+        uint256[] pendingDeposits;
+        address[][] portfolioTokens;
+        uint256[][] portfolioShares;
+        address[][] intentTokens;
+        uint32[][] intentWeights;
+    }
+
+    struct PerformDataStruct {
+        bytes _publicValues;
+        bytes proofBytes;
+        StatesStruct states;
+    }
+
+    struct PublicValuesStruct {
+        /// @notice Input state commitments
+        bytes32 inputCommitment;
+        /// @notice Output state commitments
+        bytes32 outputCommitment;
+    }
+
+    struct StatesStruct {
+        bytes32 inputCommitment;
+        // TODO: dev, testing an ISO map equal to the input state commitment only
+    }
+
     /// @notice Returns the current upkeep phase
     /// @return The current LiquidityUpkeepPhase
     function currentPhase() external view returns (LiquidityUpkeepPhase);
@@ -82,6 +114,14 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @notice Updates the Chainlink Automation Registry address
     /// @param newAutomationRegistry The new automation registry address
     function updateAutomationRegistry(address newAutomationRegistry) external;
+
+    /// @notice Updates the verifier contract address
+    /// @param newVerifier The address of the new verifier contract
+    function updateVerifier(address newVerifier) external;
+
+    /// @notice Updates the internal state orchestrator verification key
+    /// @param newvKey The new verification key
+    function updateVKey(bytes32 newvKey) external;
 
     /// @notice Sets the target buffer ratio
     /// @param _targetBufferRatio The new target buffer ratio

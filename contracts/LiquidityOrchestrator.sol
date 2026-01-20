@@ -7,15 +7,16 @@ import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
-import "../interfaces/ILiquidityOrchestrator.sol";
-import "../interfaces/IOrionConfig.sol";
-import "../interfaces/IPriceAdapterRegistry.sol";
-import "../libraries/EventsLib.sol";
-import "../interfaces/IOrionVault.sol";
-import "../interfaces/IOrionTransparentVault.sol";
-import { ErrorsLib } from "../libraries/ErrorsLib.sol";
+import "./interfaces/ILiquidityOrchestrator.sol";
+import "./interfaces/IOrionConfig.sol";
+import "./interfaces/IPriceAdapterRegistry.sol";
+import "./libraries/EventsLib.sol";
+import "./interfaces/IOrionVault.sol";
+import "./interfaces/IOrionTransparentVault.sol";
+import "./interfaces/ISP1Verifier.sol";
+import { ErrorsLib } from "./libraries/ErrorsLib.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "../interfaces/IExecutionAdapter.sol";
+import "./interfaces/IExecutionAdapter.sol";
 import "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeCast.sol";
@@ -56,6 +57,12 @@ contract LiquidityOrchestrator is
 
     /// @notice Underlying asset address
     address public underlyingAsset;
+
+    /// @notice The address of the SP1 verifier contract.
+    ISP1Verifier public verifier;
+
+    /// @notice The verification key for the Orion Internal State Orchestrator.
+    bytes32 public vKey;
 
     /// @notice Price Adapter Registry contract
     IPriceAdapterRegistry public priceAdapterRegistry;
@@ -165,10 +172,20 @@ contract LiquidityOrchestrator is
     /// @param initialOwner The address of the initial owner
     /// @param config_ The address of the OrionConfig contract
     /// @param automationRegistry_ The address of the Chainlink Automation Registry
-    function initialize(address initialOwner, address config_, address automationRegistry_) public initializer {
+    /// @param verifier_ The address of the SP1 verifier contract
+    /// @param vKey_ The verification key for the Orion Internal State Orchestrator
+    function initialize(
+        address initialOwner,
+        address config_,
+        address automationRegistry_,
+        address verifier_,
+        bytes32 vKey_
+    ) public initializer {
         if (initialOwner == address(0)) revert ErrorsLib.ZeroAddress();
         if (config_ == address(0)) revert ErrorsLib.ZeroAddress();
         if (automationRegistry_ == address(0)) revert ErrorsLib.ZeroAddress();
+        if (verifier_ == address(0)) revert ErrorsLib.ZeroAddress();
+        if (vKey_ == bytes32(0)) revert ErrorsLib.InvalidArguments();
 
         __Ownable_init(initialOwner);
         __Ownable2Step_init();
@@ -179,8 +196,10 @@ contract LiquidityOrchestrator is
         config = IOrionConfig(config_);
         underlyingAsset = address(config.underlyingAsset());
         priceAdapterRegistry = IPriceAdapterRegistry(config.priceAdapterRegistry());
-
         automationRegistry = automationRegistry_;
+        verifier = ISP1Verifier(verifier_);
+        vKey = vKey_;
+
         currentPhase = LiquidityUpkeepPhase.Idle;
         minibatchSize = 1;
         slippageTolerance = 0;
@@ -217,6 +236,19 @@ contract LiquidityOrchestrator is
 
         automationRegistry = newAutomationRegistry;
         emit EventsLib.AutomationRegistryUpdated(newAutomationRegistry);
+    }
+
+    /// @inheritdoc ILiquidityOrchestrator
+    function updateVerifier(address newVerifier) external onlyOwnerOrGuardian {
+        if (newVerifier == address(0)) revert ErrorsLib.ZeroAddress();
+        verifier = ISP1Verifier(newVerifier);
+        emit EventsLib.SP1VerifierUpdated(newVerifier);
+    }
+
+    /// @inheritdoc ILiquidityOrchestrator
+    function updateVKey(bytes32 newvKey) external onlyOwner {
+        vKey = newvKey;
+        emit EventsLib.VKeyUpdated(newvKey);
     }
 
     /// @inheritdoc ILiquidityOrchestrator
@@ -310,6 +342,16 @@ contract LiquidityOrchestrator is
         emit EventsLib.ExecutionAdapterSet(asset, address(adapter));
     }
 
+    /// @inheritdoc ILiquidityOrchestrator
+    function pause() external onlyConfig {
+        _pause();
+    }
+
+    /// @inheritdoc ILiquidityOrchestrator
+    function unpause() external onlyConfig {
+        _unpause();
+    }
+
     /* -------------------------------------------------------------------------- */
     /*                                VAULT FUNCTIONS                             */
     /* -------------------------------------------------------------------------- */
@@ -377,17 +419,23 @@ contract LiquidityOrchestrator is
     }
 
     /// @notice Performs the upkeep
-    function performUpkeep(bytes calldata) external override onlyAuthorizedTrigger nonReentrant whenNotPaused {
+    /// @param performData Encoded data containing (_publicValues, _proofBytes, _statesBytes)
+    function performUpkeep(
+        bytes calldata performData
+    ) external override onlyAuthorizedTrigger nonReentrant whenNotPaused {
         if (currentPhase == LiquidityUpkeepPhase.Idle && _shouldTriggerUpkeep()) {
             _handleStart();
         } else if (currentPhase == LiquidityUpkeepPhase.StateCommitment) {
             _processStateCommitment();
         } else if (currentPhase == LiquidityUpkeepPhase.SellingLeg) {
-            _processSellLeg();
+            StatesStruct memory states = _verifyPerformData(performData);
+            _processSellLeg(states);
         } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
-            _processBuyLeg();
+            StatesStruct memory states = _verifyPerformData(performData);
+            _processBuyLeg(states);
         } else if (currentPhase == LiquidityUpkeepPhase.ProcessVaultOperations) {
-            _processVaultOperations();
+            StatesStruct memory states = _verifyPerformData(performData);
+            _processVaultOperations(states);
         }
     }
 
@@ -597,20 +645,6 @@ contract LiquidityOrchestrator is
         return vaultsHash;
     }
 
-    /// @notice Struct to hold vault state data
-    struct VaultStateData {
-        uint8[] feeTypes;
-        uint16[] performanceFees;
-        uint16[] managementFees;
-        uint256[] highWaterMarks;
-        uint256[] pendingRedeems;
-        uint256[] pendingDeposits;
-        address[][] portfolioTokens;
-        uint256[][] portfolioShares;
-        address[][] intentTokens;
-        uint32[][] intentWeights;
-    }
-
     /// @notice Gets asset prices for the epoch
     /// @param assets Array of asset addresses
     /// @return assetPrices Array of asset prices
@@ -654,8 +688,34 @@ contract LiquidityOrchestrator is
         }
     }
 
+    /// @notice Verifies the perform data
+    /// @param performData The perform data
+    /// @return states The states
+    function _verifyPerformData(bytes calldata performData) internal view returns (StatesStruct memory states) {
+        PerformDataStruct memory performDataStruct = abi.decode(performData, (PerformDataStruct));
+        bytes memory _publicValues = performDataStruct._publicValues;
+        PublicValuesStruct memory publicValues = abi.decode(_publicValues, (PublicValuesStruct));
+
+        // Verify that the proof's input commitment matches the onchain input commitment
+        if (publicValues.inputCommitment != _currentEpoch.epochStateRoot) {
+            revert ErrorsLib.CommitmentMismatch(publicValues.inputCommitment, _currentEpoch.epochStateRoot);
+        }
+
+        states = performDataStruct.states;
+
+        // Verify that the computed output commitment matches the one in public values
+        bytes32 outputCommitment = keccak256(abi.encode(states));
+        if (publicValues.outputCommitment != outputCommitment) {
+            revert ErrorsLib.CommitmentMismatch(publicValues.outputCommitment, outputCommitment);
+        }
+
+        bytes memory proofBytes = performDataStruct.proofBytes;
+
+        verifier.verifyProof(vKey, _publicValues, proofBytes);
+    }
+
     /// @notice Handles the sell action
-    function _processSellLeg() internal {
+    function _processSellLeg(StatesStruct memory states) internal {
         (
             address[] memory sellingTokens,
             uint256[] memory sellingAmounts,
@@ -674,7 +734,7 @@ contract LiquidityOrchestrator is
 
     /// @notice Handles the buy action
     // slither-disable-next-line reentrancy-no-eth
-    function _processBuyLeg() internal {
+    function _processBuyLeg(StatesStruct memory states) internal {
         address[] memory buyingTokens = new address[](0);
         uint256[] memory buyingAmounts = new uint256[](0);
         uint256[] memory buyingEstimatedUnderlyingAmounts = new uint256[](0);
@@ -748,7 +808,7 @@ contract LiquidityOrchestrator is
     }
 
     /// @notice Handles the vault operations
-    function _processVaultOperations() internal {
+    function _processVaultOperations(StatesStruct memory states) internal {
         // Process transparent vaults
         address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
 
@@ -817,16 +877,6 @@ contract LiquidityOrchestrator is
                 }
             }
         }
-    }
-
-    /// @inheritdoc ILiquidityOrchestrator
-    function pause() external onlyConfig {
-        _pause();
-    }
-
-    /// @inheritdoc ILiquidityOrchestrator
-    function unpause() external onlyConfig {
-        _unpause();
     }
 
     /// @notice Authorizes an upgrade to a new implementation

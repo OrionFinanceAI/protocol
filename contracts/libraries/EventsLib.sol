@@ -106,17 +106,21 @@ library EventsLib {
         uint256[] shares
     );
 
-    // ====================================
-    // === Internal State Orchestrator ===
-    // ====================================
+    // ================================
+    // === Liquidity Orchestrator ===
+    // ================================
 
     /// @notice The automation registry address has been updated.
     /// @param newAutomationRegistry The address of the new automation registry.
     event AutomationRegistryUpdated(address indexed newAutomationRegistry);
 
-    // ================================
-    // === Liquidity Orchestrator ===
-    // ================================
+    /// @notice The SP1 verifier contract address has been updated.
+    /// @param newVerifier The address of the new SP1 verifier contract.
+    event SP1VerifierUpdated(address indexed newVerifier);
+
+    /// @notice The internal state orchestrator verification key has been updated.
+    /// @param vKey The new verification key.
+    event VKeyUpdated(bytes32 indexed vKey);
 
     /// @notice A new epoch has started.
     /// @param epochCounter The current epoch counter.

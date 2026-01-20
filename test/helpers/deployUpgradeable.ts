@@ -74,10 +74,18 @@ export async function deployUpgradeableProtocol(
   await orionConfig.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
 
   // 3. Deploy LiquidityOrchestrator (UUPS)
+
+  // SP1 Verifier address for Groth16 (same as in tests)
+  // https://docs.succinct.xyz/docs/sp1/verification/contract-addresses#groth16
+  const verifierAddress = "0x397A5f7f3dBd538f23DE225B51f532c34448dA9B";
+
+  // TODO: dev key for dev ISO process.
+  const vKey = "0x008958f4a0fdc07bb1108c79c60a96843618520c0ef5e9ff0589d1d4f3e1baa6";
+
   const LiquidityOrchestratorFactory = await ethers.getContractFactory("LiquidityOrchestrator");
   const liquidityOrchestrator = (await upgrades.deployProxy(
     LiquidityOrchestratorFactory,
-    [owner.address, await orionConfig.getAddress(), automationReg.address],
+    [owner.address, await orionConfig.getAddress(), automationReg.address, verifierAddress, vKey],
     { initializer: "initialize", kind: "uups" },
   )) as unknown as LiquidityOrchestrator;
   await liquidityOrchestrator.waitForDeployment();
