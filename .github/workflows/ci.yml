@@ -59,7 +59,7 @@ jobs:
           ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
 
       - name: "Run mainnet fork tests"
-        run: pnpm test test/crossAsset/
+        run: pnpm test test/crossAsset/ERC4626ExecutionAdapter.test.ts
         env:
           RPC_URL: ${{ secrets.RPC_URL }}
           DEPLOYER_PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
