@@ -80,6 +80,12 @@ describe("ERC4626ExecutionAdapter", function () {
   before(async function () {
     this.timeout(120000); // 2 minutes for mainnet forking
 
+    // Skip all tests if not forking mainnet
+    const networkConfig = network.config;
+    if (!("forking" in networkConfig) || !networkConfig.forking || !networkConfig.forking.url) {
+      this.skip();
+    }
+
     [owner] = await ethers.getSigners();
 
     // Get contract instances
