@@ -239,6 +239,16 @@ describe("ChainlinkPriceAdapter - Coverage Tests", function () {
     });
 
     it("Should handle inverse feed correctly", async function () {
+      // Reconfigure with longer staleness tolerance (USDC/ETH feed updates less frequently)
+      await chainlinkAdapter.configureFeed(
+        MAINNET.USDC,
+        MAINNET.CHAINLINK_USDC_ETH,
+        true, // inverse
+        86400, // 24 hours staleness tolerance
+        ethers.parseUnits("0.0001", 18), // min
+        ethers.parseUnits("0.001", 18), // max
+      );
+
       // USDC/ETH feed returns inverse, adapter should flip it
       const [price, decimals] = await chainlinkAdapter.getPriceData(MAINNET.USDC);
 
