@@ -128,8 +128,8 @@ contract LiquidityOrchestrator is
         uint16 activeRsFeeCoefficient;
         /// @notice Active fee model for each vault in current epoch (snapshot at epoch start)
         mapping(address => IOrionVault.FeeModel) feeModel;
-        /// @notice Epoch state root of the epoch state commitment
-        bytes32 epochStateRoot;
+        /// @notice Epoch state commitment
+        bytes32 epochStateCommitment;
     }
 
     /// @notice Current epoch state
@@ -325,7 +325,7 @@ contract LiquidityOrchestrator is
                 activeRsFeeCoefficient: _currentEpoch.activeRsFeeCoefficient,
                 vaultAddresses: vaults,
                 vaultFeeModels: vaultFeeModels,
-                epochStateRoot: _currentEpoch.epochStateRoot
+                epochStateCommitment: _currentEpoch.epochStateCommitment
             });
     }
 
@@ -426,7 +426,8 @@ contract LiquidityOrchestrator is
         if (currentPhase == LiquidityUpkeepPhase.Idle && _shouldTriggerUpkeep()) {
             _handleStart();
         } else if (currentPhase == LiquidityUpkeepPhase.StateCommitment) {
-            _processStateCommitment();
+            _currentEpoch.epochStateCommitment = _buildEpochStateCommitment();
+            currentPhase = LiquidityUpkeepPhase.SellingLeg;
         } else if (currentPhase == LiquidityUpkeepPhase.SellingLeg) {
             StatesStruct memory states = _verifyPerformData(performData);
             _processSellLeg(states);
@@ -492,16 +493,9 @@ contract LiquidityOrchestrator is
         }
     }
 
-    /// @notice Handles the state commitment
-    function _processStateCommitment() internal {
-        // Build epoch state root from full epoch state
-        _currentEpoch.epochStateRoot = _buildEpochStateRoot();
-        currentPhase = LiquidityUpkeepPhase.SellingLeg;
-    }
-
-    /// @notice Builds an epoch state root hash from the full epoch state
-    /// @return The epoch state root hash
-    function _buildEpochStateRoot() internal view returns (bytes32) {
+    /// @notice Builds an epoch state commitment from the full epoch state
+    /// @return The epoch state commitment
+    function _buildEpochStateCommitment() internal view returns (bytes32) {
         address[] memory assets = config.getAllWhitelistedAssets();
         uint256[] memory assetPrices = _getAssetPrices(assets);
         address[] memory vaults = _currentEpoch.vaultsEpoch;
@@ -697,8 +691,8 @@ contract LiquidityOrchestrator is
         PublicValuesStruct memory publicValues = abi.decode(_publicValues, (PublicValuesStruct));
 
         // Verify that the proof's input commitment matches the onchain input commitment
-        if (publicValues.inputCommitment != _currentEpoch.epochStateRoot) {
-            revert ErrorsLib.CommitmentMismatch(publicValues.inputCommitment, _currentEpoch.epochStateRoot);
+        if (publicValues.inputCommitment != _currentEpoch.epochStateCommitment) {
+            revert ErrorsLib.CommitmentMismatch(publicValues.inputCommitment, _currentEpoch.epochStateCommitment);
         }
 
         states = performDataStruct.states;

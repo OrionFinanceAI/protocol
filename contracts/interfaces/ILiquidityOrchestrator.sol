@@ -98,8 +98,8 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
         address[] vaultAddresses;
         /// @notice Active fee models for vaults in current epoch (snapshot at epoch start) (parallel to vaultAddresses)
         IOrionVault.FeeModel[] vaultFeeModels;
-        /// @notice Epoch state root of the epoch state commitment
-        bytes32 epochStateRoot;
+        /// @notice Epoch state commitment
+        bytes32 epochStateCommitment;
     }
 
     /// @notice Returns the full epoch state

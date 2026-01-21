@@ -224,7 +224,7 @@ interface IOrionVault is IERC4626 {
     /// @param snapshotFeeModel The fee model to use for calculation (typically from epoch snapshot)
     /// @return managementFee The management fee amount in underlying asset units
     /// @return performanceFee The performance fee amount in underlying asset units
-    /// @dev This function allows zk circuits to use snapshotted fee models from Merkle roots
+    /// @dev This function allows zk circuits to use snapshotted fee models from epoch state commitments
     ///      to ensure consistent fee calculations that match the epoch state commitment.
     ///      Pass the snapshotted fee model from the epoch state to ensure consistency.
     function vaultFee(
