@@ -27,6 +27,7 @@ import {
   IERC4626,
   IERC20,
   MockLiquidityOrchestrator,
+  MockERC4626Asset,
 } from "../../typechain-types";
 
 // Mainnet addresses
@@ -517,6 +518,208 @@ describe("ERC4626ExecutionAdapter", function () {
 
       // Should be under 520k gas (includes vault redeem + swap + delegation)
       expect(receipt!.gasUsed).to.be.lt(520000);
+    });
+  });
+
+  describe("Same-Asset Vault Tests (USDC Vault)", function () {
+    let usdcVault: MockERC4626Asset;
+    let usdcVaultAdapter: ERC4626ExecutionAdapter;
+
+    before(async function () {
+      this.timeout(60000);
+
+      // Deploy USDC vault (same-asset, no swap needed)
+      const MockERC4626Factory = await ethers.getContractFactory("MockERC4626Asset");
+      const usdcVaultDeployed = await MockERC4626Factory.deploy(MAINNET.USDC, "USDC Vault", "vUSDC");
+      await usdcVaultDeployed.waitForDeployment();
+      usdcVault = usdcVaultDeployed as unknown as MockERC4626Asset;
+
+      // Deploy vault adapter for USDC vault
+      const VaultAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
+      const usdcVaultAdapterDeployed = await VaultAdapterFactory.deploy(
+        await orionConfig.getAddress(),
+        await liquidityOrchestrator.getAddress(),
+      );
+      await usdcVaultAdapterDeployed.waitForDeployment();
+      usdcVaultAdapter = usdcVaultAdapterDeployed as unknown as ERC4626ExecutionAdapter;
+
+      // Register USDC vault decimals in config (required for validation)
+      const mockConfig = await ethers.getContractAt("MockOrionConfig", await orionConfig.getAddress());
+      await mockConfig.setTokenDecimals(await usdcVault.getAddress(), 6); // Vault inherits USDC decimals
+
+      // Register USDC vault in LO
+      await liquidityOrchestrator.setExecutionAdapter(
+        await usdcVault.getAddress(),
+        await usdcVaultAdapter.getAddress(),
+      );
+
+      // Fund vault with initial USDC from whale and mint initial shares to establish 1:1 ratio
+      const usdcWhale = await ethers.getImpersonatedSigner(MAINNET.USDC_WHALE);
+      await owner.sendTransaction({
+        to: MAINNET.USDC_WHALE,
+        value: ethers.parseEther("10"),
+      });
+
+      const fundAmount = ethers.parseUnits("10000", USDC_DECIMALS);
+      await usdc.connect(usdcWhale).approve(await usdcVault.getAddress(), fundAmount);
+      // Mint shares to establish the exchange rate as 1:1
+      await usdcVault.connect(usdcWhale).deposit(fundAmount, usdcWhale.address);
+    });
+
+    beforeEach(async function () {
+      // Fund LO signer with fresh USDC for each test (since tests consume the balance)
+      const usdcWhale = await ethers.getImpersonatedSigner(MAINNET.USDC_WHALE);
+
+      // Ensure whale has ETH for gas
+      await owner.sendTransaction({
+        to: MAINNET.USDC_WHALE,
+        value: ethers.parseEther("1"),
+      });
+
+      const loFundAmount = ethers.parseUnits("1000", USDC_DECIMALS);
+      await usdc.connect(usdcWhale).transfer(loSigner.address, loFundAmount);
+    });
+
+    it("Should validate same-asset vault", async function () {
+      await expect(usdcVaultAdapter.validateExecutionAdapter(await usdcVault.getAddress())).to.not.be.reverted;
+    });
+
+    it("Should buy same-asset vault shares (no swap)", async function () {
+      const sharesAmount = ethers.parseUnits("100", 6); // 100 shares (vault has 6 decimals, same as USDC)
+      const underlyingNeeded = await usdcVault.previewMint(sharesAmount);
+
+      // Approve adapter to pull from LO
+      await usdc.connect(loSigner).approve(await usdcVaultAdapter.getAddress(), underlyingNeeded * 2n);
+
+      // Execute buy
+      const tx = await usdcVaultAdapter.connect(loSigner).buy(await usdcVault.getAddress(), sharesAmount);
+      const receipt = await tx.wait();
+
+      console.log(`  Same-asset buy gas: ${receipt!.gasUsed.toLocaleString()}`);
+
+      // Verify exact shares received
+      const sharesBalance = await usdcVault.balanceOf(loSigner.address);
+      expect(sharesBalance).to.equal(sharesAmount);
+
+      // Should use less gas than cross-asset (no swap)
+      expect(receipt!.gasUsed).to.be.lt(300000);
+    });
+
+    it("Should sell same-asset vault shares (no swap)", async function () {
+      // First buy some shares if we don't have any
+      let sharesToSell = await usdcVault.balanceOf(loSigner.address);
+      if (sharesToSell === 0n) {
+        const sharesAmount = ethers.parseUnits("100", 6); // Vault has 6 decimals
+        const underlyingNeeded = await usdcVault.previewMint(sharesAmount);
+        await usdc.connect(loSigner).approve(await usdcVaultAdapter.getAddress(), underlyingNeeded * 2n);
+        await usdcVaultAdapter.connect(loSigner).buy(await usdcVault.getAddress(), sharesAmount);
+        sharesToSell = await usdcVault.balanceOf(loSigner.address);
+      }
+
+      const initialUSDC = await usdc.balanceOf(loSigner.address);
+
+      // Approve adapter
+      await usdcVault.connect(loSigner).approve(await usdcVaultAdapter.getAddress(), sharesToSell);
+
+      // Execute sell
+      const tx = await usdcVaultAdapter.connect(loSigner).sell(await usdcVault.getAddress(), sharesToSell);
+      const receipt = await tx.wait();
+
+      console.log(`  Same-asset sell gas: ${receipt!.gasUsed.toLocaleString()}`);
+
+      // Verify USDC received
+      const finalUSDC = await usdc.balanceOf(loSigner.address);
+      expect(finalUSDC).to.be.gt(initialUSDC);
+
+      // Should use less gas than cross-asset (no swap)
+      expect(receipt!.gasUsed).to.be.lt(200000);
+    });
+
+    it("Should enforce slippage on same-asset buy", async function () {
+      const sharesAmount = ethers.parseUnits("50", 6);
+      const underlyingNeeded = await usdcVault.previewMint(sharesAmount);
+
+      // Approve too little (will trigger slippage error)
+      const tooLittle = underlyingNeeded / 2n;
+      await usdc.connect(loSigner).approve(await usdcVaultAdapter.getAddress(), tooLittle);
+
+      await expect(
+        usdcVaultAdapter.connect(loSigner).buy(await usdcVault.getAddress(), sharesAmount),
+      ).to.be.revertedWithCustomError(usdcVaultAdapter, "SlippageExceeded");
+    });
+  });
+
+  describe("Error Handling & Edge Cases", function () {
+    it("Should reject buy with zero allowance", async function () {
+      const sharesAmount = ethers.parseUnits("1", 18);
+
+      // Ensure no allowance
+      await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), 0);
+
+      await expect(vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, sharesAmount)).to.be.reverted;
+    });
+
+    it("Should reject sell without share allowance", async function () {
+      // Fund LO with shares first
+      const usdcWhale = await ethers.getImpersonatedSigner(MAINNET.USDC_WHALE);
+      await owner.sendTransaction({
+        to: MAINNET.USDC_WHALE,
+        value: ethers.parseEther("10"),
+      });
+
+      const fundAmount = ethers.parseUnits("10000", USDC_DECIMALS);
+      await usdc.connect(usdcWhale).transfer(loSigner.address, fundAmount);
+
+      const sharesAmount = ethers.parseUnits("0.1", 18);
+      const wethNeeded = await morphoWETH.convertToAssets(sharesAmount);
+      const [wethPrice, priceDecimals] = await chainlinkAdapter.getPriceData(MAINNET.WETH);
+      const estimatedCost =
+        (wethNeeded * wethPrice) / BigInt(10 ** (WETH_DECIMALS + Number(priceDecimals) - USDC_DECIMALS));
+      const maxUSDC = (estimatedCost * (10000n + BigInt(SLIPPAGE_TOLERANCE))) / 10000n;
+
+      await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), maxUSDC);
+      await vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, sharesAmount);
+
+      // Now try to sell without approval
+      await morphoWETH.connect(loSigner).approve(await vaultAdapter.getAddress(), 0);
+
+      await expect(vaultAdapter.connect(loSigner).sell(MAINNET.MORPHO_WETH, sharesAmount)).to.be.reverted;
+    });
+
+    it("Should reject non-LO caller", async function () {
+      const sharesAmount = ethers.parseUnits("1", 18);
+
+      await expect(vaultAdapter.connect(owner).buy(MAINNET.MORPHO_WETH, sharesAmount)).to.be.revertedWithCustomError(
+        vaultAdapter,
+        "NotAuthorized",
+      );
+
+      await expect(vaultAdapter.connect(owner).sell(MAINNET.MORPHO_WETH, sharesAmount)).to.be.revertedWithCustomError(
+        vaultAdapter,
+        "NotAuthorized",
+      );
+    });
+
+    it("Should handle vault with zero liquidity", async function () {
+      // Deploy empty vault
+      const MockERC4626Factory = await ethers.getContractFactory("MockERC4626Asset");
+      const emptyVault = await MockERC4626Factory.deploy(MAINNET.WETH, "Empty Vault", "eVAULT");
+      await emptyVault.waitForDeployment();
+
+      // Register in LO
+      await liquidityOrchestrator.setExecutionAdapter(await emptyVault.getAddress(), await vaultAdapter.getAddress());
+
+      const sharesAmount = ethers.parseUnits("1", 18);
+      const wethNeeded = await morphoWETH.convertToAssets(sharesAmount);
+      const [wethPrice, priceDecimals] = await chainlinkAdapter.getPriceData(MAINNET.WETH);
+      const estimatedCost =
+        (wethNeeded * wethPrice) / BigInt(10 ** (WETH_DECIMALS + Number(priceDecimals) - USDC_DECIMALS));
+      const maxUSDC = (estimatedCost * (10000n + BigInt(SLIPPAGE_TOLERANCE))) / 10000n;
+
+      await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), maxUSDC);
+
+      // Should work - vault will mint at 1:1 initially
+      await expect(vaultAdapter.connect(loSigner).buy(await emptyVault.getAddress(), sharesAmount)).to.not.be.reverted;
     });
   });
 });
