@@ -12,6 +12,7 @@ contract MockOrionConfig {
     address public liquidityOrchestrator;
     address public priceAdapterRegistryAddress;
     uint256 public slippageTolerance = 200; // 2% in basis points
+    mapping(address => uint8) private tokenDecimals;
 
     constructor(address _underlyingAsset) {
         UNDERLYING_ASSET = _underlyingAsset;
@@ -35,8 +36,9 @@ contract MockOrionConfig {
         return 14; // Protocol standard for price adapter decimals
     }
 
-    function getTokenDecimals(address) external pure returns (uint8) {
-        return 18; // ERC4626 vaults are typically 18 decimals
+    function getTokenDecimals(address token) external view returns (uint8) {
+        uint8 decimals = tokenDecimals[token];
+        return decimals == 0 ? 18 : decimals; // Default to 18 if not set
     }
 
     // Mock helpers for testing
@@ -50,5 +52,9 @@ contract MockOrionConfig {
 
     function setPriceAdapterRegistry(address _registry) external {
         priceAdapterRegistryAddress = _registry;
+    }
+
+    function setTokenDecimals(address token, uint8 decimals) external {
+        tokenDecimals[token] = decimals;
     }
 }
