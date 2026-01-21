@@ -16,6 +16,7 @@ import "./interfaces/IOrionTransparentVault.sol";
 import "./interfaces/ISP1Verifier.sol";
 import { ErrorsLib } from "./libraries/ErrorsLib.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "./interfaces/IExecutionAdapter.sol";
 import "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -122,14 +123,26 @@ contract LiquidityOrchestrator is
         address[] vaultsEpoch;
         /// @notice Prices of assets in the current epoch [priceAdapterDecimals]
         mapping(address => uint256) pricesEpoch;
-        /// @notice Active volume fee coefficient for current epoch (snapshot at epoch start)
+        /// @notice Active volume fee coefficient for current epoch
         uint16 activeVFeeCoefficient;
-        /// @notice Active revenue share fee coefficient for current epoch (snapshot at epoch start)
+        /// @notice Active revenue share fee coefficient for current epoch
         uint16 activeRsFeeCoefficient;
-        /// @notice Active fee model for each vault in current epoch (snapshot at epoch start)
+        /// @notice Active fee model for each vault in current epoch
         mapping(address => IOrionVault.FeeModel) feeModel;
         /// @notice Epoch state commitment
         bytes32 epochStateCommitment;
+        /// @notice Underlying asset address
+        address underlyingAssetSnapshot;
+        /// @notice Underlying asset decimals
+        uint8 underlyingDecimals;
+        /// @notice Price adapter decimals
+        uint8 priceAdapterDecimals;
+        /// @notice Strategist intent decimals
+        uint8 strategistIntentDecimals;
+        /// @notice Epoch duration
+        uint32 epochDurationSnapshot;
+        /// @notice Token decimals for each asset
+        mapping(address => uint8) tokenDecimals;
     }
 
     /// @notice Current epoch state
@@ -315,17 +328,28 @@ contract LiquidityOrchestrator is
             vaultFeeModels[i] = _currentEpoch.feeModel[vaults[i]];
         }
 
+        uint8[] memory assetTokenDecimals = new uint8[](assets.length);
+        for (uint16 i = 0; i < assets.length; ++i) {
+            assetTokenDecimals[i] = _currentEpoch.tokenDecimals[assets[i]];
+        }
+
         return
             ILiquidityOrchestrator.EpochStateView({
                 deltaBufferAmount: _currentEpoch.deltaBufferAmount,
                 vaultsEpoch: vaults,
                 assets: assets,
                 assetPrices: assetPrices,
+                tokenDecimals: assetTokenDecimals,
                 activeVFeeCoefficient: _currentEpoch.activeVFeeCoefficient,
                 activeRsFeeCoefficient: _currentEpoch.activeRsFeeCoefficient,
                 vaultAddresses: vaults,
                 vaultFeeModels: vaultFeeModels,
-                epochStateCommitment: _currentEpoch.epochStateCommitment
+                epochStateCommitment: _currentEpoch.epochStateCommitment,
+                underlyingAsset: _currentEpoch.underlyingAssetSnapshot,
+                underlyingDecimals: _currentEpoch.underlyingDecimals,
+                priceAdapterDecimals: _currentEpoch.priceAdapterDecimals,
+                strategistIntentDecimals: _currentEpoch.strategistIntentDecimals,
+                epochDuration: _currentEpoch.epochDurationSnapshot
             });
     }
 
@@ -471,9 +495,16 @@ contract LiquidityOrchestrator is
                 _currentEpoch.feeModel[vault] = feeModel;
             }
 
+            _currentEpoch.underlyingAssetSnapshot = underlyingAsset;
+            _currentEpoch.underlyingDecimals = IERC20Metadata(underlyingAsset).decimals();
+            _currentEpoch.priceAdapterDecimals = config.priceAdapterDecimals();
+            _currentEpoch.strategistIntentDecimals = config.strategistIntentDecimals();
+            _currentEpoch.epochDurationSnapshot = epochDuration;
+
             address[] memory assets = config.getAllWhitelistedAssets();
             for (uint16 i = 0; i < assets.length; ++i) {
                 _currentEpoch.pricesEpoch[assets[i]] = priceAdapterRegistry.getPrice(assets[i]);
+                _currentEpoch.tokenDecimals[assets[i]] = IERC20Metadata(assets[i]).decimals();
             }
 
             emit EventsLib.EpochStart(epochCounter);
@@ -510,6 +541,12 @@ contract LiquidityOrchestrator is
     /// @notice Builds the protocol state hash from static epoch parameters
     /// @return The protocol state hash
     function _buildProtocolStateHash() internal view returns (bytes32) {
+        address[] memory assets = config.getAllWhitelistedAssets();
+        uint8[] memory assetTokenDecimals = new uint8[](assets.length);
+        for (uint16 i = 0; i < assets.length; ++i) {
+            assetTokenDecimals[i] = _currentEpoch.tokenDecimals[assets[i]];
+        }
+
         return
             keccak256(
                 abi.encode(
@@ -518,7 +555,14 @@ contract LiquidityOrchestrator is
                     _currentEpoch.deltaBufferAmount,
                     config.maxFulfillBatchSize(),
                     targetBufferRatio,
-                    bufferAmount
+                    bufferAmount,
+                    _currentEpoch.underlyingAssetSnapshot,
+                    _currentEpoch.underlyingDecimals,
+                    _currentEpoch.priceAdapterDecimals,
+                    _currentEpoch.strategistIntentDecimals,
+                    _currentEpoch.epochDurationSnapshot,
+                    assets,
+                    assetTokenDecimals
                 )
             );
     }

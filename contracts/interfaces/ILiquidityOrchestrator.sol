@@ -86,20 +86,32 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
         int256 deltaBufferAmount;
         /// @notice Transparent vaults associated to the current epoch
         address[] vaultsEpoch;
-        /// @notice Asset addresses in the epoch (parallel to assetPrices)
+        /// @notice Asset addresses in the epoch
         address[] assets;
-        /// @notice Prices of assets in the current epoch [priceAdapterDecimals] (parallel to assets)
+        /// @notice Prices of assets in the current epoch [priceAdapterDecimals]
         uint256[] assetPrices;
-        /// @notice Active volume fee coefficient for current epoch (snapshot at epoch start)
+        /// @notice Token decimals for each asset
+        uint8[] tokenDecimals;
+        /// @notice Active volume fee coefficient for current epoch
         uint16 activeVFeeCoefficient;
-        /// @notice Active revenue share fee coefficient for current epoch (snapshot at epoch start)
+        /// @notice Active revenue share fee coefficient for current epoch
         uint16 activeRsFeeCoefficient;
-        /// @notice Vault addresses (parallel to vaultFeeModels)
+        /// @notice Vault addresses
         address[] vaultAddresses;
-        /// @notice Active fee models for vaults in current epoch (snapshot at epoch start) (parallel to vaultAddresses)
+        /// @notice Active fee models for vaults in current epoch
         IOrionVault.FeeModel[] vaultFeeModels;
         /// @notice Epoch state commitment
         bytes32 epochStateCommitment;
+        /// @notice Underlying asset address
+        address underlyingAsset;
+        /// @notice Underlying asset decimals
+        uint8 underlyingDecimals;
+        /// @notice Price adapter decimals
+        uint8 priceAdapterDecimals;
+        /// @notice Strategist intent decimals
+        uint8 strategistIntentDecimals;
+        /// @notice Epoch duration
+        uint32 epochDuration;
     }
 
     /// @notice Returns the full epoch state
