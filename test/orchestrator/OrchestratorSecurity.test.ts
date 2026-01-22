@@ -251,6 +251,7 @@ describe("Orchestrator Security", function () {
     );
 
     await expect(liquidityOrchestrator.setTargetBufferRatio(100)).to.not.be.reverted;
+    await liquidityOrchestrator.setSlippageTolerance(50); // 0.5% slippage
 
     // Set minibatch size to a large value to process all vaults in one batch for tests
     await liquidityOrchestrator.connect(owner).updateMinibatchSize(8);

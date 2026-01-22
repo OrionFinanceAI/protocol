@@ -123,6 +123,7 @@ describe("Redeem Before Deposit Order Verification", function () {
     // Configure protocol
     await orionConfig.setProtocolRiskFreeRate(0);
     await liquidityOrchestrator.connect(owner).setTargetBufferRatio(100); // 1% buffer
+    await liquidityOrchestrator.connect(owner).setSlippageTolerance(50); // 0.5% slippage
     await liquidityOrchestrator.connect(owner).updateMinibatchSize(8); // Process all vaults in one batch
 
     // Whitelist the mock asset
