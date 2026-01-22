@@ -409,7 +409,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     /// @inheritdoc IOrionVault
     function requestRedeem(uint256 shares) external nonReentrant {
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
-        if (isDecommissioning || config.isDecommissionedVault(address(this))) revert ErrorsLib.VaultDecommissioned();
+        if (config.isDecommissionedVault(address(this))) revert ErrorsLib.VaultDecommissioned();
         if (shares == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(address(this));
 
         uint256 minRedeem = config.minRedeemAmount();

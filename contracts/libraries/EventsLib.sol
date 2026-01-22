@@ -76,6 +76,10 @@ library EventsLib {
     /// @param unpauser The address that triggered the unpause.
     event ProtocolUnpaused(address indexed unpauser);
 
+    /// @notice A manager has been added to the whitelist.
+    /// @param manager The address of the manager that was added.
+    event ManagerAdded(address indexed manager);
+
     /// @notice A manager has been removed from the whitelist.
     /// @param manager The address of the manager that was removed.
     event ManagerRemoved(address indexed manager);
@@ -140,6 +144,16 @@ library EventsLib {
     /// @param amount The amount of protocol fees claimed.
     event ProtocolFeesClaimed(uint256 indexed amount);
 
+    /// @notice Liquidity has been deposited to the protocol buffer.
+    /// @param depositor The address of the depositor.
+    /// @param amount The amount of liquidity deposited.
+    event LiquidityDeposited(address indexed depositor, uint256 indexed amount);
+
+    /// @notice Liquidity has been withdrawn from the protocol buffer.
+    /// @param withdrawer The address of the withdrawer.
+    /// @param amount The amount of liquidity withdrawn.
+    event LiquidityWithdrawn(address indexed withdrawer, uint256 indexed amount);
+
     /// @notice Enumeration of available vault types.
     enum VaultType {
         Transparent,
@@ -169,6 +183,10 @@ library EventsLib {
         address depositAccessControl,
         VaultType vaultType
     );
+
+    /// @notice Decommissioning process for a vault has been initiated.
+    /// @param vault The address of the vault being decommissioned.
+    event VaultDecommissioningInitiated(address indexed vault);
 
     /// @notice An Orion Vault has been decommissioned.
     /// @param vault The address of the decommissioned vault.
