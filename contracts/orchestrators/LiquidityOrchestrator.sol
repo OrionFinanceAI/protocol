@@ -191,7 +191,11 @@ contract LiquidityOrchestrator is
         if (_targetBufferRatio > 500) revert ErrorsLib.InvalidArguments();
 
         targetBufferRatio = _targetBufferRatio;
-        slippageTolerance = _targetBufferRatio / 2;
+    }
+
+    /// @inheritdoc ILiquidityOrchestrator
+    function setSlippageTolerance(uint256 _slippageTolerance) external onlyOwner {
+        slippageTolerance = _slippageTolerance;
     }
 
     /// @inheritdoc ILiquidityOrchestrator

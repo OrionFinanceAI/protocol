@@ -40,6 +40,7 @@ describe("Orchestrators - zero deposits and zero intents", function () {
 
     // Configure protocol
     await liquidityOrchestrator.setTargetBufferRatio(100); // 1%
+    await liquidityOrchestrator.setSlippageTolerance(50); // 0.5% slippage
 
     // Create transparent vault (no intent submitted)
     const tx = await transparentVaultFactory
