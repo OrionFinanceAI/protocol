@@ -8,6 +8,6 @@
     "outDir": "dist"
   },
   "files": ["./hardhat.config.ts"],
-  "include": ["src/**/*.ts", "test/**/*.ts"],
+  "include": ["src/**/*.ts", "test/**/*.ts", "scripts/**/*.ts"],
   "exclude": ["**/*.js", "node_modules", "lib/fhevm-solidity"]
 }
