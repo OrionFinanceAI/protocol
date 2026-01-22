@@ -603,7 +603,7 @@ describe("Whitelist and Vault Removal Flows", function () {
     );
   });
 
-  it("should block requestRedeem when vault is decommissioning", async function () {
+  it("should allow requestRedeem when vault is decommissioning", async function () {
     // First make a deposit and get some shares
     const depositAmount = ethers.parseUnits("1000", 12);
     await underlyingAsset.connect(user).approve(await testVault.getAddress(), depositAmount);
@@ -634,13 +634,9 @@ describe("Whitelist and Vault Removal Flows", function () {
     // Mark vault for decommissioning
     await orionConfig.connect(owner).removeOrionVault(await testVault.getAddress());
 
-    // Verify vault is decommissioning
     void expect(await testVault.isDecommissioning()).to.be.true;
 
-    // Try to request redeem - should revert
-    await expect(testVault.connect(user).requestRedeem(userShares / 2n)).to.be.revertedWithCustomError(
-      testVault,
-      "VaultDecommissioned",
-    );
+    await testVault.connect(user).approve(await testVault.getAddress(), userShares);
+    await expect(testVault.connect(user).requestRedeem(userShares / 2n)).to.not.be.reverted;
   });
 });

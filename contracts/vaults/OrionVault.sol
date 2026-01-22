@@ -338,6 +338,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         isDecommissioning = true;
     }
 
+    /// @inheritdoc IOrionVault
     function implementation() external view returns (address) {
         bytes32 beaconSlot = 0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50;
         address beacon = StorageSlot.getAddressSlot(beaconSlot).value;
@@ -409,7 +410,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     /// @inheritdoc IOrionVault
     function requestRedeem(uint256 shares) external nonReentrant {
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
-        if (isDecommissioning || config.isDecommissionedVault(address(this))) revert ErrorsLib.VaultDecommissioned();
+        if (config.isDecommissionedVault(address(this))) revert ErrorsLib.VaultDecommissioned();
         if (shares == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(address(this));
 
         uint256 minRedeem = config.minRedeemAmount();

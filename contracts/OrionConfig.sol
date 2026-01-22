@@ -304,6 +304,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         if (msg.sender != guardian && msg.sender != owner()) revert ErrorsLib.NotAuthorized();
         bool inserted = whitelistedManager.add(manager);
         if (!inserted) revert ErrorsLib.AlreadyRegistered();
+        emit EventsLib.ManagerAdded(manager);
     }
 
     /// @inheritdoc IOrionConfig
@@ -321,6 +322,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
                 // slither-disable-next-line unused-return
                 decommissioningInProgressVaults.add(vault);
                 IOrionVault(vault).overrideIntentForDecommissioning();
+                emit EventsLib.VaultDecommissioningInitiated(vault);
             }
         }
 
@@ -333,6 +335,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
                 // slither-disable-next-line unused-return
                 decommissioningInProgressVaults.add(vault);
                 IOrionVault(vault).overrideIntentForDecommissioning();
+                emit EventsLib.VaultDecommissioningInitiated(vault);
             }
         }
 
@@ -374,6 +377,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         // slither-disable-next-line unused-return
         decommissioningInProgressVaults.add(vault);
         IOrionVault(vault).overrideIntentForDecommissioning();
+        emit EventsLib.VaultDecommissioningInitiated(vault);
     }
 
     /// @inheritdoc IOrionConfig
