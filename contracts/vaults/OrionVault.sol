@@ -338,6 +338,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         isDecommissioning = true;
     }
 
+    /// @inheritdoc IOrionVault
     function implementation() external view returns (address) {
         bytes32 beaconSlot = 0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50;
         address beacon = StorageSlot.getAddressSlot(beaconSlot).value;

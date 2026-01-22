@@ -322,6 +322,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
                 // slither-disable-next-line unused-return
                 decommissioningInProgressVaults.add(vault);
                 IOrionVault(vault).overrideIntentForDecommissioning();
+                emit EventsLib.VaultDecommissioningInitiated(vault);
             }
         }
 
@@ -334,6 +335,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
                 // slither-disable-next-line unused-return
                 decommissioningInProgressVaults.add(vault);
                 IOrionVault(vault).overrideIntentForDecommissioning();
+                emit EventsLib.VaultDecommissioningInitiated(vault);
             }
         }
 

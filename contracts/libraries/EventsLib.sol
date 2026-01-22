@@ -147,12 +147,12 @@ library EventsLib {
     /// @notice Liquidity has been deposited to the protocol buffer.
     /// @param depositor The address of the depositor.
     /// @param amount The amount of liquidity deposited.
-    event LiquidityDeposited(address indexed depositor, uint256 indexed amount);
+    event LiquidityDeposited(address indexed depositor, uint256 amount);
 
     /// @notice Liquidity has been withdrawn from the protocol buffer.
     /// @param withdrawer The address of the withdrawer.
     /// @param amount The amount of liquidity withdrawn.
-    event LiquidityWithdrawn(address indexed withdrawer, uint256 indexed amount);
+    event LiquidityWithdrawn(address indexed withdrawer, uint256 amount);
 
     /// @notice Enumeration of available vault types.
     enum VaultType {
