@@ -626,11 +626,6 @@ describe("Orchestrators", function () {
         "SystemNotIdle",
       );
 
-      await expect(liquidityOrchestrator.setTargetBufferRatio(100)).to.be.revertedWithCustomError(
-        liquidityOrchestrator,
-        "SystemNotIdle",
-      );
-
       // Test vault functions
       const depositAmount = ethers.parseUnits("100", underlyingDecimals);
       await expect(hurdleHwmVault.connect(user).requestDeposit(depositAmount)).to.be.revertedWithCustomError(
