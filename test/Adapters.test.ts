@@ -208,7 +208,8 @@ describe("Price Adapter", function () {
       );
 
       // Set slippage tolerance to avoid uint256.max maxAcceptableSpend
-      await liquidityOrchestrator.setTargetBufferRatio(400); // 4% buffer = 2% slippage
+      await liquidityOrchestrator.setTargetBufferRatio(400); // 4% buffer
+      await liquidityOrchestrator.setSlippageTolerance(200); // 2% slippage
     });
 
     it("should mint exact shares requested via buy(), preventing accounting drift", async function () {

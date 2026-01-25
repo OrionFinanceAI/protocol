@@ -269,10 +269,14 @@ contract LiquidityOrchestrator is
         if (_targetBufferRatio == 0) revert ErrorsLib.InvalidArguments();
         // 5%
         if (_targetBufferRatio > 500) revert ErrorsLib.InvalidArguments();
-        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         targetBufferRatio = _targetBufferRatio;
         slippageTolerance = _targetBufferRatio / 2;
+    }
+
+    /// @inheritdoc ILiquidityOrchestrator
+    function setSlippageTolerance(uint256 _slippageTolerance) external onlyOwner {
+        slippageTolerance = _slippageTolerance;
     }
 
     /// @inheritdoc ILiquidityOrchestrator
@@ -285,6 +289,8 @@ contract LiquidityOrchestrator is
 
         // Update buffer amount
         _updateBufferAmount(int256(amount));
+
+        emit EventsLib.LiquidityDeposited(msg.sender, amount);
     }
 
     /// @inheritdoc ILiquidityOrchestrator
@@ -300,6 +306,8 @@ contract LiquidityOrchestrator is
 
         // Transfer underlying assets to the owner
         IERC20(underlyingAsset).safeTransfer(msg.sender, amount);
+
+        emit EventsLib.LiquidityWithdrawn(msg.sender, amount);
     }
 
     /// @inheritdoc ILiquidityOrchestrator

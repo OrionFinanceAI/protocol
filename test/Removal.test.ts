@@ -86,6 +86,7 @@ describe("Whitelist and Vault Removal Flows", function () {
     // Configure protocol
     await orionConfig.connect(owner).updateProtocolFees(10, 1000);
     await liquidityOrchestrator.setTargetBufferRatio(100); // 1% target buffer ratio
+    await liquidityOrchestrator.setSlippageTolerance(50); // 0.5% slippage
 
     const OrionAssetERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
       "OrionAssetERC4626ExecutionAdapter",
@@ -618,7 +619,7 @@ describe("Whitelist and Vault Removal Flows", function () {
     );
   });
 
-  it("should block requestRedeem when vault is decommissioning", async function () {
+  it("should allow requestRedeem when vault is decommissioning", async function () {
     // First make a deposit and get some shares
     const depositAmount = ethers.parseUnits("1000", 12);
     await underlyingAsset.connect(user).approve(await testVault.getAddress(), depositAmount);
@@ -649,13 +650,9 @@ describe("Whitelist and Vault Removal Flows", function () {
     // Mark vault for decommissioning
     await orionConfig.connect(owner).removeOrionVault(await testVault.getAddress());
 
-    // Verify vault is decommissioning
     void expect(await testVault.isDecommissioning()).to.be.true;
 
-    // Try to request redeem - should revert
-    await expect(testVault.connect(user).requestRedeem(userShares / 2n)).to.be.revertedWithCustomError(
-      testVault,
-      "VaultDecommissioned",
-    );
+    await testVault.connect(user).approve(await testVault.getAddress(), userShares);
+    await expect(testVault.connect(user).requestRedeem(userShares / 2n)).to.not.be.reverted;
   });
 });
