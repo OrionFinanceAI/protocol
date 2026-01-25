@@ -105,16 +105,8 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @notice Struct representing the full epoch state view
     /// @dev This struct contains all epoch state data in a returnable format
     struct EpochStateView {
-        /// @notice Delta buffer amount for current epoch [assets]
-        int256 deltaBufferAmount;
         /// @notice Transparent vaults associated to the current epoch
         address[] vaultsEpoch;
-        /// @notice Asset addresses in the epoch
-        address[] assets;
-        /// @notice Prices of assets in the current epoch [priceAdapterDecimals]
-        uint256[] assetPrices;
-        /// @notice Token decimals for each asset
-        uint8[] tokenDecimals;
         /// @notice Active volume fee coefficient for current epoch
         uint16 activeVFeeCoefficient;
         /// @notice Active revenue share fee coefficient for current epoch
@@ -123,12 +115,6 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
         IOrionVault.FeeModel[] vaultFeeModels;
         /// @notice Epoch state commitment
         bytes32 epochStateCommitment;
-        /// @notice Price adapter decimals
-        uint8 priceAdapterDecimals;
-        /// @notice Strategist intent decimals
-        uint8 strategistIntentDecimals;
-        /// @notice Epoch duration
-        uint32 epochDuration;
     }
 
     /// @notice Returns the full epoch state

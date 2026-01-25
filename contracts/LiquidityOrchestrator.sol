@@ -112,13 +112,14 @@ contract LiquidityOrchestrator is
     /// @notice Buffer amount [assets]
     uint256 public bufferAmount;
 
+    /// @notice Delta buffer amount for current epoch [assets]
+    int256 public deltaBufferAmount;
+
     /// @notice Pending protocol fees [assets]
     uint256 public pendingProtocolFees;
 
     /// @notice Struct to hold epoch state data
     struct EpochState {
-        /// @notice Delta buffer amount for current epoch [assets]
-        int256 deltaBufferAmount;
         /// @notice Transparent vaults associated to the current epoch
         address[] vaultsEpoch;
         /// @notice Prices of assets in the current epoch [priceAdapterDecimals]
@@ -257,9 +258,7 @@ contract LiquidityOrchestrator is
         if (_targetBufferRatio == 0) revert ErrorsLib.InvalidArguments();
         // 5%
         if (_targetBufferRatio > 500) revert ErrorsLib.InvalidArguments();
-
         targetBufferRatio = _targetBufferRatio;
-        slippageTolerance = _targetBufferRatio / 2;
     }
 
     /// @inheritdoc ILiquidityOrchestrator
@@ -313,11 +312,7 @@ contract LiquidityOrchestrator is
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function getEpochState() external view returns (ILiquidityOrchestrator.EpochStateView memory) {
-        address[] memory assets = config.getAllWhitelistedAssets();
-        uint8[] memory assetTokenDecimals = config.getAllTokenDecimals();
-        uint256[] memory assetPrices = getAssetPrices(assets);
-
+    function getEpochState() external view returns (EpochStateView memory) {
         // Build vault fee models array
         IOrionVault.FeeModel[] memory vaultFeeModels = new IOrionVault.FeeModel[](_currentEpoch.vaultsEpoch.length);
         for (uint16 i = 0; i < _currentEpoch.vaultsEpoch.length; ++i) {
@@ -325,19 +320,12 @@ contract LiquidityOrchestrator is
         }
 
         return
-            ILiquidityOrchestrator.EpochStateView({
-                deltaBufferAmount: _currentEpoch.deltaBufferAmount,
+            EpochStateView({
                 vaultsEpoch: _currentEpoch.vaultsEpoch,
-                assets: assets,
-                assetPrices: assetPrices,
-                tokenDecimals: assetTokenDecimals,
                 activeVFeeCoefficient: _currentEpoch.activeVFeeCoefficient,
                 activeRsFeeCoefficient: _currentEpoch.activeRsFeeCoefficient,
                 vaultFeeModels: vaultFeeModels,
-                epochStateCommitment: _currentEpoch.epochStateCommitment,
-                priceAdapterDecimals: config.priceAdapterDecimals(),
-                strategistIntentDecimals: config.strategistIntentDecimals(),
-                epochDuration: epochDuration
+                epochStateCommitment: _currentEpoch.epochStateCommitment
             });
     }
 
@@ -533,7 +521,6 @@ contract LiquidityOrchestrator is
                 abi.encode(
                     _currentEpoch.activeVFeeCoefficient,
                     _currentEpoch.activeRsFeeCoefficient,
-                    _currentEpoch.deltaBufferAmount,
                     config.maxFulfillBatchSize(),
                     targetBufferRatio,
                     bufferAmount,
@@ -683,8 +670,8 @@ contract LiquidityOrchestrator is
             _executeBuy(token, amount, buyLeg.buyingEstimatedUnderlyingAmounts[i]);
         }
 
-        _updateBufferAmount(_currentEpoch.deltaBufferAmount);
-        _currentEpoch.deltaBufferAmount = 0;
+        _updateBufferAmount(deltaBufferAmount);
+        deltaBufferAmount = 0;
     }
 
     /// @notice Updates the buffer amount based on execution vs estimated amounts
@@ -714,7 +701,7 @@ contract LiquidityOrchestrator is
         // Clean up approval
         IERC20(asset).forceApprove(address(adapter), 0);
 
-        _currentEpoch.deltaBufferAmount += executionUnderlyingAmount.toInt256() - estimatedUnderlyingAmount.toInt256();
+        deltaBufferAmount += executionUnderlyingAmount.toInt256() - estimatedUnderlyingAmount.toInt256();
     }
 
     /// @notice Executes a buy order
@@ -738,7 +725,7 @@ contract LiquidityOrchestrator is
         // Clean up approval
         IERC20(underlyingAsset).forceApprove(address(adapter), 0);
 
-        _currentEpoch.deltaBufferAmount += estimatedUnderlyingAmount.toInt256() - executionUnderlyingAmount.toInt256();
+        deltaBufferAmount += estimatedUnderlyingAmount.toInt256() - executionUnderlyingAmount.toInt256();
     }
 
     /// @notice Handles the vault operations
