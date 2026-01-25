@@ -316,7 +316,7 @@ contract LiquidityOrchestrator is
     function getEpochState() external view returns (ILiquidityOrchestrator.EpochStateView memory) {
         address[] memory assets = config.getAllWhitelistedAssets();
         uint8[] memory assetTokenDecimals = config.getAllTokenDecimals();
-        uint256[] memory assetPrices = _getAssetPrices(assets);
+        uint256[] memory assetPrices = getAssetPrices(assets);
 
         // Build vault fee models array
         IOrionVault.FeeModel[] memory vaultFeeModels = new IOrionVault.FeeModel[](_currentEpoch.vaultsEpoch.length);
@@ -511,7 +511,7 @@ contract LiquidityOrchestrator is
     /// @return The epoch state commitment
     function _buildEpochStateCommitment() internal view returns (bytes32) {
         address[] memory assets = config.getAllWhitelistedAssets();
-        uint256[] memory assetPrices = _getAssetPrices(assets);
+        uint256[] memory assetPrices = getAssetPrices(assets);
         VaultStateData memory vaultData = _getVaultStateData();
 
         bytes32 protocolStateHash = _buildProtocolStateHash();
@@ -589,10 +589,8 @@ contract LiquidityOrchestrator is
         return vaultsHash;
     }
 
-    /// @notice Gets asset prices for the epoch
-    /// @param assets Array of asset addresses
-    /// @return assetPrices Array of asset prices
-    function _getAssetPrices(address[] memory assets) internal view returns (uint256[] memory assetPrices) {
+    /// @inheritdoc ILiquidityOrchestrator
+    function getAssetPrices(address[] memory assets) public view returns (uint256[] memory assetPrices) {
         assetPrices = new uint256[](assets.length);
         for (uint16 i = 0; i < assets.length; ++i) {
             assetPrices[i] = _currentEpoch.pricesEpoch[assets[i]];

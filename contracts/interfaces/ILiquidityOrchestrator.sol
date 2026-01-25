@@ -113,6 +113,11 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @return The complete epoch state view
     function getEpochState() external view returns (EpochStateView memory);
 
+    /// @notice Gets asset prices for the epoch
+    /// @param assets Array of asset addresses
+    /// @return assetPrices Array of asset prices
+    function getAssetPrices(address[] memory assets) external view returns (uint256[] memory assetPrices);
+
     /// @notice Updates the minibatch size for fulfill deposit and redeem processing
     /// @param _minibatchSize The new minibatch size
     function updateMinibatchSize(uint8 _minibatchSize) external;
