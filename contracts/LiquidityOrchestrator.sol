@@ -317,24 +317,22 @@ contract LiquidityOrchestrator is
         address[] memory assets = config.getAllWhitelistedAssets();
         uint8[] memory assetTokenDecimals = config.getAllTokenDecimals();
         uint256[] memory assetPrices = _getAssetPrices(assets);
-        address[] memory vaults = _currentEpoch.vaultsEpoch;
 
         // Build vault fee models array
-        IOrionVault.FeeModel[] memory vaultFeeModels = new IOrionVault.FeeModel[](vaults.length);
-        for (uint16 i = 0; i < vaults.length; ++i) {
-            vaultFeeModels[i] = _currentEpoch.feeModel[vaults[i]];
+        IOrionVault.FeeModel[] memory vaultFeeModels = new IOrionVault.FeeModel[](_currentEpoch.vaultsEpoch.length);
+        for (uint16 i = 0; i < _currentEpoch.vaultsEpoch.length; ++i) {
+            vaultFeeModels[i] = _currentEpoch.feeModel[_currentEpoch.vaultsEpoch[i]];
         }
 
         return
             ILiquidityOrchestrator.EpochStateView({
                 deltaBufferAmount: _currentEpoch.deltaBufferAmount,
-                vaultsEpoch: vaults,
+                vaultsEpoch: _currentEpoch.vaultsEpoch,
                 assets: assets,
                 assetPrices: assetPrices,
                 tokenDecimals: assetTokenDecimals,
                 activeVFeeCoefficient: _currentEpoch.activeVFeeCoefficient,
                 activeRsFeeCoefficient: _currentEpoch.activeRsFeeCoefficient,
-                vaultAddresses: vaults,
                 vaultFeeModels: vaultFeeModels,
                 epochStateCommitment: _currentEpoch.epochStateCommitment,
                 priceAdapterDecimals: config.priceAdapterDecimals(),
@@ -480,9 +478,8 @@ contract LiquidityOrchestrator is
 
             // Snapshot vault fee types at epoch start to ensure consistency throughout the epoch
             for (uint16 i = 0; i < _currentEpoch.vaultsEpoch.length; ++i) {
-                address vault = _currentEpoch.vaultsEpoch[i];
-                IOrionVault.FeeModel memory feeModel = IOrionVault(vault).activeFeeModel();
-                _currentEpoch.feeModel[vault] = feeModel;
+                IOrionVault.FeeModel memory feeModel = IOrionVault(_currentEpoch.vaultsEpoch[i]).activeFeeModel();
+                _currentEpoch.feeModel[_currentEpoch.vaultsEpoch[i]] = feeModel;
             }
 
             address[] memory assets = config.getAllWhitelistedAssets();
@@ -512,21 +509,17 @@ contract LiquidityOrchestrator is
     function _buildEpochStateCommitment() internal view returns (bytes32) {
         address[] memory assets = config.getAllWhitelistedAssets();
         uint256[] memory assetPrices = _getAssetPrices(assets);
-        address[] memory vaults = _currentEpoch.vaultsEpoch;
-        VaultStateData memory vaultData = _getVaultStateData(vaults);
+        VaultStateData memory vaultData = _getVaultStateData();
 
         bytes32 protocolStateHash = _buildProtocolStateHash();
         bytes32 assetsHash = _aggregateAssetLeaves(assets, assetPrices);
-        bytes32 vaultsHash = _aggregateVaultLeaves(vaults, vaultData);
+        bytes32 vaultsHash = _aggregateVaultLeaves(vaultData);
         return keccak256(abi.encode(protocolStateHash, assetsHash, vaultsHash));
     }
 
     /// @notice Builds the protocol state hash from static epoch parameters
     /// @return The protocol state hash
     function _buildProtocolStateHash() internal view returns (bytes32) {
-        address[] memory assets = config.getAllWhitelistedAssets();
-        uint8[] memory assetTokenDecimals = config.getAllTokenDecimals();
-
         return
             keccak256(
                 abi.encode(
@@ -539,18 +532,10 @@ contract LiquidityOrchestrator is
                     config.priceAdapterDecimals(),
                     config.strategistIntentDecimals(),
                     epochDuration,
-                    assets,
-                    assetTokenDecimals
+                    config.getAllWhitelistedAssets(),
+                    config.getAllTokenDecimals()
                 )
             );
-    }
-
-    /// @notice Computes the leaf hash for a single asset
-    /// @param assetAddress The address of the asset
-    /// @param assetPrice The price of the asset
-    /// @return The asset leaf hash
-    function _computeAssetLeaf(address assetAddress, uint256 assetPrice) internal pure returns (bytes32) {
-        return keccak256(abi.encode(assetAddress, assetPrice));
     }
 
     /// @notice Aggregates asset leaves using sequential folding
@@ -563,96 +548,33 @@ contract LiquidityOrchestrator is
     ) internal pure returns (bytes32) {
         bytes32 assetsHash = bytes32(0);
         for (uint16 i = 0; i < assets.length; ++i) {
-            bytes32 assetLeaf = _computeAssetLeaf(assets[i], assetPrices[i]);
+            bytes32 assetLeaf = keccak256(abi.encode(assets[i], assetPrices[i]));
             assetsHash = keccak256(abi.encode(assetsHash, assetLeaf));
         }
         return assetsHash;
     }
 
-    /// @notice Computes the portfolio hash for a vault
-    /// @param portfolioTokens Array of portfolio token addresses
-    /// @param portfolioShares Array of portfolio token shares
-    /// @return The portfolio hash
-    function _computePortfolioHash(
-        address[] memory portfolioTokens,
-        uint256[] memory portfolioShares
-    ) internal pure returns (bytes32) {
-        return keccak256(abi.encode(portfolioTokens, portfolioShares));
-    }
+    /// @notice Aggregates vault leaves using sequential folding
+    /// @param vaultData Struct containing all vault state data
+    /// @return The aggregated vaults hash
+    function _aggregateVaultLeaves(VaultStateData memory vaultData) internal view returns (bytes32) {
+        bytes32 vaultsHash = bytes32(0);
+        for (uint16 i = 0; i < _currentEpoch.vaultsEpoch.length; ++i) {
+            bytes32 portfolioHash = keccak256(abi.encode(vaultData.portfolioTokens[i], vaultData.portfolioShares[i]));
+            bytes32 intentHash = keccak256(abi.encode(vaultData.intentTokens[i], vaultData.intentWeights[i]));
 
-    /// @notice Computes the intent hash for a vault
-    /// @param intentTokens Array of intent token addresses
-    /// @param intentWeights Array of intent token weights
-    /// @return The intent hash
-    function _computeIntentHash(
-        address[] memory intentTokens,
-        uint32[] memory intentWeights
-    ) internal pure returns (bytes32) {
-        return keccak256(abi.encode(intentTokens, intentWeights));
-    }
-
-    /// @notice Computes the leaf hash for a single vault
-    /// @param vaultAddress The address of the vault
-    /// @param feeType The fee type
-    /// @param performanceFee The performance fee
-    /// @param managementFee The management fee
-    /// @param highWaterMark The high water mark
-    /// @param pendingRedeem The pending redeem amount
-    /// @param pendingDeposit The pending deposit amount
-    /// @param portfolioHash The portfolio hash
-    /// @param intentHash The intent hash
-    /// @return The vault leaf hash
-    function _computeVaultLeaf(
-        address vaultAddress,
-        uint8 feeType,
-        uint16 performanceFee,
-        uint16 managementFee,
-        uint256 highWaterMark,
-        uint256 pendingRedeem,
-        uint256 pendingDeposit,
-        bytes32 portfolioHash,
-        bytes32 intentHash
-    ) internal pure returns (bytes32) {
-        return
-            keccak256(
+            bytes32 vaultLeaf = keccak256(
                 abi.encode(
-                    vaultAddress,
-                    feeType,
-                    performanceFee,
-                    managementFee,
-                    highWaterMark,
-                    pendingRedeem,
-                    pendingDeposit,
+                    _currentEpoch.vaultsEpoch[i],
+                    vaultData.feeTypes[i],
+                    vaultData.performanceFees[i],
+                    vaultData.managementFees[i],
+                    vaultData.highWaterMarks[i],
+                    vaultData.pendingRedeems[i],
+                    vaultData.pendingDeposits[i],
                     portfolioHash,
                     intentHash
                 )
-            );
-    }
-
-    /// @notice Aggregates vault leaves using sequential folding
-    /// @param vaults Array of vault addresses
-    /// @param vaultData Struct containing all vault state data
-    /// @return The aggregated vaults hash
-    function _aggregateVaultLeaves(
-        address[] memory vaults,
-        VaultStateData memory vaultData
-    ) internal pure returns (bytes32) {
-        bytes32 vaultsHash = bytes32(0);
-        for (uint16 i = 0; i < vaults.length; ++i) {
-            bytes32 portfolioHash = _computePortfolioHash(vaultData.portfolioTokens[i], vaultData.portfolioShares[i]);
-
-            bytes32 intentHash = _computeIntentHash(vaultData.intentTokens[i], vaultData.intentWeights[i]);
-
-            bytes32 vaultLeaf = _computeVaultLeaf(
-                vaults[i],
-                vaultData.feeTypes[i],
-                vaultData.performanceFees[i],
-                vaultData.managementFees[i],
-                vaultData.highWaterMarks[i],
-                vaultData.pendingRedeems[i],
-                vaultData.pendingDeposits[i],
-                portfolioHash,
-                intentHash
             );
 
             // Fold into aggregate
@@ -672,11 +594,10 @@ contract LiquidityOrchestrator is
     }
 
     /// @notice Gets vault state data for all vaults in the epoch
-    /// @param vaults Array of vault addresses
     /// @return vaultData Struct containing all vault state data
-    function _getVaultStateData(address[] memory vaults) internal view returns (VaultStateData memory vaultData) {
+    function _getVaultStateData() internal view returns (VaultStateData memory vaultData) {
         uint256 maxFulfillBatchSize = config.maxFulfillBatchSize();
-        uint16 vaultCount = uint16(vaults.length);
+        uint16 vaultCount = uint16(_currentEpoch.vaultsEpoch.length);
 
         vaultData.feeTypes = new uint8[](vaultCount);
         vaultData.performanceFees = new uint16[](vaultCount);
@@ -690,8 +611,8 @@ contract LiquidityOrchestrator is
         vaultData.intentWeights = new uint32[][](vaultCount);
 
         for (uint16 i = 0; i < vaultCount; ++i) {
-            IOrionTransparentVault vault = IOrionTransparentVault(vaults[i]);
-            IOrionVault.FeeModel memory feeModel = _currentEpoch.feeModel[vaults[i]];
+            IOrionTransparentVault vault = IOrionTransparentVault(_currentEpoch.vaultsEpoch[i]);
+            IOrionVault.FeeModel memory feeModel = _currentEpoch.feeModel[_currentEpoch.vaultsEpoch[i]];
 
             vaultData.feeTypes[i] = uint8(feeModel.feeType);
             vaultData.performanceFees[i] = feeModel.performanceFee;
