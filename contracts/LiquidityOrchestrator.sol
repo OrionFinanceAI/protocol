@@ -355,13 +355,15 @@ contract LiquidityOrchestrator is
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function pause() external onlyConfig {
+    function pause() external onlyOwnerOrGuardian {
         _pause();
+        emit EventsLib.ProtocolPaused(msg.sender);
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function unpause() external onlyConfig {
+    function unpause() external onlyOwner {
         _unpause();
+        emit EventsLib.ProtocolUnpaused(msg.sender);
     }
 
     /* -------------------------------------------------------------------------- */

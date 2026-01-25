@@ -254,26 +254,6 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         emit EventsLib.GuardianUpdated(_guardian);
     }
 
-    /// @notice Pauses all protocol operations across orchestrators
-    /// @dev Can only be called by guardian or owner
-    ///      Pauses LiquidityOrchestrator
-    function pauseAll() external {
-        if (msg.sender != guardian && msg.sender != owner()) revert ErrorsLib.NotAuthorized();
-
-        ILiquidityOrchestrator(liquidityOrchestrator).pause();
-
-        emit EventsLib.ProtocolPaused(msg.sender);
-    }
-
-    /// @notice Unpauses all protocol operations across orchestrators
-    /// @dev Can only be called by owner (not guardian: requires owner approval to resume)
-    ///      Unpauses LiquidityOrchestrator
-    function unpauseAll() external onlyOwner {
-        ILiquidityOrchestrator(liquidityOrchestrator).unpause();
-
-        emit EventsLib.ProtocolUnpaused(msg.sender);
-    }
-
     // === Whitelist Functions ===
 
     /// @inheritdoc IOrionConfig
