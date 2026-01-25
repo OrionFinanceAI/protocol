@@ -312,8 +312,8 @@ contract LiquidityOrchestrator is
         IERC20(underlyingAsset).safeTransfer(msg.sender, amount);
 
         emit EventsLib.ProtocolFeesClaimed(amount);
-        // TODO: when pendingProtocolFees states updated in LO, emit event also when accrued.
-        // Do so by accruing component, like done for vault fees.
+        // TODO: when pendingProtocolFees updated in LO from zkVM inputs, emit event also when accrued.
+        // If possible, do so by accruing component, like done for vault fees.
     }
 
     /// @inheritdoc ILiquidityOrchestrator
