@@ -330,6 +330,17 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     }
 
     /// @inheritdoc IOrionConfig
+    function getAllTokenDecimals() external view returns (uint8[] memory decimals) {
+        uint16 length = uint16(whitelistedAssets.length());
+        decimals = new uint8[](length);
+        for (uint16 i = 0; i < length; ++i) {
+            address asset = whitelistedAssets.at(i);
+            decimals[i] = tokenDecimals[asset];
+        }
+        return decimals;
+    }
+
+    /// @inheritdoc IOrionConfig
     function isWhitelisted(address asset) external view returns (bool) {
         return whitelistedAssets.contains(asset);
     }

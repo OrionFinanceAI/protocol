@@ -102,10 +102,6 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
         IOrionVault.FeeModel[] vaultFeeModels;
         /// @notice Epoch state commitment
         bytes32 epochStateCommitment;
-        /// @notice Underlying asset address
-        address underlyingAsset;
-        /// @notice Underlying asset decimals
-        uint8 underlyingDecimals;
         /// @notice Price adapter decimals
         uint8 priceAdapterDecimals;
         /// @notice Strategist intent decimals

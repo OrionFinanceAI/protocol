@@ -92,6 +92,11 @@ interface IOrionConfig {
     /// @return An array of whitelisted asset addresses
     function getAllWhitelistedAssets() external view returns (address[] memory);
 
+    /// @notice Returns the token decimals for all whitelisted assets
+    /// @dev Returns decimals in the same order as getAllWhitelistedAssets()
+    /// @return decimals Array of token decimals corresponding to whitelisted assets
+    function getAllTokenDecimals() external view returns (uint8[] memory decimals);
+
     /// @notice Checks if an asset is whitelisted
     /// @param asset The address of the asset to check
     /// @return True if the asset is whitelisted, false otherwise
