@@ -128,7 +128,9 @@ library EventsLib {
 
     /// @notice A new epoch has started.
     /// @param epochCounter The current epoch counter.
-    event EpochStart(uint256 indexed epochCounter);
+    /// @param assets Array of asset addresses.
+    /// @param prices Array of asset prices (parallel to assets array).
+    event EpochStart(uint256 indexed epochCounter, address[] assets, uint256[] prices);
 
     /// @notice The portfolio has been rebalanced.
     /// @param epochCounter The current epoch counter.
