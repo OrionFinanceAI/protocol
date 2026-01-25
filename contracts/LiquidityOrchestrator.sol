@@ -483,11 +483,13 @@ contract LiquidityOrchestrator is
             }
 
             address[] memory assets = config.getAllWhitelistedAssets();
+            uint256[] memory prices = new uint256[](assets.length);
             for (uint16 i = 0; i < assets.length; ++i) {
-                _currentEpoch.pricesEpoch[assets[i]] = priceAdapterRegistry.getPrice(assets[i]);
+                uint256 price = priceAdapterRegistry.getPrice(assets[i]);
+                _currentEpoch.pricesEpoch[assets[i]] = price;
+                prices[i] = price;
             }
-
-            emit EventsLib.EpochStart(epochCounter);
+            emit EventsLib.EpochStart(epochCounter, assets, prices);
         }
     }
 
@@ -656,6 +658,7 @@ contract LiquidityOrchestrator is
     }
 
     /// @notice Handles the sell action
+    /// @param states The states for rebalancing and vault state updates
     function _processSellLeg(StatesStruct memory states) internal {
         (
             address[] memory sellingTokens,
@@ -674,6 +677,7 @@ contract LiquidityOrchestrator is
     }
 
     /// @notice Handles the buy action
+    /// @param states The states for rebalancing and vault state updates
     // slither-disable-next-line reentrancy-no-eth
     function _processBuyLeg(StatesStruct memory states) internal {
         address[] memory buyingTokens = new address[](0);
@@ -749,6 +753,7 @@ contract LiquidityOrchestrator is
     }
 
     /// @notice Handles the vault operations
+    /// @param states The states for rebalancing and vault state updates
     function _processVaultOperations(StatesStruct memory states) internal {
         // Process transparent vaults
         address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
