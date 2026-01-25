@@ -96,8 +96,6 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
         uint16 activeVFeeCoefficient;
         /// @notice Active revenue share fee coefficient for current epoch
         uint16 activeRsFeeCoefficient;
-        /// @notice Vault addresses
-        address[] vaultAddresses;
         /// @notice Active fee models for vaults in current epoch
         IOrionVault.FeeModel[] vaultFeeModels;
         /// @notice Epoch state commitment
