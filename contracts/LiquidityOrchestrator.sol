@@ -505,32 +505,36 @@ contract LiquidityOrchestrator is
         VaultStateData memory vaultData = _getVaultStateData();
 
         bytes32 protocolStateHash = _buildProtocolStateHash();
+
         bytes32 assetsHash = _aggregateAssetLeaves(assets, assetPrices);
+
         bytes32 vaultsHash = _aggregateVaultLeaves(vaultData);
-        return
-            keccak256(
-                abi.encode("PROTOCOL_STATES", protocolStateHash, "ASSET_STATES", assetsHash, "VAULT_STATES", vaultsHash)
-            );
+
+        bytes32 epochStateCommitment = keccak256(
+            abi.encode(protocolStateHash, assetsHash, vaultsHash)
+        );
+
+        return epochStateCommitment;
     }
 
     /// @notice Builds the protocol state hash from static epoch parameters
     /// @return The protocol state hash
     function _buildProtocolStateHash() internal view returns (bytes32) {
-        return
-            keccak256(
-                abi.encode(
-                    _currentEpoch.activeVFeeCoefficient,
-                    _currentEpoch.activeRsFeeCoefficient,
-                    config.maxFulfillBatchSize(),
-                    targetBufferRatio,
-                    bufferAmount,
-                    config.priceAdapterDecimals(),
-                    config.strategistIntentDecimals(),
-                    epochDuration,
-                    config.getAllWhitelistedAssets(),
-                    config.getAllTokenDecimals()
-                )
-            );
+        bytes32 protocolStateHash = keccak256(
+            abi.encode(
+                _currentEpoch.activeVFeeCoefficient,
+                _currentEpoch.activeRsFeeCoefficient,
+                config.maxFulfillBatchSize(),
+                targetBufferRatio,
+                bufferAmount,
+                config.priceAdapterDecimals(),
+                config.strategistIntentDecimals(),
+                epochDuration,
+                config.getAllWhitelistedAssets(),
+                config.getAllTokenDecimals()
+            )
+        );
+        return protocolStateHash;
     }
 
     /// @notice Aggregates asset leaves using sequential folding
@@ -554,7 +558,8 @@ contract LiquidityOrchestrator is
     /// @return The aggregated vaults hash
     function _aggregateVaultLeaves(VaultStateData memory vaultData) internal view returns (bytes32) {
         bytes32 vaultsHash = bytes32(0);
-        for (uint16 i = 0; i < _currentEpoch.vaultsEpoch.length; ++i) {
+        uint16 vaultCount = uint16(_currentEpoch.vaultsEpoch.length);
+        for (uint16 i = 0; i < vaultCount; ++i) {
             bytes32 portfolioHash = keccak256(abi.encode(vaultData.portfolioTokens[i], vaultData.portfolioShares[i]));
             bytes32 intentHash = keccak256(abi.encode(vaultData.intentTokens[i], vaultData.intentWeights[i]));
 
