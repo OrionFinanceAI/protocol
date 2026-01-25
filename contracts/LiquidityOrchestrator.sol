@@ -814,14 +814,7 @@ contract LiquidityOrchestrator is
         vaultContract.updateVaultState(tokens, shares, finalTotalAssets);
 
         if (config.isDecommissioningVault(vaultAddress)) {
-            for (uint16 i = 0; i < tokens.length; ++i) {
-                if (tokens[i] == address(underlyingAsset)) {
-                    if (shares[i] == finalTotalAssets) {
-                        config.completeVaultDecommissioning(vaultAddress);
-                        break;
-                    }
-                }
-            }
+            config.completeVaultDecommissioning(vaultAddress);
         }
     }
 
