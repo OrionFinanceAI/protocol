@@ -47,8 +47,31 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     }
 
     struct StatesStruct {
-        bytes32 inputCommitment;
-        // TODO: dev, testing an ISO map equal to the input state commitment only
+        VaultState[] vaults;
+        BuyLegOrders buyLeg;
+        SellLegOrders sellLeg;
+    }
+
+    struct VaultState {
+        uint256 totalAssetsForRedeem;
+        uint256 totalAssetsForDeposit;
+        uint256 finalTotalAssets;
+        uint256 managementFee;
+        uint256 performanceFee;
+        address[] tokens;
+        uint256[] shares;
+    }
+
+    struct SellLegOrders {
+        address[] sellingTokens;
+        uint256[] sellingAmounts;
+        uint256[] sellingEstimatedUnderlyingAmounts;
+    }
+
+    struct BuyLegOrders {
+        address[] buyingTokens;
+        uint256[] buyingAmounts;
+        uint256[] buyingEstimatedUnderlyingAmounts;
     }
 
     /// @notice Returns the current upkeep phase
