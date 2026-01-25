@@ -118,6 +118,7 @@ describe("Passive Strategist", function () {
     // Configure protocol
     await orionConfig.connect(owner).updateProtocolFees(10, 1000);
     await liquidityOrchestrator.setTargetBufferRatio(100); // 1% target buffer ratio
+    await liquidityOrchestrator.setSlippageTolerance(50); // 0.5% slippage
 
     const OrionAssetERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
       "OrionAssetERC4626ExecutionAdapter",

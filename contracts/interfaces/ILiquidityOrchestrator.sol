@@ -137,9 +137,11 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
 
     /// @notice Sets the target buffer ratio
     /// @param _targetBufferRatio The new target buffer ratio
-    /// @dev Slippage tolerance is set to 50% of targetBufferRatio to support worst-case scenario prices
-    ///      and full NAV rebalancing. This ensures ALL trades pass even with maximum price impact.
     function setTargetBufferRatio(uint256 _targetBufferRatio) external;
+
+    /// @notice Sets the slippage tolerance
+    /// @param _slippageTolerance The new slippage tolerance
+    function setSlippageTolerance(uint256 _slippageTolerance) external;
 
     /// @notice Claim protocol fees with specified amount
     /// @dev Called by the Owner to claim a specific amount of protocol fees
