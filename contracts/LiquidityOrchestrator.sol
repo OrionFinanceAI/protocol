@@ -505,6 +505,7 @@ contract LiquidityOrchestrator is
     }
 
     /// @notice Builds an epoch state commitment from the full epoch state
+    /// @dev Uses domain separation for cryptographic robustness.
     /// @return The epoch state commitment
     function _buildEpochStateCommitment() internal view returns (bytes32) {
         address[] memory assets = config.getAllWhitelistedAssets();
@@ -514,7 +515,10 @@ contract LiquidityOrchestrator is
         bytes32 protocolStateHash = _buildProtocolStateHash();
         bytes32 assetsHash = _aggregateAssetLeaves(assets, assetPrices);
         bytes32 vaultsHash = _aggregateVaultLeaves(vaultData);
-        return keccak256(abi.encode(protocolStateHash, assetsHash, vaultsHash));
+        return
+            keccak256(
+                abi.encode("PROTOCOL_STATES", protocolStateHash, "ASSET_STATES", assetsHash, "VAULT_STATES", vaultsHash)
+            );
     }
 
     /// @notice Builds the protocol state hash from static epoch parameters
