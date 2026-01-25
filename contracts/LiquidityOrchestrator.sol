@@ -131,18 +131,6 @@ contract LiquidityOrchestrator is
         mapping(address => IOrionVault.FeeModel) feeModel;
         /// @notice Epoch state commitment
         bytes32 epochStateCommitment;
-        /// @notice Underlying asset address
-        address underlyingAssetSnapshot;
-        /// @notice Underlying asset decimals
-        uint8 underlyingDecimals;
-        /// @notice Price adapter decimals
-        uint8 priceAdapterDecimals;
-        /// @notice Strategist intent decimals
-        uint8 strategistIntentDecimals;
-        /// @notice Epoch duration
-        uint32 epochDurationSnapshot;
-        /// @notice Token decimals for each asset
-        mapping(address => uint8) tokenDecimals;
     }
 
     /// @notice Current epoch state
@@ -327,6 +315,7 @@ contract LiquidityOrchestrator is
     /// @inheritdoc ILiquidityOrchestrator
     function getEpochState() external view returns (ILiquidityOrchestrator.EpochStateView memory) {
         address[] memory assets = config.getAllWhitelistedAssets();
+        uint8[] memory assetTokenDecimals = config.getAllTokenDecimals();
         uint256[] memory assetPrices = _getAssetPrices(assets);
         address[] memory vaults = _currentEpoch.vaultsEpoch;
 
@@ -334,11 +323,6 @@ contract LiquidityOrchestrator is
         IOrionVault.FeeModel[] memory vaultFeeModels = new IOrionVault.FeeModel[](vaults.length);
         for (uint16 i = 0; i < vaults.length; ++i) {
             vaultFeeModels[i] = _currentEpoch.feeModel[vaults[i]];
-        }
-
-        uint8[] memory assetTokenDecimals = new uint8[](assets.length);
-        for (uint16 i = 0; i < assets.length; ++i) {
-            assetTokenDecimals[i] = _currentEpoch.tokenDecimals[assets[i]];
         }
 
         return
@@ -353,11 +337,9 @@ contract LiquidityOrchestrator is
                 vaultAddresses: vaults,
                 vaultFeeModels: vaultFeeModels,
                 epochStateCommitment: _currentEpoch.epochStateCommitment,
-                underlyingAsset: _currentEpoch.underlyingAssetSnapshot,
-                underlyingDecimals: _currentEpoch.underlyingDecimals,
-                priceAdapterDecimals: _currentEpoch.priceAdapterDecimals,
-                strategistIntentDecimals: _currentEpoch.strategistIntentDecimals,
-                epochDuration: _currentEpoch.epochDurationSnapshot
+                priceAdapterDecimals: config.priceAdapterDecimals(),
+                strategistIntentDecimals: config.strategistIntentDecimals(),
+                epochDuration: epochDuration
             });
     }
 
@@ -503,16 +485,9 @@ contract LiquidityOrchestrator is
                 _currentEpoch.feeModel[vault] = feeModel;
             }
 
-            _currentEpoch.underlyingAssetSnapshot = underlyingAsset;
-            _currentEpoch.underlyingDecimals = IERC20Metadata(underlyingAsset).decimals();
-            _currentEpoch.priceAdapterDecimals = config.priceAdapterDecimals();
-            _currentEpoch.strategistIntentDecimals = config.strategistIntentDecimals();
-            _currentEpoch.epochDurationSnapshot = epochDuration;
-
             address[] memory assets = config.getAllWhitelistedAssets();
             for (uint16 i = 0; i < assets.length; ++i) {
                 _currentEpoch.pricesEpoch[assets[i]] = priceAdapterRegistry.getPrice(assets[i]);
-                _currentEpoch.tokenDecimals[assets[i]] = IERC20Metadata(assets[i]).decimals();
             }
 
             emit EventsLib.EpochStart(epochCounter);
@@ -550,10 +525,7 @@ contract LiquidityOrchestrator is
     /// @return The protocol state hash
     function _buildProtocolStateHash() internal view returns (bytes32) {
         address[] memory assets = config.getAllWhitelistedAssets();
-        uint8[] memory assetTokenDecimals = new uint8[](assets.length);
-        for (uint16 i = 0; i < assets.length; ++i) {
-            assetTokenDecimals[i] = _currentEpoch.tokenDecimals[assets[i]];
-        }
+        uint8[] memory assetTokenDecimals = config.getAllTokenDecimals();
 
         return
             keccak256(
@@ -564,11 +536,9 @@ contract LiquidityOrchestrator is
                     config.maxFulfillBatchSize(),
                     targetBufferRatio,
                     bufferAmount,
-                    _currentEpoch.underlyingAssetSnapshot,
-                    _currentEpoch.underlyingDecimals,
-                    _currentEpoch.priceAdapterDecimals,
-                    _currentEpoch.strategistIntentDecimals,
-                    _currentEpoch.epochDurationSnapshot,
+                    config.priceAdapterDecimals(),
+                    config.strategistIntentDecimals(),
+                    epochDuration,
                     assets,
                     assetTokenDecimals
                 )
