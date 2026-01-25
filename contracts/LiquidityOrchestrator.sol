@@ -444,13 +444,13 @@ contract LiquidityOrchestrator is
             currentPhase = LiquidityUpkeepPhase.SellingLeg;
         } else if (currentPhase == LiquidityUpkeepPhase.SellingLeg) {
             StatesStruct memory states = _verifyPerformData(performData);
-            _processSellLeg(states);
+            _processSellLeg(states.sellLeg);
         } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
             StatesStruct memory states = _verifyPerformData(performData);
-            _processBuyLeg(states);
+            _processBuyLeg(states.buyLeg);
         } else if (currentPhase == LiquidityUpkeepPhase.ProcessVaultOperations) {
             StatesStruct memory states = _verifyPerformData(performData);
-            _processVaultOperations(states);
+            _processVaultOperations(states.vaults);
         }
     }
 
@@ -658,40 +658,29 @@ contract LiquidityOrchestrator is
     }
 
     /// @notice Handles the sell action
-    /// @param states The states for rebalancing and vault state updates
-    function _processSellLeg(StatesStruct memory states) internal {
-        (
-            address[] memory sellingTokens,
-            uint256[] memory sellingAmounts,
-            uint256[] memory sellingEstimatedUnderlyingAmounts
-        ) = (new address[](0), new uint256[](0), new uint256[](0)); // TODO: implement getOrders(true);
-
+    /// @param sellLeg The sell leg orders
+    function _processSellLeg(SellLegOrders memory sellLeg) internal {
         currentPhase = LiquidityUpkeepPhase.BuyingLeg;
 
-        for (uint16 i = 0; i < sellingTokens.length; ++i) {
-            address token = sellingTokens[i];
+        for (uint16 i = 0; i < sellLeg.sellingTokens.length; ++i) {
+            address token = sellLeg.sellingTokens[i];
             if (token == address(underlyingAsset)) continue;
-            uint256 amount = sellingAmounts[i];
-            _executeSell(token, amount, sellingEstimatedUnderlyingAmounts[i]);
+            uint256 amount = sellLeg.sellingAmounts[i];
+            _executeSell(token, amount, sellLeg.sellingEstimatedUnderlyingAmounts[i]);
         }
     }
 
     /// @notice Handles the buy action
-    /// @param states The states for rebalancing and vault state updates
+    /// @param buyLeg The buy leg orders
     // slither-disable-next-line reentrancy-no-eth
-    function _processBuyLeg(StatesStruct memory states) internal {
-        address[] memory buyingTokens = new address[](0);
-        uint256[] memory buyingAmounts = new uint256[](0);
-        uint256[] memory buyingEstimatedUnderlyingAmounts = new uint256[](0);
-        // TODO: implement getOrders(false);
-
+    function _processBuyLeg(BuyLegOrders memory buyLeg) internal {
         currentPhase = LiquidityUpkeepPhase.ProcessVaultOperations;
 
-        for (uint16 i = 0; i < buyingTokens.length; ++i) {
-            address token = buyingTokens[i];
+        for (uint16 i = 0; i < buyLeg.buyingTokens.length; ++i) {
+            address token = buyLeg.buyingTokens[i];
             if (token == address(underlyingAsset)) continue;
-            uint256 amount = buyingAmounts[i];
-            _executeBuy(token, amount, buyingEstimatedUnderlyingAmounts[i]);
+            uint256 amount = buyLeg.buyingAmounts[i];
+            _executeBuy(token, amount, buyLeg.buyingEstimatedUnderlyingAmounts[i]);
         }
 
         _updateBufferAmount(_currentEpoch.deltaBufferAmount);
@@ -753,17 +742,17 @@ contract LiquidityOrchestrator is
     }
 
     /// @notice Handles the vault operations
-    /// @param states The states for rebalancing and vault state updates
-    function _processVaultOperations(StatesStruct memory states) internal {
-        // Process transparent vaults
-        address[] memory transparentVaults = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
+    /// @param vaults The vault states
+    /// @dev vaults[] shall match _currentEpoch.vaultsEpoch[] in order
+    function _processVaultOperations(VaultState[] memory vaults) internal {
+        address[] memory vaultsEpoch = _currentEpoch.vaultsEpoch;
 
         uint16 i0 = currentMinibatchIndex * minibatchSize;
         uint16 i1 = i0 + minibatchSize;
         ++currentMinibatchIndex;
 
-        if (i1 > transparentVaults.length || i1 == transparentVaults.length) {
-            i1 = uint16(transparentVaults.length);
+        if (i1 > vaultsEpoch.length || i1 == vaultsEpoch.length) {
+            i1 = uint16(vaultsEpoch.length);
             currentPhase = LiquidityUpkeepPhase.Idle;
             currentMinibatchIndex = 0;
             _nextUpdateTime = block.timestamp + epochDuration;
@@ -772,26 +761,42 @@ contract LiquidityOrchestrator is
         }
 
         for (uint16 i = i0; i < i1; ++i) {
-            address vault = transparentVaults[i];
-            (uint256 totalAssetsForRedeem, uint256 totalAssetsForDeposit, uint256 finalTotalAssets) = (0, 0, 0);
-            // TODO: implement getVaultTotalAssetsAll(vault);
+            address vaultAddress = vaultsEpoch[i];
+            VaultState memory vaultState = vaults[i];
 
-            _processSingleVaultOperations(vault, totalAssetsForDeposit, totalAssetsForRedeem, finalTotalAssets);
+            _processSingleVaultOperations(
+                vaultAddress,
+                vaultState.totalAssetsForDeposit,
+                vaultState.totalAssetsForRedeem,
+                vaultState.finalTotalAssets,
+                vaultState.managementFee,
+                vaultState.performanceFee,
+                vaultState.tokens,
+                vaultState.shares
+            );
         }
     }
 
     /// @notice Processes deposit and redeem operations for a single vault
-    /// @param vault The vault address
+    /// @param vaultAddress The vault address
     /// @param totalAssetsForDeposit The total assets for deposit operations
     /// @param totalAssetsForRedeem The total assets for redeem operations
     /// @param finalTotalAssets The final total assets for the vault
+    /// @param managementFee The management fee to accrue
+    /// @param performanceFee The performance fee to accrue
+    /// @param tokens The portfolio token addresses
+    /// @param shares The portfolio token number of shares
     function _processSingleVaultOperations(
-        address vault,
+        address vaultAddress,
         uint256 totalAssetsForDeposit,
         uint256 totalAssetsForRedeem,
-        uint256 finalTotalAssets
+        uint256 finalTotalAssets,
+        uint256 managementFee,
+        uint256 performanceFee,
+        address[] memory tokens,
+        uint256[] memory shares
     ) internal {
-        IOrionTransparentVault vaultContract = IOrionTransparentVault(vault);
+        IOrionTransparentVault vaultContract = IOrionTransparentVault(vaultAddress);
 
         uint256 maxFulfillBatchSize = config.maxFulfillBatchSize();
         uint256 pendingRedeem = vaultContract.pendingRedeem(maxFulfillBatchSize);
@@ -805,19 +810,14 @@ contract LiquidityOrchestrator is
             vaultContract.fulfillDeposit(totalAssetsForDeposit);
         }
 
-        (uint256 managementFee, uint256 performanceFee) = (0, 0); // TODO: implement getVaultFee(vault);
-        IOrionVault(vault).accrueVaultFees(managementFee, performanceFee);
-
-        address[] memory tokens = new address[](0);
-        uint256[] memory shares = new uint256[](0);
-        // TODO: implement getVaultPortfolio(vault);
+        IOrionVault(vaultAddress).accrueVaultFees(managementFee, performanceFee);
         vaultContract.updateVaultState(tokens, shares, finalTotalAssets);
 
-        if (config.isDecommissioningVault(vault)) {
+        if (config.isDecommissioningVault(vaultAddress)) {
             for (uint16 i = 0; i < tokens.length; ++i) {
                 if (tokens[i] == address(underlyingAsset)) {
                     if (shares[i] == finalTotalAssets) {
-                        config.completeVaultDecommissioning(vault);
+                        config.completeVaultDecommissioning(vaultAddress);
                         break;
                     }
                 }
