@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import "@chainlink/contracts/src/v0.8/automation/AutomationCompatible.sol";
 import "./IExecutionAdapter.sol";
 import "./IOrionVault.sol";
 
@@ -9,7 +8,7 @@ import "./IOrionVault.sol";
 /// @notice Interface for the liquidity orchestrator
 /// @author Orion Finance
 /// @custom:security-contact security@orionfinance.ai
-interface ILiquidityOrchestrator is AutomationCompatibleInterface {
+interface ILiquidityOrchestrator {
     /// @notice Upkeep phase enum for liquidity orchestration
     enum LiquidityUpkeepPhase {
         Idle,
@@ -31,12 +30,6 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
         uint256[][] portfolioShares;
         address[][] intentTokens;
         uint32[][] intentWeights;
-    }
-
-    struct PerformDataStruct {
-        bytes _publicValues;
-        bytes proofBytes;
-        StatesStruct states;
     }
 
     struct PublicValuesStruct {
@@ -204,4 +197,20 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @dev Can only be called by owner after resolving emergency
     ///      (not guardian: requires owner approval to resume)
     function unpause() external;
+
+    /// @notice Checks if upkeep is needed
+    /// @return upkeepNeeded Whether upkeep is needed
+    /// @dev the API is inspired but different from the Chainlink Automation interface.
+    function checkUpkeep() external view returns (bool upkeepNeeded);
+
+    /// @notice Performs the upkeep
+    /// @param _publicValues Encoded PublicValuesStruct containing input and output commitments
+    /// @param proofBytes The zk-proof bytes
+    /// @param statesBytes Encoded StatesStruct containing vaults, buy leg, and sell leg data
+    /// @dev the API is inspired but different from the Chainlink Automation interface.
+    function performUpkeep(
+        bytes calldata _publicValues,
+        bytes calldata proofBytes,
+        bytes calldata statesBytes
+    ) external;
 }

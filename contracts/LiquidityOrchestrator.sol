@@ -399,11 +399,8 @@ contract LiquidityOrchestrator is
     /*                                UPKEEP FUNCTIONS                            */
     /* -------------------------------------------------------------------------- */
 
-    /// @notice Checks if the upkeep is needed
-    /// @dev https://docs.chain.link/chainlink-automation/reference/automation-interfaces
-    /// @return upkeepNeeded Whether the upkeep is needed
-    /// @return performData Empty bytes
-    function checkUpkeep(bytes calldata) external view override returns (bool upkeepNeeded, bytes memory performData) {
+    /// @inheritdoc ILiquidityOrchestrator
+    function checkUpkeep() external view returns (bool upkeepNeeded) {
         if (currentPhase == LiquidityUpkeepPhase.Idle && _shouldTriggerUpkeep()) {
             upkeepNeeded = true;
         } else if (currentPhase == LiquidityUpkeepPhase.StateCommitment) {
@@ -417,27 +414,27 @@ contract LiquidityOrchestrator is
         } else {
             upkeepNeeded = false;
         }
-        performData = "";
     }
 
-    /// @notice Performs the upkeep
-    /// @param performData Encoded data containing (_publicValues, _proofBytes, _statesBytes)
+    /// @inheritdoc ILiquidityOrchestrator
     function performUpkeep(
-        bytes calldata performData
-    ) external override onlyAuthorizedTrigger nonReentrant whenNotPaused {
+        bytes calldata _publicValues,
+        bytes calldata proofBytes,
+        bytes calldata statesBytes
+    ) external onlyAuthorizedTrigger nonReentrant whenNotPaused {
         if (currentPhase == LiquidityUpkeepPhase.Idle && _shouldTriggerUpkeep()) {
             _handleStart();
         } else if (currentPhase == LiquidityUpkeepPhase.StateCommitment) {
             _currentEpoch.epochStateCommitment = _buildEpochStateCommitment();
             currentPhase = LiquidityUpkeepPhase.SellingLeg;
         } else if (currentPhase == LiquidityUpkeepPhase.SellingLeg) {
-            StatesStruct memory states = _verifyPerformData(performData);
+            StatesStruct memory states = _verifyPerformData(_publicValues, proofBytes, statesBytes);
             _processSellLeg(states.sellLeg);
         } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
-            StatesStruct memory states = _verifyPerformData(performData);
+            StatesStruct memory states = _verifyPerformData(_publicValues, proofBytes, statesBytes);
             _processBuyLeg(states.buyLeg);
         } else if (currentPhase == LiquidityUpkeepPhase.ProcessVaultOperations) {
-            StatesStruct memory states = _verifyPerformData(performData);
+            StatesStruct memory states = _verifyPerformData(_publicValues, proofBytes, statesBytes);
             _processVaultOperations(states.vaults);
         }
     }
@@ -624,28 +621,29 @@ contract LiquidityOrchestrator is
     }
 
     /// @notice Verifies the perform data
-    /// @param performData The perform data
-    /// @return states The states
-    function _verifyPerformData(bytes calldata performData) internal view returns (StatesStruct memory states) {
-        PerformDataStruct memory performDataStruct = abi.decode(performData, (PerformDataStruct));
-        bytes memory _publicValues = performDataStruct._publicValues;
+    /// @param _publicValues Encoded PublicValuesStruct containing input and output commitments
+    /// @param proofBytes The zk-proof bytes
+    /// @param statesBytes Encoded StatesStruct containing vaults, buy leg, and sell leg data
+    /// @return states The decoded StatesStruct
+    function _verifyPerformData(
+        bytes calldata _publicValues,
+        bytes calldata proofBytes,
+        bytes calldata statesBytes
+    ) internal view returns (StatesStruct memory states) {        
         PublicValuesStruct memory publicValues = abi.decode(_publicValues, (PublicValuesStruct));
-
         // Verify that the proof's input commitment matches the onchain input commitment
         if (publicValues.inputCommitment != _currentEpoch.epochStateCommitment) {
             revert ErrorsLib.CommitmentMismatch(publicValues.inputCommitment, _currentEpoch.epochStateCommitment);
         }
-
-        states = performDataStruct.states;
+        
+        // Decode statesBytes onchain
+        states = abi.decode(statesBytes, (StatesStruct));
 
         // Verify that the computed output commitment matches the one in public values
         bytes32 outputCommitment = keccak256(abi.encode(states));
         if (publicValues.outputCommitment != outputCommitment) {
             revert ErrorsLib.CommitmentMismatch(publicValues.outputCommitment, outputCommitment);
         }
-
-        bytes memory proofBytes = performDataStruct.proofBytes;
-
         verifier.verifyProof(vKey, _publicValues, proofBytes);
     }
 

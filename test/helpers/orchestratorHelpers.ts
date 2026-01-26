@@ -3,6 +3,8 @@ import { time } from "@nomicfoundation/hardhat-network-helpers";
 import { expect } from "chai";
 
 import { LiquidityOrchestrator } from "../../typechain-types";
+import { readFileSync } from "fs";
+import { join } from "path";
 
 /**
  * @title Orchestrator Test Helper Functions
@@ -21,25 +23,11 @@ export async function advanceEpochTime(liquidityOrchestrator: LiquidityOrchestra
   await time.increase(epochDuration + 1n);
 }
 
-/**
- * Process all minibatches in current LO phase until phase changes
- * @param liquidityOrchestrator The LO contract instance
- * @param automationRegistry Signer that can call performUpkeep
- */
-export async function processCurrentLOPhase(
-  liquidityOrchestrator: LiquidityOrchestrator,
-  automationRegistry: SignerWithAddress,
-): Promise<void> {
-  const initialPhase = await liquidityOrchestrator.currentPhase();
-  let currentPhase = initialPhase;
-
-  while (currentPhase === initialPhase) {
-    const [upkeepNeeded, performData] = await liquidityOrchestrator.checkUpkeep("0x");
-    if (!upkeepNeeded) break;
-
-    await liquidityOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    currentPhase = await liquidityOrchestrator.currentPhase();
-  }
+interface Groth16Fixture {
+  vkey: string;
+  publicValues: string;
+  proofBytes: string;
+  statesBytes: string;
 }
 
 /**
@@ -48,23 +36,35 @@ export async function processCurrentLOPhase(
 export async function processFullEpoch(
   liquidityOrchestrator: LiquidityOrchestrator,
   automationRegistry: SignerWithAddress,
+  fixtureName: string,
 ): Promise<void> {
   // Verify starting from Idle
   expect(await liquidityOrchestrator.currentPhase()).to.equal(0n);
-
+  
   // Advance time
   await advanceEpochTime(liquidityOrchestrator);
 
-  const [upkeepNeeded, performData] = await liquidityOrchestrator.checkUpkeep("0x");
-  void expect(upkeepNeeded).to.be.true;
+  // Load fixture data
+  const fixturePath = join(__dirname, `../fixtures/${fixtureName}.json`);
+  const fixture: Groth16Fixture = JSON.parse(
+    readFileSync(fixturePath, "utf-8")
+  );
 
-  // Start LO epoch
-  await liquidityOrchestrator.connect(automationRegistry).performUpkeep(performData);
+  // Process first upkeep (phase 0 -> 1): always use dummy proofs
+  await liquidityOrchestrator.connect(automationRegistry).performUpkeep("0x", "0x", "0x");
 
-  // Process all LO phases until back to Idle
+  // Process all remaining LO phases until back to Idle
   let currentPhase = await liquidityOrchestrator.currentPhase();
   while (currentPhase !== 0n) {
-    await processCurrentLOPhase(liquidityOrchestrator, automationRegistry);
+    if (currentPhase === 1n) {
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep("0x", "0x", "0x");
+    } else {
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(
+        fixture.publicValues,
+        fixture.proofBytes,
+        fixture.statesBytes
+      );
+    }
     currentPhase = await liquidityOrchestrator.currentPhase();
   }
 

@@ -43,6 +43,11 @@ const config: HardhatUserConfig = {
     hardhat: {
       chainId: 31337,
       initialBaseFeePerGas: 0,
+      forking: {
+          url: process.env.RPC_URL!,
+          enabled: true,
+          blockNumber: 10000000,
+        },
     },
   },
   etherscan: {
