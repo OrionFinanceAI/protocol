@@ -429,6 +429,12 @@ contract LiquidityOrchestrator is
             currentPhase = LiquidityUpkeepPhase.SellingLeg;
         } else if (currentPhase == LiquidityUpkeepPhase.SellingLeg) {
             StatesStruct memory states = _verifyPerformData(_publicValues, proofBytes, statesBytes);
+
+            // Update buffer amount
+            bufferAmount = states.bufferAmount;
+            // Accrue protocol fees
+            pendingProtocolFees += states.epochProtocolFees;
+
             _processSellLeg(states.sellLeg);
         } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
             StatesStruct memory states = _verifyPerformData(_publicValues, proofBytes, statesBytes);
@@ -436,9 +442,6 @@ contract LiquidityOrchestrator is
         } else if (currentPhase == LiquidityUpkeepPhase.ProcessVaultOperations) {
             StatesStruct memory states = _verifyPerformData(_publicValues, proofBytes, statesBytes);
             _processVaultOperations(states.vaults);
-
-            // Finally, accrue protocol fees
-            pendingProtocolFees += states.epochProtocolFees;
         }
     }
 
