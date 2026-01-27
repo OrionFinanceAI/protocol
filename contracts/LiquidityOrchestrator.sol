@@ -436,6 +436,9 @@ contract LiquidityOrchestrator is
         } else if (currentPhase == LiquidityUpkeepPhase.ProcessVaultOperations) {
             StatesStruct memory states = _verifyPerformData(_publicValues, proofBytes, statesBytes);
             _processVaultOperations(states.vaults);
+
+            // Finally, accrue protocol fees
+            pendingProtocolFees += states.epochProtocolFees;
         }
     }
 
@@ -528,7 +531,8 @@ contract LiquidityOrchestrator is
                 config.strategistIntentDecimals(),
                 epochDuration,
                 config.getAllWhitelistedAssets(),
-                config.getAllTokenDecimals()
+                config.getAllTokenDecimals(),
+                config.riskFreeRate()
             )
         );
         return protocolStateHash;
@@ -569,6 +573,7 @@ contract LiquidityOrchestrator is
                     vaultData.highWaterMarks[i],
                     vaultData.pendingRedeems[i],
                     vaultData.pendingDeposits[i],
+                    vaultData.totalSupplies[i],
                     portfolioHash,
                     intentHash
                 )
@@ -600,6 +605,7 @@ contract LiquidityOrchestrator is
         vaultData.highWaterMarks = new uint256[](vaultCount);
         vaultData.pendingRedeems = new uint256[](vaultCount);
         vaultData.pendingDeposits = new uint256[](vaultCount);
+        vaultData.totalSupplies = new uint256[](vaultCount);
         vaultData.portfolioTokens = new address[][](vaultCount);
         vaultData.portfolioShares = new uint256[][](vaultCount);
         vaultData.intentTokens = new address[][](vaultCount);
@@ -615,6 +621,7 @@ contract LiquidityOrchestrator is
             vaultData.highWaterMarks[i] = feeModel.highWaterMark;
             vaultData.pendingRedeems[i] = vault.pendingRedeem(maxFulfillBatchSize);
             vaultData.pendingDeposits[i] = vault.pendingDeposit(maxFulfillBatchSize);
+            vaultData.totalSupplies[i] = vault.totalSupply();
             (vaultData.portfolioTokens[i], vaultData.portfolioShares[i]) = vault.getPortfolio();
             (vaultData.intentTokens[i], vaultData.intentWeights[i]) = vault.getIntent();
         }

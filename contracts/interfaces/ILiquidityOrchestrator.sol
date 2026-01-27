@@ -26,6 +26,7 @@ interface ILiquidityOrchestrator {
         uint256[] highWaterMarks;
         uint256[] pendingRedeems;
         uint256[] pendingDeposits;
+        uint256[] totalSupplies;
         address[][] portfolioTokens;
         uint256[][] portfolioShares;
         address[][] intentTokens;
@@ -43,6 +44,7 @@ interface ILiquidityOrchestrator {
         VaultState[] vaults;
         BuyLegOrders buyLeg;
         SellLegOrders sellLeg;
+        uint256 epochProtocolFees;
     }
 
     struct VaultState {
