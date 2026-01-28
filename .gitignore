@@ -15,7 +15,6 @@ fhevmTemp/
 abi/
 .venv/
 *.egg-info/
-*.tenseal
 __pycache__/
 typechain-types/
 protocol-ops/
@@ -26,6 +25,8 @@ docs/
 res/
 running_node/
 artifacts/
+edr-cache/
+.openzeppelin/
 
 scripts/*.ts
 

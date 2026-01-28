@@ -513,9 +513,7 @@ contract LiquidityOrchestrator is
 
         bytes32 vaultsHash = _aggregateVaultLeaves(vaultData);
 
-        bytes32 epochStateCommitment = keccak256(
-            abi.encode(protocolStateHash, assetsHash, vaultsHash)
-        );
+        bytes32 epochStateCommitment = keccak256(abi.encode(protocolStateHash, assetsHash, vaultsHash));
 
         return epochStateCommitment;
     }
@@ -639,13 +637,13 @@ contract LiquidityOrchestrator is
         bytes calldata _publicValues,
         bytes calldata proofBytes,
         bytes calldata statesBytes
-    ) internal view returns (StatesStruct memory states) {        
+    ) internal view returns (StatesStruct memory states) {
         PublicValuesStruct memory publicValues = abi.decode(_publicValues, (PublicValuesStruct));
         // Verify that the proof's input commitment matches the onchain input commitment
         if (publicValues.inputCommitment != _currentEpoch.epochStateCommitment) {
             revert ErrorsLib.CommitmentMismatch(publicValues.inputCommitment, _currentEpoch.epochStateCommitment);
         }
-        
+
         // Decode statesBytes onchain
         states = abi.decode(statesBytes, (StatesStruct));
 

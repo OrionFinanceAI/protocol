@@ -17,9 +17,8 @@
  * - Depositors get shares based on post-redeem vault state
  * - No dilution attacks possible
  */
-
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
-import { ethers } from "hardhat";
+import { ethers, network } from "hardhat";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
 import { expect } from "chai";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
@@ -59,6 +58,7 @@ describe("Redeem Before Deposit Order Verification", function () {
   const NEW_DEPOSIT_AMOUNT = ethers.parseUnits("10", UNDERLYING_DECIMALS); // 10 USDC
 
   let epochDuration: bigint;
+  let initialSetupSnapshotId: string;
 
   async function captureVaultState() {
     return {
@@ -70,6 +70,16 @@ describe("Redeem Before Deposit Order Verification", function () {
   }
 
   before(async function () {
+    // Must fork at this exact block for deterministic zk fixtures
+    await network.provider.send("hardhat_reset", [
+      {
+        forking: {
+          jsonRpcUrl: process.env.RPC_URL,
+          blockNumber: 10000000,
+        },
+      },
+    ]);
+
     [owner, strategist, initialDepositor, redeemer, newDepositor, automationRegistry] = await ethers.getSigners();
 
     // Deploy underlying asset (USDC with 6 decimals)
@@ -159,9 +169,24 @@ describe("Redeem Before Deposit Order Verification", function () {
     const balanceOfVault = await vault.balanceOf(initialDepositor.address);
     const assets = await vault.convertToAssets(balanceOfVault);
     expect(assets).to.equal(expectedAssetsAfterBuffer);
+
+    initialSetupSnapshotId = (await network.provider.send("evm_snapshot", [])) as string;
   });
 
   describe("Fulfillment Order Verification", function () {
+    let fulfillmentOrderSnapshotId: string;
+
+    before(async function () {
+      await network.provider.send("evm_revert", [initialSetupSnapshotId]);
+
+      fulfillmentOrderSnapshotId = (await network.provider.send("evm_snapshot", [])) as string;
+    });
+
+    beforeEach(async function () {
+      await network.provider.send("evm_revert", [fulfillmentOrderSnapshotId]);
+      fulfillmentOrderSnapshotId = (await network.provider.send("evm_snapshot", [])) as string;
+    });
+
     it("Should process redemptions before deposits for correct share pricing", async function () {
       // Transfer shares from initialDepositor to redeemer for redemption test
       await vault.connect(initialDepositor).transfer(redeemer.address, REDEEM_AMOUNT_SHARES);
@@ -214,7 +239,9 @@ describe("Redeem Before Deposit Order Verification", function () {
       const vaultUnderlying = await underlyingAsset.balanceOf(await vault.getAddress());
 
       console.log(`Redeemer underlying balance: ${ethers.formatUnits(redeemerUnderlyingBefore, UNDERLYING_DECIMALS)}`);
-      console.log(`NewDepositor underlying balance: ${ethers.formatUnits(newDepositorUnderlying, UNDERLYING_DECIMALS)}`);
+      console.log(
+        `NewDepositor underlying balance: ${ethers.formatUnits(newDepositorUnderlying, UNDERLYING_DECIMALS)}`,
+      );
       console.log(`Vault contract underlying balance: ${ethers.formatUnits(vaultUnderlying, UNDERLYING_DECIMALS)}`);
 
       // Vault states
@@ -244,10 +271,9 @@ describe("Redeem Before Deposit Order Verification", function () {
           pendingDeposit: state.pendingDeposit ? ethers.formatUnits(state.pendingDeposit, UNDERLYING_DECIMALS) : "n/a",
         });
       }
-      // ----- END debug logging -----
 
       // Phase C: Process epoch with fixture
-      await processFullEpoch(liquidityOrchestrator, automationRegistry, "RedeemBeforeDepositOrder193");
+      await processFullEpoch(liquidityOrchestrator, automationRegistry, "FAILINGHEREISGOOD123");
 
       // Phase D: Verify correct execution order and results
       const finalState = await captureVaultState();
@@ -315,7 +341,7 @@ describe("Redeem Before Deposit Order Verification", function () {
 
       // Process epoch with fixture
       await time.increase(epochDuration + 1n);
-      await processFullEpoch(liquidityOrchestrator, automationRegistry, "RedeemBeforeDepositOrder");
+      await processFullEpoch(liquidityOrchestrator, automationRegistry, "RedeemBeforeDepositOrder3");
 
       // Verify redeemer got fair value
       const redeemerBalance = await underlyingAsset.balanceOf(redeemer.address);
@@ -351,6 +377,18 @@ describe("Redeem Before Deposit Order Verification", function () {
   });
 
   describe("Edge Cases", function () {
+    let edgeCasesSnapshotId: string;
+
+    before(async function () {
+      await network.provider.send("evm_revert", [initialSetupSnapshotId]);
+      edgeCasesSnapshotId = (await network.provider.send("evm_snapshot", [])) as string;
+    });
+
+    beforeEach(async function () {
+      await network.provider.send("evm_revert", [edgeCasesSnapshotId]);
+      edgeCasesSnapshotId = (await network.provider.send("evm_snapshot", [])) as string;
+    });
+
     it("Should handle zero redemptions gracefully (deposit-only scenario)", async function () {
       // No redemptions requested, only deposit
       await underlyingAsset.mint(newDepositor.address, NEW_DEPOSIT_AMOUNT);

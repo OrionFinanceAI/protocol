@@ -79,7 +79,7 @@ export async function deployUpgradeableProtocol(
   // https://docs.succinct.xyz/docs/sp1/verification/contract-addresses#groth16
   const verifierAddress = "0x397A5f7f3dBd538f23DE225B51f532c34448dA9B";
 
-  const vKey = "0x009c065cf5820eb17e7b9e6f4ab2f6efb002fb0d9b9a8939a8513e5807852045";
+  const vKey = "0x00c1b70c5adf583a7b15a8b171fb44764c0b97a396155c6473416d93ce7f94be";
 
   const LiquidityOrchestratorFactory = await ethers.getContractFactory("LiquidityOrchestrator");
   const liquidityOrchestrator = (await upgrades.deployProxy(
