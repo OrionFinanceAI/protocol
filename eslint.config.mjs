@@ -30,8 +30,7 @@ export default defineConfig([
     "**/typechain-types",
     "**/.venv",
     "**/fhevmTemp",
-    "**/protocol-costs",
-    "**/protocol-ops",
+    "**/scripts",
     // files
     "**/*.env",
     "**/*.log",

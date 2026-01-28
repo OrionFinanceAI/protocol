@@ -40,7 +40,7 @@ export async function processFullEpoch(
 ): Promise<void> {
   // Verify starting from Idle
   expect(await liquidityOrchestrator.currentPhase()).to.equal(0n);
-  
+
   // Advance time
   await advanceEpochTime(liquidityOrchestrator);
 
@@ -53,7 +53,6 @@ export async function processFullEpoch(
     if (currentPhase === 1n) {
       await liquidityOrchestrator.connect(automationRegistry).performUpkeep("0x", "0x", "0x");
     } else {
-      
       const fixturePath = join(__dirname, `../fixtures/${fixtureName}.json`);
       let fixture: Groth16Fixture;
       while (true) {
@@ -61,17 +60,17 @@ export async function processFullEpoch(
           fixture = JSON.parse(readFileSync(fixturePath, "utf-8"));
           break;
         } catch (err) {
-          console.log(`🚨 Fixture ${fixtureName} not found or failed to load/parse. Generate proof now and press ENTER to retry...`);
+          console.log(
+            `🚨 Fixture ${fixtureName} not found or failed to load/parse. Generate proof now and press ENTER to retry...`,
+          );
           await new Promise((resolve) => process.stdin.once("data", resolve));
           throw err;
         }
       }
 
-      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(
-        fixture.publicValues,
-        fixture.proofBytes,
-        fixture.statesBytes
-      );
+      await liquidityOrchestrator
+        .connect(automationRegistry)
+        .performUpkeep(fixture.publicValues, fixture.proofBytes, fixture.statesBytes);
     }
 
     currentPhase = await liquidityOrchestrator.currentPhase();
