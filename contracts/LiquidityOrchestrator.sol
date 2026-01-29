@@ -118,6 +118,9 @@ contract LiquidityOrchestrator is
     /// @notice Pending protocol fees [assets]
     uint256 public pendingProtocolFees;
 
+    /// @notice Tokens that failed during the current epoch's sell/buy execution (cleared at epoch end)
+    address[] private _failedEpochTokens;
+
     /// @notice Struct to hold epoch state data
     struct EpochState {
         /// @notice Transparent vaults associated to the current epoch
@@ -160,6 +163,12 @@ contract LiquidityOrchestrator is
         if (msg.sender != owner() && msg.sender != config.guardian()) {
             revert ErrorsLib.NotAuthorized();
         }
+        _;
+    }
+
+    /// @dev Restricts function to only self
+    modifier onlySelf() {
+        if (msg.sender != address(this)) revert ErrorsLib.NotAuthorized();
         _;
     }
 
@@ -335,6 +344,11 @@ contract LiquidityOrchestrator is
                 vaultFeeModels: vaultFeeModels,
                 epochStateCommitment: _currentEpoch.epochStateCommitment
             });
+    }
+
+    /// @inheritdoc ILiquidityOrchestrator
+    function getFailedEpochTokens() external view returns (address[] memory) {
+        return _failedEpochTokens;
     }
 
     /* -------------------------------------------------------------------------- */
@@ -542,7 +556,11 @@ contract LiquidityOrchestrator is
                 epochDuration,
                 config.getAllWhitelistedAssets(),
                 config.getAllTokenDecimals(),
-                config.riskFreeRate()
+                config.riskFreeRate(),
+                currentPhase,
+                currentMinibatchIndex,
+                executionMinibatchSize,
+                _failedEpochTokens
             )
         );
         return protocolStateHash;
@@ -666,22 +684,29 @@ contract LiquidityOrchestrator is
 
     /// @notice Handles the sell action
     /// @param sellLeg The sell leg orders
+    // slither-disable-next-line reentrancy-no-eth
     function _processMinibatchSell(SellLegOrders memory sellLeg) internal {
         uint16 i0 = currentMinibatchIndex * executionMinibatchSize;
         uint16 i1 = i0 + executionMinibatchSize;
-        ++currentMinibatchIndex;
 
         if (i1 > sellLeg.sellingTokens.length || i1 == sellLeg.sellingTokens.length) {
             i1 = uint16(sellLeg.sellingTokens.length);
-            currentMinibatchIndex = 0;
-            currentPhase = LiquidityUpkeepPhase.BuyingLeg;
         }
 
         for (uint16 i = i0; i < i1; ++i) {
             address token = sellLeg.sellingTokens[i];
             if (token == address(underlyingAsset)) continue;
             uint256 amount = sellLeg.sellingAmounts[i];
-            _executeSell(token, amount, sellLeg.sellingEstimatedUnderlyingAmounts[i]);
+            try this._executeSell(token, amount, sellLeg.sellingEstimatedUnderlyingAmounts[i]) {} catch {
+                _failedEpochTokens.push(token);
+                return;
+            }
+        }
+
+        ++currentMinibatchIndex;
+        if (i1 == sellLeg.sellingTokens.length) {
+            currentMinibatchIndex = 0;
+            currentPhase = LiquidityUpkeepPhase.BuyingLeg;
         }
     }
 
@@ -691,19 +716,25 @@ contract LiquidityOrchestrator is
     function _processMinibatchBuy(BuyLegOrders memory buyLeg) internal {
         uint16 i0 = currentMinibatchIndex * executionMinibatchSize;
         uint16 i1 = i0 + executionMinibatchSize;
-        ++currentMinibatchIndex;
 
         if (i1 > buyLeg.buyingTokens.length || i1 == buyLeg.buyingTokens.length) {
             i1 = uint16(buyLeg.buyingTokens.length);
-            currentMinibatchIndex = 0;
-            currentPhase = LiquidityUpkeepPhase.ProcessVaultOperations;
         }
 
         for (uint16 i = i0; i < i1; ++i) {
             address token = buyLeg.buyingTokens[i];
             if (token == address(underlyingAsset)) continue;
             uint256 amount = buyLeg.buyingAmounts[i];
-            _executeBuy(token, amount, buyLeg.buyingEstimatedUnderlyingAmounts[i]);
+            try this._executeBuy(token, amount, buyLeg.buyingEstimatedUnderlyingAmounts[i]) {} catch {
+                _failedEpochTokens.push(token);
+                return;
+            }
+        }
+
+        ++currentMinibatchIndex;
+        if (i1 == buyLeg.buyingTokens.length) {
+            currentMinibatchIndex = 0;
+            currentPhase = LiquidityUpkeepPhase.ProcessVaultOperations;
         }
     }
 
@@ -721,7 +752,7 @@ contract LiquidityOrchestrator is
     /// @param asset The asset to sell
     /// @param sharesAmount The amount of shares to sell
     /// @param estimatedUnderlyingAmount The estimated underlying amount to receive
-    function _executeSell(address asset, uint256 sharesAmount, uint256 estimatedUnderlyingAmount) internal {
+    function _executeSell(address asset, uint256 sharesAmount, uint256 estimatedUnderlyingAmount) external onlySelf {
         IExecutionAdapter adapter = executionAdapterOf[asset];
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
 
@@ -742,7 +773,7 @@ contract LiquidityOrchestrator is
     /// @param sharesAmount The amount of shares to buy
     /// @param estimatedUnderlyingAmount The estimated underlying amount to spend
     /// @dev The adapter handles slippage tolerance internally.
-    function _executeBuy(address asset, uint256 sharesAmount, uint256 estimatedUnderlyingAmount) internal {
+    function _executeBuy(address asset, uint256 sharesAmount, uint256 estimatedUnderlyingAmount) external onlySelf {
         IExecutionAdapter adapter = executionAdapterOf[asset];
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
 
@@ -778,6 +809,8 @@ contract LiquidityOrchestrator is
             _nextUpdateTime = block.timestamp + epochDuration;
             emit EventsLib.EpochEnd(epochCounter);
             ++epochCounter;
+
+            delete _failedEpochTokens;
         }
 
         for (uint16 i = i0; i < i1; ++i) {
