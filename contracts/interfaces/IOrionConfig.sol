@@ -117,6 +117,10 @@ interface IOrionConfig {
     /// @return True if the manager is whitelisted, false otherwise
     function isWhitelistedManager(address manager) external view returns (bool);
 
+    /// @notice Returns all Orion manager addresses
+    /// @return An array of Orion manager addresses
+    function getAllOrionManagers() external view returns (address[] memory);
+
     /// @notice Adds a new Orion vault to the protocol registry
     /// @dev Only callable by the vault factories contracts
     /// @param vault The address of the vault to add to the registry
