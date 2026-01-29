@@ -157,6 +157,10 @@ interface IOrionConfig {
     /// @return True if the address is a decommissioned Orion vault, false otherwise
     function isDecommissionedVault(address vault) external view returns (bool);
 
+    /// @notice Returns all decommissioned Orion vault addresses
+    /// @return An array of decommissioned vault addresses
+    function getAllDecommissionedVaults() external view returns (address[] memory);
+
     /// @notice Completes the decommissioning process for a vault
     /// @dev This function removes the vault from the active vault lists and moves it to decommissioned vaults
     /// @dev Only callable by the liquidity orchestrator after vault liquidation is complete
