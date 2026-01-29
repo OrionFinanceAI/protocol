@@ -123,6 +123,10 @@ interface ILiquidityOrchestrator {
     /// @return assetPrices Array of asset prices
     function getAssetPrices(address[] memory assets) external view returns (uint256[] memory assetPrices);
 
+    /// @notice Updates the execution minibatch size
+    /// @param _executionMinibatchSize The new execution minibatch size
+    function updateExecutionMinibatchSize(uint8 _executionMinibatchSize) external;
+
     /// @notice Updates the minibatch size for fulfill deposit and redeem processing
     /// @param _minibatchSize The new minibatch size
     function updateMinibatchSize(uint8 _minibatchSize) external;
