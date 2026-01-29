@@ -557,8 +557,6 @@ contract LiquidityOrchestrator is
                 config.getAllWhitelistedAssets(),
                 config.getAllTokenDecimals(),
                 config.riskFreeRate(),
-                currentMinibatchIndex,
-                executionMinibatchSize,
                 _failedEpochTokens
             )
         );
