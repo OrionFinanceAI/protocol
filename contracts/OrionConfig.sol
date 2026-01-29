@@ -451,6 +451,16 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     }
 
     /// @inheritdoc IOrionConfig
+    function getAllDecommissionedVaults() external view returns (address[] memory vaults) {
+        uint16 length = uint16(decommissionedVaults.length());
+        vaults = new address[](length);
+        for (uint16 i = 0; i < length; ++i) {
+            vaults[i] = decommissionedVaults.at(i);
+        }
+        return vaults;
+    }
+
+    /// @inheritdoc IOrionConfig
     function completeVaultDecommissioning(address vault) external onlyLiquidityOrchestrator {
         if (!this.isDecommissioningVault(vault)) revert ErrorsLib.InvalidAddress();
 
