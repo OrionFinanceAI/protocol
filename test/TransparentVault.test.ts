@@ -121,6 +121,24 @@ describe("TransparentVault - Strategist Pipeline", function () {
       void expect(await transparentVault.config()).to.equal(await orionConfig.getAddress());
     });
 
+    it("Should reject vault creation with name longer than 26 characters", async function () {
+      const longName = "A".repeat(27);
+      await expect(
+        transparentVaultFactory
+          .connect(owner)
+          .createVault(strategist.address, longName, "TV", 0, 0, 0, ethers.ZeroAddress),
+      ).to.be.revertedWithCustomError(transparentVaultFactory, "InvalidArguments");
+    });
+
+    it("Should reject vault creation with symbol longer than 4 characters", async function () {
+      const longSymbol = "SYMBOL";
+      await expect(
+        transparentVaultFactory
+          .connect(owner)
+          .createVault(strategist.address, "Test Vault", longSymbol, 0, 0, 0, ethers.ZeroAddress),
+      ).to.be.revertedWithCustomError(transparentVaultFactory, "InvalidArguments");
+    });
+
     it("Should reject fee update with management fee above limit", async function () {
       // Create vault with valid fees first
       const tx = await transparentVaultFactory.connect(owner).createVault(
