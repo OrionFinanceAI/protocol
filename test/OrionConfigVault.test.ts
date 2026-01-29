@@ -413,32 +413,28 @@ describe("OrionVault - Base Functionality", function () {
       await ethers.provider.send("hardhat_stopImpersonatingAccount", [loAddress]);
     });
 
-    it("Should revert when cancelling redeem request with zero amount", async function () {
-      await expect(vault.connect(user).cancelRedeemRequest(0)).to.be.revertedWithCustomError(
-        vault,
-        "AmountMustBeGreaterThanZero",
-      );
-    });
+    describe("Edge Cases", function () {
+      it("Should revert when calling cancelRedeemRequest with zero amount", async function () {
+        await expect(vault.connect(user).cancelRedeemRequest(0)).to.be.revertedWithCustomError(
+          vault,
+          "AmountMustBeGreaterThanZero",
+        );
+      });
 
-    it("Should revert when cancelling more than requested redeem amount", async function () {
-      const userShares = await vault.balanceOf(user.address);
-      expect(userShares).to.be.gt(0n, "User should have shares after deposit fulfillment");
+      it("Should revert when calling cancelRedeemRequest with amount greater than pending redeem", async function () {
+        const userShares = await vault.balanceOf(user.address);
+        expect(userShares).to.be.gt(0n, "User should have shares after deposit fulfillment");
 
-      // Use half of user's shares for redeem, then try to cancel double that amount
-      const redeemAmount = userShares / 2n;
-      const cancelAmount = redeemAmount * 2n;
+        const redeemAmount = userShares / 2n;
+        const cancelAmountGreaterThanPending = redeemAmount * 2n;
 
-      // Approve vault to transfer shares
-      await vault.connect(user).approve(await vault.getAddress(), redeemAmount);
+        await vault.connect(user).approve(await vault.getAddress(), redeemAmount);
+        await vault.connect(user).requestRedeem(redeemAmount);
 
-      // Request redeem
-      await vault.connect(user).requestRedeem(redeemAmount);
-
-      // Try to cancel more than requested
-      await expect(vault.connect(user).cancelRedeemRequest(cancelAmount)).to.be.revertedWithCustomError(
-        vault,
-        "InsufficientAmount",
-      );
+        await expect(
+          vault.connect(user).cancelRedeemRequest(cancelAmountGreaterThanPending),
+        ).to.be.revertedWithCustomError(vault, "InsufficientAmount");
+      });
     });
 
     it("Should allow user to cancel redeem request", async function () {
