@@ -2226,7 +2226,6 @@ describe("Orchestrators", function () {
         await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
       }
 
-      expect(await liquidityOrchestrator.deltaBufferAmount()).to.be.equal(0);
       expect(await InternalStateOrchestrator.bufferAmount()).to.be.gt(0);
 
       const bufferAmountAfterRebalancing = await InternalStateOrchestrator.bufferAmount();

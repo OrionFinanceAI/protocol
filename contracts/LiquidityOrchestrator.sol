@@ -115,9 +115,6 @@ contract LiquidityOrchestrator is
     /// @notice Buffer amount [assets]
     uint256 public bufferAmount;
 
-    /// @notice Delta buffer amount for current epoch [assets]
-    int256 public deltaBufferAmount;
-
     /// @notice Pending protocol fees [assets]
     uint256 public pendingProtocolFees;
 
@@ -708,11 +705,6 @@ contract LiquidityOrchestrator is
             uint256 amount = buyLeg.buyingAmounts[i];
             _executeBuy(token, amount, buyLeg.buyingEstimatedUnderlyingAmounts[i]);
         }
-
-        if (i1 == buyLeg.buyingTokens.length) {
-            _updateBufferAmount(deltaBufferAmount);
-            deltaBufferAmount = 0;
-        }
     }
 
     /// @notice Updates the buffer amount based on execution vs estimated amounts
@@ -742,7 +734,7 @@ contract LiquidityOrchestrator is
         // Clean up approval
         IERC20(asset).forceApprove(address(adapter), 0);
 
-        deltaBufferAmount += executionUnderlyingAmount.toInt256() - estimatedUnderlyingAmount.toInt256();
+        _updateBufferAmount(executionUnderlyingAmount.toInt256() - estimatedUnderlyingAmount.toInt256());
     }
 
     /// @notice Executes a buy order
@@ -766,7 +758,7 @@ contract LiquidityOrchestrator is
         // Clean up approval
         IERC20(underlyingAsset).forceApprove(address(adapter), 0);
 
-        deltaBufferAmount += estimatedUnderlyingAmount.toInt256() - executionUnderlyingAmount.toInt256();
+        _updateBufferAmount(estimatedUnderlyingAmount.toInt256() - executionUnderlyingAmount.toInt256());
     }
 
     /// @notice Handles the vault operations
