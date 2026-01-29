@@ -376,6 +376,16 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         return whitelistedManager.contains(manager);
     }
 
+    /// @inheritdoc IOrionConfig
+    function getAllOrionManagers() external view returns (address[] memory managers) {
+        uint16 length = uint16(whitelistedManager.length());
+        managers = new address[](length);
+        for (uint16 i = 0; i < length; ++i) {
+            managers[i] = whitelistedManager.at(i);
+        }
+        return managers;
+    }
+
     // === Orion Vaults ===
 
     /// @inheritdoc IOrionConfig
