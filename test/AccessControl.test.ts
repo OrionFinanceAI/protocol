@@ -44,7 +44,7 @@ describe("Access Control", function () {
       const tx = await factory.createVault(
         strategist.address,
         "Test Vault",
-        "TVAULT",
+        "TV",
         0, // feeType
         0, // performanceFee
         0, // managementFee
@@ -95,7 +95,7 @@ describe("Access Control", function () {
       const tx = await factory.createVault(
         strategist.address,
         "Gated Vault",
-        "GVAULT",
+        "GV",
         0,
         0,
         0,
@@ -193,15 +193,7 @@ describe("Access Control", function () {
 
     beforeEach(async function () {
       // Create vault without access control initially
-      const tx = await factory.createVault(
-        strategist.address,
-        "Updateable Vault",
-        "UVAULT",
-        0,
-        0,
-        0,
-        ethers.ZeroAddress,
-      );
+      const tx = await factory.createVault(strategist.address, "Updateable Vault", "UV", 0, 0, 0, ethers.ZeroAddress);
 
       const receipt = await tx.wait();
       const event = receipt?.logs.find((log) => {

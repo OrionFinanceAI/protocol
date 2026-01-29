@@ -40,19 +40,16 @@ function loadFixture(name: string): Groth16Fixture {
 /** Decode PublicValuesStruct: (bytes32 inputCommitment, bytes32 outputCommitment) */
 function decodePublicValues(hex: string): { inputCommitment: string; outputCommitment: string } {
   const data = hex.startsWith("0x") ? hex.slice(2) : hex;
-  const decoded = ethers.AbiCoder.defaultAbiCoder().decode(
-    ["bytes32", "bytes32"],
-    "0x" + data,
-  ) as unknown as [string, string];
+  const decoded = ethers.AbiCoder.defaultAbiCoder().decode(["bytes32", "bytes32"], "0x" + data) as unknown as [
+    string,
+    string,
+  ];
   return { inputCommitment: decoded[0], outputCommitment: decoded[1] };
 }
 
 /** Encode PublicValuesStruct */
 function encodePublicValues(inputCommitment: string, outputCommitment: string): string {
-  return ethers.AbiCoder.defaultAbiCoder().encode(
-    ["bytes32", "bytes32"],
-    [inputCommitment, outputCommitment],
-  );
+  return ethers.AbiCoder.defaultAbiCoder().encode(["bytes32", "bytes32"], [inputCommitment, outputCommitment]);
 }
 
 /** Flip one byte in hex string at byte index (0-based) */
@@ -85,28 +82,6 @@ describe("VerifyPerformData Rejection", function () {
   let epochDuration: bigint;
   let setupSnapshotId: string;
   let validFixture: Groth16Fixture;
-
-  /** Run one full epoch using fixture (no orchestratorHelpers). */
-  async function runOneFullEpoch() {
-    expect(await liquidityOrchestrator.currentPhase()).to.equal(0n);
-    await time.increase(Number(epochDuration) + 1);
-
-    await liquidityOrchestrator.connect(automationRegistry).performUpkeep("0x", "0x", "0x");
-
-    let currentPhase = await liquidityOrchestrator.currentPhase();
-
-    while (currentPhase !== 0n) {
-      if (currentPhase === 1n) {
-        await liquidityOrchestrator.connect(automationRegistry).performUpkeep("0x", "0x", "0x");
-      } else {
-        await liquidityOrchestrator
-          .connect(automationRegistry)
-          .performUpkeep(validFixture.publicValues, validFixture.proofBytes, validFixture.statesBytes);
-      }
-      currentPhase = await liquidityOrchestrator.currentPhase();
-    }
-    expect(await liquidityOrchestrator.currentPhase()).to.equal(0n);
-  }
 
   /** Advance to SellingLeg phase so next performUpkeep will call _verifyPerformData. */
   async function advanceToSellingLeg() {
@@ -183,9 +158,7 @@ describe("VerifyPerformData Rejection", function () {
     const vaultAddress = parsedEvent?.args[0];
     vault = (await ethers.getContractAt("OrionTransparentVault", vaultAddress)) as unknown as OrionTransparentVault;
 
-    await vault.connect(strategist).submitIntent([
-      { token: await underlyingAsset.getAddress(), weight: 1000000000 },
-    ]);
+    await vault.connect(strategist).submitIntent([{ token: await underlyingAsset.getAddress(), weight: 1000000000 }]);
 
     epochDuration = await liquidityOrchestrator.epochDuration();
 
@@ -208,12 +181,11 @@ describe("VerifyPerformData Rejection", function () {
     await expect(
       liquidityOrchestrator
         .connect(automationRegistry)
-        .performUpkeep(validFixture.publicValues, validFixture.proofBytes, validFixture.statesBytes)
+        .performUpkeep(validFixture.publicValues, validFixture.proofBytes, validFixture.statesBytes),
     ).to.not.be.reverted;
   });
 
   it("Should reject a proof when inputCommitment does not match onchain commitment", async function () {
-    
     const { inputCommitment: _ignored, outputCommitment } = decodePublicValues(validFixture.publicValues);
     const wrongInputCommitment = ethers.ZeroHash;
     const tamperedPublicValues = encodePublicValues(wrongInputCommitment, outputCommitment);

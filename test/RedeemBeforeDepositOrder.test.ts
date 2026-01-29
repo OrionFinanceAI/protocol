@@ -124,7 +124,7 @@ describe("Redeem Before Deposit Order Verification", function () {
     const tx = await transparentVaultFactory.createVault(
       strategist.address,
       "Test Vault",
-      "TVault",
+      "TV",
       0,
       0,
       0,

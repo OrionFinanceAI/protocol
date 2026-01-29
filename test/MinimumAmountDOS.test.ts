@@ -32,7 +32,7 @@ describe("Minimum Amount DOS Prevention", function () {
     const vaultTx = await vaultFactory.connect(owner).createVault(
       strategist.address,
       "Test Vault",
-      "TVAULT",
+      "TV",
       0, // Absolute fee type
       100, // 1% performance fee
       10, // 0.1% management fee
