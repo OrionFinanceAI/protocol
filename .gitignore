@@ -13,6 +13,7 @@ kms-fhe-keys/
 network-fhe-keys/
 fhevmTemp/
 abi/
+.vscode/
 .venv/
 *.egg-info/
 __pycache__/
@@ -25,8 +26,6 @@ docs/
 res/
 running_node/
 artifacts/
-edr-cache/
-.openzeppelin/
 
 scripts/*.ts
 
