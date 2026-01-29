@@ -404,12 +404,18 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     }
 
     /// @inheritdoc IOrionConfig
-    function removeOrionVault(address vault) external onlyOwner {
+    function removeOrionVault(address vault) external {
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         if (!this.isOrionVault(vault)) {
             revert ErrorsLib.InvalidAddress();
         }
+
+        address vaultManager = IOrionVault(vault).manager();
+        if (msg.sender != owner() && msg.sender != vaultManager) {
+            revert ErrorsLib.NotAuthorized();
+        }
+
         // slither-disable-next-line unused-return
         decommissioningInProgressVaults.add(vault);
         IOrionVault(vault).overrideIntentForDecommissioning();
