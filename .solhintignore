@@ -3,3 +3,4 @@
 **/node_modules
 contracts/mocks
 contracts/test
+contracts/sp1-contracts

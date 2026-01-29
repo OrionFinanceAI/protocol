@@ -59,6 +59,7 @@ describe("Redeem Before Deposit Order Verification", function () {
 
   let epochDuration: bigint;
   let initialSetupSnapshotId: string;
+  let afterRedemptionSnapshotId: string;
 
   async function captureVaultState() {
     return {
@@ -171,14 +172,15 @@ describe("Redeem Before Deposit Order Verification", function () {
     expect(assets).to.equal(expectedAssetsAfterBuffer);
 
     initialSetupSnapshotId = (await network.provider.send("evm_snapshot", [])) as string;
+    afterRedemptionSnapshotId = (await network.provider.send("evm_snapshot", [])) as string;
   });
 
   describe("Fulfillment Order Verification", function () {
     let fulfillmentOrderSnapshotId: string;
 
     before(async function () {
-      await network.provider.send("evm_revert", [initialSetupSnapshotId]);
-
+      await network.provider.send("evm_revert", [afterRedemptionSnapshotId]);
+      afterRedemptionSnapshotId = (await network.provider.send("evm_snapshot", [])) as string;
       fulfillmentOrderSnapshotId = (await network.provider.send("evm_snapshot", [])) as string;
     });
 
@@ -273,7 +275,7 @@ describe("Redeem Before Deposit Order Verification", function () {
       }
 
       // Phase C: Process epoch with fixture
-      await processFullEpoch(liquidityOrchestrator, automationRegistry, "FAILINGHEREISGOOD123");
+      await processFullEpoch(liquidityOrchestrator, automationRegistry, "RedeemBeforeDepositOrder2");
 
       // Phase D: Verify correct execution order and results
       const finalState = await captureVaultState();
@@ -400,7 +402,7 @@ describe("Redeem Before Deposit Order Verification", function () {
 
       // Process epoch with fixture
       await time.increase(epochDuration + 1n);
-      await processFullEpoch(liquidityOrchestrator, automationRegistry, "RedeemBeforeDepositOrder308");
+      await processFullEpoch(liquidityOrchestrator, automationRegistry, "RedeemBeforeDepositOrder4");
 
       // Verify deposit processed normally
       const depositorShares = await vault.balanceOf(newDepositor.address);
@@ -425,7 +427,7 @@ describe("Redeem Before Deposit Order Verification", function () {
       const balanceBefore = await underlyingAsset.balanceOf(redeemer.address);
 
       // Process epoch with fixture
-      await processFullEpoch(liquidityOrchestrator, automationRegistry, "RedeemBeforeDepositOrder334");
+      await processFullEpoch(liquidityOrchestrator, automationRegistry, "RedeemBeforeDepositOrder5");
 
       // Verify redemption processed normally
       const balanceAfter = await underlyingAsset.balanceOf(redeemer.address);

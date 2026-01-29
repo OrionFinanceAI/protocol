@@ -73,18 +73,24 @@ export async function deployUpgradeableProtocol(
 
   await orionConfig.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
 
-  // 3. Deploy LiquidityOrchestrator (UUPS)
+  // 3. Deploy SP1 verifier stack (gateway routes to Groth16 verifier), then LiquidityOrchestrator (UUPS)
+  const SP1VerifierGatewayFactory = await ethers.getContractFactory("SP1VerifierGateway");
+  const sp1VerifierGateway = await SP1VerifierGatewayFactory.deploy(owner.address);
+  await sp1VerifierGateway.waitForDeployment();
 
-  // SP1 Verifier address for Groth16 (same as in tests)
-  // https://docs.succinct.xyz/docs/sp1/verification/contract-addresses#groth16
-  const verifierAddress = "0x397A5f7f3dBd538f23DE225B51f532c34448dA9B";
+  const SP1VerifierFactory = await ethers.getContractFactory("SP1Verifier");
+  const sp1VerifierGroth16 = await SP1VerifierFactory.deploy();
+  await sp1VerifierGroth16.waitForDeployment();
 
-  const vKey = "0x00c1b70c5adf583a7b15a8b171fb44764c0b97a396155c6473416d93ce7f94be";
+  await sp1VerifierGateway.addRoute(await sp1VerifierGroth16.getAddress());
+
+  // cargo run --release --bin vkey
+  const vKey = "0x000c85a9a77d0cb1fb0e569acda33c6c68d31d63ae01ef5f672553772d32f779";
 
   const LiquidityOrchestratorFactory = await ethers.getContractFactory("LiquidityOrchestrator");
   const liquidityOrchestrator = (await upgrades.deployProxy(
     LiquidityOrchestratorFactory,
-    [owner.address, await orionConfig.getAddress(), automationReg.address, verifierAddress, vKey],
+    [owner.address, await orionConfig.getAddress(), automationReg.address, await sp1VerifierGateway.getAddress(), vKey],
     { initializer: "initialize", kind: "uups" },
   )) as unknown as LiquidityOrchestrator;
   await liquidityOrchestrator.waitForDeployment();

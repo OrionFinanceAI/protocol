@@ -13,3 +13,8 @@ interface ISP1Verifier {
     /// @param proofBytes The proof of the program execution the SP1 zkVM encoded as bytes.
     function verifyProof(bytes32 programVKey, bytes calldata publicValues, bytes calldata proofBytes) external view;
 }
+
+interface ISP1VerifierWithHash is ISP1Verifier {
+    /// @notice Returns the hash of the verifier.
+    function VERIFIER_HASH() external pure returns (bytes32);
+}
