@@ -307,8 +307,6 @@ contract LiquidityOrchestrator is
         IERC20(underlyingAsset).safeTransfer(msg.sender, amount);
 
         emit EventsLib.ProtocolFeesClaimed(amount);
-        // TODO: when pendingProtocolFees updated in LO from zkVM inputs, emit event also when accrued.
-        // If possible, do so by accruing component, like done for vault fees.
     }
 
     /// @inheritdoc ILiquidityOrchestrator
@@ -434,6 +432,7 @@ contract LiquidityOrchestrator is
             bufferAmount = states.bufferAmount;
             // Accrue protocol fees
             pendingProtocolFees += states.epochProtocolFees;
+            emit EventsLib.ProtocolFeesAccrued(states.epochProtocolFees);
 
             _processSellLeg(states.sellLeg);
         } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {

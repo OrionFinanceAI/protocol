@@ -102,7 +102,7 @@ describe("Batch Limit Consistency - Critical Accounting Fix", function () {
     const tx = await transparentVaultFactory.createVault(
       strategist.address,
       "Test Vault",
-      "TVAULT",
+      "TV",
       0, // feeType
       0, // performanceFee
       0, // managementFee

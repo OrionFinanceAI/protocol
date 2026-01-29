@@ -358,7 +358,7 @@ describe("Orchestrator Security", function () {
 
     const hurdleHwmVaultTx = await transparentVaultFactory
       .connect(owner)
-      .createVault(strategist.address, "Hurdle HWM Vault", "HHWMV", 4, 2000, 250, ethers.ZeroAddress);
+      .createVault(strategist.address, "Hurdle HWM Vault", "HHWM", 4, 2000, 250, ethers.ZeroAddress);
     const hurdleHwmVaultReceipt = await hurdleHwmVaultTx.wait();
     const hurdleHwmVaultEvent = hurdleHwmVaultReceipt?.logs.find((log) => {
       try {
