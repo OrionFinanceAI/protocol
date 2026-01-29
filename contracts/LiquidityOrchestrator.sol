@@ -81,6 +81,9 @@ contract LiquidityOrchestrator is
     /// @notice Timestamp when the next upkeep is allowed
     uint256 private _nextUpdateTime;
 
+    /// @notice Execution minibatch size
+    uint8 public executionMinibatchSize;
+
     /// @notice Minibatch size for fulfill deposit and redeem processing
     uint8 public minibatchSize;
 
@@ -203,7 +206,10 @@ contract LiquidityOrchestrator is
         vKey = vKey_;
 
         currentPhase = LiquidityUpkeepPhase.Idle;
+
+        executionMinibatchSize = 1;
         minibatchSize = 1;
+
         slippageTolerance = 0;
 
         epochDuration = 1 days;
@@ -222,6 +228,13 @@ contract LiquidityOrchestrator is
 
         epochDuration = newEpochDuration;
         _nextUpdateTime = Math.min(block.timestamp + epochDuration, _nextUpdateTime);
+    }
+
+    /// @inheritdoc ILiquidityOrchestrator
+    function updateExecutionMinibatchSize(uint8 _executionMinibatchSize) external onlyOwnerOrGuardian {
+        if (_executionMinibatchSize == 0) revert ErrorsLib.InvalidArguments();
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+        executionMinibatchSize = _executionMinibatchSize;
     }
 
     /// @inheritdoc ILiquidityOrchestrator
@@ -434,13 +447,13 @@ contract LiquidityOrchestrator is
             pendingProtocolFees += states.epochProtocolFees;
             emit EventsLib.ProtocolFeesAccrued(states.epochProtocolFees);
 
-            _processSellLeg(states.sellLeg);
+            _processMinibatchSell(states.sellLeg);
         } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
             StatesStruct memory states = _verifyPerformData(_publicValues, proofBytes, statesBytes);
-            _processBuyLeg(states.buyLeg);
+            _processMinibatchBuy(states.buyLeg);
         } else if (currentPhase == LiquidityUpkeepPhase.ProcessVaultOperations) {
             StatesStruct memory states = _verifyPerformData(_publicValues, proofBytes, statesBytes);
-            _processVaultOperations(states.vaults);
+            _processMinibatchVaultsOperations(states.vaults);
         }
     }
 
@@ -656,10 +669,18 @@ contract LiquidityOrchestrator is
 
     /// @notice Handles the sell action
     /// @param sellLeg The sell leg orders
-    function _processSellLeg(SellLegOrders memory sellLeg) internal {
-        currentPhase = LiquidityUpkeepPhase.BuyingLeg;
+    function _processMinibatchSell(SellLegOrders memory sellLeg) internal {
+        uint16 i0 = currentMinibatchIndex * executionMinibatchSize;
+        uint16 i1 = i0 + executionMinibatchSize;
+        ++currentMinibatchIndex;
 
-        for (uint16 i = 0; i < sellLeg.sellingTokens.length; ++i) {
+        if (i1 > sellLeg.sellingTokens.length || i1 == sellLeg.sellingTokens.length) {
+            i1 = uint16(sellLeg.sellingTokens.length);
+            currentMinibatchIndex = 0;
+            currentPhase = LiquidityUpkeepPhase.BuyingLeg;
+        }
+
+        for (uint16 i = i0; i < i1; ++i) {
             address token = sellLeg.sellingTokens[i];
             if (token == address(underlyingAsset)) continue;
             uint256 amount = sellLeg.sellingAmounts[i];
@@ -670,18 +691,28 @@ contract LiquidityOrchestrator is
     /// @notice Handles the buy action
     /// @param buyLeg The buy leg orders
     // slither-disable-next-line reentrancy-no-eth
-    function _processBuyLeg(BuyLegOrders memory buyLeg) internal {
-        currentPhase = LiquidityUpkeepPhase.ProcessVaultOperations;
+    function _processMinibatchBuy(BuyLegOrders memory buyLeg) internal {
+        uint16 i0 = currentMinibatchIndex * executionMinibatchSize;
+        uint16 i1 = i0 + executionMinibatchSize;
+        ++currentMinibatchIndex;
 
-        for (uint16 i = 0; i < buyLeg.buyingTokens.length; ++i) {
+        if (i1 > buyLeg.buyingTokens.length || i1 == buyLeg.buyingTokens.length) {
+            i1 = uint16(buyLeg.buyingTokens.length);
+            currentMinibatchIndex = 0;
+            currentPhase = LiquidityUpkeepPhase.ProcessVaultOperations;
+        }
+
+        for (uint16 i = i0; i < i1; ++i) {
             address token = buyLeg.buyingTokens[i];
             if (token == address(underlyingAsset)) continue;
             uint256 amount = buyLeg.buyingAmounts[i];
             _executeBuy(token, amount, buyLeg.buyingEstimatedUnderlyingAmounts[i]);
         }
 
-        _updateBufferAmount(deltaBufferAmount);
-        deltaBufferAmount = 0;
+        if (i1 == buyLeg.buyingTokens.length) {
+            _updateBufferAmount(deltaBufferAmount);
+            deltaBufferAmount = 0;
+        }
     }
 
     /// @notice Updates the buffer amount based on execution vs estimated amounts
@@ -741,7 +772,7 @@ contract LiquidityOrchestrator is
     /// @notice Handles the vault operations
     /// @param vaults The vault states
     /// @dev vaults[] shall match _currentEpoch.vaultsEpoch[] in order
-    function _processVaultOperations(VaultState[] memory vaults) internal {
+    function _processMinibatchVaultsOperations(VaultState[] memory vaults) internal {
         address[] memory vaultsEpoch = _currentEpoch.vaultsEpoch;
 
         uint16 i0 = currentMinibatchIndex * minibatchSize;

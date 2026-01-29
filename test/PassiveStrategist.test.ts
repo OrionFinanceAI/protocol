@@ -394,7 +394,7 @@ describe("Passive Strategist", function () {
       // Create a new vault for this test
       const tx = await transparentVaultFactory
         .connect(owner)
-        .createVault(strategist.address, "Invalid Passive Strategist Vault", "IPSV", 0, 0, 0, ethers.ZeroAddress);
+        .createVault(strategist.address, "Invalid Passive Strategist", "IPS", 0, 0, 0, ethers.ZeroAddress);
       const receipt = await tx.wait();
 
       // Find the vault creation event
