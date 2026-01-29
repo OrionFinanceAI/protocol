@@ -118,6 +118,10 @@ interface ILiquidityOrchestrator {
     /// @return The complete epoch state view
     function getEpochState() external view returns (EpochStateView memory);
 
+    /// @notice Returns tokens that failed during the current epoch's sell/buy execution
+    /// @return List of token addresses that failed
+    function getFailedEpochTokens() external view returns (address[] memory);
+
     /// @notice Gets asset prices for the epoch
     /// @param assets Array of asset addresses
     /// @return assetPrices Array of asset prices
