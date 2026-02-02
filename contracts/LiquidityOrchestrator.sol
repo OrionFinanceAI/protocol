@@ -21,7 +21,6 @@ import "./interfaces/IExecutionAdapter.sol";
 import "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeCast.sol";
-
 /**
  * @title Liquidity Orchestrator
  * @notice Contract that orchestrates liquidity operations
@@ -695,6 +694,7 @@ contract LiquidityOrchestrator is
             if (token == address(underlyingAsset)) continue;
             uint256 amount = sellLeg.sellingAmounts[i];
             try this._executeSell(token, amount, sellLeg.sellingEstimatedUnderlyingAmounts[i]) {} catch {
+                currentPhase = LiquidityUpkeepPhase.StateCommitment;
                 _failedEpochTokens.push(token);
                 return;
             }
@@ -723,6 +723,7 @@ contract LiquidityOrchestrator is
             if (token == address(underlyingAsset)) continue;
             uint256 amount = buyLeg.buyingAmounts[i];
             try this._executeBuy(token, amount, buyLeg.buyingEstimatedUnderlyingAmounts[i]) {} catch {
+                currentPhase = LiquidityUpkeepPhase.StateCommitment;
                 _failedEpochTokens.push(token);
                 return;
             }

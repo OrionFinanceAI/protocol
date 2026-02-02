@@ -631,8 +631,17 @@ describe("Orchestrator Configuration", function () {
       const epochDuration = await liquidityOrchestrator.epochDuration();
       await time.increase(epochDuration + 1n);
 
-      const [_upkeepNeeded, performData] = await liquidityOrchestrator.checkUpkeep("0x");
-      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      const upkeepNeeded = await liquidityOrchestrator.checkUpkeep();
+      void expect(upkeepNeeded).to.be.true;
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep("0x", "0x", "0x");
+
+      const isSystemIdle = await orionConfig.isSystemIdle();
+      void expect(isSystemIdle).to.be.false;
+
+      await expect(liquidityOrchestrator.updateAutomationRegistry(automationRegistry.address)).to.be.revertedWithCustomError(
+        liquidityOrchestrator,
+        "SystemNotIdle",
+      );
     });
 
     it("should successfully update automation registry and emit event", async function () {

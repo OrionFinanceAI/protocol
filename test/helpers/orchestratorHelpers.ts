@@ -44,28 +44,30 @@ export async function processFullEpoch(
   // Advance time
   await advanceEpochTime(liquidityOrchestrator);
 
+  console.log("currentPhase", await liquidityOrchestrator.currentPhase());
+
   // Process first upkeep (phase 0 -> 1): always use dummy proofs
   await liquidityOrchestrator.connect(automationRegistry).performUpkeep("0x", "0x", "0x");
+
+  console.log("currentPhase", await liquidityOrchestrator.currentPhase());
 
   // Process all remaining LO phases until back to Idle
   let currentPhase = await liquidityOrchestrator.currentPhase();
   while (currentPhase !== 0n) {
     if (currentPhase === 1n) {
       await liquidityOrchestrator.connect(automationRegistry).performUpkeep("0x", "0x", "0x");
+      fixtureName = fixtureName + "1";
     } else {
       const fixturePath = join(__dirname, `../fixtures/${fixtureName}.json`);
       let fixture: Groth16Fixture;
-      while (true) {
-        try {
-          fixture = JSON.parse(readFileSync(fixturePath, "utf-8"));
-          break;
-        } catch (err) {
-          console.log(
-            `🚨 Fixture ${fixtureName} not found or failed to load/parse. Generate proof now and press ENTER to retry...`,
-          );
-          await new Promise((resolve) => process.stdin.once("data", resolve));
-          throw err;
-        }
+      try {
+        fixture = JSON.parse(readFileSync(fixturePath, "utf-8"));
+      } catch (err) {
+        console.log(
+          `🚨 Fixture ${fixtureName} not found or failed to load/parse. Generate proof now and press ENTER to retry...`,
+        );
+        await new Promise((resolve) => process.stdin.once("data", resolve));
+        throw err;
       }
 
       await liquidityOrchestrator
