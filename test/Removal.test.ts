@@ -1,9 +1,9 @@
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
 import "@openzeppelin/hardhat-upgrades";
-import { ethers } from "hardhat";
-import { time } from "@nomicfoundation/hardhat-network-helpers";
+import { ethers, network } from "hardhat";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
+import { processFullEpoch } from "./helpers/orchestratorHelpers";
 
 import {
   MockUnderlyingAsset,
@@ -32,7 +32,19 @@ describe("Whitelist and Vault Removal Flows", function () {
   let automationRegistry: SignerWithAddress;
   let user: SignerWithAddress;
 
-  beforeEach(async function () {
+  let removalSetupSnapshotId: string;
+
+  before(async function () {
+    // Must fork at this exact block for deterministic zk fixtures
+    await network.provider.send("hardhat_reset", [
+      {
+        forking: {
+          jsonRpcUrl: process.env.RPC_URL,
+          blockNumber: 10000000,
+        },
+      },
+    ]);
+
     [owner, strategist, automationRegistry, user] = await ethers.getSigners();
 
     // Deploy mock underlying asset first
@@ -73,6 +85,7 @@ describe("Whitelist and Vault Removal Flows", function () {
     const deployed = await deployUpgradeableProtocol(owner, underlyingAsset, automationRegistry);
 
     orionConfig = deployed.orionConfig;
+
     liquidityOrchestrator = deployed.liquidityOrchestrator;
     transparentVaultFactory = deployed.transparentVaultFactory;
 
@@ -129,6 +142,13 @@ describe("Whitelist and Vault Removal Flows", function () {
     // Then do the deposit
     await underlyingAsset.connect(user).approve(await testVault.getAddress(), ethers.parseUnits("100", 12));
     await testVault.connect(user).requestDeposit(ethers.parseUnits("100", 12));
+
+    removalSetupSnapshotId = (await network.provider.send("evm_snapshot", [])) as string;
+  });
+
+  beforeEach(async function () {
+    await network.provider.send("evm_revert", [removalSetupSnapshotId]);
+    removalSetupSnapshotId = (await network.provider.send("evm_snapshot", [])) as string;
   });
 
   it("should remove whitelisted asset and ensure liquidity orchestrator balance becomes zero", async function () {
@@ -149,53 +169,8 @@ describe("Whitelist and Vault Removal Flows", function () {
     ];
     await testVault.connect(strategist).submitIntent(intent);
 
-    // TODO: use helper function to process full epoch, taking
-    // zkVM orchestrator fixture as input.
-
-    // Step 2: Trigger orchestrators to process the intent and build orders
-    const epochDuration = await liquidityOrchestrator.epochDuration();
-    await time.increase(epochDuration + 1n);
-
-    // Process InternalStateOrchestrator phases
-    let [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-    await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    expect(await InternalStateOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
-
-    // Process all vaults in preprocessing phase
-    while ((await InternalStateOrchestrator.currentPhase()) === 1n) {
-      [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    }
-    expect(await InternalStateOrchestrator.currentPhase()).to.equal(2); // Buffering
-
-    [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-    await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    expect(await InternalStateOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
-
-    // Process all vaults in postprocessing phase
-    while ((await InternalStateOrchestrator.currentPhase()) === 3n) {
-      [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    }
-    expect(await InternalStateOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
-
-    [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-    await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    expect(await InternalStateOrchestrator.currentPhase()).to.equal(0); // Back to Idle
-
-    // Step 3: Trigger liquidity orchestrator to execute trades and get assets
-    let [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
-    if (liquidityUpkeepNeeded) {
-      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
-
-      // Process liquidity orchestrator phases
-      while ((await liquidityOrchestrator.currentPhase()) !== 0n) {
-        [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
-        if (liquidityUpkeepNeeded) {
-          await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
-        }
-      }
-    }
+    // Step 2: Process full epoch via LiquidityOrchestrator (zkVM fixture: Removal1)
+    await processFullEpoch(liquidityOrchestrator, automationRegistry, "Removal1");
 
     // Verify liquidity orchestrator has positive balance of whitelisted assets
     const mockAsset1BalanceBefore = await mockAsset1.balanceOf(await liquidityOrchestrator.getAddress());
@@ -211,58 +186,16 @@ describe("Whitelist and Vault Removal Flows", function () {
     await expect(await orionConfig.isWhitelisted(await mockAsset1.getAddress())).to.be.false;
     await expect(await orionConfig.isWhitelisted(await mockAsset2.getAddress())).to.be.true;
 
-    // Step 5: Wait for new epoch and retrigger orchestrators to process the removal
-    await time.increase(epochDuration + 1n);
+    // Step 5: Process full epoch to drain removed asset (zkVM fixture: Removal2)
+    await processFullEpoch(liquidityOrchestrator, automationRegistry, "Removal2");
 
-    // Process InternalStateOrchestrator phases again
-    [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-    await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    expect(await InternalStateOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
-
-    // Process all vaults in preprocessing phase
-    while ((await InternalStateOrchestrator.currentPhase()) === 1n) {
-      [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    }
-    expect(await InternalStateOrchestrator.currentPhase()).to.equal(2); // Buffering
-
-    [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-    await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    expect(await InternalStateOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
-
-    // Process all vaults in postprocessing phase
-    while ((await InternalStateOrchestrator.currentPhase()) === 3n) {
-      [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    }
-    expect(await InternalStateOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
-
-    [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-    await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    expect(await InternalStateOrchestrator.currentPhase()).to.equal(0); // Back to Idle
-
-    // Step 5.5: Trigger liquidity orchestrator to execute trades
-    let [liquidityUpkeepNeeded2, liquidityPerformData2] = await liquidityOrchestrator.checkUpkeep("0x");
-    if (liquidityUpkeepNeeded2) {
-      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData2);
-
-      // Process liquidity orchestrator phases
-      while ((await liquidityOrchestrator.currentPhase()) !== 0n) {
-        [liquidityUpkeepNeeded2, liquidityPerformData2] = await liquidityOrchestrator.checkUpkeep("0x");
-        if (liquidityUpkeepNeeded2) {
-          await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData2);
-        }
-      }
-    }
-
-    // Step 6: Assert liquidity orchestrator balance of blacklisted asset is zero
+    // Step 6: Assert liquidity orchestrator balance of removed asset is zero
     const mockAsset1BalanceAfter = await mockAsset1.balanceOf(await liquidityOrchestrator.getAddress());
 
-    // The blacklisted asset (mockAsset1) should have zero balance
+    // The removed asset (mockAsset1) should have zero balance
     expect(mockAsset1BalanceAfter).to.equal(0);
 
     // Verify that the system is in a consistent state
-    expect(await InternalStateOrchestrator.currentPhase()).to.equal(0); // Idle
     expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
   });
 
@@ -280,53 +213,8 @@ describe("Whitelist and Vault Removal Flows", function () {
     ];
     await testVault.connect(strategist).submitIntent(intent);
 
-    // TODO: use helper function to process full epoch, taking
-    // zkVM orchestrator fixture as input.
-
-    // Step 2: Trigger orchestrators to process the intent and build orders
-    const epochDuration = await InternalStateOrchestrator.epochDuration();
-    await time.increase(epochDuration + 1n);
-
-    // Process InternalStateOrchestrator phases
-    let [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-    await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    expect(await InternalStateOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
-
-    // Process all vaults in preprocessing phase
-    while ((await InternalStateOrchestrator.currentPhase()) === 1n) {
-      [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    }
-    expect(await InternalStateOrchestrator.currentPhase()).to.equal(2); // Buffering
-
-    [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-    await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    expect(await InternalStateOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
-
-    // Process all vaults in postprocessing phase
-    while ((await InternalStateOrchestrator.currentPhase()) === 3n) {
-      [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    }
-    expect(await InternalStateOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
-
-    [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-    await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    expect(await InternalStateOrchestrator.currentPhase()).to.equal(0); // Back to Idle
-
-    // Step 3: Trigger liquidity orchestrator to execute trades and get assets
-    let [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
-    if (liquidityUpkeepNeeded) {
-      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
-
-      // Process liquidity orchestrator phases
-      while ((await liquidityOrchestrator.currentPhase()) !== 0n) {
-        [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
-        if (liquidityUpkeepNeeded) {
-          await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
-        }
-      }
-    }
+    // Step 2: Process full epoch (zkVM fixture: Removal1)
+    await processFullEpoch(liquidityOrchestrator, automationRegistry, "Removal1");
 
     // Verify liquidity orchestrator has positive balance of whitelisted assets
     const mockAsset1BalanceBefore = await mockAsset1.balanceOf(await liquidityOrchestrator.getAddress());
@@ -342,61 +230,16 @@ describe("Whitelist and Vault Removal Flows", function () {
     await expect(await orionConfig.isWhitelisted(await mockAsset1.getAddress())).to.be.false;
     await expect(await orionConfig.isWhitelisted(await mockAsset2.getAddress())).to.be.true;
 
-    // TODO: use helper function to process full epoch, taking
-    // zkVM orchestrator fixture as input.
+    // Step 5: Process full epoch to drain removed asset (zkVM fixture: Removal2)
+    await processFullEpoch(liquidityOrchestrator, automationRegistry, "Removal2");
 
-    // Step 5: Wait for new epoch and retrigger orchestrators to process the removal
-    await time.increase(epochDuration + 1n);
-
-    // Process InternalStateOrchestrator phases again
-    [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-    await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    expect(await InternalStateOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
-
-    // Process all vaults in preprocessing phase
-    while ((await InternalStateOrchestrator.currentPhase()) === 1n) {
-      [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    }
-    expect(await InternalStateOrchestrator.currentPhase()).to.equal(2); // Buffering
-
-    [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-    await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    expect(await InternalStateOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
-
-    // Process all vaults in postprocessing phase
-    while ((await InternalStateOrchestrator.currentPhase()) === 3n) {
-      [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    }
-    expect(await InternalStateOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
-
-    [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-    await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    expect(await InternalStateOrchestrator.currentPhase()).to.equal(0); // Back to Idle
-
-    // Step 5.5: Trigger liquidity orchestrator to execute trades
-    let [liquidityUpkeepNeeded2, liquidityPerformData2] = await liquidityOrchestrator.checkUpkeep("0x");
-    if (liquidityUpkeepNeeded2) {
-      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData2);
-
-      // Process liquidity orchestrator phases
-      while ((await liquidityOrchestrator.currentPhase()) !== 0n) {
-        [liquidityUpkeepNeeded2, liquidityPerformData2] = await liquidityOrchestrator.checkUpkeep("0x");
-        if (liquidityUpkeepNeeded2) {
-          await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData2);
-        }
-      }
-    }
-
-    // Step 6: Assert liquidity orchestrator balance of blacklisted asset is zero
+    // Step 6: Assert liquidity orchestrator balance of removed asset is zero
     const mockAsset1BalanceAfter = await mockAsset1.balanceOf(await liquidityOrchestrator.getAddress());
 
-    // The blacklisted asset (mockAsset1) should have zero balance
+    // The removed asset (mockAsset1) should have zero balance
     expect(mockAsset1BalanceAfter).to.equal(0);
 
     // Verify that the system is in a consistent state
-    expect(await InternalStateOrchestrator.currentPhase()).to.equal(0); // Idle
     expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
   });
 
@@ -418,53 +261,8 @@ describe("Whitelist and Vault Removal Flows", function () {
     ];
     await testVault.connect(strategist).submitIntent(intent);
 
-    // TODO: use helper function to process full epoch, taking
-    // zkVM orchestrator fixture as input.
-
-    // Step 2: Trigger orchestrators to process the intent and build orders
-    const epochDuration = await InternalStateOrchestrator.epochDuration();
-    await time.increase(epochDuration + 1n);
-
-    // Process InternalStateOrchestrator phases
-    let [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-    await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    expect(await InternalStateOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
-
-    // Process all vaults in preprocessing phase
-    while ((await InternalStateOrchestrator.currentPhase()) === 1n) {
-      [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    }
-    expect(await InternalStateOrchestrator.currentPhase()).to.equal(2); // Buffering
-
-    [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-    await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    expect(await InternalStateOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
-
-    // Process all vaults in postprocessing phase
-    while ((await InternalStateOrchestrator.currentPhase()) === 3n) {
-      [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    }
-    expect(await InternalStateOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
-
-    [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-    await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    expect(await InternalStateOrchestrator.currentPhase()).to.equal(0); // Back to Idle
-
-    // Step 3: Trigger liquidity orchestrator to execute trades and get assets
-    let [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
-    if (liquidityUpkeepNeeded) {
-      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
-
-      // Process liquidity orchestrator phases
-      while ((await liquidityOrchestrator.currentPhase()) !== 0n) {
-        [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
-        if (liquidityUpkeepNeeded) {
-          await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
-        }
-      }
-    }
+    // Step 2: Process full epoch (zkVM fixture: Removal1)
+    await processFullEpoch(liquidityOrchestrator, automationRegistry, "Removal1");
 
     const userShares = await testVault.balanceOf(user.address);
     expect(userShares).to.be.gt(0);
@@ -485,52 +283,8 @@ describe("Whitelist and Vault Removal Flows", function () {
       "SynchronousCallDisabled",
     );
 
-    // TODO: use helper function to process full epoch, taking
-    // zkVM orchestrator fixture as input.
-
-    await time.increase(epochDuration + 1n);
-
-    // Step 4: Trigger orchestrators again so that liquidity orchestrator completes vault decommissioning
-    // First, trigger internal state orchestrator to process the decommissioning vault
-    [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-    await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    expect(await InternalStateOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
-
-    // Process all vaults in preprocessing phase (including decommissioning vault)
-    while ((await InternalStateOrchestrator.currentPhase()) === 1n) {
-      [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    }
-    expect(await InternalStateOrchestrator.currentPhase()).to.equal(2); // Buffering
-
-    [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-    await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    expect(await InternalStateOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
-
-    // Process all vaults in postprocessing phase (including decommissioning vault)
-    while ((await InternalStateOrchestrator.currentPhase()) === 3n) {
-      [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    }
-    expect(await InternalStateOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
-
-    [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-    await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    expect(await InternalStateOrchestrator.currentPhase()).to.equal(0); // Back to Idle
-
-    // Now trigger liquidity orchestrator to complete vault decommissioning
-    [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
-    if (liquidityUpkeepNeeded) {
-      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
-
-      // Process liquidity orchestrator phases until idle
-      while ((await liquidityOrchestrator.currentPhase()) !== 0n) {
-        [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
-        if (liquidityUpkeepNeeded) {
-          await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
-        }
-      }
-    }
+    // Step 4: Process full epoch so LiquidityOrchestrator completes vault decommissioning (zkVM fixture: Removal3)
+    await processFullEpoch(liquidityOrchestrator, automationRegistry, "Removal3");
 
     // Verify that vault decommissioning is now complete
     void expect(await orionConfig.isDecommissionedVault(await testVault.getAddress())).to.be.true;
@@ -590,24 +344,8 @@ describe("Whitelist and Vault Removal Flows", function () {
     // Verify vault is decommissioning
     void expect(await testVault.isDecommissioning()).to.be.true;
 
-    // TODO: use helper function to process full epoch, taking
-    // zkVM orchestrator fixture as input.
-
-    const epochDuration = await InternalStateOrchestrator.epochDuration();
-    await time.increase(epochDuration + 1n);
-
-    // Process one full epoch cycle to have some assets
-    let [upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-    while (upkeepNeeded) {
-      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      [upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-    }
-
-    [upkeepNeeded, performData] = await liquidityOrchestrator.checkUpkeep("0x");
-    while (upkeepNeeded) {
-      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      [upkeepNeeded, performData] = await liquidityOrchestrator.checkUpkeep("0x");
-    }
+    // Process one full epoch cycle (zkVM fixture: Removal1)
+    await processFullEpoch(liquidityOrchestrator, automationRegistry, "Removal1");
 
     // Try to request deposit - should revert
     const depositAmount = ethers.parseUnits("100", 12);
@@ -627,21 +365,8 @@ describe("Whitelist and Vault Removal Flows", function () {
 
     await testVault.connect(strategist).submitIntent([{ token: await mockAsset1.getAddress(), weight: 1000000000 }]);
 
-    const epochDuration = await InternalStateOrchestrator.epochDuration();
-    await time.increase(epochDuration + 1n);
-
-    // Process epochs to fulfill the deposit
-    let [upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-    while (upkeepNeeded || (await InternalStateOrchestrator.currentPhase()) !== 0n) {
-      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      [upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-    }
-
-    let [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
-    while (liquidityUpkeepNeeded || (await liquidityOrchestrator.currentPhase()) !== 0n) {
-      await liquidityOrchestrator.connect(automationRegistry).performUpkeep(liquidityPerformData);
-      [liquidityUpkeepNeeded, liquidityPerformData] = await liquidityOrchestrator.checkUpkeep("0x");
-    }
+    // Process full epoch to fulfill the deposit (zkVM fixture: Removal1)
+    await processFullEpoch(liquidityOrchestrator, automationRegistry, "Removal1");
 
     // Verify user has shares
     const userShares = await testVault.balanceOf(user.address);
