@@ -92,6 +92,10 @@ interface IOrionConfig {
     /// @return An array of whitelisted asset addresses
     function getAllWhitelistedAssets() external view returns (address[] memory);
 
+    /// @notice Returns ERC20 human-readable names for all whitelisted assets
+    /// @return names Array of token names in same order as getAllWhitelistedAssets()
+    function getAllWhitelistedAssetNames() external view returns (string[] memory names);
+
     /// @notice Returns the token decimals for all whitelisted assets
     /// @dev Returns decimals in the same order as getAllWhitelistedAssets()
     /// @return decimals Array of token decimals corresponding to whitelisted assets
