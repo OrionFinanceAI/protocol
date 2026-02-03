@@ -638,10 +638,9 @@ describe("Orchestrator Configuration", function () {
       const isSystemIdle = await orionConfig.isSystemIdle();
       void expect(isSystemIdle).to.be.false;
 
-      await expect(liquidityOrchestrator.updateAutomationRegistry(automationRegistry.address)).to.be.revertedWithCustomError(
-        liquidityOrchestrator,
-        "SystemNotIdle",
-      );
+      await expect(
+        liquidityOrchestrator.updateAutomationRegistry(automationRegistry.address),
+      ).to.be.revertedWithCustomError(liquidityOrchestrator, "SystemNotIdle");
     });
 
     it("should successfully update automation registry and emit event", async function () {
