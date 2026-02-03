@@ -56,7 +56,6 @@ export async function processFullEpoch(
   while (currentPhase !== 0n) {
     if (currentPhase === 1n) {
       await liquidityOrchestrator.connect(automationRegistry).performUpkeep("0x", "0x", "0x");
-      fixtureName = fixtureName + "1";
     } else {
       const fixturePath = join(__dirname, `../fixtures/${fixtureName}.json`);
       let fixture: Groth16Fixture;

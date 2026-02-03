@@ -287,7 +287,7 @@ contract LiquidityOrchestrator is
     /// @inheritdoc ILiquidityOrchestrator
     function depositLiquidity(uint256 amount) external {
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
-        if (currentPhase == LiquidityUpkeepPhase.StateCommitment) revert ErrorsLib.NotAuthorized();
+        if (currentPhase != LiquidityUpkeepPhase.Idle) revert ErrorsLib.SystemNotIdle();
 
         // Transfer underlying assets from the caller to this contract
         IERC20(underlyingAsset).safeTransferFrom(msg.sender, address(this), amount);
@@ -301,7 +301,7 @@ contract LiquidityOrchestrator is
     /// @inheritdoc ILiquidityOrchestrator
     function withdrawLiquidity(uint256 amount) external onlyOwner {
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
-        if (currentPhase == LiquidityUpkeepPhase.StateCommitment) revert ErrorsLib.NotAuthorized();
+        if (currentPhase != LiquidityUpkeepPhase.Idle) revert ErrorsLib.SystemNotIdle();
 
         // Safety check: ensure withdrawal doesn't make buffer negative
         if (amount > bufferAmount) revert ErrorsLib.InsufficientAmount();
@@ -422,18 +422,10 @@ contract LiquidityOrchestrator is
 
     /// @inheritdoc ILiquidityOrchestrator
     function checkUpkeep() external view returns (bool upkeepNeeded) {
-        if (currentPhase == LiquidityUpkeepPhase.Idle && _shouldTriggerUpkeep()) {
-            upkeepNeeded = true;
-        } else if (currentPhase == LiquidityUpkeepPhase.StateCommitment) {
-            upkeepNeeded = true;
-        } else if (currentPhase == LiquidityUpkeepPhase.SellingLeg) {
-            upkeepNeeded = true;
-        } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
-            upkeepNeeded = true;
-        } else if (currentPhase == LiquidityUpkeepPhase.ProcessVaultOperations) {
-            upkeepNeeded = true;
+        if (currentPhase == LiquidityUpkeepPhase.Idle) {
+            upkeepNeeded = _shouldTriggerUpkeep();
         } else {
-            upkeepNeeded = false;
+            upkeepNeeded = true;
         }
     }
 
@@ -464,6 +456,7 @@ contract LiquidityOrchestrator is
         } else if (currentPhase == LiquidityUpkeepPhase.ProcessVaultOperations) {
             StatesStruct memory states = _verifyPerformData(_publicValues, proofBytes, statesBytes);
             _processMinibatchVaultsOperations(states.vaults);
+            config.completeAssetsRemoval();
         }
     }
 
@@ -485,27 +478,31 @@ contract LiquidityOrchestrator is
         // Build filtered vault lists for this epoch
         _buildVaultsEpoch();
 
-        if (_currentEpoch.vaultsEpoch.length > 0) {
-            currentPhase = LiquidityUpkeepPhase.StateCommitment;
-
-            // Snapshot protocol fees at epoch start to ensure consistency throughout the epoch
-            (_currentEpoch.activeVFeeCoefficient, _currentEpoch.activeRsFeeCoefficient) = config.activeProtocolFees();
-
-            // Snapshot vault fee types at epoch start to ensure consistency throughout the epoch
-            for (uint16 i = 0; i < _currentEpoch.vaultsEpoch.length; ++i) {
-                IOrionVault.FeeModel memory feeModel = IOrionVault(_currentEpoch.vaultsEpoch[i]).activeFeeModel();
-                _currentEpoch.feeModel[_currentEpoch.vaultsEpoch[i]] = feeModel;
-            }
-
-            address[] memory assets = config.getAllWhitelistedAssets();
-            uint256[] memory prices = new uint256[](assets.length);
-            for (uint16 i = 0; i < assets.length; ++i) {
-                uint256 price = priceAdapterRegistry.getPrice(assets[i]);
-                _currentEpoch.pricesEpoch[assets[i]] = price;
-                prices[i] = price;
-            }
-            emit EventsLib.EpochStart(epochCounter, assets, prices);
+        if (_currentEpoch.vaultsEpoch.length == 0) {
+            // Defer the next upkeep by epoch duration
+            _nextUpdateTime = block.timestamp + epochDuration;
+            return;
         }
+
+        currentPhase = LiquidityUpkeepPhase.StateCommitment;
+
+        // Snapshot protocol fees at epoch start to ensure consistency throughout the epoch
+        (_currentEpoch.activeVFeeCoefficient, _currentEpoch.activeRsFeeCoefficient) = config.activeProtocolFees();
+
+        // Snapshot vault fee types at epoch start to ensure consistency throughout the epoch
+        for (uint16 i = 0; i < _currentEpoch.vaultsEpoch.length; ++i) {
+            IOrionVault.FeeModel memory feeModel = IOrionVault(_currentEpoch.vaultsEpoch[i]).activeFeeModel();
+            _currentEpoch.feeModel[_currentEpoch.vaultsEpoch[i]] = feeModel;
+        }
+
+        address[] memory assets = config.getAllWhitelistedAssets();
+        uint256[] memory prices = new uint256[](assets.length);
+        for (uint16 i = 0; i < assets.length; ++i) {
+            uint256 price = priceAdapterRegistry.getPrice(assets[i]);
+            _currentEpoch.pricesEpoch[assets[i]] = price;
+            prices[i] = price;
+        }
+        emit EventsLib.EpochStart(epochCounter, assets, prices);
     }
 
     /// @notice Build filtered transparent vaults list for the epoch
@@ -556,7 +553,8 @@ contract LiquidityOrchestrator is
                 config.getAllWhitelistedAssets(),
                 config.getAllTokenDecimals(),
                 config.riskFreeRate(),
-                _failedEpochTokens
+                _failedEpochTokens,
+                config.decommissioningAssets()
             )
         );
         return protocolStateHash;

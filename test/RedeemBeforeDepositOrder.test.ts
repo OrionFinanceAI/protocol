@@ -19,7 +19,6 @@
  */
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { ethers, network } from "hardhat";
-import { time } from "@nomicfoundation/hardhat-network-helpers";
 import { expect } from "chai";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 import { processFullEpoch } from "./helpers/orchestratorHelpers";
@@ -57,7 +56,6 @@ describe("Redeem Before Deposit Order Verification", function () {
   const REDEEM_AMOUNT_SHARES = ethers.parseUnits("90", 18); // 90 shares (90% of vault)
   const NEW_DEPOSIT_AMOUNT = ethers.parseUnits("10", UNDERLYING_DECIMALS); // 10 USDC
 
-  let epochDuration: bigint;
   let initialSetupSnapshotId: string;
   let afterRedemptionSnapshotId: string;
 
@@ -152,8 +150,6 @@ describe("Redeem Before Deposit Order Verification", function () {
         weight: 1000000000, // 100% in basis points (10^9)
       },
     ]);
-
-    epochDuration = await liquidityOrchestrator.epochDuration();
 
     // Setup initial state: Deposit 100 USDC and fulfill to establish baseline
     await underlyingAsset.mint(initialDepositor.address, INITIAL_ASSETS);
@@ -344,7 +340,6 @@ describe("Redeem Before Deposit Order Verification", function () {
       await vault.connect(newDepositor).requestDeposit(NEW_DEPOSIT_AMOUNT);
 
       // Process epoch with fixture
-      await time.increase(epochDuration + 1n);
       await processFullEpoch(liquidityOrchestrator, automationRegistry, "RedeemBeforeDepositOrder3");
 
       // Verify redeemer got fair value
@@ -403,7 +398,6 @@ describe("Redeem Before Deposit Order Verification", function () {
       expect(await vault.pendingRedeem(await orionConfig.maxFulfillBatchSize())).to.equal(0);
 
       // Process epoch with fixture
-      await time.increase(epochDuration + 1n);
       await processFullEpoch(liquidityOrchestrator, automationRegistry, "RedeemBeforeDepositOrder4");
 
       // Verify deposit processed normally

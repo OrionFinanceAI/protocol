@@ -128,13 +128,11 @@ describe("Upgrade Tests", function () {
     let vaultBeacon: UpgradeableBeacon;
     let vault1: OrionTransparentVault;
     let vault2: OrionTransparentVault;
-    let underlyingAsset: MockUnderlyingAsset;
 
     beforeEach(async function () {
       const deployed = await deployUpgradeableProtocol(owner);
       vaultFactory = deployed.transparentVaultFactory;
       vaultBeacon = deployed.vaultBeacon;
-      underlyingAsset = deployed.underlyingAsset;
 
       // Whitelist vault owner (only if not already whitelisted)
       const isWhitelisted = await deployed.orionConfig.isWhitelistedManager(owner.address);
@@ -192,10 +190,6 @@ describe("Upgrade Tests", function () {
     });
 
     it("Should upgrade all vaults simultaneously via beacon", async function () {
-      // Set some state in both vaults
-      await vault1.connect(owner).updateVaultWhitelist([await underlyingAsset.getAddress()]);
-      await vault2.connect(owner).updateVaultWhitelist([await underlyingAsset.getAddress()]);
-
       // Verify vaults are deployed
       expect(await vault1.manager()).to.equal(owner.address);
       expect(await vault2.manager()).to.equal(owner.address);

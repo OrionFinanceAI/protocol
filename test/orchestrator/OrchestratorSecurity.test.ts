@@ -209,16 +209,6 @@ describe("Orchestrator Security", function () {
     liquidityOrchestrator = deployed.liquidityOrchestrator;
     transparentVaultFactory = deployed.transparentVaultFactory;
 
-    // Deploy KBestTvlWeightedAverage passive strategist with k=2
-    const KBestTvlWeightedAverageFactory = await ethers.getContractFactory("KBestTvlWeightedAverage");
-    const kbestTvlPassiveStrategistDeployed = await KBestTvlWeightedAverageFactory.deploy(
-      owner.address,
-      await orionConfig.getAddress(),
-      1, // k=1, select top 1 asset for passive strategist
-    );
-    await kbestTvlPassiveStrategistDeployed.waitForDeployment();
-    kbestTvlPassiveStrategist = kbestTvlPassiveStrategistDeployed as unknown as KBestTvlWeightedAverage;
-
     const OrionAssetERC4626PriceAdapterFactory = await ethers.getContractFactory("OrionAssetERC4626PriceAdapter");
     orionPriceAdapter = (await OrionAssetERC4626PriceAdapterFactory.deploy(
       await orionConfig.getAddress(),
@@ -277,6 +267,18 @@ describe("Orchestrator Security", function () {
       await orionPriceAdapter.getAddress(),
       await orionExecutionAdapter.getAddress(),
     );
+
+    // Deploy KBestTvlWeightedAverage passive strategist with k=1 and contract-specific investment universe
+    const investmentUniverse = [...(await orionConfig.getAllWhitelistedAssets())];
+    const KBestTvlWeightedAverageFactory = await ethers.getContractFactory("KBestTvlWeightedAverage");
+    const kbestTvlPassiveStrategistDeployed = await KBestTvlWeightedAverageFactory.deploy(
+      owner.address,
+      await orionConfig.getAddress(),
+      1, // k=1, select top 1 asset for passive strategist
+      investmentUniverse,
+    );
+    await kbestTvlPassiveStrategistDeployed.waitForDeployment();
+    kbestTvlPassiveStrategist = kbestTvlPassiveStrategistDeployed as unknown as KBestTvlWeightedAverage;
 
     await orionConfig.setProtocolRiskFreeRate(0.0423 * 10_000);
 
