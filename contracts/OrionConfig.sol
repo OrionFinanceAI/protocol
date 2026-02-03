@@ -75,6 +75,9 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     EnumerableSet.AddressSet private decommissioningInProgressVaults;
     EnumerableSet.AddressSet private decommissionedVaults;
 
+    /// @notice Assets pending removal (stays whitelisted until completeAssetRemoval)
+    address[] private _decommissioningAssets;
+
     /// @notice Old volume fee coefficient (used during cooldown period)
     uint16 private oldVFeeCoefficient;
     /// @notice Old revenue share fee coefficient (used during cooldown period)
@@ -143,7 +146,8 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         if (_vFeeCoefficient > 50 || _rsFeeCoefficient > 2_000) revert ErrorsLib.InvalidArguments();
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
-        // Store old fees for cooldown period
+        // Store current active fees as old;
+        // if already in cooldown this is the old rate, so prior schedule is effectively cancelled
         (uint16 oldVFee, uint16 oldRsFee) = activeProtocolFees();
         oldVFeeCoefficient = oldVFee;
         oldRsFeeCoefficient = oldRsFee;
@@ -280,18 +284,15 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         if (asset == address(underlyingAsset)) revert ErrorsLib.InvalidArguments();
+        if (!whitelistedAssets.contains(asset)) revert ErrorsLib.TokenNotWhitelisted(asset);
 
-        bool removed = whitelistedAssets.remove(asset);
-        if (!removed) revert ErrorsLib.TokenNotWhitelisted(asset);
-
-        // Loop over all transparent vaults to update their whitelists and intents
-        address[] memory transparentVaultsList = this.getAllOrionVaults(EventsLib.VaultType.Transparent);
-        for (uint256 i = 0; i < transparentVaultsList.length; ++i) {
-            address vault = transparentVaultsList[i];
-
-            IOrionTransparentVault(vault).removeFromVaultWhitelist(asset);
+        // Add to decommissioning only; whitelisted until completeAssetRemoval for consistent commitment/prices
+        for (uint256 i = 0; i < _decommissioningAssets.length; ++i) {
+            if (_decommissioningAssets[i] == asset) return;
         }
-        emit EventsLib.WhitelistedAssetRemoved(asset);
+        _decommissioningAssets.push(asset);
+
+        emit EventsLib.AssetDecommissioningInitiated(asset);
     }
 
     /// @inheritdoc IOrionConfig
@@ -307,6 +308,21 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
             assets[i] = whitelistedAssets.at(i);
         }
         return assets;
+    }
+
+    /// @inheritdoc IOrionConfig
+    function decommissioningAssets() external view returns (address[] memory) {
+        return _decommissioningAssets;
+    }
+
+    /// @inheritdoc IOrionConfig
+    function completeAssetsRemoval() external onlyLiquidityOrchestrator {
+        for (uint256 i = 0; i < _decommissioningAssets.length; ++i) {
+            // slither-disable-next-line unused-return
+            whitelistedAssets.remove(_decommissioningAssets[i]);
+            emit EventsLib.WhitelistedAssetRemoved(_decommissioningAssets[i]);
+        }
+        delete _decommissioningAssets;
     }
 
     /// @inheritdoc IOrionConfig

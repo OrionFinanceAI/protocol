@@ -6,7 +6,6 @@ import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/proxy/beacon/IBeacon.sol";
 import "@openzeppelin/contracts/utils/StorageSlot.sol";
 import "../interfaces/IOrionConfig.sol";
@@ -44,7 +43,6 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     using Math for uint256;
     using SafeERC20 for IERC20;
     using EnumerableMap for EnumerableMap.AddressToUintMap;
-    using EnumerableSet for EnumerableSet.AddressSet;
 
     /// @notice Vault manager
     address public manager;
@@ -56,10 +54,6 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     ILiquidityOrchestrator public liquidityOrchestrator;
     /// @notice Deposit access control contract (address(0) = permissionless)
     address public depositAccessControl;
-
-    /// @notice Vault-specific whitelist of assets for intent validation
-    /// @dev This is a subset of the protocol whitelist for higher auditability
-    EnumerableSet.AddressSet internal _vaultWhitelistedAssets;
 
     /// @notice Total assets under management (t_0) - denominated in underlying asset units
     uint256 internal _totalAssets;
@@ -181,19 +175,6 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
 
         oldFeeModel = feeModel;
         newFeeRatesTimestamp = block.timestamp;
-
-        _initializeVaultWhitelist();
-    }
-
-    /// @notice Initialize the vault whitelist with all protocol whitelisted assets
-    /// @dev This sets the initial vault whitelist to match the protocol whitelist as a default.
-    ///      This can be overridden by the vault manager to set a subset of the protocol whitelist.
-    function _initializeVaultWhitelist() internal {
-        address[] memory protocolAssets = config.getAllWhitelistedAssets();
-        for (uint256 i = 0; i < protocolAssets.length; ++i) {
-            // slither-disable-next-line unused-return
-            _vaultWhitelistedAssets.add(protocolAssets[i]);
-        }
     }
 
     /// @inheritdoc IERC4626
@@ -435,11 +416,6 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     /// --------- MANAGER AND STRATEGIST FUNCTIONS ---------
 
     /// @inheritdoc IOrionVault
-    function vaultWhitelist() external view returns (address[] memory) {
-        return _vaultWhitelistedAssets.values();
-    }
-
-    /// @inheritdoc IOrionVault
     function updateStrategist(address newStrategist) external onlyManager {
         strategist = newStrategist;
         emit StrategistUpdated(newStrategist);
@@ -450,28 +426,6 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         // No extra checks, manager has right to fully stop deposits
         depositAccessControl = newDepositAccessControl;
         emit DepositAccessControlUpdated(newDepositAccessControl);
-    }
-
-    /// @inheritdoc IOrionVault
-    function updateVaultWhitelist(address[] calldata assets) external onlyManager {
-        // Clear existing whitelist
-        _vaultWhitelistedAssets.clear();
-
-        for (uint256 i = 0; i < assets.length; ++i) {
-            address token = assets[i];
-
-            if (!config.isWhitelisted(token)) revert ErrorsLib.TokenNotWhitelisted(token);
-
-            bool inserted = _vaultWhitelistedAssets.add(token);
-            if (!inserted) revert ErrorsLib.AlreadyRegistered();
-        }
-
-        if (!_vaultWhitelistedAssets.contains(this.asset())) {
-            // slither-disable-next-line unused-return
-            _vaultWhitelistedAssets.add(this.asset());
-        }
-
-        emit VaultWhitelistUpdated(assets);
     }
 
     /// @notice Update the fee model parameters with cooldown protection
@@ -513,13 +467,11 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         return feeModel;
     }
 
-    /// @notice Validate that all assets in an intent are whitelisted for this vault
+    /// @notice Validate that all assets in an intent are whitelisted
     /// @param assets Array of asset addresses to validate
     function _validateIntentAssets(address[] memory assets) internal view {
         for (uint256 i = 0; i < assets.length; ++i) {
-            if (!_vaultWhitelistedAssets.contains(assets[i])) {
-                revert ErrorsLib.TokenNotWhitelisted(assets[i]);
-            }
+            if (!config.isWhitelisted(assets[i])) revert ErrorsLib.TokenNotWhitelisted(assets[i]);
         }
     }
 

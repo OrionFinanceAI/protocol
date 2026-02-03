@@ -39,8 +39,4 @@ interface IOrionTransparentVault is IOrionVault {
     /// @param shares Array of shares per asset (parallel to tokens array)
     /// @param newTotalAssets The new total assets value for the vault
     function updateVaultState(address[] calldata tokens, uint256[] calldata shares, uint256 newTotalAssets) external;
-
-    /// @notice Remove an asset from the vault whitelist
-    /// @param asset The asset to remove from the whitelist
-    function removeFromVaultWhitelist(address asset) external;
 }

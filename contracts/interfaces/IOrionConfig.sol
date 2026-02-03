@@ -43,6 +43,9 @@ interface IOrionConfig {
     function guardian() external view returns (address);
 
     /// @notice Updates the protocol fees
+    /// @dev If called while a previous fee change is still in cooldown, the prior scheduled change is cancelled:
+    ///      activeProtocolFees() returns the current (old) rates, which are stored as old coefficients, then the new
+    ///      coefficients overwrite the prior schedule. The previously scheduled intermediate fees never take effect.
     /// @param _vFeeCoefficient The new volume fee coefficient
     /// @param _rsFeeCoefficient The new revenue share fee coefficient
     function updateProtocolFees(uint16 _vFeeCoefficient, uint16 _rsFeeCoefficient) external;
@@ -105,6 +108,12 @@ interface IOrionConfig {
     /// @param asset The address of the asset to check
     /// @return True if the asset is whitelisted, false otherwise
     function isWhitelisted(address asset) external view returns (bool);
+
+    /// @notice Decommissioning assets (pending liquidation)
+    function decommissioningAssets() external view returns (address[] memory);
+
+    /// @notice Completes assets removal; only callable by liquidity orchestrator
+    function completeAssetsRemoval() external;
 
     /// @notice Adds a manager to the whitelist
     /// @dev Can only be called by the contract owner

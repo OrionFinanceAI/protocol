@@ -18,6 +18,9 @@ library EventsLib {
     /// @param asset The address of the removed asset.
     event WhitelistedAssetRemoved(address indexed asset);
 
+    /// @notice Asset marked for decommissioning (stays whitelisted until completeAssetRemoval).
+    event AssetDecommissioningInitiated(address indexed asset);
+
     /// @notice A new Orion Vault has been registered in the protocol.
     /// @param vault The address of the added vault.
     event OrionVaultAdded(address indexed vault);
