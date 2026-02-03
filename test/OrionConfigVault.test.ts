@@ -121,32 +121,38 @@ describe("Config", function () {
     });
   });
   describe("removeWhitelistedAsset", function () {
-    it("Should successfully remove a whitelisted asset", async function () {
+    it("Should start decommissioning: asset stays whitelisted and is in decommissioning list", async function () {
       const assetAddress = await mockAsset1.getAddress();
 
       expect(await orionConfig.isWhitelisted(assetAddress)).to.equal(true);
       await expect(orionConfig.connect(owner).removeWhitelistedAsset(assetAddress)).to.not.be.reverted;
-      expect(await orionConfig.isWhitelisted(assetAddress)).to.equal(false);
+      // Asset remains whitelisted until completeAssetsRemoval
+      expect(await orionConfig.isWhitelisted(assetAddress)).to.equal(true);
+      const decomm = await orionConfig.decommissioningAssets();
+      expect(decomm).to.include(assetAddress);
     });
 
-    it("Should emit WhitelistedAssetRemoved event when removing asset", async function () {
+    it("Should emit AssetDecommissioningInitiated when removing asset", async function () {
       const assetAddress = await mockAsset1.getAddress();
 
       await expect(orionConfig.connect(owner).removeWhitelistedAsset(assetAddress))
-        .to.emit(orionConfig, "WhitelistedAssetRemoved")
+        .to.emit(orionConfig, "AssetDecommissioningInitiated")
         .withArgs(assetAddress);
     });
 
-    it("Should update whitelisted assets count after removal", async function () {
+    it("Should keep whitelist count unchanged until completeAssetsRemoval", async function () {
       const initialCount = await orionConfig.whitelistedAssetsLength();
       expect(initialCount).to.equal(3); // underlying asset + 2 test assets
 
       await orionConfig.connect(owner).removeWhitelistedAsset(await mockAsset1.getAddress());
-      const finalCount = await orionConfig.whitelistedAssetsLength();
-      expect(finalCount).to.equal(2); // underlying asset + 1 test asset
+      // Asset still whitelisted during decommissioning
+      const countAfterDecommission = await orionConfig.whitelistedAssetsLength();
+      expect(countAfterDecommission).to.equal(3);
+      const decomm = await orionConfig.decommissioningAssets();
+      expect(decomm.length).to.equal(1);
     });
 
-    it("Should remove asset from getAllWhitelistedAssets array", async function () {
+    it("Should keep asset in getAllWhitelistedAssets until completeAssetsRemoval", async function () {
       const assetAddress = await mockAsset1.getAddress();
 
       const initialAssets = await orionConfig.getAllWhitelistedAssets();
@@ -154,8 +160,11 @@ describe("Config", function () {
 
       await orionConfig.connect(owner).removeWhitelistedAsset(assetAddress);
 
-      const finalAssets = await orionConfig.getAllWhitelistedAssets();
-      expect(finalAssets).to.not.include(assetAddress);
+      // Asset stays in whitelist during decommissioning (for consistent state commitment)
+      const assetsAfterDecommission = await orionConfig.getAllWhitelistedAssets();
+      expect(assetsAfterDecommission).to.include(assetAddress);
+      const decomm = await orionConfig.decommissioningAssets();
+      expect(decomm).to.include(assetAddress);
     });
 
     it("Should revert when trying to remove non-whitelisted asset", async function () {

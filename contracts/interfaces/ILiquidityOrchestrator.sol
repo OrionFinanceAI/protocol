@@ -42,8 +42,8 @@ interface ILiquidityOrchestrator {
 
     struct StatesStruct {
         VaultState[] vaults;
-        BuyLegOrders buyLeg;
         SellLegOrders sellLeg;
+        BuyLegOrders buyLeg;
         uint256 bufferAmount;
         uint256 epochProtocolFees;
     }
