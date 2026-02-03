@@ -53,10 +53,6 @@ interface IOrionVault is IERC4626 {
     /// @param sharesBurned The number of shares burned for the user.
     event Redeem(address indexed user, uint256 indexed redeemAmount, uint256 indexed sharesBurned);
 
-    /// @notice The vault whitelist has been updated.
-    /// @param assets The new whitelist of assets.
-    event VaultWhitelistUpdated(address[] assets);
-
     /// @notice Fees have been accrued.
     /// @param managementFee The amount of management fees accrued.
     /// @param performanceFee The amount of performance fees accrued.
@@ -180,14 +176,6 @@ interface IOrionVault is IERC4626 {
     ///      to ensure the strategist is capable of performing its duties.
     function updateStrategist(address newStrategist) external;
 
-    /// @notice Update the vault whitelist
-    /// @param assets The new whitelist of assets.
-    function updateVaultWhitelist(address[] memory assets) external;
-
-    /// @notice Get the vault whitelist
-    /// @return The array of whitelisted asset addresses for this vault.
-    function vaultWhitelist() external view returns (address[] memory);
-
     /// @notice Update the fee model parameters
     /// @param mode The calculation mode for fees
     /// @param performanceFee The performance fee
@@ -205,7 +193,7 @@ interface IOrionVault is IERC4626 {
     ///      to ensure the deposit access control is capable of performing its duties.
     function setDepositAccessControl(address newDepositAccessControl) external;
 
-    /// --------- INTERNAL STATE ORCHESTRATOR FUNCTIONS ---------
+    /// --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
 
     /// @notice Get total pending deposit amount across all users
     /// @param fulfillBatchSize The maximum number of requests to process per fulfill call
@@ -231,8 +219,6 @@ interface IOrionVault is IERC4626 {
         uint256 totalAssets,
         FeeModel memory snapshotFeeModel
     ) external view returns (uint256 managementFee, uint256 performanceFee);
-
-    /// --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
 
     /// @notice Process all pending deposit requests and mint shares to depositors
     /// @param depositTotalAssets The total assets associated with the deposit requests
