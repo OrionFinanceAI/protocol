@@ -1,7 +1,7 @@
 {
   "name": "@orion-finance/protocol",
   "description": "Orion Finance Protocol",
-  "version": "1.3.2",
+  "version": "2.0.0",
   "engines": {
     "node": ">=20.0.0"
   },
@@ -17,6 +17,8 @@
     "compile:sepolia": "cross-env TS_NODE_TRANSPILE_ONLY=true hardhat compile --network sepolia",
     "coverage": "SOLIDITY_COVERAGE=true hardhat coverage",
     "deploy:sepolia": "hardhat run protocol-ops/deploy.ts --network sepolia",
+    "deploy:protocol:localhost": "hardhat run scripts/deployProtocolLocalhost.ts --network localhost",
+    "perform:upkeep:localhost": "hardhat run scripts/performUpkeepLocalhost.ts --network localhost",
     "docgen": "hardhat docgen",
     "lint": "pnpm lint:sol && pnpm lint:ts && pnpm prettier:check",
     "lint:sol": "solhint --max-warnings 20 \"contracts/**/*.sol\"",
@@ -56,7 +58,7 @@
     "eslint": "^9.0.0",
     "eslint-config-prettier": "^9.1.2",
     "ethers": "^6.15.0",
-    "hardhat": "^2.26.2",
+    "hardhat": "^2.28.4",
     "hardhat-deploy": "^0.11.45",
     "hardhat-gas-reporter": "^2.3.0",
     "mocha": "^11.7.1",

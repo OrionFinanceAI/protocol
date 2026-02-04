@@ -9,6 +9,7 @@ import {
   WhitelistAccessControl,
 } from "../typechain-types";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
+import { resetNetwork } from "./helpers/resetNetwork";
 
 describe("Access Control", function () {
   let owner: SignerWithAddress;
@@ -16,6 +17,10 @@ describe("Access Control", function () {
   let user1: SignerWithAddress;
   let user2: SignerWithAddress;
   let user3: SignerWithAddress;
+
+  before(async function () {
+    await resetNetwork();
+  });
 
   let mockAsset: MockUnderlyingAsset;
   let factory: TransparentVaultFactory;
@@ -44,7 +49,7 @@ describe("Access Control", function () {
       const tx = await factory.createVault(
         strategist.address,
         "Test Vault",
-        "TVAULT",
+        "TV",
         0, // feeType
         0, // performanceFee
         0, // managementFee
@@ -95,7 +100,7 @@ describe("Access Control", function () {
       const tx = await factory.createVault(
         strategist.address,
         "Gated Vault",
-        "GVAULT",
+        "GV",
         0,
         0,
         0,
@@ -193,15 +198,7 @@ describe("Access Control", function () {
 
     beforeEach(async function () {
       // Create vault without access control initially
-      const tx = await factory.createVault(
-        strategist.address,
-        "Updateable Vault",
-        "UVAULT",
-        0,
-        0,
-        0,
-        ethers.ZeroAddress,
-      );
+      const tx = await factory.createVault(strategist.address, "Updateable Vault", "UV", 0, 0, 0, ethers.ZeroAddress);
 
       const receipt = await tx.wait();
       const event = receipt?.logs.find((log) => {

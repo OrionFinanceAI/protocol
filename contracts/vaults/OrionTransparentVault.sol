@@ -2,8 +2,6 @@
 pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
-import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import "./OrionVault.sol";
 import "../interfaces/IOrionConfig.sol";
 import "../interfaces/IOrionTransparentVault.sol";
@@ -22,7 +20,6 @@ import { EventsLib } from "../libraries/EventsLib.sol";
  */
 contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
-    using EnumerableSet for EnumerableSet.AddressSet;
 
     /// @notice Current portfolio shares per asset (w_0) - mapping of token address to live allocation
     EnumerableMap.AddressToUintMap internal _portfolio;
@@ -102,7 +99,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
             totalWeight += weight;
         }
 
-        // Validate that all assets in the intent are whitelisted for this vault
+        // Validate that all assets in the intent are whitelisted
         _validateIntentAssets(assets);
         // Validate that the total weight is 100%
         if (totalWeight != 10 ** config.strategistIntentDecimals()) revert ErrorsLib.InvalidTotalWeight();
@@ -173,29 +170,6 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
             tokens,
             shares
         );
-    }
-
-    /// @inheritdoc IOrionTransparentVault
-    function removeFromVaultWhitelist(address asset) external onlyConfig {
-        // slither-disable-next-line unused-return
-        _vaultWhitelistedAssets.remove(asset);
-
-        (bool exists, uint256 blacklistedWeight) = _portfolioIntent.tryGet(asset);
-        if (!exists) return; // Asset not in intent, nothing to modify
-
-        // slither-disable-next-line unused-return
-        _portfolioIntent.remove(asset);
-
-        // Add the weight to the underlying asset
-        address underlyingAsset = this.asset();
-        (bool underlyingExists, uint256 currentUnderlyingWeight) = _portfolioIntent.tryGet(underlyingAsset);
-        if (underlyingExists) {
-            // slither-disable-next-line unused-return
-            _portfolioIntent.set(underlyingAsset, currentUnderlyingWeight + blacklistedWeight);
-        } else {
-            // slither-disable-next-line unused-return
-            _portfolioIntent.set(underlyingAsset, blacklistedWeight);
-        }
     }
 
     /// @dev Storage gap to allow for future upgrades

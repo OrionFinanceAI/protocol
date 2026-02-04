@@ -18,6 +18,9 @@ library EventsLib {
     /// @param asset The address of the removed asset.
     event WhitelistedAssetRemoved(address indexed asset);
 
+    /// @notice Asset marked for decommissioning (stays whitelisted until completeAssetRemoval).
+    event AssetDecommissioningInitiated(address indexed asset);
+
     /// @notice A new Orion Vault has been registered in the protocol.
     /// @param vault The address of the added vault.
     event OrionVaultAdded(address indexed vault);
@@ -110,21 +113,27 @@ library EventsLib {
         uint256[] shares
     );
 
-    // ====================================
-    // === Internal State Orchestrator ===
-    // ====================================
+    // ================================
+    // === Liquidity Orchestrator ===
+    // ================================
 
     /// @notice The automation registry address has been updated.
     /// @param newAutomationRegistry The address of the new automation registry.
     event AutomationRegistryUpdated(address indexed newAutomationRegistry);
 
-    // ================================
-    // === Liquidity Orchestrator ===
-    // ================================
+    /// @notice The SP1 verifier contract address has been updated.
+    /// @param newVerifier The address of the new SP1 verifier contract.
+    event SP1VerifierUpdated(address indexed newVerifier);
+
+    /// @notice The internal state orchestrator verification key has been updated.
+    /// @param vKey The new verification key.
+    event VKeyUpdated(bytes32 indexed vKey);
 
     /// @notice A new epoch has started.
     /// @param epochCounter The current epoch counter.
-    event EpochStart(uint256 indexed epochCounter);
+    /// @param assets Array of asset addresses.
+    /// @param prices Array of asset prices (parallel to assets array).
+    event EpochStart(uint256 indexed epochCounter, address[] assets, uint256[] prices);
 
     /// @notice The portfolio has been rebalanced.
     /// @param epochCounter The current epoch counter.
@@ -139,6 +148,10 @@ library EventsLib {
     /// @param asset The address of the asset.
     /// @param adapter The address of the execution adapter.
     event ExecutionAdapterSet(address indexed asset, address indexed adapter);
+
+    /// @notice Protocol fees have been accrued.
+    /// @param epochProtocolFees The amount of protocol fees accrued for the current epoch.
+    event ProtocolFeesAccrued(uint256 indexed epochProtocolFees);
 
     /// @notice Protocol fees have been claimed.
     /// @param amount The amount of protocol fees claimed.

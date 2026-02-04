@@ -2,8 +2,9 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import "@openzeppelin/hardhat-upgrades";
 import { loadFixture, time } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import { OrionTransparentVault, InternalStateOrchestrator } from "../typechain-types";
+import { OrionTransparentVault } from "../typechain-types";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
+import { resetNetwork } from "./helpers/resetNetwork";
 
 /**
  * @title Fee Cooldown Mechanism Tests
@@ -27,6 +28,10 @@ describe("Fee Cooldown Mechanism", function () {
   const MAX_PROTOCOL_VOLUME_FEE = 50; // 0.5%
   const MAX_PROTOCOL_REVENUE_SHARE = 2000; // 20%
 
+  before(async function () {
+    await resetNetwork();
+  });
+
   async function deployFixture() {
     const [owner, strategist, user1, user2, automationRegistry] = await ethers.getSigners();
 
@@ -34,7 +39,6 @@ describe("Fee Cooldown Mechanism", function () {
 
     const usdc = deployed.underlyingAsset;
     const config = deployed.orionConfig;
-    const InternalStateOrchestrator: InternalStateOrchestrator = deployed.InternalStateOrchestrator;
     const vaultFactory = deployed.transparentVaultFactory;
 
     return {
@@ -45,7 +49,6 @@ describe("Fee Cooldown Mechanism", function () {
       strategist,
       user1,
       user2,
-      InternalStateOrchestrator,
       automationRegistry,
     };
   }
@@ -65,15 +68,7 @@ describe("Fee Cooldown Mechanism", function () {
 
     const vaultTx = await vaultFactory
       .connect(owner)
-      .createVault(
-        strategist.address,
-        "Test Vault",
-        "TVAULT",
-        feeType,
-        performanceFee,
-        managementFee,
-        ethers.ZeroAddress,
-      );
+      .createVault(strategist.address, "Test Vault", "TV", feeType, performanceFee, managementFee, ethers.ZeroAddress);
     const receipt = await vaultTx.wait();
     const vaultCreatedEvent = receipt?.logs.find((log) => {
       try {
@@ -211,62 +206,56 @@ describe("Fee Cooldown Mechanism", function () {
 
   describe("Protocol Fee Cooldown: Storage and Timing", function () {
     it("should store new protocol fee rates immediately in storage", async function () {
-      const { InternalStateOrchestrator, owner } = await loadFixture(deployFixture);
+      const { config, owner } = await loadFixture(deployFixture);
 
-      await InternalStateOrchestrator.connect(owner).updateProtocolFees(25, 1000);
+      await config.connect(owner).updateProtocolFees(25, 1000);
 
-      const vFee = await InternalStateOrchestrator.vFeeCoefficient();
-      const rsFee = await InternalStateOrchestrator.rsFeeCoefficient();
+      const vFee = await config.vFeeCoefficient();
+      const rsFee = await config.rsFeeCoefficient();
 
       expect(vFee).to.equal(25);
       expect(rsFee).to.equal(1000);
     });
 
     it("should set correct effective timestamp for protocol fee changes", async function () {
-      const { InternalStateOrchestrator, owner } = await loadFixture(deployFixture);
+      const { config, owner } = await loadFixture(deployFixture);
 
-      const tx = await InternalStateOrchestrator.connect(owner).updateProtocolFees(25, 1000);
+      const tx = await config.connect(owner).updateProtocolFees(25, 1000);
       const receipt = await tx.wait();
       const blockTimestamp = (await ethers.provider.getBlock(receipt!.blockNumber))!.timestamp;
       const expectedEffectiveTime = blockTimestamp + Number(DEFAULT_COOLDOWN);
 
-      const newProtocolFeeRatesTimestamp = await InternalStateOrchestrator.newProtocolFeeRatesTimestamp();
+      const newProtocolFeeRatesTimestamp = await config.newProtocolFeeRatesTimestamp();
       expect(newProtocolFeeRatesTimestamp).to.equal(expectedEffectiveTime);
     });
 
     it("should emit ProtocolFeeChangeScheduled event", async function () {
-      const { InternalStateOrchestrator, owner } = await loadFixture(deployFixture);
+      const { config, owner } = await loadFixture(deployFixture);
 
-      await expect(InternalStateOrchestrator.connect(owner).updateProtocolFees(25, 1000)).to.emit(
-        InternalStateOrchestrator,
-        "ProtocolFeeChangeScheduled",
-      );
+      await expect(config.connect(owner).updateProtocolFees(25, 1000)).to.emit(config, "ProtocolFeeChangeScheduled");
     });
 
     it("should reject protocol fees exceeding maximums", async function () {
-      const { InternalStateOrchestrator, owner } = await loadFixture(deployFixture);
+      const { config, owner } = await loadFixture(deployFixture);
 
       // Exceeding volume fee max (0.5%)
       await expect(
-        InternalStateOrchestrator.connect(owner).updateProtocolFees(MAX_PROTOCOL_VOLUME_FEE + 1, 1000),
-      ).to.be.revertedWithCustomError(InternalStateOrchestrator, "InvalidArguments");
+        config.connect(owner).updateProtocolFees(MAX_PROTOCOL_VOLUME_FEE + 1, 1000),
+      ).to.be.revertedWithCustomError(config, "InvalidArguments");
 
       // Exceeding revenue share max (20%)
       await expect(
-        InternalStateOrchestrator.connect(owner).updateProtocolFees(25, MAX_PROTOCOL_REVENUE_SHARE + 1),
-      ).to.be.revertedWithCustomError(InternalStateOrchestrator, "InvalidArguments");
+        config.connect(owner).updateProtocolFees(25, MAX_PROTOCOL_REVENUE_SHARE + 1),
+      ).to.be.revertedWithCustomError(config, "InvalidArguments");
     });
 
     it("should allow setting protocol fees to zero", async function () {
-      const { InternalStateOrchestrator, owner } = await loadFixture(deployFixture);
+      const { config, owner } = await loadFixture(deployFixture);
 
-      await expect(InternalStateOrchestrator.connect(owner).updateProtocolFees(0, 0)).to.emit(
-        InternalStateOrchestrator,
-        "ProtocolFeeChangeScheduled",
-      );
+      await expect(config.connect(owner).updateProtocolFees(0, 0)).to.emit(config, "ProtocolFeeChangeScheduled");
 
-      expect(await InternalStateOrchestrator.vFeeCoefficient()).to.equal(0);
-      expect(await InternalStateOrchestrator.rsFeeCoefficient()).to.equal(0);
+      expect(await config.vFeeCoefficient()).to.equal(0);
+      expect(await config.rsFeeCoefficient()).to.equal(0);
     });
   });
 
@@ -339,16 +328,17 @@ describe("Fee Cooldown Mechanism", function () {
     });
 
     it("should only allow owner to update protocol fees", async function () {
-      const { InternalStateOrchestrator, user1, strategist } = await loadFixture(deployFixture);
+      const { config, user1, strategist } = await loadFixture(deployFixture);
 
-      await expect(InternalStateOrchestrator.connect(user1).updateProtocolFees(25, 1000)).to.be.revertedWithCustomError(
-        InternalStateOrchestrator,
+      await expect(config.connect(user1).updateProtocolFees(25, 1000)).to.be.revertedWithCustomError(
+        config,
         "OwnableUnauthorizedAccount",
       );
 
-      await expect(
-        InternalStateOrchestrator.connect(strategist).updateProtocolFees(25, 1000),
-      ).to.be.revertedWithCustomError(InternalStateOrchestrator, "OwnableUnauthorizedAccount");
+      await expect(config.connect(strategist).updateProtocolFees(25, 1000)).to.be.revertedWithCustomError(
+        config,
+        "OwnableUnauthorizedAccount",
+      );
     });
 
     it("should only allow config owner to modify cooldown duration", async function () {
@@ -528,13 +518,13 @@ describe("Fee Cooldown Mechanism", function () {
     });
 
     it("should allow protocol fee adjustments with proper notice", async function () {
-      const { InternalStateOrchestrator, owner } = await loadFixture(deployFixture);
+      const { config, owner } = await loadFixture(deployFixture);
 
-      const tx = await InternalStateOrchestrator.connect(owner).updateProtocolFees(30, 1500);
+      const tx = await config.connect(owner).updateProtocolFees(30, 1500);
 
-      await expect(tx).to.emit(InternalStateOrchestrator, "ProtocolFeeChangeScheduled");
+      await expect(tx).to.emit(config, "ProtocolFeeChangeScheduled");
 
-      const effectiveTime = await InternalStateOrchestrator.newProtocolFeeRatesTimestamp();
+      const effectiveTime = await config.newProtocolFeeRatesTimestamp();
       const currentTime = await time.latest();
       expect(effectiveTime - BigInt(currentTime)).to.be.closeTo(DEFAULT_COOLDOWN, 10n);
     });

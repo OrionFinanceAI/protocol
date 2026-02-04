@@ -1,20 +1,73 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import "@chainlink/contracts/src/v0.8/automation/AutomationCompatible.sol";
 import "./IExecutionAdapter.sol";
+import "./IOrionVault.sol";
 
 /// @title ILiquidityOrchestrator
 /// @notice Interface for the liquidity orchestrator
 /// @author Orion Finance
 /// @custom:security-contact security@orionfinance.ai
-interface ILiquidityOrchestrator is AutomationCompatibleInterface {
+interface ILiquidityOrchestrator {
     /// @notice Upkeep phase enum for liquidity orchestration
     enum LiquidityUpkeepPhase {
         Idle,
+        StateCommitment,
         SellingLeg,
         BuyingLeg,
         ProcessVaultOperations
+    }
+
+    /// @notice Struct to hold vault state data
+    struct VaultStateData {
+        uint8[] feeTypes;
+        uint16[] performanceFees;
+        uint16[] managementFees;
+        uint256[] highWaterMarks;
+        uint256[] pendingRedeems;
+        uint256[] pendingDeposits;
+        uint256[] totalSupplies;
+        address[][] portfolioTokens;
+        uint256[][] portfolioShares;
+        address[][] intentTokens;
+        uint32[][] intentWeights;
+    }
+
+    struct PublicValuesStruct {
+        /// @notice Input state commitments
+        bytes32 inputCommitment;
+        /// @notice Output state commitments
+        bytes32 outputCommitment;
+    }
+
+    struct StatesStruct {
+        VaultState[] vaults;
+        SellLegOrders sellLeg;
+        BuyLegOrders buyLeg;
+        uint256 bufferAmount;
+        uint256 epochProtocolFees;
+    }
+
+    struct VaultState {
+        uint256 totalAssetsForRedeem;
+        uint256 totalAssetsForDeposit;
+        uint256 finalTotalAssets;
+        uint256 managementFee;
+        uint256 performanceFee;
+        address[] tokens;
+        uint256[] shares;
+    }
+
+    struct SellLegOrders {
+        address[] sellingTokens;
+        uint256[] sellingAmounts;
+        uint256[] sellingEstimatedUnderlyingAmounts;
+    }
+
+    struct BuyLegOrders {
+        address[] buyingTokens;
+        uint256[] buyingAmounts;
+        uint256[] buyingEstimatedUnderlyingAmounts;
     }
 
     /// @notice Returns the current upkeep phase
@@ -29,6 +82,55 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @return The slippage tolerance
     function slippageTolerance() external view returns (uint256);
 
+    /// @notice Returns the current buffer amount
+    /// @return The current buffer amount
+    function bufferAmount() external view returns (uint256);
+
+    /// @notice Returns the pending protocol fees
+    /// @return The pending protocol fees
+    function pendingProtocolFees() external view returns (uint256);
+
+    /// @notice Returns the epoch duration
+    /// @return The epoch duration in seconds
+    function epochDuration() external view returns (uint32);
+
+    /// @notice Updates the epoch duration
+    /// @param newEpochDuration The new epoch duration in seconds
+    function updateEpochDuration(uint32 newEpochDuration) external;
+
+    /// @notice Struct representing the full epoch state view
+    /// @dev This struct contains all epoch state data in a returnable format
+    struct EpochStateView {
+        /// @notice Transparent vaults associated to the current epoch
+        address[] vaultsEpoch;
+        /// @notice Active volume fee coefficient for current epoch
+        uint16 activeVFeeCoefficient;
+        /// @notice Active revenue share fee coefficient for current epoch
+        uint16 activeRsFeeCoefficient;
+        /// @notice Active fee models for vaults in current epoch
+        IOrionVault.FeeModel[] vaultFeeModels;
+        /// @notice Epoch state commitment
+        bytes32 epochStateCommitment;
+    }
+
+    /// @notice Returns the full epoch state
+    /// @dev Returns all epoch state data in a single struct. Use this instead of individual getters.
+    /// @return The complete epoch state view
+    function getEpochState() external view returns (EpochStateView memory);
+
+    /// @notice Returns tokens that failed during the current epoch's sell/buy execution
+    /// @return List of token addresses that failed
+    function getFailedEpochTokens() external view returns (address[] memory);
+
+    /// @notice Gets asset prices for the epoch
+    /// @param assets Array of asset addresses
+    /// @return assetPrices Array of asset prices
+    function getAssetPrices(address[] memory assets) external view returns (uint256[] memory assetPrices);
+
+    /// @notice Updates the execution minibatch size
+    /// @param _executionMinibatchSize The new execution minibatch size
+    function updateExecutionMinibatchSize(uint8 _executionMinibatchSize) external;
+
     /// @notice Updates the minibatch size for fulfill deposit and redeem processing
     /// @param _minibatchSize The new minibatch size
     function updateMinibatchSize(uint8 _minibatchSize) external;
@@ -37,10 +139,13 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @param newAutomationRegistry The new automation registry address
     function updateAutomationRegistry(address newAutomationRegistry) external;
 
-    /// @notice Sets the internal state orchestrator address
-    /// @dev Can only be called by the contract owner
-    /// @param internalStateOrchestrator The address of the internal state orchestrator
-    function setInternalStateOrchestrator(address internalStateOrchestrator) external;
+    /// @notice Updates the verifier contract address
+    /// @param newVerifier The address of the new verifier contract
+    function updateVerifier(address newVerifier) external;
+
+    /// @notice Updates the internal state orchestrator verification key
+    /// @param newvKey The new verification key
+    function updateVKey(bytes32 newvKey) external;
 
     /// @notice Sets the target buffer ratio
     /// @param _targetBufferRatio The new target buffer ratio
@@ -95,15 +200,28 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @param receiver The address to receive the underlying assets
     function withdraw(uint256 assets, address receiver) external;
 
-    /// @notice Advances the idle phase
-    /// @dev Called by the internal state orchestrator to advance the idle phase
-    function advanceIdlePhase() external;
-
-    /// @notice Pauses the contract
-    /// @dev Can only be called by OrionConfig for emergency situations
+    /// @notice Pauses protocol operations for the orchestrator
+    /// @dev Can only be called by guardian or owner for emergency situations
     function pause() external;
 
-    /// @notice Unpauses the contract
-    /// @dev Can only be called by OrionConfig after resolving emergency
+    /// @notice Unpauses protocol operations for the orchestrator
+    /// @dev Can only be called by owner after resolving emergency
+    ///      (not guardian: requires owner approval to resume)
     function unpause() external;
+
+    /// @notice Checks if upkeep is needed
+    /// @return upkeepNeeded Whether upkeep is needed
+    /// @dev the API is inspired but different from the Chainlink Automation interface.
+    function checkUpkeep() external view returns (bool upkeepNeeded);
+
+    /// @notice Performs the upkeep
+    /// @param _publicValues Encoded PublicValuesStruct containing input and output commitments
+    /// @param proofBytes The zk-proof bytes
+    /// @param statesBytes Encoded StatesStruct containing vaults, buy leg, and sell leg data
+    /// @dev the API is inspired but different from the Chainlink Automation interface.
+    function performUpkeep(
+        bytes calldata _publicValues,
+        bytes calldata proofBytes,
+        bytes calldata statesBytes
+    ) external;
 }
