@@ -33,6 +33,7 @@ before(async function () {
 });
 
 beforeEach(async function () {
+  this.timeout(90_000); // deployment-heavy; CI coverage runs slower than normal
   [owner, strategist, other] = await ethers.getSigners();
 
   const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
