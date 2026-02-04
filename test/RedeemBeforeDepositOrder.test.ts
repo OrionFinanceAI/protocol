@@ -102,7 +102,6 @@ describe("Redeem Before Deposit Order Verification", function () {
     const deployed = await deployUpgradeableProtocol(owner, underlyingAsset, automationRegistry);
 
     orionConfig = deployed.orionConfig;
-    console.log("orionConfig address", await orionConfig.getAddress());
 
     liquidityOrchestrator = deployed.liquidityOrchestrator;
     transparentVaultFactory = deployed.transparentVaultFactory;

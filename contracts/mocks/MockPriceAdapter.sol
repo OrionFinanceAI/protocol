@@ -4,7 +4,7 @@ pragma solidity ^0.8.28;
 import { IPriceAdapter } from "../interfaces/IPriceAdapter.sol";
 
 /// @title Price Adapter mock
-/// @notice One instance per asset. Produces pseudo‑random prices for testing.
+/// @notice One instance per asset.
 contract MockPriceAdapter is IPriceAdapter {
     // solhint-disable-next-line no-empty-blocks
     constructor() {}

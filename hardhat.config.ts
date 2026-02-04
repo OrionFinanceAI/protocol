@@ -7,6 +7,8 @@ import { HardhatUserConfig } from "hardhat/config";
 
 dotenv.config({ quiet: true });
 
+const isCoverage = process.env.SOLIDITY_COVERAGE === "true";
+
 const config: HardhatUserConfig = {
   defaultNetwork: "hardhat",
 
@@ -42,11 +44,16 @@ const config: HardhatUserConfig = {
       gas: "auto",
       gasPrice: 2_000_000_000,
     },
-    sepolia: {
-      url: process.env.RPC_URL,
-      accounts: [process.env.DEPLOYER_PRIVATE_KEY!, process.env.LP_PRIVATE_KEY!],
-      chainId: 11155111,
-    },
+
+    ...(!isCoverage
+      ? {
+          sepolia: {
+            url: process.env.RPC_URL!,
+            accounts: [process.env.DEPLOYER_PRIVATE_KEY!, process.env.LP_PRIVATE_KEY!],
+            chainId: 11155111,
+          },
+        }
+      : {}),
   },
 
   etherscan: {

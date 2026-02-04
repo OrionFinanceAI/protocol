@@ -133,7 +133,6 @@ describe("Orchestrators", function () {
     orionConfig = deployed.orionConfig;
     liquidityOrchestrator = deployed.liquidityOrchestrator;
     transparentVaultFactory = deployed.transparentVaultFactory;
-    console.log("orionConfig address", await orionConfig.getAddress());
 
     const OrionAssetERC4626PriceAdapterFactory = await ethers.getContractFactory("OrionAssetERC4626PriceAdapter");
     orionPriceAdapter = (await OrionAssetERC4626PriceAdapterFactory.deploy(

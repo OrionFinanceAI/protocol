@@ -62,8 +62,6 @@ export async function deployUpgradeableProtocol(
   })) as unknown as OrionConfig;
   await orionConfig.waitForDeployment();
 
-  console.log("orionConfig address", await orionConfig.getAddress());
-
   // 2. Deploy PriceAdapterRegistry (UUPS) and set in config
   const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistry");
   const priceAdapterRegistry = (await upgrades.deployProxy(
