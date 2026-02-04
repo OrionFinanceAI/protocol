@@ -4,6 +4,7 @@ import "@openzeppelin/hardhat-upgrades";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
+import { resetNetwork } from "./helpers/resetNetwork";
 
 /**
  * @title Minimum Amount DOS Prevention Tests
@@ -17,6 +18,10 @@ describe("Minimum Amount DOS Prevention", function () {
   const MIN_DEPOSIT = ethers.parseUnits("100", 6); // 100 USDC minimum
   const MIN_REDEEM = ethers.parseUnits("100", 18); // 100 shares minimum (18 decimals)
 
+  before(async function () {
+    await resetNetwork();
+  });
+
   async function deployFixture() {
     const [owner, strategist, attacker, user1, user2, automationRegistry] = await ethers.getSigners();
 
@@ -24,7 +29,6 @@ describe("Minimum Amount DOS Prevention", function () {
 
     const usdc = deployed.underlyingAsset;
     const config = deployed.orionConfig;
-    const InternalStateOrchestrator = deployed.InternalStateOrchestrator;
     const liquidityOrchestrator = deployed.liquidityOrchestrator;
     const vaultFactory = deployed.transparentVaultFactory;
 
@@ -32,7 +36,7 @@ describe("Minimum Amount DOS Prevention", function () {
     const vaultTx = await vaultFactory.connect(owner).createVault(
       strategist.address,
       "Test Vault",
-      "TVAULT",
+      "TV",
       0, // Absolute fee type
       100, // 1% performance fee
       10, // 0.1% management fee
@@ -66,7 +70,6 @@ describe("Minimum Amount DOS Prevention", function () {
       usdc,
       config,
       vault,
-      InternalStateOrchestrator,
       liquidityOrchestrator,
     };
   }

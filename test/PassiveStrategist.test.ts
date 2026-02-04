@@ -2,15 +2,14 @@ import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
 import "@openzeppelin/hardhat-upgrades";
 import { ethers } from "hardhat";
-import { time } from "@nomicfoundation/hardhat-network-helpers";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
+import { resetNetwork } from "./helpers/resetNetwork";
 
 import {
   MockUnderlyingAsset,
   MockERC4626Asset,
   OrionAssetERC4626ExecutionAdapter,
   OrionConfig,
-  InternalStateOrchestrator,
   LiquidityOrchestrator,
   TransparentVaultFactory,
   OrionTransparentVault,
@@ -29,7 +28,6 @@ describe("Passive Strategist", function () {
   let mockAsset4: MockERC4626Asset;
   let orionPriceAdapter: OrionAssetERC4626PriceAdapter;
   let orionExecutionAdapter: OrionAssetERC4626ExecutionAdapter;
-  let InternalStateOrchestrator: InternalStateOrchestrator;
   let liquidityOrchestrator: LiquidityOrchestrator;
   let transparentVault: OrionTransparentVault;
   let passiveStrategist: KBestTvlWeightedAverage;
@@ -39,7 +37,12 @@ describe("Passive Strategist", function () {
   let automationRegistry: SignerWithAddress;
   let user: SignerWithAddress;
 
+  before(async function () {
+    await resetNetwork();
+  });
+
   beforeEach(async function () {
+    this.timeout(90_000);
     [owner, strategist, automationRegistry, user] = await ethers.getSigners();
 
     // Deploy Mock Underlying Asset first (will be passed to helper)
@@ -108,7 +111,6 @@ describe("Passive Strategist", function () {
     const deployed = await deployUpgradeableProtocol(owner, underlyingAsset, automationRegistry);
 
     orionConfig = deployed.orionConfig;
-    InternalStateOrchestrator = deployed.InternalStateOrchestrator;
     liquidityOrchestrator = deployed.liquidityOrchestrator;
     transparentVaultFactory = deployed.transparentVaultFactory;
 
@@ -120,7 +122,7 @@ describe("Passive Strategist", function () {
     await orionPriceAdapter.waitForDeployment();
 
     // Configure protocol
-    await InternalStateOrchestrator.connect(owner).updateProtocolFees(10, 1000);
+    await orionConfig.connect(owner).updateProtocolFees(10, 1000);
     await liquidityOrchestrator.setTargetBufferRatio(100); // 1% target buffer ratio
     await liquidityOrchestrator.setSlippageTolerance(50); // 0.5% slippage
 
@@ -154,10 +156,12 @@ describe("Passive Strategist", function () {
     );
 
     const KBestTvlWeightedAverageFactory = await ethers.getContractFactory("KBestTvlWeightedAverage");
+    const investmentUniverse = [...(await orionConfig.getAllWhitelistedAssets())];
     const passiveStrategistDeployed = await KBestTvlWeightedAverageFactory.deploy(
       strategist.address,
       await orionConfig.getAddress(),
       3, // k = 3, select top 3 assets
+      investmentUniverse,
     );
     await passiveStrategistDeployed.waitForDeployment();
     passiveStrategist = passiveStrategistDeployed as unknown as KBestTvlWeightedAverage;
@@ -165,7 +169,7 @@ describe("Passive Strategist", function () {
     // Step 1: Create a transparent vault with an address (not contract) as strategist
     const tx = await transparentVaultFactory
       .connect(owner)
-      .createVault(strategist.address, "Test Passive Strategist Vault", "TPSV", 0, 0, 0, ethers.ZeroAddress);
+      .createVault(strategist.address, "Passive Strategist Vault", "PSV", 0, 0, 0, ethers.ZeroAddress);
     const receipt = await tx.wait();
 
     // Find the vault creation event
@@ -191,17 +195,7 @@ describe("Passive Strategist", function () {
 
     await transparentVault.connect(owner).updateFeeModel(3, 1000, 100);
 
-    // Step 2: Update vault investment universe to exclude underlying asset
-    await transparentVault
-      .connect(owner)
-      .updateVaultWhitelist([
-        await mockAsset1.getAddress(),
-        await mockAsset2.getAddress(),
-        await mockAsset3.getAddress(),
-        await mockAsset4.getAddress(),
-      ]);
-
-    // Step 3: Update strategist to a contract
+    // Step 2: Set strategist to passive strategist contract (vault uses protocol assets)
     await transparentVault.connect(owner).updateStrategist(await passiveStrategist.getAddress());
 
     await passiveStrategist.connect(strategist).submitIntent(transparentVault);
@@ -233,9 +227,9 @@ describe("Passive Strategist", function () {
 
   describe("Passive Strategist Intent Computation", function () {
     it("should compute intent with correct asset selection", async function () {
-      // Get vault whitelist
-      const vaultWhitelist = await transparentVault.vaultWhitelist();
-      expect(vaultWhitelist.length).to.equal(5);
+      // Strategist's contract-specific investment universe
+      const investmentUniverse = await passiveStrategist.investmentUniverse();
+      expect(investmentUniverse.length).to.equal(5);
 
       // Get intent through the vault
       const [tokens, weights] = await transparentVault.getIntent();
@@ -317,61 +311,6 @@ describe("Passive Strategist", function () {
     });
   });
 
-  describe("Vault Integration with Passive Strategist", function () {
-    it("should get intent from passive strategist during orchestrator execution", async function () {
-      // Fast forward time to trigger upkeep
-      const epochDuration = await InternalStateOrchestrator.epochDuration();
-      await time.increase(epochDuration + 1n);
-
-      // Start the upkeep cycle
-      let [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await InternalStateOrchestrator.currentPhase()).to.equal(1); // PreprocessingTransparentVaults
-
-      // Continue with buffering
-      [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await InternalStateOrchestrator.currentPhase()).to.equal(2); // Buffering
-
-      // Continue with postprocessing
-      [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await InternalStateOrchestrator.currentPhase()).to.equal(3); // PostprocessingTransparentVaults
-
-      // This is where the vault's getIntent() is called.
-      [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await InternalStateOrchestrator.currentPhase()).to.equal(4); // BuildingOrders
-
-      // Complete the cycle
-      [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-      expect(await InternalStateOrchestrator.currentPhase()).to.equal(0); // Back to Idle
-
-      // Verify that orders were built based on the passive strategist's intent
-
-      const [_sellingTokens, _sellingAmounts, _sellingEstimatedUnderlyingAmounts] =
-        await InternalStateOrchestrator.getOrders(true);
-
-      const [buyingTokens, _buyingAmounts, _buyingEstimatedUnderlyingAmounts] =
-        await InternalStateOrchestrator.getOrders(false);
-
-      // Should have buying orders for the assets selected by the passive strategist
-      expect(buyingTokens.length).to.be.greaterThan(0);
-      expect(buyingTokens.length).to.be.lessThanOrEqual(3); // Passive strategist selects top 3 assets
-
-      // Verify that the selected assets are in the buying orders
-      const selectedAssets = [
-        await mockAsset1.getAddress(),
-        await mockAsset2.getAddress(),
-        await mockAsset3.getAddress(),
-      ];
-      for (const token of buyingTokens) {
-        expect(selectedAssets).to.include(token);
-      }
-    });
-  });
-
   describe("Passive Strategist Parameter Updates", function () {
     it("should reflect parameter changes in intent computation", async function () {
       // Test with k=2
@@ -397,29 +336,6 @@ describe("Passive Strategist", function () {
     });
   });
 
-  describe("Vault Whitelist Updates with Passive Strategist Validation", function () {
-    it("should validate passive strategist when updating vault whitelist", async function () {
-      await transparentVault
-        .connect(owner)
-        .updateVaultWhitelist([await mockAsset1.getAddress(), await mockAsset2.getAddress()]);
-
-      const whitelist = await transparentVault.vaultWhitelist();
-      expect(whitelist.length).to.equal(3);
-      expect(whitelist).to.include(await mockAsset1.getAddress());
-      expect(whitelist).to.include(await mockAsset2.getAddress());
-    });
-
-    it("should allow whitelist updates when strategist is not a passive strategist", async function () {
-      await transparentVault.connect(owner).updateStrategist(owner.address);
-
-      await transparentVault
-        .connect(owner)
-        .updateVaultWhitelist([await mockAsset1.getAddress(), await mockAsset2.getAddress()]);
-
-      await transparentVault.connect(owner).updateStrategist(await passiveStrategist.getAddress());
-    });
-  });
-
   describe("Error Handling", function () {
     it("should maintain valid intent weights after parameter changes", async function () {
       // Test various k values to ensure weights always sum to 100%
@@ -441,11 +357,13 @@ describe("Passive Strategist", function () {
 
     it("should fail when passive strategist does not adjust weights to sum to intentScale", async function () {
       // Deploy the invalid passive strategist contract (without weight adjustment logic)
+      const investmentUniverse = [...(await orionConfig.getAllWhitelistedAssets())];
       const KBestTvlWeightedAverageInvalidFactory = await ethers.getContractFactory("KBestTvlWeightedAverageInvalid");
       const invalidStrategistDeployed = await KBestTvlWeightedAverageInvalidFactory.deploy(
         strategist.address,
         await orionConfig.getAddress(),
         3, // k = 3, select top 3 assets
+        investmentUniverse,
       );
       await invalidStrategistDeployed.waitForDeployment();
       const invalidStrategist = invalidStrategistDeployed as unknown as KBestTvlWeightedAverageInvalid;
@@ -453,7 +371,7 @@ describe("Passive Strategist", function () {
       // Create a new vault for this test
       const tx = await transparentVaultFactory
         .connect(owner)
-        .createVault(strategist.address, "Invalid Passive Strategist Vault", "IPSV", 0, 0, 0, ethers.ZeroAddress);
+        .createVault(strategist.address, "Invalid Passive Strategist", "IPS", 0, 0, 0, ethers.ZeroAddress);
       const receipt = await tx.wait();
 
       // Find the vault creation event
@@ -479,17 +397,7 @@ describe("Passive Strategist", function () {
 
       await invalidVault.connect(owner).updateFeeModel(3, 1000, 100);
 
-      // Update vault investment universe
-      await invalidVault
-        .connect(owner)
-        .updateVaultWhitelist([
-          await mockAsset1.getAddress(),
-          await mockAsset2.getAddress(),
-          await mockAsset3.getAddress(),
-          await mockAsset4.getAddress(),
-        ]);
-
-      // Associate the invalid passive strategist with the vault
+      // Associate the invalid passive strategist with the vault (vault uses protocol assets)
       await invalidVault.connect(owner).updateStrategist(await invalidStrategist.getAddress());
 
       // Attempt to submit intent - this should fail because weights don't sum to intentScale

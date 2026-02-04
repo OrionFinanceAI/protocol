@@ -68,13 +68,13 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
 import { deployUpgradeableProtocol } from "../helpers/deployUpgradeable";
+import { resetNetwork } from "../helpers/resetNetwork";
 
 import {
   MockUnderlyingAsset,
   MockERC4626Asset,
   OrionAssetERC4626ExecutionAdapter,
   OrionConfig,
-  InternalStateOrchestrator,
   LiquidityOrchestrator,
   TransparentVaultFactory,
   OrionTransparentVault,
@@ -83,6 +83,10 @@ import {
 } from "../../typechain-types";
 
 describe("Orchestrator Configuration", function () {
+  before(async function () {
+    await resetNetwork();
+  });
+
   // Vault deposit amounts (in underlying asset units)
   const ABSOLUTE_VAULT_DEPOSIT = 50;
   const SOFT_HURDLE_VAULT_DEPOSIT = 125;
@@ -99,7 +103,6 @@ describe("Orchestrator Configuration", function () {
   let mockAsset3: MockERC4626Asset;
   let orionPriceAdapter: OrionAssetERC4626PriceAdapter;
   let orionExecutionAdapter: OrionAssetERC4626ExecutionAdapter;
-  let InternalStateOrchestrator: InternalStateOrchestrator;
   let liquidityOrchestrator: LiquidityOrchestrator;
   let absoluteVault: OrionTransparentVault;
   let highWaterMarkVault: OrionTransparentVault;
@@ -183,19 +186,8 @@ describe("Orchestrator Configuration", function () {
     const deployed = await deployUpgradeableProtocol(owner, underlyingAsset, automationRegistry);
 
     orionConfig = deployed.orionConfig;
-    InternalStateOrchestrator = deployed.InternalStateOrchestrator;
     liquidityOrchestrator = deployed.liquidityOrchestrator;
     transparentVaultFactory = deployed.transparentVaultFactory;
-
-    // Deploy KBestTvlWeightedAverage passive strategist with k=2
-    const KBestTvlWeightedAveragePassiveStrategistFactory = await ethers.getContractFactory("KBestTvlWeightedAverage");
-    const kbestTvlPassiveStrategistDeployed = await KBestTvlWeightedAveragePassiveStrategistFactory.deploy(
-      owner.address,
-      await orionConfig.getAddress(),
-      1, // k=1, select top 1 asset for passive strategist
-    );
-    await kbestTvlPassiveStrategistDeployed.waitForDeployment();
-    kbestTvlPassiveStrategist = kbestTvlPassiveStrategistDeployed as unknown as KBestTvlWeightedAverage;
 
     const OrionAssetERC4626PriceAdapterFactory = await ethers.getContractFactory("OrionAssetERC4626PriceAdapter");
     orionPriceAdapter = (await OrionAssetERC4626PriceAdapterFactory.deploy(
@@ -204,15 +196,15 @@ describe("Orchestrator Configuration", function () {
     await orionPriceAdapter.waitForDeployment();
 
     // Configure protocol
-    await InternalStateOrchestrator.connect(owner).updateProtocolFees(10, 1000);
+    await orionConfig.connect(owner).updateProtocolFees(10, 1000);
 
-    await expect(InternalStateOrchestrator.connect(owner).updateProtocolFees(51, 0)).to.be.revertedWithCustomError(
-      InternalStateOrchestrator,
+    await expect(orionConfig.connect(owner).updateProtocolFees(51, 0)).to.be.revertedWithCustomError(
+      orionConfig,
       "InvalidArguments",
     );
 
-    await expect(InternalStateOrchestrator.connect(owner).updateProtocolFees(0, 2001)).to.be.revertedWithCustomError(
-      InternalStateOrchestrator,
+    await expect(orionConfig.connect(owner).updateProtocolFees(0, 2001)).to.be.revertedWithCustomError(
+      orionConfig,
       "InvalidArguments",
     );
 
@@ -254,6 +246,18 @@ describe("Orchestrator Configuration", function () {
       await orionPriceAdapter.getAddress(),
       await orionExecutionAdapter.getAddress(),
     );
+
+    // Deploy KBestTvlWeightedAverage passive strategist with k=1 and contract-specific investment universe
+    const investmentUniverse = [...(await orionConfig.getAllWhitelistedAssets())];
+    const KBestTvlWeightedAveragePassiveStrategistFactory = await ethers.getContractFactory("KBestTvlWeightedAverage");
+    const kbestTvlPassiveStrategistDeployed = await KBestTvlWeightedAveragePassiveStrategistFactory.deploy(
+      owner.address,
+      await orionConfig.getAddress(),
+      1, // k=1, select top 1 asset for passive strategist
+      investmentUniverse,
+    );
+    await kbestTvlPassiveStrategistDeployed.waitForDeployment();
+    kbestTvlPassiveStrategist = kbestTvlPassiveStrategistDeployed as unknown as KBestTvlWeightedAverage;
 
     await orionConfig.setProtocolRiskFreeRate(0.0423 * 10_000);
 
@@ -335,7 +339,7 @@ describe("Orchestrator Configuration", function () {
 
     const hurdleHwmVaultTx = await transparentVaultFactory
       .connect(owner)
-      .createVault(strategist.address, "Hurdle HWM Vault", "HHWMV", 4, 2000, 250, ethers.ZeroAddress);
+      .createVault(strategist.address, "Hurdle HWM Vault", "HHWM", 4, 2000, 250, ethers.ZeroAddress);
     const hurdleHwmVaultReceipt = await hurdleHwmVaultTx.wait();
     const hurdleHwmVaultEvent = hurdleHwmVaultReceipt?.logs.find((log) => {
       try {
@@ -581,69 +585,71 @@ describe("Orchestrator Configuration", function () {
   describe("configuration", function () {
     it("should allow owner to update epoch duration", async function () {
       const newEpochDuration = 2 * 24 * 60 * 60; // 2 days
-      await InternalStateOrchestrator.updateEpochDuration(newEpochDuration);
-      expect(await InternalStateOrchestrator.epochDuration()).to.equal(newEpochDuration);
+      await liquidityOrchestrator.updateEpochDuration(newEpochDuration);
+      expect(await liquidityOrchestrator.epochDuration()).to.equal(newEpochDuration);
     });
 
     it("should allow owner to update minibatch sizes", async function () {
-      await expect(InternalStateOrchestrator.updateMinibatchSize(2)).to.not.be.reverted;
+      await expect(liquidityOrchestrator.updateMinibatchSize(2)).to.not.be.reverted;
     });
 
     it("should allow owner to update protocol fees", async function () {
-      await InternalStateOrchestrator.updateProtocolFees(50, 100); // 0.5% volume fee, 1% revenue share
-      expect(await InternalStateOrchestrator.vFeeCoefficient()).to.equal(50);
-      expect(await InternalStateOrchestrator.rsFeeCoefficient()).to.equal(100);
+      await orionConfig.updateProtocolFees(50, 100); // 0.5% volume fee, 1% revenue share
+      expect(await orionConfig.vFeeCoefficient()).to.equal(50);
+      expect(await orionConfig.rsFeeCoefficient()).to.equal(100);
     });
 
     it("should revert when updating protocol fees with invalid arguments", async function () {
       // Test with volume fee coefficient exceeding maximum
-      await expect(InternalStateOrchestrator.updateProtocolFees(101, 100)).to.be.revertedWithCustomError(
-        InternalStateOrchestrator,
+      await expect(orionConfig.updateProtocolFees(101, 100)).to.be.revertedWithCustomError(
+        orionConfig,
         "InvalidArguments",
       );
 
       // Test with revenue share fee coefficient exceeding maximum
-      await expect(InternalStateOrchestrator.updateProtocolFees(50, 2001)).to.be.revertedWithCustomError(
-        InternalStateOrchestrator,
+      await expect(orionConfig.updateProtocolFees(50, 2001)).to.be.revertedWithCustomError(
+        orionConfig,
         "InvalidArguments",
       );
 
       // Test with both coefficients exceeding maximum
-      await expect(InternalStateOrchestrator.updateProtocolFees(101, 2001)).to.be.revertedWithCustomError(
-        InternalStateOrchestrator,
+      await expect(orionConfig.updateProtocolFees(101, 2001)).to.be.revertedWithCustomError(
+        orionConfig,
         "InvalidArguments",
       );
     });
 
     it("should not allow non-owner to update configuration", async function () {
-      await expect(
-        InternalStateOrchestrator.connect(strategist).updateEpochDuration(86400),
-      ).to.be.revertedWithCustomError(InternalStateOrchestrator, "NotAuthorized");
+      await expect(liquidityOrchestrator.connect(strategist).updateEpochDuration(86400)).to.be.revertedWithCustomError(
+        liquidityOrchestrator,
+        "NotAuthorized",
+      );
     });
 
     it("should revert when updating automation registry with zero address", async function () {
-      await expect(
-        InternalStateOrchestrator.updateAutomationRegistry(ethers.ZeroAddress),
-      ).to.be.revertedWithCustomError(InternalStateOrchestrator, "ZeroAddress");
+      await expect(liquidityOrchestrator.updateAutomationRegistry(ethers.ZeroAddress)).to.be.revertedWithCustomError(
+        liquidityOrchestrator,
+        "ZeroAddress",
+      );
     });
 
-    it("should revert when updating automation registry when system is not idle", async function () {
+    it("should not revert when updating automation registry when system is not idle", async function () {
       // Fast forward time to trigger upkeep and make system not idle
-      const epochDuration = await InternalStateOrchestrator.epochDuration();
+      const epochDuration = await liquidityOrchestrator.epochDuration();
       await time.increase(epochDuration + 1n);
 
-      const [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
+      const upkeepNeeded = await liquidityOrchestrator.checkUpkeep();
+      void expect(upkeepNeeded).to.be.true;
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep("0x", "0x", "0x");
+
+      const isSystemIdle = await orionConfig.isSystemIdle();
+      void expect(isSystemIdle).to.be.false;
+
+      await expect(liquidityOrchestrator.updateAutomationRegistry(automationRegistry.address)).to.not.be.reverted;
     });
 
     it("should successfully update automation registry and emit event", async function () {
       const newAutomationRegistry = user.address;
-
-      await expect(InternalStateOrchestrator.updateAutomationRegistry(newAutomationRegistry))
-        .to.emit(InternalStateOrchestrator, "AutomationRegistryUpdated")
-        .withArgs(newAutomationRegistry);
-
-      expect(await InternalStateOrchestrator.automationRegistry()).to.equal(newAutomationRegistry);
 
       await expect(liquidityOrchestrator.updateAutomationRegistry(newAutomationRegistry))
         .to.emit(liquidityOrchestrator, "AutomationRegistryUpdated")

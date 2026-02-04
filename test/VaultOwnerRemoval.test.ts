@@ -4,13 +4,8 @@ import "@openzeppelin/hardhat-upgrades";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import type { Signer } from "ethers";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
-import {
-  OrionConfig,
-  OrionTransparentVault,
-  InternalStateOrchestrator,
-  LiquidityOrchestrator,
-  TransparentVaultFactory,
-} from "../typechain-types";
+import { resetNetwork } from "./helpers/resetNetwork";
+import { OrionConfig, OrionTransparentVault, LiquidityOrchestrator, TransparentVaultFactory } from "../typechain-types";
 
 /**
  * @title Vault Owner Removal Tests
@@ -19,6 +14,10 @@ import {
  *      all vaults owned by that vault owner are automatically marked for decommissioning.
  */
 describe("Vault Owner Removal - Automatic Decommissioning", function () {
+  before(async function () {
+    await resetNetwork();
+  });
+
   async function deployFixture() {
     const allSigners = await ethers.getSigners();
     const owner = allSigners[0];
@@ -32,7 +31,6 @@ describe("Vault Owner Removal - Automatic Decommissioning", function () {
 
     const usdc = deployed.underlyingAsset;
     const config = deployed.orionConfig;
-    const InternalStateOrchestrator: InternalStateOrchestrator = deployed.InternalStateOrchestrator;
     const liquidityOrchestrator: LiquidityOrchestrator = deployed.liquidityOrchestrator;
     const vaultFactory = deployed.transparentVaultFactory;
 
@@ -49,7 +47,6 @@ describe("Vault Owner Removal - Automatic Decommissioning", function () {
       usdc,
       config,
       vaultFactory,
-      InternalStateOrchestrator,
       liquidityOrchestrator,
     };
   }
@@ -86,7 +83,7 @@ describe("Vault Owner Removal - Automatic Decommissioning", function () {
     return vaultContract as unknown as OrionTransparentVault;
   }
 
-  describe("1. Single vault owner removal", function () {
+  describe("Single vault owner removal", function () {
     it("should decommission all vaults when vault owner is removed", async function () {
       const { config, vaultFactory, manager1, strategist1, strategist2 } = await loadFixture(deployFixture);
 
@@ -125,7 +122,7 @@ describe("Vault Owner Removal - Automatic Decommissioning", function () {
     });
   });
 
-  describe("2. Multiple vault owners", function () {
+  describe("Multiple vault owners", function () {
     it("should only decommission vaults owned by removed vault owner", async function () {
       const { config, vaultFactory, manager1, manager2, strategist1, strategist2 } = await loadFixture(deployFixture);
 
@@ -156,7 +153,7 @@ describe("Vault Owner Removal - Automatic Decommissioning", function () {
     });
   });
 
-  describe("3. Edge cases", function () {
+  describe("Edge cases", function () {
     it("should handle vault owner with no vaults", async function () {
       const { config, manager1 } = await loadFixture(deployFixture);
 
@@ -168,7 +165,7 @@ describe("Vault Owner Removal - Automatic Decommissioning", function () {
     });
 
     it("should revert if system is not idle", async function () {
-      const { config, vaultFactory, manager1, strategist1, InternalStateOrchestrator, owner, usdc } =
+      const { config, vaultFactory, manager1, strategist1, liquidityOrchestrator, owner, usdc } =
         await loadFixture(deployFixture);
 
       // Create a vault with deposits to ensure processing happens
@@ -186,10 +183,10 @@ describe("Vault Owner Removal - Automatic Decommissioning", function () {
       await ethers.provider.send("evm_mine", []);
 
       // Start the epoch (system will not be idle)
-      await InternalStateOrchestrator.connect(owner).performUpkeep("0x");
+      await liquidityOrchestrator.connect(owner).performUpkeep("0x", "0x", "0x");
 
       // Verify system is not idle
-      const currentPhase = await InternalStateOrchestrator.currentPhase();
+      const currentPhase = await liquidityOrchestrator.currentPhase();
       void expect(currentPhase).to.not.equal(0n);
 
       // Try to remove vault owner while system is not idle
@@ -213,7 +210,7 @@ describe("Vault Owner Removal - Automatic Decommissioning", function () {
     });
   });
 
-  describe("4. Intent override verification", function () {
+  describe("Intent override verification", function () {
     it("should override vault intent to 100% underlying asset on decommissioning", async function () {
       const { config, vaultFactory, manager1, strategist1 } = await loadFixture(deployFixture);
 
@@ -238,7 +235,7 @@ describe("Vault Owner Removal - Automatic Decommissioning", function () {
     });
   });
 
-  describe("5. Integration with vault lifecycle", function () {
+  describe("Integration with vault lifecycle", function () {
     it("should allow vault to complete decommissioning after owner removal", async function () {
       const { config, vaultFactory, manager1, strategist1, liquidityOrchestrator } = await loadFixture(deployFixture);
 
@@ -270,7 +267,7 @@ describe("Vault Owner Removal - Automatic Decommissioning", function () {
     });
   });
 
-  describe("6. Security and access control", function () {
+  describe("Security and access control", function () {
     it("should only allow owner to remove vault owner", async function () {
       const { config, manager1, manager2 } = await loadFixture(deployFixture);
 
@@ -292,6 +289,33 @@ describe("Vault Owner Removal - Automatic Decommissioning", function () {
 
       // Remove vault owner - should complete without reentrancy issues
       await expect(config.removeWhitelistedManager(manager1.address)).to.not.be.reverted;
+    });
+  });
+
+  describe("Manager-initiated vault decommissioning", function () {
+    it("should allow vault manager to decommission their own vault", async function () {
+      const { config, vaultFactory, manager1, strategist1 } = await loadFixture(deployFixture);
+
+      const vault = await createVault(vaultFactory, config, manager1, strategist1, "My Vault", "MV1");
+      void expect(await config.isOrionVault(await vault.getAddress())).to.be.true;
+      void expect(await config.isDecommissioningVault(await vault.getAddress())).to.be.false;
+
+      await expect(config.connect(manager1).removeOrionVault(await vault.getAddress())).to.not.be.reverted;
+
+      void expect(await vault.isDecommissioning()).to.be.true;
+      void expect(await config.isDecommissioningVault(await vault.getAddress())).to.be.true;
+    });
+
+    it("should revert when non-manager tries to decommission a vault", async function () {
+      const { config, vaultFactory, manager1, manager2, strategist1 } = await loadFixture(deployFixture);
+
+      const vault = await createVault(vaultFactory, config, manager1, strategist1, "Manager1 Vault", "M1V");
+      void expect(await vault.manager()).to.equal(manager1.address);
+
+      await expect(config.connect(manager2).removeOrionVault(await vault.getAddress())).to.be.revertedWithCustomError(
+        config,
+        "NotAuthorized",
+      );
     });
   });
 });

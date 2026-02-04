@@ -14,7 +14,12 @@ import {
   OrionTransparentVault,
 } from "../typechain-types";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
+import { resetNetwork } from "./helpers/resetNetwork";
 import { impersonateAccount, setBalance } from "@nomicfoundation/hardhat-network-helpers";
+
+before(async function () {
+  await resetNetwork();
+});
 
 let transparentVaultFactory: TransparentVaultFactory;
 let orionConfig: OrionConfig;
@@ -121,32 +126,38 @@ describe("Config", function () {
     });
   });
   describe("removeWhitelistedAsset", function () {
-    it("Should successfully remove a whitelisted asset", async function () {
+    it("Should start decommissioning: asset stays whitelisted and is in decommissioning list", async function () {
       const assetAddress = await mockAsset1.getAddress();
 
       expect(await orionConfig.isWhitelisted(assetAddress)).to.equal(true);
       await expect(orionConfig.connect(owner).removeWhitelistedAsset(assetAddress)).to.not.be.reverted;
-      expect(await orionConfig.isWhitelisted(assetAddress)).to.equal(false);
+      // Asset remains whitelisted until completeAssetsRemoval
+      expect(await orionConfig.isWhitelisted(assetAddress)).to.equal(true);
+      const decomm = await orionConfig.decommissioningAssets();
+      expect(decomm).to.include(assetAddress);
     });
 
-    it("Should emit WhitelistedAssetRemoved event when removing asset", async function () {
+    it("Should emit AssetDecommissioningInitiated when removing asset", async function () {
       const assetAddress = await mockAsset1.getAddress();
 
       await expect(orionConfig.connect(owner).removeWhitelistedAsset(assetAddress))
-        .to.emit(orionConfig, "WhitelistedAssetRemoved")
+        .to.emit(orionConfig, "AssetDecommissioningInitiated")
         .withArgs(assetAddress);
     });
 
-    it("Should update whitelisted assets count after removal", async function () {
+    it("Should keep whitelist count unchanged until completeAssetsRemoval", async function () {
       const initialCount = await orionConfig.whitelistedAssetsLength();
       expect(initialCount).to.equal(3); // underlying asset + 2 test assets
 
       await orionConfig.connect(owner).removeWhitelistedAsset(await mockAsset1.getAddress());
-      const finalCount = await orionConfig.whitelistedAssetsLength();
-      expect(finalCount).to.equal(2); // underlying asset + 1 test asset
+      // Asset still whitelisted during decommissioning
+      const countAfterDecommission = await orionConfig.whitelistedAssetsLength();
+      expect(countAfterDecommission).to.equal(3);
+      const decomm = await orionConfig.decommissioningAssets();
+      expect(decomm.length).to.equal(1);
     });
 
-    it("Should remove asset from getAllWhitelistedAssets array", async function () {
+    it("Should keep asset in getAllWhitelistedAssets until completeAssetsRemoval", async function () {
       const assetAddress = await mockAsset1.getAddress();
 
       const initialAssets = await orionConfig.getAllWhitelistedAssets();
@@ -154,8 +165,11 @@ describe("Config", function () {
 
       await orionConfig.connect(owner).removeWhitelistedAsset(assetAddress);
 
-      const finalAssets = await orionConfig.getAllWhitelistedAssets();
-      expect(finalAssets).to.not.include(assetAddress);
+      // Asset stays in whitelist during decommissioning (for consistent state commitment)
+      const assetsAfterDecommission = await orionConfig.getAllWhitelistedAssets();
+      expect(assetsAfterDecommission).to.include(assetAddress);
+      const decomm = await orionConfig.decommissioningAssets();
+      expect(decomm).to.include(assetAddress);
     });
 
     it("Should revert when trying to remove non-whitelisted asset", async function () {
@@ -413,32 +427,28 @@ describe("OrionVault - Base Functionality", function () {
       await ethers.provider.send("hardhat_stopImpersonatingAccount", [loAddress]);
     });
 
-    it("Should revert when cancelling redeem request with zero amount", async function () {
-      await expect(vault.connect(user).cancelRedeemRequest(0)).to.be.revertedWithCustomError(
-        vault,
-        "AmountMustBeGreaterThanZero",
-      );
-    });
+    describe("Edge Cases", function () {
+      it("Should revert when calling cancelRedeemRequest with zero amount", async function () {
+        await expect(vault.connect(user).cancelRedeemRequest(0)).to.be.revertedWithCustomError(
+          vault,
+          "AmountMustBeGreaterThanZero",
+        );
+      });
 
-    it("Should revert when cancelling more than requested redeem amount", async function () {
-      const userShares = await vault.balanceOf(user.address);
-      expect(userShares).to.be.gt(0n, "User should have shares after deposit fulfillment");
+      it("Should revert when calling cancelRedeemRequest with amount greater than pending redeem", async function () {
+        const userShares = await vault.balanceOf(user.address);
+        expect(userShares).to.be.gt(0n, "User should have shares after deposit fulfillment");
 
-      // Use half of user's shares for redeem, then try to cancel double that amount
-      const redeemAmount = userShares / 2n;
-      const cancelAmount = redeemAmount * 2n;
+        const redeemAmount = userShares / 2n;
+        const cancelAmountGreaterThanPending = redeemAmount * 2n;
 
-      // Approve vault to transfer shares
-      await vault.connect(user).approve(await vault.getAddress(), redeemAmount);
+        await vault.connect(user).approve(await vault.getAddress(), redeemAmount);
+        await vault.connect(user).requestRedeem(redeemAmount);
 
-      // Request redeem
-      await vault.connect(user).requestRedeem(redeemAmount);
-
-      // Try to cancel more than requested
-      await expect(vault.connect(user).cancelRedeemRequest(cancelAmount)).to.be.revertedWithCustomError(
-        vault,
-        "InsufficientAmount",
-      );
+        await expect(
+          vault.connect(user).cancelRedeemRequest(cancelAmountGreaterThanPending),
+        ).to.be.revertedWithCustomError(vault, "InsufficientAmount");
+      });
     });
 
     it("Should allow user to cancel redeem request", async function () {

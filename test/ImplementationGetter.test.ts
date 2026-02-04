@@ -3,10 +3,15 @@ import { ethers } from "hardhat";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { OrionConfig, OrionTransparentVault, TransparentVaultFactory, UpgradeableBeacon } from "../typechain-types";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
+import { resetNetwork } from "./helpers/resetNetwork";
 
 describe("Implementation Getter Tests", function () {
   let owner: SignerWithAddress;
   let strategist: SignerWithAddress;
+
+  before(async function () {
+    await resetNetwork();
+  });
 
   beforeEach(async function () {
     [owner, strategist] = await ethers.getSigners();
