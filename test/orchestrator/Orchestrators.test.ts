@@ -538,7 +538,6 @@ describe("Orchestrators", function () {
 
       console.log("orionConfig address", await orionConfig.getAddress());
 
-      
       await expect(orionConfig.connect(owner).removeOrionVault(await hurdleHwmVault.getAddress())).not.to.be.reverted;
       await expect(orionConfig.connect(owner).removeWhitelistedAsset(await mockAsset1.getAddress())).not.to.be.reverted;
 
