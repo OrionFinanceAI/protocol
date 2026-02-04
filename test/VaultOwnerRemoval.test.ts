@@ -4,6 +4,7 @@ import "@openzeppelin/hardhat-upgrades";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import type { Signer } from "ethers";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
+import { resetNetwork } from "./helpers/resetNetwork";
 import { OrionConfig, OrionTransparentVault, LiquidityOrchestrator, TransparentVaultFactory } from "../typechain-types";
 
 /**
@@ -13,6 +14,10 @@ import { OrionConfig, OrionTransparentVault, LiquidityOrchestrator, TransparentV
  *      all vaults owned by that vault owner are automatically marked for decommissioning.
  */
 describe("Vault Owner Removal - Automatic Decommissioning", function () {
+  before(async function () {
+    await resetNetwork();
+  });
+
   async function deployFixture() {
     const allSigners = await ethers.getSigners();
     const owner = allSigners[0];

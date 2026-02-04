@@ -14,7 +14,12 @@ import {
   OrionTransparentVault,
 } from "../typechain-types";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
+import { resetNetwork } from "./helpers/resetNetwork";
 import { impersonateAccount, setBalance } from "@nomicfoundation/hardhat-network-helpers";
+
+before(async function () {
+  await resetNetwork();
+});
 
 let transparentVaultFactory: TransparentVaultFactory;
 let orionConfig: OrionConfig;

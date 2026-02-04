@@ -9,6 +9,7 @@ import {
   WhitelistAccessControl,
 } from "../typechain-types";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
+import { resetNetwork } from "./helpers/resetNetwork";
 
 describe("Access Control", function () {
   let owner: SignerWithAddress;
@@ -16,6 +17,10 @@ describe("Access Control", function () {
   let user1: SignerWithAddress;
   let user2: SignerWithAddress;
   let user3: SignerWithAddress;
+
+  before(async function () {
+    await resetNetwork();
+  });
 
   let mockAsset: MockUnderlyingAsset;
   let factory: TransparentVaultFactory;

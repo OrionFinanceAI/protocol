@@ -4,6 +4,7 @@ import "@openzeppelin/hardhat-upgrades";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { OrionTransparentVault, LiquidityOrchestrator } from "../typechain-types";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
+import { resetNetwork } from "./helpers/resetNetwork";
 
 /**
  * @title Batch Limit Accounting Tests
@@ -19,6 +20,10 @@ import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 describe("Batch Limit Accounting Fix", function () {
   const DEPOSIT_AMOUNT = ethers.parseUnits("100", 6); // 100 USDC
   const INITIAL_BALANCE = ethers.parseUnits("1000000", 6); // 1M USDC per user
+
+  before(async function () {
+    await resetNetwork();
+  });
 
   async function deployFixture() {
     const allSigners = await ethers.getSigners();

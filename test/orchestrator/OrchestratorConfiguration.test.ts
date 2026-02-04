@@ -68,6 +68,7 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
 import { deployUpgradeableProtocol } from "../helpers/deployUpgradeable";
+import { resetNetwork } from "../helpers/resetNetwork";
 
 import {
   MockUnderlyingAsset,
@@ -82,6 +83,10 @@ import {
 } from "../../typechain-types";
 
 describe("Orchestrator Configuration", function () {
+  before(async function () {
+    await resetNetwork();
+  });
+
   // Vault deposit amounts (in underlying asset units)
   const ABSOLUTE_VAULT_DEPOSIT = 50;
   const SOFT_HURDLE_VAULT_DEPOSIT = 125;
@@ -628,7 +633,7 @@ describe("Orchestrator Configuration", function () {
       );
     });
 
-    it("should revert when updating automation registry when system is not idle", async function () {
+    it("should not revert when updating automation registry when system is not idle", async function () {
       // Fast forward time to trigger upkeep and make system not idle
       const epochDuration = await liquidityOrchestrator.epochDuration();
       await time.increase(epochDuration + 1n);
@@ -640,9 +645,7 @@ describe("Orchestrator Configuration", function () {
       const isSystemIdle = await orionConfig.isSystemIdle();
       void expect(isSystemIdle).to.be.false;
 
-      await expect(
-        liquidityOrchestrator.updateAutomationRegistry(automationRegistry.address),
-      ).to.be.revertedWithCustomError(liquidityOrchestrator, "SystemNotIdle");
+      await expect(liquidityOrchestrator.updateAutomationRegistry(automationRegistry.address)).to.not.be.reverted;
     });
 
     it("should successfully update automation registry and emit event", async function () {

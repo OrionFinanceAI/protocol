@@ -179,12 +179,14 @@ describe("Whitelist and Vault Removal Flows", function () {
     // At least one asset should have positive balance
     expect(mockAsset1BalanceBefore + mockAsset2BalanceBefore).to.be.gt(0);
 
-    // Step 4: Remove mockAsset1 from whitelist BEFORE processing orchestrators
+    // Step 4: Remove mockAsset1 from whitelist BEFORE processing orchestrators (enters decommissioning)
     await orionConfig.connect(owner).removeWhitelistedAsset(await mockAsset1.getAddress());
 
-    // Verify the asset is no longer whitelisted
-    await expect(await orionConfig.isWhitelisted(await mockAsset1.getAddress())).to.be.false;
-    await expect(await orionConfig.isWhitelisted(await mockAsset2.getAddress())).to.be.true;
+    // Verify the asset is still whitelisted but in decommissioning (removed only after completeAssetsRemoval)
+    void expect(await orionConfig.isWhitelisted(await mockAsset1.getAddress())).to.be.true;
+    const decommissioning = await orionConfig.decommissioningAssets();
+    expect(decommissioning).to.include(await mockAsset1.getAddress());
+    void expect(await orionConfig.isWhitelisted(await mockAsset2.getAddress())).to.be.true;
 
     // Step 5: Process full epoch to drain removed asset (zkVM fixture: Removal2)
     await processFullEpoch(liquidityOrchestrator, automationRegistry, "Removal2");
@@ -194,6 +196,21 @@ describe("Whitelist and Vault Removal Flows", function () {
 
     // The removed asset (mockAsset1) should have zero balance
     expect(mockAsset1BalanceAfter).to.equal(0);
+
+    // Each vault's portfolio must not include the removed asset after drain and completeAssetsRemoval
+    const removedAssetAddress = await mockAsset1.getAddress();
+    const transparentVaults = await orionConfig.getAllOrionVaults(0); // VaultType.Transparent
+    for (const vaultAddress of transparentVaults) {
+      const vault = (await ethers.getContractAt(
+        "OrionTransparentVault",
+        vaultAddress,
+      )) as unknown as OrionTransparentVault;
+      const [portfolioTokens] = await vault.getPortfolio();
+      void expect(
+        portfolioTokens.includes(removedAssetAddress),
+        `Vault ${vaultAddress} portfolio should not include removed asset ${removedAssetAddress}`,
+      ).to.be.false;
+    }
 
     // Verify that the system is in a consistent state
     expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
@@ -213,8 +230,8 @@ describe("Whitelist and Vault Removal Flows", function () {
     ];
     await testVault.connect(strategist).submitIntent(intent);
 
-    // Step 2: Process full epoch (zkVM fixture: Removal1)
-    await processFullEpoch(liquidityOrchestrator, automationRegistry, "Removal1");
+    // Step 2: Process full epoch
+    await processFullEpoch(liquidityOrchestrator, automationRegistry, "Removal3");
 
     // Verify liquidity orchestrator has positive balance of whitelisted assets
     const mockAsset1BalanceBefore = await mockAsset1.balanceOf(await liquidityOrchestrator.getAddress());
@@ -223,15 +240,17 @@ describe("Whitelist and Vault Removal Flows", function () {
     // At least one asset should have positive balance
     expect(mockAsset1BalanceBefore + mockAsset2BalanceBefore).to.be.gt(0);
 
-    // Step 4: Remove mockAsset1 from whitelist BEFORE processing orchestrators
+    // Step 4: Remove mockAsset1 from whitelist BEFORE processing orchestrators (enters decommissioning)
     await orionConfig.connect(owner).removeWhitelistedAsset(await mockAsset1.getAddress());
 
-    // Verify the asset is no longer whitelisted
-    await expect(await orionConfig.isWhitelisted(await mockAsset1.getAddress())).to.be.false;
-    await expect(await orionConfig.isWhitelisted(await mockAsset2.getAddress())).to.be.true;
+    // Verify the asset is still whitelisted but in decommissioning (removed only after completeAssetsRemoval)
+    void expect(await orionConfig.isWhitelisted(await mockAsset1.getAddress())).to.be.true;
+    const decommissioning2 = await orionConfig.decommissioningAssets();
+    expect(decommissioning2).to.include(await mockAsset1.getAddress());
+    void expect(await orionConfig.isWhitelisted(await mockAsset2.getAddress())).to.be.true;
 
-    // Step 5: Process full epoch to drain removed asset (zkVM fixture: Removal2)
-    await processFullEpoch(liquidityOrchestrator, automationRegistry, "Removal2");
+    // Step 5: Process full epoch to drain removed asset
+    await processFullEpoch(liquidityOrchestrator, automationRegistry, "Removal4");
 
     // Step 6: Assert liquidity orchestrator balance of removed asset is zero
     const mockAsset1BalanceAfter = await mockAsset1.balanceOf(await liquidityOrchestrator.getAddress());
@@ -261,8 +280,8 @@ describe("Whitelist and Vault Removal Flows", function () {
     ];
     await testVault.connect(strategist).submitIntent(intent);
 
-    // Step 2: Process full epoch (zkVM fixture: Removal1)
-    await processFullEpoch(liquidityOrchestrator, automationRegistry, "Removal1");
+    // Step 2: Process full epoch
+    await processFullEpoch(liquidityOrchestrator, automationRegistry, "Removal5");
 
     const userShares = await testVault.balanceOf(user.address);
     expect(userShares).to.be.gt(0);
@@ -283,8 +302,8 @@ describe("Whitelist and Vault Removal Flows", function () {
       "SynchronousCallDisabled",
     );
 
-    // Step 4: Process full epoch so LiquidityOrchestrator completes vault decommissioning (zkVM fixture: Removal3)
-    await processFullEpoch(liquidityOrchestrator, automationRegistry, "Removal3");
+    // Step 4: Process full epoch so LiquidityOrchestrator completes vault decommissioning
+    await processFullEpoch(liquidityOrchestrator, automationRegistry, "Removal6");
 
     // Verify that vault decommissioning is now complete
     void expect(await orionConfig.isDecommissionedVault(await testVault.getAddress())).to.be.true;
@@ -344,8 +363,8 @@ describe("Whitelist and Vault Removal Flows", function () {
     // Verify vault is decommissioning
     void expect(await testVault.isDecommissioning()).to.be.true;
 
-    // Process one full epoch cycle (zkVM fixture: Removal1)
-    await processFullEpoch(liquidityOrchestrator, automationRegistry, "Removal1");
+    // Process one full epoch cycle
+    await processFullEpoch(liquidityOrchestrator, automationRegistry, "Removal7");
 
     // Try to request deposit - should revert
     const depositAmount = ethers.parseUnits("100", 12);
@@ -365,8 +384,8 @@ describe("Whitelist and Vault Removal Flows", function () {
 
     await testVault.connect(strategist).submitIntent([{ token: await mockAsset1.getAddress(), weight: 1000000000 }]);
 
-    // Process full epoch to fulfill the deposit (zkVM fixture: Removal1)
-    await processFullEpoch(liquidityOrchestrator, automationRegistry, "Removal1");
+    // Process full epoch to fulfill the deposit
+    await processFullEpoch(liquidityOrchestrator, automationRegistry, "Removal8");
 
     // Verify user has shares
     const userShares = await testVault.balanceOf(user.address);

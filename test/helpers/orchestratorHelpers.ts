@@ -44,12 +44,8 @@ export async function processFullEpoch(
   // Advance time
   await advanceEpochTime(liquidityOrchestrator);
 
-  console.log("currentPhase", await liquidityOrchestrator.currentPhase());
-
   // Process first upkeep (phase 0 -> 1): always use dummy proofs
   await liquidityOrchestrator.connect(automationRegistry).performUpkeep("0x", "0x", "0x");
-
-  console.log("currentPhase", await liquidityOrchestrator.currentPhase());
 
   // Process all remaining LO phases until back to Idle
   let currentPhase = await liquidityOrchestrator.currentPhase();

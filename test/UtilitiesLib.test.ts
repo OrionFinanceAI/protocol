@@ -2,9 +2,14 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 
 import { UtilitiesLibTest } from "../typechain-types/contracts/test";
+import { resetNetwork } from "./helpers/resetNetwork";
 
 describe("UtilitiesLib", function () {
   let utilitiesLib: UtilitiesLibTest;
+
+  before(async function () {
+    await resetNetwork();
+  });
 
   beforeEach(async function () {
     const UtilitiesLibTestFactory = await ethers.getContractFactory("UtilitiesLibTest");

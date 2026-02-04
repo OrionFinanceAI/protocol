@@ -3,6 +3,7 @@ import { ethers, upgrades } from "hardhat";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import "@openzeppelin/hardhat-upgrades";
 import { MockUnderlyingAsset, MockERC4626Asset, OrionAssetERC4626PriceAdapter, OrionConfig } from "../typechain-types";
+import { resetNetwork } from "./helpers/resetNetwork";
 
 describe("Price Adapter Truncation", function () {
   let underlying: MockUnderlyingAsset;
@@ -10,6 +11,11 @@ describe("Price Adapter Truncation", function () {
   let priceAdapter: OrionAssetERC4626PriceAdapter;
   let orionConfig: OrionConfig;
   let deployer: SignerWithAddress;
+
+  before(async function () {
+    await resetNetwork();
+  });
+
   beforeEach(async function () {
     [deployer] = await ethers.getSigners();
 
