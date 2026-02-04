@@ -22,6 +22,7 @@ import { ethers, network } from "hardhat";
 import { expect } from "chai";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 import { processFullEpoch } from "./helpers/orchestratorHelpers";
+import { resetNetwork } from "./helpers/resetNetwork";
 
 import {
   MockUnderlyingAsset,
@@ -69,15 +70,7 @@ describe("Redeem Before Deposit Order Verification", function () {
   }
 
   before(async function () {
-    // Must fork at this exact block for deterministic zk fixtures
-    await network.provider.send("hardhat_reset", [
-      {
-        forking: {
-          jsonRpcUrl: process.env.RPC_URL,
-          blockNumber: 10000000,
-        },
-      },
-    ]);
+    await resetNetwork();
 
     [owner, strategist, initialDepositor, redeemer, newDepositor, automationRegistry] = await ethers.getSigners();
 
@@ -102,9 +95,10 @@ describe("Redeem Before Deposit Order Verification", function () {
     const deployed = await deployUpgradeableProtocol(owner, underlyingAsset, automationRegistry);
 
     orionConfig = deployed.orionConfig;
-
     liquidityOrchestrator = deployed.liquidityOrchestrator;
     transparentVaultFactory = deployed.transparentVaultFactory;
+
+    console.log("orionConfig address", await orionConfig.getAddress());
 
     // Configure protocol
     await orionConfig.setProtocolRiskFreeRate(0);

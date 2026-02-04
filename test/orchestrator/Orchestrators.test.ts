@@ -16,11 +16,12 @@ import {
 } from "../../typechain-types";
 import { deployUpgradeableProtocol } from "../helpers/deployUpgradeable";
 import { processFullEpoch } from "../helpers/orchestratorHelpers";
+import { resetNetwork } from "../helpers/resetNetwork";
 
 /**
  * Deterministic environment for zkVM fixtures:
  * - Single deployment in before() so orionConfig and all contract addresses are fixed.
- * - If RPC_URL is set, resets with fork at a fixed block for reproducible state (CI).
+ * - resetNetwork() gives a clean chain; deployment order fixes addresses for fixture generation.
  */
 describe("Orchestrators", function () {
   let initialSnapshotId: string;
@@ -58,14 +59,7 @@ describe("Orchestrators", function () {
   let user: SignerWithAddress;
 
   before(async function () {
-    // Deterministic reset: fork at fixed block if RPC_URL set (for CI fixtures), else clean chain
-    if (process.env.RPC_URL) {
-      await network.provider.send("hardhat_reset", [
-        { forking: { jsonRpcUrl: process.env.RPC_URL, blockNumber: 10000000 } },
-      ]);
-    } else {
-      await network.provider.send("hardhat_reset", []);
-    }
+    await resetNetwork();
 
     [owner, strategist, automationRegistry, user] = await ethers.getSigners();
 
@@ -133,6 +127,8 @@ describe("Orchestrators", function () {
     orionConfig = deployed.orionConfig;
     liquidityOrchestrator = deployed.liquidityOrchestrator;
     transparentVaultFactory = deployed.transparentVaultFactory;
+
+    console.log("orionConfig address", await orionConfig.getAddress());
 
     const OrionAssetERC4626PriceAdapterFactory = await ethers.getContractFactory("OrionAssetERC4626PriceAdapter");
     orionPriceAdapter = (await OrionAssetERC4626PriceAdapterFactory.deploy(
@@ -540,6 +536,9 @@ describe("Orchestrators", function () {
       expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
       void expect(await orionConfig.isSystemIdle()).to.be.true;
 
+      console.log("orionConfig address", await orionConfig.getAddress());
+
+      
       await expect(orionConfig.connect(owner).removeOrionVault(await hurdleHwmVault.getAddress())).not.to.be.reverted;
       await expect(orionConfig.connect(owner).removeWhitelistedAsset(await mockAsset1.getAddress())).not.to.be.reverted;
 

@@ -11,6 +11,7 @@ import { expect } from "chai";
 import { readFileSync } from "fs";
 import { join } from "path";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
+import { resetNetwork } from "./helpers/resetNetwork";
 
 import {
   MockUnderlyingAsset,
@@ -93,14 +94,7 @@ describe("VerifyPerformData Rejection", function () {
   }
 
   before(async function () {
-    await network.provider.send("hardhat_reset", [
-      {
-        forking: {
-          jsonRpcUrl: process.env.RPC_URL,
-          blockNumber: 10000000,
-        },
-      },
-    ]);
+    await resetNetwork();
 
     [owner, strategist, initialDepositor, , , automationRegistry] = await ethers.getSigners();
 
