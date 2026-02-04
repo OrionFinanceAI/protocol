@@ -4,6 +4,7 @@ import "@openzeppelin/hardhat-upgrades";
 import { ethers, network } from "hardhat";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 import { processFullEpoch } from "./helpers/orchestratorHelpers";
+import { resetNetwork } from "./helpers/resetNetwork";
 
 import {
   MockUnderlyingAsset,
@@ -35,15 +36,7 @@ describe("Whitelist and Vault Removal Flows", function () {
   let removalSetupSnapshotId: string;
 
   before(async function () {
-    // Must fork at this exact block for deterministic zk fixtures
-    await network.provider.send("hardhat_reset", [
-      {
-        forking: {
-          jsonRpcUrl: process.env.RPC_URL,
-          blockNumber: 10000000,
-        },
-      },
-    ]);
+    await resetNetwork();
 
     [owner, strategist, automationRegistry, user] = await ethers.getSigners();
 
@@ -85,9 +78,10 @@ describe("Whitelist and Vault Removal Flows", function () {
     const deployed = await deployUpgradeableProtocol(owner, underlyingAsset, automationRegistry);
 
     orionConfig = deployed.orionConfig;
-
     liquidityOrchestrator = deployed.liquidityOrchestrator;
     transparentVaultFactory = deployed.transparentVaultFactory;
+
+    console.log("orionConfig address", await orionConfig.getAddress());
 
     // Deploy price adapter
     const OrionAssetERC4626PriceAdapterFactory = await ethers.getContractFactory("OrionAssetERC4626PriceAdapter");
