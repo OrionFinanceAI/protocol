@@ -13,11 +13,16 @@ import {
   LiquidityOrchestrator,
 } from "../typechain-types";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
+import { resetNetwork } from "./helpers/resetNetwork";
 
 describe("Upgrade Tests", function () {
   let owner: SignerWithAddress;
   let strategist: SignerWithAddress;
   let user: SignerWithAddress;
+
+  before(async function () {
+    await resetNetwork();
+  });
 
   beforeEach(async function () {
     [owner, strategist, user] = await ethers.getSigners();

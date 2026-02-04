@@ -39,6 +39,7 @@ import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
+import { resetNetwork } from "./helpers/resetNetwork";
 
 import {
   MockUnderlyingAsset,
@@ -66,6 +67,10 @@ describe("Protocol Pause Functionality", function () {
   let user1: SignerWithAddress;
   let user2: SignerWithAddress;
   let automationRegistry: SignerWithAddress;
+
+  before(async function () {
+    await resetNetwork();
+  });
 
   // Test constants
   const INITIAL_SUPPLY = ethers.parseUnits("1000000", 6); // 1M USDC

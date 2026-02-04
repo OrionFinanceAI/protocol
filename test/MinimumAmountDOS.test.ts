@@ -4,6 +4,7 @@ import "@openzeppelin/hardhat-upgrades";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
+import { resetNetwork } from "./helpers/resetNetwork";
 
 /**
  * @title Minimum Amount DOS Prevention Tests
@@ -16,6 +17,10 @@ describe("Minimum Amount DOS Prevention", function () {
   const USER_BALANCE = ethers.parseUnits("10000", 6); // 10k USDC per user
   const MIN_DEPOSIT = ethers.parseUnits("100", 6); // 100 USDC minimum
   const MIN_REDEEM = ethers.parseUnits("100", 18); // 100 shares minimum (18 decimals)
+
+  before(async function () {
+    await resetNetwork();
+  });
 
   async function deployFixture() {
     const [owner, strategist, attacker, user1, user2, automationRegistry] = await ethers.getSigners();

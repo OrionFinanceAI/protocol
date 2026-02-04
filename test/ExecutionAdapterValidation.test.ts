@@ -12,6 +12,7 @@ import {
   OrionConfig,
 } from "../typechain-types";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
+import { resetNetwork } from "./helpers/resetNetwork";
 
 describe("Execution Adapter Validation - Comprehensive Tests", function () {
   let orionConfig: OrionConfig;
@@ -23,6 +24,10 @@ describe("Execution Adapter Validation - Comprehensive Tests", function () {
 
   let owner: SignerWithAddress;
   let user: SignerWithAddress;
+
+  before(async function () {
+    await resetNetwork();
+  });
 
   beforeEach(async function () {
     [owner, user] = await ethers.getSigners();

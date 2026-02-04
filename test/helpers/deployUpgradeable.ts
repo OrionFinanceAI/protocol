@@ -62,6 +62,8 @@ export async function deployUpgradeableProtocol(
   })) as unknown as OrionConfig;
   await orionConfig.waitForDeployment();
 
+  console.log("orionConfig address", await orionConfig.getAddress());
+
   // 2. Deploy PriceAdapterRegistry (UUPS) and set in config
   const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistry");
   const priceAdapterRegistry = (await upgrades.deployProxy(
@@ -85,7 +87,7 @@ export async function deployUpgradeableProtocol(
   await sp1VerifierGateway.addRoute(await sp1VerifierGroth16.getAddress());
 
   // cargo run --release --bin vkey
-  const vKey = "0x00cb13c1a2f27431d0bfbd4e8705f6684072a75016095b9015f838be335a5e29";
+  const vKey = "0x00dcc994ce74ee9842a9224176ea2aa5115883598b92686e0d764d3908352bb7";
 
   const LiquidityOrchestratorFactory = await ethers.getContractFactory("LiquidityOrchestrator");
   const liquidityOrchestrator = (await upgrades.deployProxy(

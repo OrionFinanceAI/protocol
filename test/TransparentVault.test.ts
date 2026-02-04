@@ -3,6 +3,7 @@ import { expect } from "chai";
 import "@openzeppelin/hardhat-upgrades";
 import { ethers } from "hardhat";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
+import { resetNetwork } from "./helpers/resetNetwork";
 
 import {
   MockUnderlyingAsset,
@@ -26,6 +27,10 @@ let mockExecutionAdapter2: MockExecutionAdapter;
 let transparentVault: OrionTransparentVault;
 
 let owner: SignerWithAddress, strategist: SignerWithAddress, other: SignerWithAddress;
+
+before(async function () {
+  await resetNetwork();
+});
 
 beforeEach(async function () {
   [owner, strategist, other] = await ethers.getSigners();

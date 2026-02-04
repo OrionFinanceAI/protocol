@@ -4,6 +4,7 @@ import "@openzeppelin/hardhat-upgrades";
 import { ethers } from "hardhat";
 import { time } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { deployUpgradeableProtocol } from "../helpers/deployUpgradeable";
+import { resetNetwork } from "../helpers/resetNetwork";
 
 import {
   OrionConfig,
@@ -24,6 +25,10 @@ describe("Orchestrators - zero deposits and zero intents", function () {
   let strategist: SignerWithAddress;
   let automationRegistry: SignerWithAddress;
   let user: SignerWithAddress;
+
+  before(async function () {
+    await resetNetwork();
+  });
 
   beforeEach(async function () {
     [owner, strategist, automationRegistry, user] = await ethers.getSigners();
@@ -73,8 +78,9 @@ describe("Orchestrators - zero deposits and zero intents", function () {
     await time.increase(epochDuration + 1n);
 
     // Start
-    const [_upkeepNeeded, performData] = await liquidityOrchestrator.checkUpkeep("0x");
-    await liquidityOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    const upkeepNeeded = await liquidityOrchestrator.checkUpkeep();
+    void expect(upkeepNeeded).to.be.true;
+    await liquidityOrchestrator.connect(automationRegistry).performUpkeep("0x", "0x", "0x");
     expect(await liquidityOrchestrator.currentPhase()).to.equal(0);
   });
 
@@ -101,13 +107,17 @@ describe("Orchestrators - zero deposits and zero intents", function () {
     await time.increase(epochDuration + 1n);
 
     // Check that upkeep is needed
-    const [upkeepNeeded, performData] = await liquidityOrchestrator.checkUpkeep("0x");
+    const upkeepNeeded = await liquidityOrchestrator.checkUpkeep();
     void expect(upkeepNeeded).to.be.true;
 
     // Perform upkeep - should complete but not move to next phase
-    await liquidityOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    await liquidityOrchestrator.connect(automationRegistry).performUpkeep("0x", "0x", "0x");
 
     // Should remain in Idle phase (0) because no vaults were processed
     expect(await liquidityOrchestrator.currentPhase()).to.equal(0);
+
+    // Now upkeep should NOT be needed, since epoch start was pushed forward by the upkeep.
+    const upkeepNeededAfter = await liquidityOrchestrator.checkUpkeep();
+    void expect(upkeepNeededAfter).to.be.false;
   });
 });

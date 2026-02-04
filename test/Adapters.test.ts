@@ -13,9 +13,14 @@ import {
   OrionConfig,
 } from "../typechain-types";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
+import { resetNetwork } from "./helpers/resetNetwork";
 
 describe("Price Adapter", function () {
   let orionConfig: OrionConfig;
+
+  before(async function () {
+    await resetNetwork();
+  });
   let underlyingAsset: MockUnderlyingAsset;
   let mockAsset1: MockERC4626Asset;
   let priceAdapter: OrionAssetERC4626PriceAdapter;

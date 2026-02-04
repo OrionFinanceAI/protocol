@@ -3,8 +3,13 @@ import { expect } from "chai";
 import "@openzeppelin/hardhat-upgrades";
 import { ethers } from "hardhat";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
+import { resetNetwork } from "./helpers/resetNetwork";
 
 describe("OrionVault Exchange Rate Tests", function () {
+  before(async function () {
+    await resetNetwork();
+  });
+
   async function impersonateOrchestrator(orchestratorAddress: string) {
     await impersonateAccount(orchestratorAddress);
     await setBalance(orchestratorAddress, ethers.parseEther("1"));

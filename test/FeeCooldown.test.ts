@@ -4,6 +4,7 @@ import "@openzeppelin/hardhat-upgrades";
 import { loadFixture, time } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { OrionTransparentVault } from "../typechain-types";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
+import { resetNetwork } from "./helpers/resetNetwork";
 
 /**
  * @title Fee Cooldown Mechanism Tests
@@ -26,6 +27,10 @@ describe("Fee Cooldown Mechanism", function () {
   const MAX_MANAGEMENT_FEE = 300; // 3%
   const MAX_PROTOCOL_VOLUME_FEE = 50; // 0.5%
   const MAX_PROTOCOL_REVENUE_SHARE = 2000; // 20%
+
+  before(async function () {
+    await resetNetwork();
+  });
 
   async function deployFixture() {
     const [owner, strategist, user1, user2, automationRegistry] = await ethers.getSigners();
