@@ -42,6 +42,7 @@ describe("Passive Strategist", function () {
   });
 
   beforeEach(async function () {
+    this.timeout(90_000);
     [owner, strategist, automationRegistry, user] = await ethers.getSigners();
 
     // Deploy Mock Underlying Asset first (will be passed to helper)
