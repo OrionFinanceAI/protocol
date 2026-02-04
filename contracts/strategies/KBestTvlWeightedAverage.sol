@@ -32,6 +32,7 @@ contract KBestTvlWeightedAverage is IOrionStrategist, Ownable2Step {
     /// @param assets Contract-specific investment universe (must be ERC4626-compatible)
     constructor(address owner, address _config, uint16 _k, address[] memory assets) Ownable(owner) {
         if (_config == address(0)) revert ErrorsLib.ZeroAddress();
+        if (assets.length == 0) revert ErrorsLib.InvalidArguments();
 
         config = IOrionConfig(_config);
         k = _k;
