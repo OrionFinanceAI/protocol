@@ -13,9 +13,14 @@ import {
   OrionConfig,
 } from "../typechain-types";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
+import { resetNetwork } from "./helpers/resetNetwork";
 
 describe("Price Adapter", function () {
   let orionConfig: OrionConfig;
+
+  before(async function () {
+    await resetNetwork();
+  });
   let underlyingAsset: MockUnderlyingAsset;
   let mockAsset1: MockERC4626Asset;
   let priceAdapter: OrionAssetERC4626PriceAdapter;
@@ -165,6 +170,48 @@ describe("Price Adapter", function () {
         ),
       ).to.be.revertedWithCustomError(erc4626ExecutionAdapter, "InvalidAdapter");
     });
+
+    it("should revert with InvalidAdapter when asset is whitelisted then decimals are modified and validateExecutionAdapter is called", async function () {
+      const MockPriceAdapterFactory = await ethers.getContractFactory("MockPriceAdapter");
+      const mockPriceAdapter = await MockPriceAdapterFactory.deploy();
+      await mockPriceAdapter.waitForDeployment();
+
+      const OrionAssetERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
+        "OrionAssetERC4626ExecutionAdapter",
+      );
+      const erc4626ExecutionAdapter = await OrionAssetERC4626ExecutionAdapterFactory.deploy(
+        await orionConfig.getAddress(),
+      );
+      await erc4626ExecutionAdapter.waitForDeployment();
+
+      const MockERC4626WithSettableDecimalsFactory = await ethers.getContractFactory("MockERC4626WithSettableDecimals");
+      const vaultWithSettableDecimals = await MockERC4626WithSettableDecimalsFactory.deploy(
+        await underlyingAsset.getAddress(),
+        "Settable Decimals Vault",
+        "SDV",
+      );
+      await vaultWithSettableDecimals.waitForDeployment();
+
+      const initialDeposit = ethers.parseUnits("10000", 6);
+      await underlyingAsset.mint(owner.address, initialDeposit);
+      await underlyingAsset.approve(await vaultWithSettableDecimals.getAddress(), initialDeposit);
+      await vaultWithSettableDecimals.deposit(initialDeposit, owner.address);
+
+      await orionConfig.addWhitelistedAsset(
+        await vaultWithSettableDecimals.getAddress(),
+        await mockPriceAdapter.getAddress(),
+        await erc4626ExecutionAdapter.getAddress(),
+      );
+
+      await expect(erc4626ExecutionAdapter.validateExecutionAdapter(await vaultWithSettableDecimals.getAddress())).to
+        .not.be.reverted;
+
+      await vaultWithSettableDecimals.setDecimals(18);
+
+      await expect(
+        erc4626ExecutionAdapter.validateExecutionAdapter(await vaultWithSettableDecimals.getAddress()),
+      ).to.be.revertedWithCustomError(erc4626ExecutionAdapter, "InvalidAdapter");
+    });
   });
 
   describe("ERC4626 Execution Adapter - Share Accounting", function () {
@@ -208,7 +255,8 @@ describe("Price Adapter", function () {
       );
 
       // Set slippage tolerance to avoid uint256.max maxAcceptableSpend
-      await liquidityOrchestrator.setTargetBufferRatio(400); // 4% buffer = 2% slippage
+      await liquidityOrchestrator.setTargetBufferRatio(400); // 4% buffer
+      await liquidityOrchestrator.setSlippageTolerance(200); // 2% slippage
     });
 
     it("should mint exact shares requested via buy(), preventing accounting drift", async function () {
@@ -374,6 +422,76 @@ describe("Price Adapter", function () {
       // Verify we got underlying back
       const underlyingReceived = underlyingAfter - underlyingBefore;
       expect(underlyingReceived).to.be.greaterThan(0n, "Should receive underlying from redemption");
+
+      await ethers.provider.send("hardhat_stopImpersonatingAccount", [await liquidityOrchestrator.getAddress()]);
+    });
+
+    it("should revert with SlippageExceeded on sell when redeem returns less than maxUnderlyingAmount", async function () {
+      const sharesAmount = ethers.parseUnits("1000", 12);
+      const underlyingAmount = ethers.parseUnits("10000", 12);
+
+      await underlyingAsset.mint(await liquidityOrchestrator.getAddress(), underlyingAmount);
+      await ethers.provider.send("hardhat_impersonateAccount", [await liquidityOrchestrator.getAddress()]);
+      const loSigner = await ethers.getSigner(await liquidityOrchestrator.getAddress());
+      await ethers.provider.send("hardhat_setBalance", [
+        await liquidityOrchestrator.getAddress(),
+        ethers.toQuantity(ethers.parseEther("1.0")),
+      ]);
+
+      await underlyingAsset.connect(loSigner).approve(await erc4626ExecutionAdapter.getAddress(), ethers.MaxUint256);
+      await erc4626ExecutionAdapter
+        .connect(loSigner)
+        .buy(await erc4626Vault.getAddress(), sharesAmount, underlyingAmount);
+
+      const estimatedUnderlying = await erc4626Vault.previewRedeem(sharesAmount);
+      await erc4626Vault.connect(loSigner).approve(await erc4626ExecutionAdapter.getAddress(), sharesAmount);
+
+      const vaultUnderlyingBalance = await underlyingAsset.balanceOf(await erc4626Vault.getAddress());
+      const lossAmount = (vaultUnderlyingBalance * 25n) / 100n;
+      await erc4626Vault.simulateLosses(lossAmount, owner.address);
+
+      const receivedAfterLoss = await erc4626Vault.previewRedeem(sharesAmount);
+      const maxAllowed = (estimatedUnderlying * BigInt(10_000 - 200)) / 10_000n;
+      expect(receivedAfterLoss).to.be.lessThan(maxAllowed);
+
+      await expect(
+        erc4626ExecutionAdapter
+          .connect(loSigner)
+          .sell(await erc4626Vault.getAddress(), sharesAmount, estimatedUnderlying),
+      ).to.be.reverted;
+
+      await ethers.provider.send("hardhat_stopImpersonatingAccount", [await liquidityOrchestrator.getAddress()]);
+    });
+
+    it("should revert with SlippageExceeded on buy when previewMint exceeds maxUnderlyingAmount", async function () {
+      const sharesAmount = ethers.parseUnits("1000", 12);
+      const initialUnderlying = ethers.parseUnits("100000", 12);
+      const gainsAmount = ethers.parseUnits("50000", 12);
+
+      await underlyingAsset.mint(await liquidityOrchestrator.getAddress(), initialUnderlying);
+      await underlyingAsset.mint(owner.address, gainsAmount);
+      await underlyingAsset.connect(owner).approve(await erc4626Vault.getAddress(), gainsAmount);
+      await erc4626Vault.simulateGains(gainsAmount);
+
+      await ethers.provider.send("hardhat_impersonateAccount", [await liquidityOrchestrator.getAddress()]);
+      const loSigner = await ethers.getSigner(await liquidityOrchestrator.getAddress());
+      await ethers.provider.send("hardhat_setBalance", [
+        await liquidityOrchestrator.getAddress(),
+        ethers.toQuantity(ethers.parseEther("1.0")),
+      ]);
+
+      const previewedUnderlying = await erc4626Vault.previewMint(sharesAmount);
+      const estimatedUnderlying = previewedUnderlying / 2n;
+      const maxAllowed = (estimatedUnderlying * BigInt(10_000 + 200)) / 10_000n;
+      expect(previewedUnderlying).to.be.greaterThan(maxAllowed);
+
+      await underlyingAsset.connect(loSigner).approve(await erc4626ExecutionAdapter.getAddress(), ethers.MaxUint256);
+
+      await expect(
+        erc4626ExecutionAdapter
+          .connect(loSigner)
+          .buy(await erc4626Vault.getAddress(), sharesAmount, estimatedUnderlying),
+      ).to.be.reverted;
 
       await ethers.provider.send("hardhat_stopImpersonatingAccount", [await liquidityOrchestrator.getAddress()]);
     });
