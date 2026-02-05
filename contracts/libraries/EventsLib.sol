@@ -19,6 +19,7 @@ library EventsLib {
     event WhitelistedAssetRemoved(address indexed asset);
 
     /// @notice Asset marked for decommissioning (stays whitelisted until completeAssetRemoval).
+    /// @param asset The address of the asset marked for decommissioning.
     event AssetDecommissioningInitiated(address indexed asset);
 
     /// @notice A new Orion Vault has been registered in the protocol.
@@ -160,12 +161,12 @@ library EventsLib {
     /// @notice Liquidity has been deposited to the protocol buffer.
     /// @param depositor The address of the depositor.
     /// @param amount The amount of liquidity deposited.
-    event LiquidityDeposited(address indexed depositor, uint256 amount);
+    event LiquidityDeposited(address indexed depositor, uint256 indexed amount);
 
     /// @notice Liquidity has been withdrawn from the protocol buffer.
     /// @param withdrawer The address of the withdrawer.
     /// @param amount The amount of liquidity withdrawn.
-    event LiquidityWithdrawn(address indexed withdrawer, uint256 amount);
+    event LiquidityWithdrawn(address indexed withdrawer, uint256 indexed amount);
 
     /// @notice Enumeration of available vault types.
     enum VaultType {

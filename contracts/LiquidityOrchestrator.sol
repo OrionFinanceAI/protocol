@@ -691,7 +691,9 @@ contract LiquidityOrchestrator is
             address token = sellLeg.sellingTokens[i];
             if (token == address(underlyingAsset)) continue;
             uint256 amount = sellLeg.sellingAmounts[i];
-            try this._executeSell(token, amount, sellLeg.sellingEstimatedUnderlyingAmounts[i]) {} catch {
+            try this._executeSell(token, amount, sellLeg.sellingEstimatedUnderlyingAmounts[i]) {
+                // successful execution, continue.
+            } catch {
                 currentPhase = LiquidityUpkeepPhase.StateCommitment;
                 _failedEpochTokens.push(token);
                 return;
@@ -720,7 +722,9 @@ contract LiquidityOrchestrator is
             address token = buyLeg.buyingTokens[i];
             if (token == address(underlyingAsset)) continue;
             uint256 amount = buyLeg.buyingAmounts[i];
-            try this._executeBuy(token, amount, buyLeg.buyingEstimatedUnderlyingAmounts[i]) {} catch {
+            try this._executeBuy(token, amount, buyLeg.buyingEstimatedUnderlyingAmounts[i]) {
+                // successful execution, continue.
+            } catch {
                 currentPhase = LiquidityUpkeepPhase.StateCommitment;
                 _failedEpochTokens.push(token);
                 return;

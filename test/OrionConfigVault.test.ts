@@ -145,6 +145,19 @@ describe("Config", function () {
         .withArgs(assetAddress);
     });
 
+    it("Should not emit AssetDecommissioningInitiated on second call for same asset", async function () {
+      const assetAddress = await mockAsset1.getAddress();
+
+      await expect(orionConfig.connect(owner).removeWhitelistedAsset(assetAddress))
+        .to.emit(orionConfig, "AssetDecommissioningInitiated")
+        .withArgs(assetAddress);
+
+      await expect(orionConfig.connect(owner).removeWhitelistedAsset(assetAddress)).to.not.emit(
+        orionConfig,
+        "AssetDecommissioningInitiated",
+      );
+    });
+
     it("Should keep whitelist count unchanged until completeAssetsRemoval", async function () {
       const initialCount = await orionConfig.whitelistedAssetsLength();
       expect(initialCount).to.equal(3); // underlying asset + 2 test assets
@@ -163,6 +176,10 @@ describe("Config", function () {
       const initialAssets = await orionConfig.getAllWhitelistedAssets();
       expect(initialAssets).to.include(assetAddress);
 
+      const initialAssetNames = await orionConfig.getAllWhitelistedAssetNames();
+      const assetName = await mockAsset1.name();
+      expect(initialAssetNames).to.include(assetName);
+
       await orionConfig.connect(owner).removeWhitelistedAsset(assetAddress);
 
       // Asset stays in whitelist during decommissioning (for consistent state commitment)
@@ -170,6 +187,9 @@ describe("Config", function () {
       expect(assetsAfterDecommission).to.include(assetAddress);
       const decomm = await orionConfig.decommissioningAssets();
       expect(decomm).to.include(assetAddress);
+
+      const assetNamesAfterDecommission = await orionConfig.getAllWhitelistedAssetNames();
+      expect(assetNamesAfterDecommission).to.include(assetName);
     });
 
     it("Should revert when trying to remove non-whitelisted asset", async function () {
@@ -212,7 +232,7 @@ describe("Config", function () {
   });
 
   describe("addWhitelistedManager", function () {
-    it("Should successfully add a whitelisted vault owner", async function () {
+    it("Should successfully add a whitelisted manager", async function () {
       const newManager = other.address;
 
       expect(await orionConfig.isWhitelistedManager(newManager)).to.equal(false);
@@ -220,7 +240,7 @@ describe("Config", function () {
       expect(await orionConfig.isWhitelistedManager(newManager)).to.equal(true);
     });
 
-    it("Should revert when trying to add already whitelisted vault owner", async function () {
+    it("Should revert when trying to add already whitelisted manager", async function () {
       const existingManager = owner.address;
 
       expect(await orionConfig.isWhitelistedManager(existingManager)).to.equal(true);
@@ -241,19 +261,27 @@ describe("Config", function () {
   });
 
   describe("removeWhitelistedManager", function () {
-    it("Should successfully remove a whitelisted vault owner", async function () {
+    it("Should successfully remove a whitelisted manager", async function () {
       const ManagerToRemove = other.address;
 
-      // First, add the vault owner to whitelist
+      // First, add the manager to whitelist
       await orionConfig.addWhitelistedManager(ManagerToRemove);
       expect(await orionConfig.isWhitelistedManager(ManagerToRemove)).to.equal(true);
 
-      // Remove the vault owner
+      // Ensure the manager is present in getAllOrionManagers before removal
+      const allManagersBefore = await orionConfig.getAllOrionManagers();
+      expect(allManagersBefore.map((a: string) => a.toLowerCase())).to.include(ManagerToRemove.toLowerCase());
+
+      // Remove the manager
       await expect(orionConfig.removeWhitelistedManager(ManagerToRemove)).to.not.be.reverted;
       expect(await orionConfig.isWhitelistedManager(ManagerToRemove)).to.equal(false);
+
+      // Ensure the manager is _not_ present in getAllOrionManagers after removal
+      const allManagersAfter = await orionConfig.getAllOrionManagers();
+      expect(allManagersAfter.map((a: string) => a.toLowerCase())).to.not.include(ManagerToRemove.toLowerCase());
     });
 
-    it("Should revert when trying to remove non-whitelisted vault owner", async function () {
+    it("Should revert when trying to remove non-whitelisted manager", async function () {
       const nonWhitelistedManager = user.address;
 
       expect(await orionConfig.isWhitelistedManager(nonWhitelistedManager)).to.equal(false);
@@ -265,8 +293,6 @@ describe("Config", function () {
 
     it("Should revert when called by non-owner", async function () {
       const ManagerToRemove = other.address;
-
-      // First, add the vault owner to whitelist
       await orionConfig.addWhitelistedManager(ManagerToRemove);
 
       await expect(orionConfig.connect(user).removeWhitelistedManager(ManagerToRemove))
@@ -597,7 +623,7 @@ describe("OrionVault - Base Functionality", function () {
   });
 
   describe("Access Control", function () {
-    it("Should only allow vault owner to call owner-only functions", async function () {
+    it("Should only allow manager to call owner-only functions", async function () {
       await expect(vault.connect(user).updateStrategist(other.address)).to.be.revertedWithCustomError(
         vault,
         "NotAuthorized",

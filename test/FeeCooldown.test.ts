@@ -6,11 +6,6 @@ import { OrionTransparentVault } from "../typechain-types";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 import { resetNetwork } from "./helpers/resetNetwork";
 
-/**
- * @title Fee Cooldown Mechanism Tests
- * @notice Comprehensive tests for 7-day fee change cooldown to protect users
- * @dev Tests the fix for audit finding: vault owners changing fees before epoch end
- */
 describe("Fee Cooldown Mechanism", function () {
   const FEE_TYPE = {
     ABSOLUTE: 0,
@@ -314,7 +309,7 @@ describe("Fee Cooldown Mechanism", function () {
   });
 
   describe("Security: Authorization and Access Control", function () {
-    it("should only allow vault owner to update vault fees", async function () {
+    it("should only allow manager to update vault fees", async function () {
       const fixture = await loadFixture(deployFixture);
       const vault = await createVault(fixture, FEE_TYPE.ABSOLUTE, 1000, 100);
 
@@ -445,7 +440,7 @@ describe("Fee Cooldown Mechanism", function () {
       const fixture = await loadFixture(deployFixture);
       const vault = await createVault(fixture, FEE_TYPE.ABSOLUTE, 500, 50);
 
-      // Vault owner tries to change fees just before epoch ends
+      // Manager tries to change fees just before epoch ends
       // With cooldown, this won't affect current epoch processing
       await vault.connect(fixture.owner).updateFeeModel(FEE_TYPE.ABSOLUTE, MAX_PERFORMANCE_FEE, MAX_MANAGEMENT_FEE);
 
@@ -484,7 +479,7 @@ describe("Fee Cooldown Mechanism", function () {
       const fixture = await loadFixture(deployFixture);
       const vault = await createVault(fixture, FEE_TYPE.ABSOLUTE, 1000, 100);
 
-      // Vault owner schedules fee increase
+      // Manager schedules fee increase
       await vault.connect(fixture.owner).updateFeeModel(FEE_TYPE.ABSOLUTE, MAX_PERFORMANCE_FEE, MAX_MANAGEMENT_FEE);
 
       const effectiveTime = await vault.newFeeRatesTimestamp();
