@@ -14,6 +14,9 @@ interface ISP1Verifier {
     function verifyProof(bytes32 programVKey, bytes calldata publicValues, bytes calldata proofBytes) external view;
 }
 
+/// @title ISP1VerifierWithHash
+/// @author Succinct Labs
+/// @notice This interface is the interface for the SP1 Verifier with a hash.
 interface ISP1VerifierWithHash is ISP1Verifier {
     /// @notice Returns the hash of the verifier.
     function VERIFIER_HASH() external pure returns (bytes32);

@@ -193,7 +193,7 @@ describe("Access Control", function () {
     });
   });
 
-  describe("Vault Owner Can Update Access Control", function () {
+  describe("Manager Can Update Access Control", function () {
     let vault: OrionTransparentVault;
 
     beforeEach(async function () {
@@ -216,7 +216,7 @@ describe("Access Control", function () {
       vault = (await ethers.getContractAt("OrionTransparentVault", vaultAddress)) as unknown as OrionTransparentVault;
     });
 
-    it("Should allow vault owner to set access control", async function () {
+    it("Should allow manager to set access control", async function () {
       await expect(vault.connect(owner).setDepositAccessControl(await accessControl.getAddress()))
         .to.emit(vault, "DepositAccessControlUpdated")
         .withArgs(await accessControl.getAddress());
@@ -224,7 +224,7 @@ describe("Access Control", function () {
       expect(await vault.depositAccessControl()).to.equal(await accessControl.getAddress());
     });
 
-    it("Should allow vault owner to disable access control", async function () {
+    it("Should allow manager to disable access control", async function () {
       // First enable
       await vault.connect(owner).setDepositAccessControl(await accessControl.getAddress());
 

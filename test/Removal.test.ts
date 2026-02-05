@@ -349,16 +349,89 @@ describe("Whitelist and Vault Removal Flows", function () {
     }
   });
 
+  it("should revert with ERC4626ExceededMaxRedeem when redeem shares exceed owner balance (after decommissioning)", async function () {
+    const intent = [
+      { token: await mockAsset1.getAddress(), weight: 400000000 },
+      { token: await mockAsset2.getAddress(), weight: 300000000 },
+      { token: await underlyingAsset.getAddress(), weight: 300000000 },
+    ];
+
+    let decommissionedVaults = await orionConfig.getAllDecommissionedVaults();
+    expect(decommissionedVaults).to.not.include(await testVault.getAddress());
+
+    await testVault.connect(strategist).submitIntent(intent);
+    await processFullEpoch(liquidityOrchestrator, automationRegistry, "Removal5");
+
+    await orionConfig.connect(owner).removeOrionVault(await testVault.getAddress());
+    decommissionedVaults = await orionConfig.getAllDecommissionedVaults();
+    expect(decommissionedVaults).to.not.include(await testVault.getAddress());
+
+    await processFullEpoch(liquidityOrchestrator, automationRegistry, "Removal6");
+    decommissionedVaults = await orionConfig.getAllDecommissionedVaults();
+    expect(decommissionedVaults).to.include(await testVault.getAddress());
+
+    void expect(await orionConfig.isDecommissionedVault(await testVault.getAddress())).to.be.true;
+
+    const userBalance = await testVault.balanceOf(user.address);
+    expect(userBalance).to.be.gt(0);
+
+    const sharesExceedingBalance = userBalance + 1n;
+    await expect(
+      testVault.connect(user).redeem(sharesExceedingBalance, user.address, user.address),
+    ).to.be.revertedWithCustomError(testVault, "ERC4626ExceededMaxRedeem");
+  });
+
+  it("should revert when redeem owner is not msg.sender and has no allowance (after decommissioning)", async function () {
+    const intent = [
+      { token: await mockAsset1.getAddress(), weight: 400000000 },
+      { token: await mockAsset2.getAddress(), weight: 300000000 },
+      { token: await underlyingAsset.getAddress(), weight: 300000000 },
+    ];
+
+    let decommissionedVaults = await orionConfig.getAllDecommissionedVaults();
+    expect(decommissionedVaults).to.not.include(await testVault.getAddress());
+
+    await testVault.connect(strategist).submitIntent(intent);
+    await processFullEpoch(liquidityOrchestrator, automationRegistry, "Removal5");
+
+    await orionConfig.connect(owner).removeOrionVault(await testVault.getAddress());
+    decommissionedVaults = await orionConfig.getAllDecommissionedVaults();
+    expect(decommissionedVaults).to.not.include(await testVault.getAddress());
+
+    await processFullEpoch(liquidityOrchestrator, automationRegistry, "Removal6");
+    decommissionedVaults = await orionConfig.getAllDecommissionedVaults();
+    expect(decommissionedVaults).to.include(await testVault.getAddress());
+
+    void expect(await orionConfig.isDecommissionedVault(await testVault.getAddress())).to.be.true;
+
+    const userBalance = await testVault.balanceOf(user.address);
+    expect(userBalance).to.be.gt(0);
+    const redeemShares = userBalance / 2n;
+
+    await expect(
+      testVault.connect(strategist).redeem(redeemShares, user.address, user.address),
+    ).to.be.revertedWithCustomError(testVault, "ERC20InsufficientAllowance");
+  });
+
   it("should block requestDeposit when vault is decommissioning", async function () {
+    let decommissionedVaults = await orionConfig.getAllDecommissionedVaults();
+    expect(decommissionedVaults).to.not.include(await testVault.getAddress());
+
     await testVault.connect(strategist).submitIntent([{ token: await mockAsset1.getAddress(), weight: 1000000000 }]);
     // Mark vault for decommissioning
     await orionConfig.connect(owner).removeOrionVault(await testVault.getAddress());
+
+    decommissionedVaults = await orionConfig.getAllDecommissionedVaults();
+    expect(decommissionedVaults).to.not.include(await testVault.getAddress());
 
     // Verify vault is decommissioning
     void expect(await testVault.isDecommissioning()).to.be.true;
 
     // Process one full epoch cycle
     await processFullEpoch(liquidityOrchestrator, automationRegistry, "Removal7");
+
+    decommissionedVaults = await orionConfig.getAllDecommissionedVaults();
+    expect(decommissionedVaults).to.include(await testVault.getAddress());
 
     // Try to request deposit - should revert
     const depositAmount = ethers.parseUnits("100", 12);
@@ -371,6 +444,9 @@ describe("Whitelist and Vault Removal Flows", function () {
   });
 
   it("should allow requestRedeem when vault is decommissioning", async function () {
+    let decommissionedVaults = await orionConfig.getAllDecommissionedVaults();
+    expect(decommissionedVaults).to.not.include(await testVault.getAddress());
+
     // First make a deposit and get some shares
     const depositAmount = ethers.parseUnits("1000", 12);
     await underlyingAsset.connect(user).approve(await testVault.getAddress(), depositAmount);
@@ -387,6 +463,9 @@ describe("Whitelist and Vault Removal Flows", function () {
 
     // Mark vault for decommissioning
     await orionConfig.connect(owner).removeOrionVault(await testVault.getAddress());
+
+    decommissionedVaults = await orionConfig.getAllDecommissionedVaults();
+    expect(decommissionedVaults).to.not.include(await testVault.getAddress());
 
     void expect(await testVault.isDecommissioning()).to.be.true;
 

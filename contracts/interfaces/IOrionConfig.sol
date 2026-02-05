@@ -110,6 +110,7 @@ interface IOrionConfig {
     function isWhitelisted(address asset) external view returns (bool);
 
     /// @notice Decommissioning assets (pending liquidation)
+    /// @return An array of decommissioning asset addresses
     function decommissioningAssets() external view returns (address[] memory);
 
     /// @notice Completes assets removal; only callable by liquidity orchestrator
