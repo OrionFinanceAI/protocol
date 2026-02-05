@@ -67,6 +67,9 @@ contract TransparentVaultFactory is Initializable, Ownable2StepUpgradeable, UUPS
     ) external returns (address vault) {
         address manager = msg.sender;
 
+        if (bytes(name).length > 26) revert ErrorsLib.InvalidArguments();
+        if (bytes(symbol).length > 4) revert ErrorsLib.InvalidArguments();
+
         if (!config.isWhitelistedManager(manager)) revert ErrorsLib.NotAuthorized();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 

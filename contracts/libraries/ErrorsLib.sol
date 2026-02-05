@@ -76,4 +76,9 @@ library ErrorsLib {
     /// @param actual The actual value observed.
     /// @param expected The expected value.
     error SlippageExceeded(address asset, uint256 actual, uint256 expected);
+
+    /// @notice Thrown when the zk proof's commitment doesn't match the onchain commitment.
+    /// @param proofCommitment The commitment from the zk proof.
+    /// @param onchainCommitment The commitment from the onchain.
+    error CommitmentMismatch(bytes32 proofCommitment, bytes32 onchainCommitment);
 }

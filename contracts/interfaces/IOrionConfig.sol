@@ -9,11 +9,6 @@ import "../libraries/EventsLib.sol";
 /// @author Orion Finance
 /// @custom:security-contact security@orionfinance.ai
 interface IOrionConfig {
-    /// @notice Returns the address of the internal state orchestrator contract
-    /// @dev This orchestrator manages the internal state transitions of the protocol
-    /// @return The address of the internal state orchestrator
-    function internalStateOrchestrator() external view returns (address);
-
     /// @notice Returns the address of the liquidity orchestrator contract
     /// @dev This orchestrator manages liquidity operations and coordination
     /// @return The address of the liquidity orchestrator
@@ -47,10 +42,18 @@ interface IOrionConfig {
     /// @return The guardian address
     function guardian() external view returns (address);
 
-    /// @notice Sets the internal state orchestrator for the protocol
-    /// @dev Can only be called by the contract owner
-    /// @param orchestrator The address of the internal state orchestrator
-    function setInternalStateOrchestrator(address orchestrator) external;
+    /// @notice Updates the protocol fees
+    /// @dev If called while a previous fee change is still in cooldown, the prior scheduled change is cancelled:
+    ///      activeProtocolFees() returns the current (old) rates, which are stored as old coefficients, then the new
+    ///      coefficients overwrite the prior schedule. The previously scheduled intermediate fees never take effect.
+    /// @param _vFeeCoefficient The new volume fee coefficient
+    /// @param _rsFeeCoefficient The new revenue share fee coefficient
+    function updateProtocolFees(uint16 _vFeeCoefficient, uint16 _rsFeeCoefficient) external;
+
+    /// @notice Returns the active protocol fees (old during cooldown, new after)
+    /// @return vFee The active volume fee coefficient
+    /// @return rsFee The active revenue share fee coefficient
+    function activeProtocolFees() external view returns (uint16 vFee, uint16 rsFee);
 
     /// @notice Sets the liquidity orchestrator for the protocol
     /// @dev Can only be called by the contract owner
@@ -92,10 +95,26 @@ interface IOrionConfig {
     /// @return An array of whitelisted asset addresses
     function getAllWhitelistedAssets() external view returns (address[] memory);
 
+    /// @notice Returns ERC20 human-readable names for all whitelisted assets
+    /// @return names Array of token names in same order as getAllWhitelistedAssets()
+    function getAllWhitelistedAssetNames() external view returns (string[] memory names);
+
+    /// @notice Returns the token decimals for all whitelisted assets
+    /// @dev Returns decimals in the same order as getAllWhitelistedAssets()
+    /// @return decimals Array of token decimals corresponding to whitelisted assets
+    function getAllTokenDecimals() external view returns (uint8[] memory decimals);
+
     /// @notice Checks if an asset is whitelisted
     /// @param asset The address of the asset to check
     /// @return True if the asset is whitelisted, false otherwise
     function isWhitelisted(address asset) external view returns (bool);
+
+    /// @notice Decommissioning assets (pending liquidation)
+    /// @return An array of decommissioning asset addresses
+    function decommissioningAssets() external view returns (address[] memory);
+
+    /// @notice Completes assets removal; only callable by liquidity orchestrator
+    function completeAssetsRemoval() external;
 
     /// @notice Adds a manager to the whitelist
     /// @dev Can only be called by the contract owner
@@ -112,6 +131,10 @@ interface IOrionConfig {
     /// @return True if the manager is whitelisted, false otherwise
     function isWhitelistedManager(address manager) external view returns (bool);
 
+    /// @notice Returns all Orion manager addresses
+    /// @return An array of Orion manager addresses
+    function getAllOrionManagers() external view returns (address[] memory);
+
     /// @notice Adds a new Orion vault to the protocol registry
     /// @dev Only callable by the vault factories contracts
     /// @param vault The address of the vault to add to the registry
@@ -119,11 +142,11 @@ interface IOrionConfig {
     function addOrionVault(address vault, EventsLib.VaultType vaultType) external;
 
     /// @notice Deregisters an Orion vault from the protocol's registry
-    /// @dev Callable exclusively by the contract owner. This action does not destroy the vault itself;
-    /// @dev it merely disconnects the vault from the protocol, which causes the share price to stale
-    /// @dev and renders strategist intents inactive.
-    /// @dev The vault remains in both active and decommissioning states, allowing orchestrators to process
-    /// @dev it one last time to liquidate all positions before final removal.
+    /// @dev Callable by the contract owner or by the vault's manager.
+    /// @dev This action does not destroy the vault itself; it merely disconnects the vault from the
+    /// @dev protocol, which causes the share price to stale and renders strategist intents inactive.
+    /// @dev The vault remains in both active and decommissioning states, allowing orchestrator to
+    /// @dev process it one last time to liquidate all positions before final removal.
     /// @param vault The address of the vault to be removed from the registry
     function removeOrionVault(address vault) external;
 
@@ -147,6 +170,10 @@ interface IOrionConfig {
     /// @param vault The address of the vault to check
     /// @return True if the address is a decommissioned Orion vault, false otherwise
     function isDecommissionedVault(address vault) external view returns (bool);
+
+    /// @notice Returns all decommissioned Orion vault addresses
+    /// @return An array of decommissioned vault addresses
+    function getAllDecommissionedVaults() external view returns (address[] memory);
 
     /// @notice Completes the decommissioning process for a vault
     /// @dev This function removes the vault from the active vault lists and moves it to decommissioned vaults

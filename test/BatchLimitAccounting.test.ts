@@ -2,8 +2,9 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import "@openzeppelin/hardhat-upgrades";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import { OrionTransparentVault, InternalStateOrchestrator, LiquidityOrchestrator } from "../typechain-types";
+import { OrionTransparentVault, LiquidityOrchestrator } from "../typechain-types";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
+import { resetNetwork } from "./helpers/resetNetwork";
 
 /**
  * @title Batch Limit Accounting Tests
@@ -20,6 +21,10 @@ describe("Batch Limit Accounting Fix", function () {
   const DEPOSIT_AMOUNT = ethers.parseUnits("100", 6); // 100 USDC
   const INITIAL_BALANCE = ethers.parseUnits("1000000", 6); // 1M USDC per user
 
+  before(async function () {
+    await resetNetwork();
+  });
+
   async function deployFixture() {
     const allSigners = await ethers.getSigners();
     const owner = allSigners[0];
@@ -30,7 +35,6 @@ describe("Batch Limit Accounting Fix", function () {
 
     const usdc = deployed.underlyingAsset;
     const config = deployed.orionConfig;
-    const InternalStateOrchestrator: InternalStateOrchestrator = deployed.InternalStateOrchestrator;
     const liquidityOrchestrator: LiquidityOrchestrator = deployed.liquidityOrchestrator;
     const vaultFactory = deployed.transparentVaultFactory;
 
@@ -38,7 +42,7 @@ describe("Batch Limit Accounting Fix", function () {
     const vaultTx = await vaultFactory.connect(owner).createVault(
       strategist.address,
       "Test Vault",
-      "TVAULT",
+      "TV",
       0, // Absolute fee type
       100, // 1% performance fee
       10, // 0.1% management fee
@@ -70,7 +74,6 @@ describe("Batch Limit Accounting Fix", function () {
       usdc,
       config,
       vault,
-      InternalStateOrchestrator,
       liquidityOrchestrator,
     };
   }

@@ -4,17 +4,14 @@ pragma solidity ^0.8.28;
 import { IPriceAdapter } from "../interfaces/IPriceAdapter.sol";
 
 /// @title Price Adapter mock
-/// @notice One instance per asset. Produces pseudo‑random prices for testing.
+/// @notice One instance per asset.
 contract MockPriceAdapter is IPriceAdapter {
     // solhint-disable-next-line no-empty-blocks
     constructor() {}
 
     /// @inheritdoc IPriceAdapter
-    function getPriceData(address asset) external view returns (uint256 price, uint8 decimals) {
-        // *** Mock randomness *** — DO NOT use in production, returning values between 1 and 100
-        uint256 mockPrice = (uint256(keccak256(abi.encodePacked(blockhash(block.number - 1), block.timestamp, asset))) %
-            100) + 1;
-        return (mockPrice, 14); // Mock price with 14 decimals (matching priceAdapterDecimals)
+    function getPriceData(address) external pure returns (uint256 price, uint8 decimals) {
+        return (42, 14);
     }
 
     /// @inheritdoc IPriceAdapter

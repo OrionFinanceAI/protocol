@@ -12,6 +12,7 @@ import {
   OrionConfig,
 } from "../typechain-types";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
+import { resetNetwork } from "./helpers/resetNetwork";
 
 describe("Execution Adapter Validation - Comprehensive Tests", function () {
   let orionConfig: OrionConfig;
@@ -23,6 +24,10 @@ describe("Execution Adapter Validation - Comprehensive Tests", function () {
 
   let owner: SignerWithAddress;
   let user: SignerWithAddress;
+
+  before(async function () {
+    await resetNetwork();
+  });
 
   beforeEach(async function () {
     [owner, user] = await ethers.getSigners();
@@ -165,7 +170,8 @@ describe("Execution Adapter Validation - Comprehensive Tests", function () {
         );
 
         // Set slippage tolerance so maxAcceptableSpend is not uint256.max
-        await liquidityOrchestrator.setTargetBufferRatio(400); // 4% buffer = 2% slippage
+        await liquidityOrchestrator.setTargetBufferRatio(400); // 4% buffer
+        await liquidityOrchestrator.setSlippageTolerance(200); // 2% slippage
       });
 
       it("should call atomic validation during buy()", async function () {
@@ -232,27 +238,16 @@ describe("Execution Adapter Validation - Comprehensive Tests", function () {
       );
     });
 
-    describe("setTargetBufferRatio sets slippage to 50%", function () {
+    describe("setTargetBufferRatio and setSlippageTolerance", function () {
       it("should set slippage tolerance to 50% of targetBufferRatio", async function () {
         const bufferRatio = 400; // 4%
         const expectedSlippage = bufferRatio / 2; // 200 = 2%
 
         await liquidityOrchestrator.setTargetBufferRatio(bufferRatio);
+        await liquidityOrchestrator.setSlippageTolerance(expectedSlippage);
 
         const storedSlippage = await liquidityOrchestrator.slippageTolerance();
         expect(storedSlippage).to.equal(expectedSlippage);
-      });
-
-      it("should update slippage when buffer ratio changes", async function () {
-        // Set initial buffer ratio
-        await liquidityOrchestrator.setTargetBufferRatio(400);
-        let slippage = await liquidityOrchestrator.slippageTolerance();
-        expect(slippage).to.equal(200);
-
-        // Change buffer ratio
-        await liquidityOrchestrator.setTargetBufferRatio(500);
-        slippage = await liquidityOrchestrator.slippageTolerance();
-        expect(slippage).to.equal(250);
       });
     });
 
@@ -262,6 +257,7 @@ describe("Execution Adapter Validation - Comprehensive Tests", function () {
         const expectedSlippage = bufferRatio / 2; // 2%
 
         await liquidityOrchestrator.setTargetBufferRatio(bufferRatio);
+        await liquidityOrchestrator.setSlippageTolerance(expectedSlippage);
 
         // Check that adapter received the slippage update
         const adapterSlippage = await liquidityOrchestrator.slippageTolerance();
@@ -280,7 +276,8 @@ describe("Execution Adapter Validation - Comprehensive Tests", function () {
       );
 
       // Set slippage tolerance
-      await liquidityOrchestrator.setTargetBufferRatio(400); // 4% buffer = 2% slippage
+      await liquidityOrchestrator.setTargetBufferRatio(400); // 4% buffer
+      await liquidityOrchestrator.setSlippageTolerance(200); // 2% slippage
     });
 
     describe("buy() slippage checks", function () {
@@ -465,8 +462,9 @@ describe("Execution Adapter Validation - Comprehensive Tests", function () {
     });
 
     it("should propagate slippage updates to adapters and enforce in operations", async function () {
-      // Change buffer ratio
-      await liquidityOrchestrator.setTargetBufferRatio(300); // 3% buffer = 1.5% slippage
+      // Change buffer ratio and slippage tolerance
+      await liquidityOrchestrator.setTargetBufferRatio(300); // 3% buffer
+      await liquidityOrchestrator.setSlippageTolerance(150); // 1.5% slippage
 
       // Verify slippage updated
       const newSlippage = await liquidityOrchestrator.slippageTolerance();

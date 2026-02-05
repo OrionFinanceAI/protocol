@@ -10,15 +10,19 @@ import {
   UpgradeableBeacon,
   MockUnderlyingAsset,
   PriceAdapterRegistry,
-  InternalStateOrchestrator,
   LiquidityOrchestrator,
 } from "../typechain-types";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
+import { resetNetwork } from "./helpers/resetNetwork";
 
 describe("Upgrade Tests", function () {
   let owner: SignerWithAddress;
   let strategist: SignerWithAddress;
   let user: SignerWithAddress;
+
+  before(async function () {
+    await resetNetwork();
+  });
 
   beforeEach(async function () {
     [owner, strategist, user] = await ethers.getSigners();
@@ -129,13 +133,11 @@ describe("Upgrade Tests", function () {
     let vaultBeacon: UpgradeableBeacon;
     let vault1: OrionTransparentVault;
     let vault2: OrionTransparentVault;
-    let underlyingAsset: MockUnderlyingAsset;
 
     beforeEach(async function () {
       const deployed = await deployUpgradeableProtocol(owner);
       vaultFactory = deployed.transparentVaultFactory;
       vaultBeacon = deployed.vaultBeacon;
-      underlyingAsset = deployed.underlyingAsset;
 
       // Whitelist vault owner (only if not already whitelisted)
       const isWhitelisted = await deployed.orionConfig.isWhitelistedManager(owner.address);
@@ -193,10 +195,6 @@ describe("Upgrade Tests", function () {
     });
 
     it("Should upgrade all vaults simultaneously via beacon", async function () {
-      // Set some state in both vaults
-      await vault1.connect(owner).updateVaultWhitelist([await underlyingAsset.getAddress()]);
-      await vault2.connect(owner).updateVaultWhitelist([await underlyingAsset.getAddress()]);
-
       // Verify vaults are deployed
       expect(await vault1.manager()).to.equal(owner.address);
       expect(await vault2.manager()).to.equal(owner.address);
@@ -533,7 +531,6 @@ describe("Upgrade Tests", function () {
   describe("Direct upgradeToAndCall", function () {
     let orionConfig: OrionConfig;
     let priceAdapterRegistry: PriceAdapterRegistry;
-    let InternalStateOrchestrator: InternalStateOrchestrator;
     let liquidityOrchestrator: LiquidityOrchestrator;
     let transparentVaultFactory: TransparentVaultFactory;
 
@@ -541,7 +538,6 @@ describe("Upgrade Tests", function () {
       const deployed = await deployUpgradeableProtocol(owner);
       orionConfig = deployed.orionConfig;
       priceAdapterRegistry = deployed.priceAdapterRegistry;
-      InternalStateOrchestrator = deployed.InternalStateOrchestrator;
       liquidityOrchestrator = deployed.liquidityOrchestrator;
       transparentVaultFactory = deployed.transparentVaultFactory;
     });
@@ -587,27 +583,6 @@ describe("Upgrade Tests", function () {
       await expect(
         priceAdapterRegistry.connect(user).upgradeToAndCall(await newImpl.getAddress(), "0x"),
       ).to.be.revertedWithCustomError(priceAdapterRegistry, "OwnableUnauthorizedAccount");
-    });
-
-    it("Should cover InternalStateOrchestrator._authorizeUpgrade via direct upgradeToAndCall", async function () {
-      const InternalStateOrchestratorFactory = await ethers.getContractFactory("InternalStateOrchestrator");
-      const newImpl = await InternalStateOrchestratorFactory.deploy();
-      await newImpl.waitForDeployment();
-
-      // Call upgradeToAndCall directly, executing _authorizeUpgrade
-      await InternalStateOrchestrator.connect(owner).upgradeToAndCall(await newImpl.getAddress(), "0x");
-
-      expect(await InternalStateOrchestrator.owner()).to.equal(owner.address);
-    });
-
-    it("Should cover InternalStateOrchestrator._authorizeUpgrade revert on non-owner", async function () {
-      const InternalStateOrchestratorFactory = await ethers.getContractFactory("InternalStateOrchestrator");
-      const newImpl = await InternalStateOrchestratorFactory.deploy();
-      await newImpl.waitForDeployment();
-
-      await expect(
-        InternalStateOrchestrator.connect(user).upgradeToAndCall(await newImpl.getAddress(), "0x"),
-      ).to.be.revertedWithCustomError(InternalStateOrchestrator, "OwnableUnauthorizedAccount");
     });
 
     it("Should cover LiquidityOrchestrator._authorizeUpgrade via direct upgradeToAndCall", async function () {

@@ -22,26 +22,36 @@ contract KBestTvlWeightedAverageInvalid is IOrionStrategist, Ownable {
     /// @notice The number of assets to pick
     uint16 public k;
 
+    /// @notice Contract-specific investment universe (ERC4626-compatible assets only)
+    address[] private _investmentUniverse;
+
     /// @notice Constructor for KBestTvlWeightedAverageInvalid strategist
     /// @param owner The owner of the contract
     /// @param _config The Orion configuration contract address
     /// @param _k The number of assets to pick
-    constructor(address owner, address _config, uint16 _k) Ownable(owner) {
+    /// @param assets Contract-specific investment universe (must be ERC4626-compatible)
+    constructor(address owner, address _config, uint16 _k, address[] memory assets) Ownable(owner) {
         if (_config == address(0)) revert ErrorsLib.ZeroAddress();
 
         config = IOrionConfig(_config);
         k = _k;
+        _investmentUniverse = assets;
+    }
+
+    /// @notice Returns this strategist's investment universe (ERC4626-compatible assets)
+    function investmentUniverse() external view returns (address[] memory) {
+        return _investmentUniverse;
     }
 
     /// @inheritdoc IOrionStrategist
     function submitIntent(IOrionTransparentVault vault) external {
-        address[] memory vaultWhitelistedAssets = vault.vaultWhitelist();
-        uint16 n = uint16(vaultWhitelistedAssets.length);
-        uint256[] memory tvls = _getAssetTVLs(vaultWhitelistedAssets, n);
+        address[] memory assets = _investmentUniverse;
+        uint16 n = uint16(assets.length);
+        uint256[] memory tvls = _getAssetTVLs(assets, n);
 
         uint16 kActual = uint16(Math.min(k, n));
         (address[] memory tokens, uint256[] memory topTvls) = _selectTopKAssets(
-            vaultWhitelistedAssets,
+            assets,
             tvls,
             n,
             kActual
@@ -51,18 +61,15 @@ contract KBestTvlWeightedAverageInvalid is IOrionStrategist, Ownable {
         vault.submitIntent(intent);
     }
 
-    /// @notice Gets TVL for all whitelisted assets
-    /// @param vaultWhitelistedAssets Array of whitelisted asset addresses
+    /// @notice Gets TVL for all assets in investment universe (ERC4626.totalAssets)
+    /// @param assets Array of asset addresses
     /// @param n Number of assets
     /// @return tvls Array of TVL values
-    function _getAssetTVLs(
-        address[] memory vaultWhitelistedAssets,
-        uint16 n
-    ) internal view returns (uint256[] memory tvls) {
+    function _getAssetTVLs(address[] memory assets, uint16 n) internal view returns (uint256[] memory tvls) {
         tvls = new uint256[](n);
 
         for (uint16 i = 0; i < n; ++i) {
-            try IERC4626(vaultWhitelistedAssets[i]).totalAssets() returns (uint256 tvl) {
+            try IERC4626(assets[i]).totalAssets() returns (uint256 tvl) {
                 tvls[i] = tvl;
             } catch {
                 tvls[i] = 1;
@@ -74,14 +81,14 @@ contract KBestTvlWeightedAverageInvalid is IOrionStrategist, Ownable {
     }
 
     /// @notice Selects the top K assets based on TVL
-    /// @param vaultWhitelistedAssets Array of whitelisted asset addresses
+    /// @param assets Array of asset addresses
     /// @param tvls Array of TVL values
     /// @param n Total number of assets
     /// @param kActual Actual number of assets to select
     /// @return tokens Array of selected token addresses
     /// @return topTvls Array of TVL values for selected tokens
     function _selectTopKAssets(
-        address[] memory vaultWhitelistedAssets,
+        address[] memory assets,
         uint256[] memory tvls,
         uint16 n,
         uint16 kActual
@@ -100,7 +107,7 @@ contract KBestTvlWeightedAverageInvalid is IOrionStrategist, Ownable {
                 }
             }
             used[maxIndex] = true;
-            tokens[idx] = vaultWhitelistedAssets[maxIndex];
+            tokens[idx] = assets[maxIndex];
             topTvls[idx] = tvls[maxIndex];
         }
     }
