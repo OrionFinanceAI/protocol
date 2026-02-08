@@ -14,7 +14,12 @@ import {
   OrionTransparentVault,
 } from "../typechain-types";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
+import { resetNetwork } from "./helpers/resetNetwork";
 import { impersonateAccount, setBalance } from "@nomicfoundation/hardhat-network-helpers";
+
+before(async function () {
+  await resetNetwork();
+});
 
 let transparentVaultFactory: TransparentVaultFactory;
 let orionConfig: OrionConfig;
@@ -121,41 +126,70 @@ describe("Config", function () {
     });
   });
   describe("removeWhitelistedAsset", function () {
-    it("Should successfully remove a whitelisted asset", async function () {
+    it("Should start decommissioning: asset stays whitelisted and is in decommissioning list", async function () {
       const assetAddress = await mockAsset1.getAddress();
 
       expect(await orionConfig.isWhitelisted(assetAddress)).to.equal(true);
       await expect(orionConfig.connect(owner).removeWhitelistedAsset(assetAddress)).to.not.be.reverted;
-      expect(await orionConfig.isWhitelisted(assetAddress)).to.equal(false);
+      // Asset remains whitelisted until completeAssetsRemoval
+      expect(await orionConfig.isWhitelisted(assetAddress)).to.equal(true);
+      const decomm = await orionConfig.decommissioningAssets();
+      expect(decomm).to.include(assetAddress);
     });
 
-    it("Should emit WhitelistedAssetRemoved event when removing asset", async function () {
+    it("Should emit AssetDecommissioningInitiated when removing asset", async function () {
       const assetAddress = await mockAsset1.getAddress();
 
       await expect(orionConfig.connect(owner).removeWhitelistedAsset(assetAddress))
-        .to.emit(orionConfig, "WhitelistedAssetRemoved")
+        .to.emit(orionConfig, "AssetDecommissioningInitiated")
         .withArgs(assetAddress);
     });
 
-    it("Should update whitelisted assets count after removal", async function () {
+    it("Should not emit AssetDecommissioningInitiated on second call for same asset", async function () {
+      const assetAddress = await mockAsset1.getAddress();
+
+      await expect(orionConfig.connect(owner).removeWhitelistedAsset(assetAddress))
+        .to.emit(orionConfig, "AssetDecommissioningInitiated")
+        .withArgs(assetAddress);
+
+      await expect(orionConfig.connect(owner).removeWhitelistedAsset(assetAddress)).to.not.emit(
+        orionConfig,
+        "AssetDecommissioningInitiated",
+      );
+    });
+
+    it("Should keep whitelist count unchanged until completeAssetsRemoval", async function () {
       const initialCount = await orionConfig.whitelistedAssetsLength();
       expect(initialCount).to.equal(3); // underlying asset + 2 test assets
 
       await orionConfig.connect(owner).removeWhitelistedAsset(await mockAsset1.getAddress());
-      const finalCount = await orionConfig.whitelistedAssetsLength();
-      expect(finalCount).to.equal(2); // underlying asset + 1 test asset
+      // Asset still whitelisted during decommissioning
+      const countAfterDecommission = await orionConfig.whitelistedAssetsLength();
+      expect(countAfterDecommission).to.equal(3);
+      const decomm = await orionConfig.decommissioningAssets();
+      expect(decomm.length).to.equal(1);
     });
 
-    it("Should remove asset from getAllWhitelistedAssets array", async function () {
+    it("Should keep asset in getAllWhitelistedAssets until completeAssetsRemoval", async function () {
       const assetAddress = await mockAsset1.getAddress();
 
       const initialAssets = await orionConfig.getAllWhitelistedAssets();
       expect(initialAssets).to.include(assetAddress);
 
+      const initialAssetNames = await orionConfig.getAllWhitelistedAssetNames();
+      const assetName = await mockAsset1.name();
+      expect(initialAssetNames).to.include(assetName);
+
       await orionConfig.connect(owner).removeWhitelistedAsset(assetAddress);
 
-      const finalAssets = await orionConfig.getAllWhitelistedAssets();
-      expect(finalAssets).to.not.include(assetAddress);
+      // Asset stays in whitelist during decommissioning (for consistent state commitment)
+      const assetsAfterDecommission = await orionConfig.getAllWhitelistedAssets();
+      expect(assetsAfterDecommission).to.include(assetAddress);
+      const decomm = await orionConfig.decommissioningAssets();
+      expect(decomm).to.include(assetAddress);
+
+      const assetNamesAfterDecommission = await orionConfig.getAllWhitelistedAssetNames();
+      expect(assetNamesAfterDecommission).to.include(assetName);
     });
 
     it("Should revert when trying to remove non-whitelisted asset", async function () {
@@ -198,7 +232,7 @@ describe("Config", function () {
   });
 
   describe("addWhitelistedManager", function () {
-    it("Should successfully add a whitelisted vault owner", async function () {
+    it("Should successfully add a whitelisted manager", async function () {
       const newManager = other.address;
 
       expect(await orionConfig.isWhitelistedManager(newManager)).to.equal(false);
@@ -206,7 +240,7 @@ describe("Config", function () {
       expect(await orionConfig.isWhitelistedManager(newManager)).to.equal(true);
     });
 
-    it("Should revert when trying to add already whitelisted vault owner", async function () {
+    it("Should revert when trying to add already whitelisted manager", async function () {
       const existingManager = owner.address;
 
       expect(await orionConfig.isWhitelistedManager(existingManager)).to.equal(true);
@@ -227,19 +261,27 @@ describe("Config", function () {
   });
 
   describe("removeWhitelistedManager", function () {
-    it("Should successfully remove a whitelisted vault owner", async function () {
+    it("Should successfully remove a whitelisted manager", async function () {
       const ManagerToRemove = other.address;
 
-      // First, add the vault owner to whitelist
+      // First, add the manager to whitelist
       await orionConfig.addWhitelistedManager(ManagerToRemove);
       expect(await orionConfig.isWhitelistedManager(ManagerToRemove)).to.equal(true);
 
-      // Remove the vault owner
+      // Ensure the manager is present in getAllOrionManagers before removal
+      const allManagersBefore = await orionConfig.getAllOrionManagers();
+      expect(allManagersBefore.map((a: string) => a.toLowerCase())).to.include(ManagerToRemove.toLowerCase());
+
+      // Remove the manager
       await expect(orionConfig.removeWhitelistedManager(ManagerToRemove)).to.not.be.reverted;
       expect(await orionConfig.isWhitelistedManager(ManagerToRemove)).to.equal(false);
+
+      // Ensure the manager is _not_ present in getAllOrionManagers after removal
+      const allManagersAfter = await orionConfig.getAllOrionManagers();
+      expect(allManagersAfter.map((a: string) => a.toLowerCase())).to.not.include(ManagerToRemove.toLowerCase());
     });
 
-    it("Should revert when trying to remove non-whitelisted vault owner", async function () {
+    it("Should revert when trying to remove non-whitelisted manager", async function () {
       const nonWhitelistedManager = user.address;
 
       expect(await orionConfig.isWhitelistedManager(nonWhitelistedManager)).to.equal(false);
@@ -251,8 +293,6 @@ describe("Config", function () {
 
     it("Should revert when called by non-owner", async function () {
       const ManagerToRemove = other.address;
-
-      // First, add the vault owner to whitelist
       await orionConfig.addWhitelistedManager(ManagerToRemove);
 
       await expect(orionConfig.connect(user).removeWhitelistedManager(ManagerToRemove))
@@ -413,32 +453,28 @@ describe("OrionVault - Base Functionality", function () {
       await ethers.provider.send("hardhat_stopImpersonatingAccount", [loAddress]);
     });
 
-    it("Should revert when cancelling redeem request with zero amount", async function () {
-      await expect(vault.connect(user).cancelRedeemRequest(0)).to.be.revertedWithCustomError(
-        vault,
-        "AmountMustBeGreaterThanZero",
-      );
-    });
+    describe("Edge Cases", function () {
+      it("Should revert when calling cancelRedeemRequest with zero amount", async function () {
+        await expect(vault.connect(user).cancelRedeemRequest(0)).to.be.revertedWithCustomError(
+          vault,
+          "AmountMustBeGreaterThanZero",
+        );
+      });
 
-    it("Should revert when cancelling more than requested redeem amount", async function () {
-      const userShares = await vault.balanceOf(user.address);
-      expect(userShares).to.be.gt(0n, "User should have shares after deposit fulfillment");
+      it("Should revert when calling cancelRedeemRequest with amount greater than pending redeem", async function () {
+        const userShares = await vault.balanceOf(user.address);
+        expect(userShares).to.be.gt(0n, "User should have shares after deposit fulfillment");
 
-      // Use half of user's shares for redeem, then try to cancel double that amount
-      const redeemAmount = userShares / 2n;
-      const cancelAmount = redeemAmount * 2n;
+        const redeemAmount = userShares / 2n;
+        const cancelAmountGreaterThanPending = redeemAmount * 2n;
 
-      // Approve vault to transfer shares
-      await vault.connect(user).approve(await vault.getAddress(), redeemAmount);
+        await vault.connect(user).approve(await vault.getAddress(), redeemAmount);
+        await vault.connect(user).requestRedeem(redeemAmount);
 
-      // Request redeem
-      await vault.connect(user).requestRedeem(redeemAmount);
-
-      // Try to cancel more than requested
-      await expect(vault.connect(user).cancelRedeemRequest(cancelAmount)).to.be.revertedWithCustomError(
-        vault,
-        "InsufficientAmount",
-      );
+        await expect(
+          vault.connect(user).cancelRedeemRequest(cancelAmountGreaterThanPending),
+        ).to.be.revertedWithCustomError(vault, "InsufficientAmount");
+      });
     });
 
     it("Should allow user to cancel redeem request", async function () {
@@ -587,7 +623,7 @@ describe("OrionVault - Base Functionality", function () {
   });
 
   describe("Access Control", function () {
-    it("Should only allow vault owner to call owner-only functions", async function () {
+    it("Should only allow manager to call owner-only functions", async function () {
       await expect(vault.connect(user).updateStrategist(other.address)).to.be.revertedWithCustomError(
         vault,
         "NotAuthorized",

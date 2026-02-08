@@ -18,6 +18,10 @@ library EventsLib {
     /// @param asset The address of the removed asset.
     event WhitelistedAssetRemoved(address indexed asset);
 
+    /// @notice Asset marked for decommissioning (stays whitelisted until completeAssetRemoval).
+    /// @param asset The address of the asset marked for decommissioning.
+    event AssetDecommissioningInitiated(address indexed asset);
+
     /// @notice A new Orion Vault has been registered in the protocol.
     /// @param vault The address of the added vault.
     event OrionVaultAdded(address indexed vault);
@@ -76,6 +80,10 @@ library EventsLib {
     /// @param unpauser The address that triggered the unpause.
     event ProtocolUnpaused(address indexed unpauser);
 
+    /// @notice A manager has been added to the whitelist.
+    /// @param manager The address of the manager that was added.
+    event ManagerAdded(address indexed manager);
+
     /// @notice A manager has been removed from the whitelist.
     /// @param manager The address of the manager that was removed.
     event ManagerRemoved(address indexed manager);
@@ -106,21 +114,27 @@ library EventsLib {
         uint256[] shares
     );
 
-    // ====================================
-    // === Internal State Orchestrator ===
-    // ====================================
+    // ================================
+    // === Liquidity Orchestrator ===
+    // ================================
 
     /// @notice The automation registry address has been updated.
     /// @param newAutomationRegistry The address of the new automation registry.
     event AutomationRegistryUpdated(address indexed newAutomationRegistry);
 
-    // ================================
-    // === Liquidity Orchestrator ===
-    // ================================
+    /// @notice The SP1 verifier contract address has been updated.
+    /// @param newVerifier The address of the new SP1 verifier contract.
+    event SP1VerifierUpdated(address indexed newVerifier);
+
+    /// @notice The internal state orchestrator verification key has been updated.
+    /// @param vKey The new verification key.
+    event VKeyUpdated(bytes32 indexed vKey);
 
     /// @notice A new epoch has started.
     /// @param epochCounter The current epoch counter.
-    event EpochStart(uint256 indexed epochCounter);
+    /// @param assets Array of asset addresses.
+    /// @param prices Array of asset prices (parallel to assets array).
+    event EpochStart(uint256 indexed epochCounter, address[] assets, uint256[] prices);
 
     /// @notice The portfolio has been rebalanced.
     /// @param epochCounter The current epoch counter.
@@ -136,9 +150,23 @@ library EventsLib {
     /// @param adapter The address of the execution adapter.
     event ExecutionAdapterSet(address indexed asset, address indexed adapter);
 
+    /// @notice Protocol fees have been accrued.
+    /// @param epochProtocolFees The amount of protocol fees accrued for the current epoch.
+    event ProtocolFeesAccrued(uint256 indexed epochProtocolFees);
+
     /// @notice Protocol fees have been claimed.
     /// @param amount The amount of protocol fees claimed.
     event ProtocolFeesClaimed(uint256 indexed amount);
+
+    /// @notice Liquidity has been deposited to the protocol buffer.
+    /// @param depositor The address of the depositor.
+    /// @param amount The amount of liquidity deposited.
+    event LiquidityDeposited(address indexed depositor, uint256 indexed amount);
+
+    /// @notice Liquidity has been withdrawn from the protocol buffer.
+    /// @param withdrawer The address of the withdrawer.
+    /// @param amount The amount of liquidity withdrawn.
+    event LiquidityWithdrawn(address indexed withdrawer, uint256 indexed amount);
 
     /// @notice Enumeration of available vault types.
     enum VaultType {
@@ -169,6 +197,10 @@ library EventsLib {
         address depositAccessControl,
         VaultType vaultType
     );
+
+    /// @notice Decommissioning process for a vault has been initiated.
+    /// @param vault The address of the vault being decommissioned.
+    event VaultDecommissioningInitiated(address indexed vault);
 
     /// @notice An Orion Vault has been decommissioned.
     /// @param vault The address of the decommissioned vault.

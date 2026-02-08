@@ -4,10 +4,10 @@ import "@openzeppelin/hardhat-upgrades";
 import { ethers } from "hardhat";
 import { time } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { deployUpgradeableProtocol } from "../helpers/deployUpgradeable";
+import { resetNetwork } from "../helpers/resetNetwork";
 
 import {
   OrionConfig,
-  InternalStateOrchestrator,
   LiquidityOrchestrator,
   TransparentVaultFactory,
   OrionTransparentVault,
@@ -16,7 +16,6 @@ import {
 
 describe("Orchestrators - zero deposits and zero intents", function () {
   let orionConfig: OrionConfig;
-  let InternalStateOrchestrator: InternalStateOrchestrator;
   let liquidityOrchestrator: LiquidityOrchestrator;
   let transparentVaultFactory: TransparentVaultFactory;
   let transparentVault: OrionTransparentVault;
@@ -27,6 +26,10 @@ describe("Orchestrators - zero deposits and zero intents", function () {
   let automationRegistry: SignerWithAddress;
   let user: SignerWithAddress;
 
+  before(async function () {
+    await resetNetwork();
+  });
+
   beforeEach(async function () {
     [owner, strategist, automationRegistry, user] = await ethers.getSigners();
 
@@ -34,12 +37,12 @@ describe("Orchestrators - zero deposits and zero intents", function () {
 
     underlyingAsset = deployed.underlyingAsset;
     orionConfig = deployed.orionConfig;
-    InternalStateOrchestrator = deployed.InternalStateOrchestrator;
     liquidityOrchestrator = deployed.liquidityOrchestrator;
     transparentVaultFactory = deployed.transparentVaultFactory;
 
     // Configure protocol
     await liquidityOrchestrator.setTargetBufferRatio(100); // 1%
+    await liquidityOrchestrator.setSlippageTolerance(50); // 0.5% slippage
 
     // Create transparent vault (no intent submitted)
     const tx = await transparentVaultFactory
@@ -71,13 +74,14 @@ describe("Orchestrators - zero deposits and zero intents", function () {
 
   it("completes upkeep with zero TVL and zero intents without errors", async function () {
     // Fast forward time to trigger upkeep
-    const epochDuration = await InternalStateOrchestrator.epochDuration();
+    const epochDuration = await liquidityOrchestrator.epochDuration();
     await time.increase(epochDuration + 1n);
 
     // Start
-    const [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
-    await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
-    expect(await InternalStateOrchestrator.currentPhase()).to.equal(0);
+    const upkeepNeeded = await liquidityOrchestrator.checkUpkeep();
+    void expect(upkeepNeeded).to.be.true;
+    await liquidityOrchestrator.connect(automationRegistry).performUpkeep("0x", "0x", "0x");
+    expect(await liquidityOrchestrator.currentPhase()).to.equal(0);
   });
 
   it("should not move forward when vault has no total assets and no pending deposits but has valid intent", async function () {
@@ -99,17 +103,21 @@ describe("Orchestrators - zero deposits and zero intents", function () {
     expect(intentTokens.length).to.be.gt(0);
 
     // Fast forward time to trigger upkeep
-    const epochDuration = await InternalStateOrchestrator.epochDuration();
+    const epochDuration = await liquidityOrchestrator.epochDuration();
     await time.increase(epochDuration + 1n);
 
     // Check that upkeep is needed
-    const [upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+    const upkeepNeeded = await liquidityOrchestrator.checkUpkeep();
     void expect(upkeepNeeded).to.be.true;
 
     // Perform upkeep - should complete but not move to next phase
-    await InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData);
+    await liquidityOrchestrator.connect(automationRegistry).performUpkeep("0x", "0x", "0x");
 
     // Should remain in Idle phase (0) because no vaults were processed
-    expect(await InternalStateOrchestrator.currentPhase()).to.equal(0);
+    expect(await liquidityOrchestrator.currentPhase()).to.equal(0);
+
+    // Now upkeep should NOT be needed, since epoch start was pushed forward by the upkeep.
+    const upkeepNeededAfter = await liquidityOrchestrator.checkUpkeep();
+    void expect(upkeepNeededAfter).to.be.false;
   });
 });

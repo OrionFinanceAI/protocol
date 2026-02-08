@@ -9,6 +9,7 @@ import {
   WhitelistAccessControl,
 } from "../typechain-types";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
+import { resetNetwork } from "./helpers/resetNetwork";
 
 describe("Access Control", function () {
   let owner: SignerWithAddress;
@@ -16,6 +17,10 @@ describe("Access Control", function () {
   let user1: SignerWithAddress;
   let user2: SignerWithAddress;
   let user3: SignerWithAddress;
+
+  before(async function () {
+    await resetNetwork();
+  });
 
   let mockAsset: MockUnderlyingAsset;
   let factory: TransparentVaultFactory;
@@ -44,7 +49,7 @@ describe("Access Control", function () {
       const tx = await factory.createVault(
         strategist.address,
         "Test Vault",
-        "TVAULT",
+        "TV",
         0, // feeType
         0, // performanceFee
         0, // managementFee
@@ -95,7 +100,7 @@ describe("Access Control", function () {
       const tx = await factory.createVault(
         strategist.address,
         "Gated Vault",
-        "GVAULT",
+        "GV",
         0,
         0,
         0,
@@ -188,20 +193,12 @@ describe("Access Control", function () {
     });
   });
 
-  describe("Vault Owner Can Update Access Control", function () {
+  describe("Manager Can Update Access Control", function () {
     let vault: OrionTransparentVault;
 
     beforeEach(async function () {
       // Create vault without access control initially
-      const tx = await factory.createVault(
-        strategist.address,
-        "Updateable Vault",
-        "UVAULT",
-        0,
-        0,
-        0,
-        ethers.ZeroAddress,
-      );
+      const tx = await factory.createVault(strategist.address, "Updateable Vault", "UV", 0, 0, 0, ethers.ZeroAddress);
 
       const receipt = await tx.wait();
       const event = receipt?.logs.find((log) => {
@@ -219,7 +216,7 @@ describe("Access Control", function () {
       vault = (await ethers.getContractAt("OrionTransparentVault", vaultAddress)) as unknown as OrionTransparentVault;
     });
 
-    it("Should allow vault owner to set access control", async function () {
+    it("Should allow manager to set access control", async function () {
       await expect(vault.connect(owner).setDepositAccessControl(await accessControl.getAddress()))
         .to.emit(vault, "DepositAccessControlUpdated")
         .withArgs(await accessControl.getAddress());
@@ -227,7 +224,7 @@ describe("Access Control", function () {
       expect(await vault.depositAccessControl()).to.equal(await accessControl.getAddress());
     });
 
-    it("Should allow vault owner to disable access control", async function () {
+    it("Should allow manager to disable access control", async function () {
       // First enable
       await vault.connect(owner).setDepositAccessControl(await accessControl.getAddress());
 

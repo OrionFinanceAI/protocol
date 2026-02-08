@@ -10,6 +10,7 @@ import {
   LiquidityOrchestrator,
 } from "../typechain-types";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
+import { resetNetwork } from "./helpers/resetNetwork";
 import { impersonateAccount, setBalance } from "@nomicfoundation/hardhat-network-helpers";
 
 /**
@@ -85,6 +86,10 @@ describe("Batch Limit Consistency - Critical Accounting Fix", function () {
   const DEPOSIT_AMOUNT = ethers.parseUnits("100", 6); // 100 USDC per user
   let maxFulfillBatchSize: number;
 
+  before(async function () {
+    await resetNetwork();
+  });
+
   beforeEach(async function () {
     [owner, strategist, ...users] = await ethers.getSigners();
 
@@ -102,7 +107,7 @@ describe("Batch Limit Consistency - Critical Accounting Fix", function () {
     const tx = await transparentVaultFactory.createVault(
       strategist.address,
       "Test Vault",
-      "TVAULT",
+      "TV",
       0, // feeType
       0, // performanceFee
       0, // managementFee

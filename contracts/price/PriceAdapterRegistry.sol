@@ -22,6 +22,9 @@ contract PriceAdapterRegistry is Initializable, IPriceAdapterRegistry, Ownable2S
     /// @notice Orion Config contract address
     address public configAddress;
 
+    /// @notice Underlying asset address
+    address public underlyingAsset;
+
     /// @notice Price Adapter Precision
     uint8 public priceAdapterDecimals;
 
@@ -51,6 +54,7 @@ contract PriceAdapterRegistry is Initializable, IPriceAdapterRegistry, Ownable2S
         __UUPSUpgradeable_init();
 
         configAddress = configAddress_;
+        underlyingAsset = address(IOrionConfig(configAddress).underlyingAsset());
         priceAdapterDecimals = IOrionConfig(configAddress).priceAdapterDecimals();
     }
 
@@ -65,6 +69,10 @@ contract PriceAdapterRegistry is Initializable, IPriceAdapterRegistry, Ownable2S
 
     /// @inheritdoc IPriceAdapterRegistry
     function getPrice(address asset) external view returns (uint256) {
+        if (asset == underlyingAsset) {
+            return 10 ** priceAdapterDecimals;
+        }
+
         IPriceAdapter adapter = adapterOf[asset];
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
 

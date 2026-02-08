@@ -93,4 +93,9 @@ library ErrorsLib {
 
     /// @notice Price is outside acceptable bounds.
     error PriceOutOfBounds();
+
+    /// @notice Thrown when the zk proof's commitment doesn't match the onchain commitment.
+    /// @param proofCommitment The commitment from the zk proof.
+    /// @param onchainCommitment The commitment from the onchain.
+    error CommitmentMismatch(bytes32 proofCommitment, bytes32 onchainCommitment);
 }

@@ -3,6 +3,7 @@ import { expect } from "chai";
 import "@openzeppelin/hardhat-upgrades";
 import { ethers } from "hardhat";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
+import { resetNetwork } from "./helpers/resetNetwork";
 
 import {
   MockUnderlyingAsset,
@@ -27,7 +28,12 @@ let transparentVault: OrionTransparentVault;
 
 let owner: SignerWithAddress, strategist: SignerWithAddress, other: SignerWithAddress;
 
+before(async function () {
+  await resetNetwork();
+});
+
 beforeEach(async function () {
+  this.timeout(90_000); // deployment-heavy; CI coverage runs slower than normal
   [owner, strategist, other] = await ethers.getSigners();
 
   const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
@@ -119,6 +125,24 @@ describe("TransparentVault - Strategist Pipeline", function () {
       void expect(await transparentVault.manager()).to.equal(owner.address);
       void expect(await transparentVault.strategist()).to.equal(strategist.address);
       void expect(await transparentVault.config()).to.equal(await orionConfig.getAddress());
+    });
+
+    it("Should reject vault creation with name longer than 26 characters", async function () {
+      const longName = "A".repeat(27);
+      await expect(
+        transparentVaultFactory
+          .connect(owner)
+          .createVault(strategist.address, longName, "TV", 0, 0, 0, ethers.ZeroAddress),
+      ).to.be.revertedWithCustomError(transparentVaultFactory, "InvalidArguments");
+    });
+
+    it("Should reject vault creation with symbol longer than 4 characters", async function () {
+      const longSymbol = "SYMBOL";
+      await expect(
+        transparentVaultFactory
+          .connect(owner)
+          .createVault(strategist.address, "Test Vault", longSymbol, 0, 0, 0, ethers.ZeroAddress),
+      ).to.be.revertedWithCustomError(transparentVaultFactory, "InvalidArguments");
     });
 
     it("Should reject fee update with management fee above limit", async function () {
@@ -227,12 +251,6 @@ describe("TransparentVault - Strategist Pipeline", function () {
       )) as unknown as OrionTransparentVault;
     });
 
-    it("Should allow vault owner to update vault whitelist", async function () {
-      const newWhitelist = [await mockAsset1.getAddress(), await mockAsset2.getAddress()];
-
-      await expect(transparentVault.connect(owner).updateVaultWhitelist(newWhitelist)).to.not.be.reverted;
-    });
-
     it("Should allow manager to update fee model", async function () {
       const feeType = 0; // Performance fee mode
       const performanceFee = 2000; // 20% in basis points
@@ -252,10 +270,7 @@ describe("TransparentVault - Strategist Pipeline", function () {
     });
 
     it("Should allow strategist to submit intent", async function () {
-      const whitelist = [await mockAsset1.getAddress(), await mockAsset2.getAddress()];
-      await transparentVault.connect(owner).updateVaultWhitelist(whitelist);
-
-      // Submit intent with 60% in asset1 and 40% in asset2
+      // Submit intent with 60% in asset1 and 40% in asset2 (assets must be protocol-whitelisted)
       const intent = [
         {
           token: await mockAsset1.getAddress(),
@@ -276,9 +291,6 @@ describe("TransparentVault - Strategist Pipeline", function () {
     });
 
     it("Should reject intent with invalid total weight", async function () {
-      const whitelist = [await mockAsset1.getAddress(), await mockAsset2.getAddress()];
-      await transparentVault.connect(owner).updateVaultWhitelist(whitelist);
-
       // Submit intent with total weight != 100%
       const intent = [
         {
@@ -321,9 +333,6 @@ describe("TransparentVault - Strategist Pipeline", function () {
     });
 
     it("Should reject intent from non-strategist", async function () {
-      const whitelist = [await mockAsset1.getAddress(), await mockAsset2.getAddress()];
-      await transparentVault.connect(owner).updateVaultWhitelist(whitelist);
-
       const intent = [
         {
           token: await mockAsset1.getAddress(),
@@ -337,35 +346,7 @@ describe("TransparentVault - Strategist Pipeline", function () {
       );
     });
 
-    it("Should reject absoluteIntent to include blacklisted asset", async function () {
-      const whitelist = [await mockAsset1.getAddress(), await mockAsset2.getAddress()];
-      await transparentVault.connect(owner).updateVaultWhitelist(whitelist);
-
-      // First, blacklist mockAsset1 by removing it from the protocol whitelist
-      await orionConfig.connect(owner).removeWhitelistedAsset(await mockAsset1.getAddress());
-
-      // Try to submit intent with the blacklisted asset
-      const absoluteIntent = [
-        {
-          token: await mockAsset1.getAddress(), // This asset is now blacklisted
-          weight: 500000000, // 50%
-        },
-        {
-          token: await mockAsset2.getAddress(),
-          weight: 500000000, // 50%
-        },
-      ];
-
-      await expect(transparentVault.connect(strategist).submitIntent(absoluteIntent)).to.be.revertedWithCustomError(
-        transparentVault,
-        "TokenNotWhitelisted",
-      );
-    });
-
     it("Should reject absoluteIntent not summing up to 100", async function () {
-      const whitelist = [await mockAsset1.getAddress(), await mockAsset2.getAddress()];
-      await transparentVault.connect(owner).updateVaultWhitelist(whitelist);
-
       // Submit intent with total weight != 100%
       const absoluteIntent = [
         {
@@ -407,14 +388,10 @@ describe("TransparentVault - Strategist Pipeline", function () {
         vaultAddress,
       )) as unknown as OrionTransparentVault;
 
-      // 2. Update vault whitelist
-      const whitelist = [await mockAsset1.getAddress(), await mockAsset2.getAddress()];
-      await transparentVault.connect(owner).updateVaultWhitelist(whitelist);
-
-      // 3. Update fee model
+      // 2. Update fee model
       await transparentVault.connect(owner).updateFeeModel(0, 2000, 100);
 
-      // 4. Submit intent
+      // 3. Submit intent
       const intent = [
         {
           token: await mockAsset1.getAddress(),

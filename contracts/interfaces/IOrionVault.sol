@@ -53,10 +53,6 @@ interface IOrionVault is IERC4626 {
     /// @param sharesBurned The number of shares burned for the user.
     event Redeem(address indexed user, uint256 indexed redeemAmount, uint256 indexed sharesBurned);
 
-    /// @notice The vault whitelist has been updated.
-    /// @param assets The new whitelist of assets.
-    event VaultWhitelistUpdated(address[] assets);
-
     /// @notice Fees have been accrued.
     /// @param managementFee The amount of management fees accrued.
     /// @param performanceFee The amount of performance fees accrued.
@@ -70,6 +66,30 @@ interface IOrionVault is IERC4626 {
     /// @notice The deposit access control contract has been updated.
     /// @param newDepositAccessControl The new deposit access control contract address (address(0) = permissionless).
     event DepositAccessControlUpdated(address indexed newDepositAccessControl);
+
+    // --------- ENUMS AND STRUCTS ---------
+
+    /// @notice Fee type
+    enum FeeType {
+        ABSOLUTE, // Fee based on the latest return, no hurdles or high water mark (HWM)
+        SOFT_HURDLE, // Fee unlocked after hurdle rate is reached
+        HARD_HURDLE, // Fee only above a fixed hurdle rate
+        HIGH_WATER_MARK, // Fee only on gains above the previous peak
+        HURDLE_HWM // Combination of (hard) hurdle rate and HWM
+    }
+
+    /// @notice Fee model
+    /// @dev This struct is used to define the fee model for the vault
+    struct FeeModel {
+        /// @notice Fee type
+        FeeType feeType;
+        /// @notice Performance fee - charged on the performance of the vault
+        uint16 performanceFee;
+        /// @notice Management fee - charged on the total assets of the vault
+        uint16 managementFee;
+        /// @notice High watermark for performance fees
+        uint256 highWaterMark;
+    }
 
     // --------- GETTERS ---------
 
@@ -88,6 +108,10 @@ interface IOrionVault is IERC4626 {
     /// @notice Pending vault fees getter
     /// @return Pending vault fees amount
     function pendingVaultFees() external view returns (uint256);
+
+    /// @notice Returns the active fee model (old during cooldown, new after)
+    /// @return The currently active fee model
+    function activeFeeModel() external view returns (FeeModel memory);
 
     /// @notice Convert shares to assets with point in time total assets.
     /// @param shares The amount of shares to convert.
@@ -152,14 +176,6 @@ interface IOrionVault is IERC4626 {
     ///      to ensure the strategist is capable of performing its duties.
     function updateStrategist(address newStrategist) external;
 
-    /// @notice Update the vault whitelist
-    /// @param assets The new whitelist of assets.
-    function updateVaultWhitelist(address[] memory assets) external;
-
-    /// @notice Get the vault whitelist
-    /// @return The array of whitelisted asset addresses for this vault.
-    function vaultWhitelist() external view returns (address[] memory);
-
     /// @notice Update the fee model parameters
     /// @param mode The calculation mode for fees
     /// @param performanceFee The performance fee
@@ -177,7 +193,7 @@ interface IOrionVault is IERC4626 {
     ///      to ensure the deposit access control is capable of performing its duties.
     function setDepositAccessControl(address newDepositAccessControl) external;
 
-    /// --------- INTERNAL STATE ORCHESTRATOR FUNCTIONS ---------
+    /// --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
 
     /// @notice Get total pending deposit amount across all users
     /// @param fulfillBatchSize The maximum number of requests to process per fulfill call
@@ -191,15 +207,18 @@ interface IOrionVault is IERC4626 {
     /// @dev This returns share amounts, not underlying asset amounts
     function pendingRedeem(uint256 fulfillBatchSize) external view returns (uint256);
 
-    /// @notice Calculate the vault's fee based on total assets
+    /// @notice Calculate the vault's fee based on total assets using a specific fee model
     /// @param totalAssets The total assets under management
+    /// @param snapshotFeeModel The fee model to use for calculation (typically from epoch snapshot)
     /// @return managementFee The management fee amount in underlying asset units
     /// @return performanceFee The performance fee amount in underlying asset units
-    /// @dev Warning: Calling this function mid-epoch may return inaccurate results
-    ///      since fees are calculated based on the full epoch duration
-    function vaultFee(uint256 totalAssets) external view returns (uint256 managementFee, uint256 performanceFee);
-
-    /// --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
+    /// @dev This function allows zk circuits to use snapshotted fee models from epoch state commitments
+    ///      to ensure consistent fee calculations that match the epoch state commitment.
+    ///      Pass the snapshotted fee model from the epoch state to ensure consistency.
+    function vaultFee(
+        uint256 totalAssets,
+        FeeModel memory snapshotFeeModel
+    ) external view returns (uint256 managementFee, uint256 performanceFee);
 
     /// @notice Process all pending deposit requests and mint shares to depositors
     /// @param depositTotalAssets The total assets associated with the deposit requests

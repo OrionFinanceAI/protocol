@@ -12,29 +12,22 @@
  *    - Preventing non-owner from setting guardian
  *    - Guardian address changes emit correct events
  *
- * 2. PAUSE ALL FUNCTIONALITY
- *    - Guardian can pause all protocol operations
- *    - Owner can pause all protocol operations
+ * 2. PAUSE FUNCTIONALITY
+ *    - Guardian can pause protocol operations
+ *    - Owner can pause protocol operations
  *    - Non-privileged users cannot pause
- *    - Pause affects all orchestrators (InternalState, Liquidity)
  *    - ProtocolPaused event is emitted
  *
- * 3. UNPAUSE ALL FUNCTIONALITY
  *    - Only owner can unpause (not guardian)
  *    - Non-privileged users cannot unpause
- *    - Unpause restores all orchestrators
+ *    - Unpause restores protocol operations
  *    - ProtocolUnpaused event is emitted
  *
  * 4. PAUSED STATE ENFORCEMENT
  *    - InternalStateOrchestrator.performUpkeep() reverts when paused
  *    - LiquidityOrchestrator.performUpkeep() reverts when paused
  *
- * 5. INDIVIDUAL CONTRACT PAUSE ACCESS CONTROL
- *    - Only OrionConfig can call pause() on orchestrators
- *    - Only OrionConfig can call unpause() on orchestrators
- *    - Direct calls to pause/unpause from non-OrionConfig addresses revert
- *
- * 6. INTEGRATION SCENARIOS
+ * 5. INTEGRATION SCENARIOS
  *    - Pause during active epoch
  *    - Unpause and resume normal operations
  *    - Multiple pause/unpause cycles
@@ -46,13 +39,13 @@ import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
+import { resetNetwork } from "./helpers/resetNetwork";
 
 import {
   MockUnderlyingAsset,
   MockERC4626Asset,
   ERC4626ExecutionAdapter,
   OrionConfig,
-  InternalStateOrchestrator,
   LiquidityOrchestrator,
   OrionTransparentVault,
 } from "../typechain-types";
@@ -64,7 +57,6 @@ describe("Protocol Pause Functionality", function () {
   let erc4626Asset: MockERC4626Asset;
   let adapter: ERC4626ExecutionAdapter;
   let config: OrionConfig;
-  let InternalStateOrchestrator: InternalStateOrchestrator;
   let liquidityOrchestrator: LiquidityOrchestrator;
   let transparentVault: OrionTransparentVault;
 
@@ -75,6 +67,10 @@ describe("Protocol Pause Functionality", function () {
   let user1: SignerWithAddress;
   let user2: SignerWithAddress;
   let automationRegistry: SignerWithAddress;
+
+  before(async function () {
+    await resetNetwork();
+  });
 
   // Test constants
   const INITIAL_SUPPLY = ethers.parseUnits("1000000", 6); // 1M USDC
@@ -90,7 +86,6 @@ describe("Protocol Pause Functionality", function () {
 
     underlyingAsset = deployed.underlyingAsset;
     config = deployed.orionConfig;
-    InternalStateOrchestrator = deployed.InternalStateOrchestrator;
     liquidityOrchestrator = deployed.liquidityOrchestrator;
 
     // Mint tokens to users
@@ -198,26 +193,30 @@ describe("Protocol Pause Functionality", function () {
 
   describe("2. Pause All Functionality", function () {
     it("should allow guardian to pause all protocol operations", async function () {
-      await expect(config.connect(guardian).pauseAll()).to.emit(config, "ProtocolPaused").withArgs(guardian.address);
+      await expect(liquidityOrchestrator.connect(guardian).pause())
+        .to.emit(liquidityOrchestrator, "Paused")
+        .withArgs(guardian.address);
 
       // Verify orchestrators are paused
-      void expect(await InternalStateOrchestrator.paused()).to.be.true;
       void expect(await liquidityOrchestrator.paused()).to.be.true;
     });
 
     it("should allow owner to pause all protocol operations", async function () {
-      await expect(config.connect(owner).pauseAll()).to.emit(config, "ProtocolPaused").withArgs(owner.address);
+      await expect(liquidityOrchestrator.connect(owner).pause())
+        .to.emit(liquidityOrchestrator, "Paused")
+        .withArgs(owner.address);
 
       // Verify all contracts are paused
-      void expect(await InternalStateOrchestrator.paused()).to.be.true;
       void expect(await liquidityOrchestrator.paused()).to.be.true;
     });
 
     it("should prevent non-privileged users from pausing", async function () {
-      await expect(config.connect(user1).pauseAll()).to.be.revertedWithCustomError(config, "NotAuthorized");
+      await expect(liquidityOrchestrator.connect(user1).pause()).to.be.revertedWithCustomError(
+        liquidityOrchestrator,
+        "NotAuthorized",
+      );
 
       // Verify nothing is paused
-      void expect(await InternalStateOrchestrator.paused()).to.be.false;
       void expect(await liquidityOrchestrator.paused()).to.be.false;
     });
   });
@@ -225,36 +224,35 @@ describe("Protocol Pause Functionality", function () {
   describe("3. Unpause All Functionality", function () {
     beforeEach(async function () {
       // Pause protocol first
-      await config.connect(guardian).pauseAll();
+      await liquidityOrchestrator.connect(guardian).pause();
     });
 
     it("should allow owner to unpause all protocol operations", async function () {
-      await expect(config.connect(owner).unpauseAll()).to.emit(config, "ProtocolUnpaused").withArgs(owner.address);
+      await expect(liquidityOrchestrator.connect(owner).unpause())
+        .to.emit(liquidityOrchestrator, "Unpaused")
+        .withArgs(owner.address);
 
       // Verify orchestrators are unpaused
-      void expect(await InternalStateOrchestrator.paused()).to.be.false;
       void expect(await liquidityOrchestrator.paused()).to.be.false;
     });
 
     it("should prevent guardian from unpausing (only owner)", async function () {
-      await expect(config.connect(guardian).unpauseAll()).to.be.revertedWithCustomError(
-        config,
+      await expect(liquidityOrchestrator.connect(guardian).unpause()).to.be.revertedWithCustomError(
+        liquidityOrchestrator,
         "OwnableUnauthorizedAccount",
       );
 
       // Verify everything is still paused
-      void expect(await InternalStateOrchestrator.paused()).to.be.true;
       void expect(await liquidityOrchestrator.paused()).to.be.true;
     });
 
     it("should prevent non-owner from unpausing", async function () {
-      await expect(config.connect(user1).unpauseAll()).to.be.revertedWithCustomError(
-        config,
+      await expect(liquidityOrchestrator.connect(user1).unpause()).to.be.revertedWithCustomError(
+        liquidityOrchestrator,
         "OwnableUnauthorizedAccount",
       );
 
       // Verify everything is still paused
-      void expect(await InternalStateOrchestrator.paused()).to.be.true;
       void expect(await liquidityOrchestrator.paused()).to.be.true;
     });
   });
@@ -262,28 +260,18 @@ describe("Protocol Pause Functionality", function () {
   describe("4. Paused State Enforcement", function () {
     beforeEach(async function () {
       // Pause protocol
-      await config.connect(guardian).pauseAll();
-    });
-
-    it("should prevent InternalStateOrchestrator.performUpkeep() when paused", async function () {
-      const performData = "0x";
-
-      await expect(
-        InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData),
-      ).to.be.revertedWithCustomError(InternalStateOrchestrator, "EnforcedPause");
+      await liquidityOrchestrator.connect(guardian).pause();
     });
 
     it("should prevent LiquidityOrchestrator.performUpkeep() when paused", async function () {
-      const performData = "0x";
-
       await expect(
-        liquidityOrchestrator.connect(automationRegistry).performUpkeep(performData),
+        liquidityOrchestrator.connect(automationRegistry).performUpkeep("0x", "0x", "0x"),
       ).to.be.revertedWithCustomError(liquidityOrchestrator, "EnforcedPause");
     });
 
     it("should allow operations to resume after unpause", async function () {
       // Unpause
-      await config.connect(owner).unpauseAll();
+      await liquidityOrchestrator.connect(owner).unpause();
 
       // Now operations should work
       await expect(transparentVault.connect(user1).requestDeposit(DEPOSIT_AMOUNT)).to.not.be.reverted;
@@ -293,60 +281,14 @@ describe("Protocol Pause Functionality", function () {
     });
   });
 
-  describe("5. Individual Contract Pause Access Control", function () {
-    it("should prevent non-OrionConfig from calling pause() on InternalStateOrchestrator", async function () {
-      await expect(InternalStateOrchestrator.connect(owner).pause()).to.be.revertedWithCustomError(
-        InternalStateOrchestrator,
-        "NotAuthorized",
-      );
-
-      await expect(InternalStateOrchestrator.connect(guardian).pause()).to.be.revertedWithCustomError(
-        InternalStateOrchestrator,
-        "NotAuthorized",
-      );
-    });
-
-    it("should prevent non-OrionConfig from calling unpause() on InternalStateOrchestrator", async function () {
-      // Pause first
-      await config.connect(guardian).pauseAll();
-
-      await expect(InternalStateOrchestrator.connect(owner).unpause()).to.be.revertedWithCustomError(
-        InternalStateOrchestrator,
-        "NotAuthorized",
-      );
-    });
-
-    it("should prevent non-OrionConfig from calling pause() on LiquidityOrchestrator", async function () {
-      await expect(liquidityOrchestrator.connect(owner).pause()).to.be.revertedWithCustomError(
-        liquidityOrchestrator,
-        "NotAuthorized",
-      );
-
-      await expect(liquidityOrchestrator.connect(guardian).pause()).to.be.revertedWithCustomError(
-        liquidityOrchestrator,
-        "NotAuthorized",
-      );
-    });
-
-    it("should prevent non-OrionConfig from calling unpause() on LiquidityOrchestrator", async function () {
-      // Pause first
-      await config.connect(guardian).pauseAll();
-
-      await expect(liquidityOrchestrator.connect(owner).unpause()).to.be.revertedWithCustomError(
-        liquidityOrchestrator,
-        "NotAuthorized",
-      );
-    });
-  });
-
-  describe("6. Integration Scenarios", function () {
+  describe("5. Integration Scenarios", function () {
     it("should allow resuming operations after unpause", async function () {
       // Make initial deposit
       await transparentVault.connect(user1).requestDeposit(DEPOSIT_AMOUNT);
 
       // Pause and unpause
-      await config.connect(guardian).pauseAll();
-      await config.connect(owner).unpauseAll();
+      await liquidityOrchestrator.connect(guardian).pause();
+      await liquidityOrchestrator.connect(owner).unpause();
 
       // User can now cancel their request
       await expect(transparentVault.connect(user1).cancelDepositRequest(DEPOSIT_AMOUNT)).to.not.be.reverted;
@@ -356,26 +298,22 @@ describe("Protocol Pause Functionality", function () {
 
     it("should handle multiple pause/unpause cycles", async function () {
       // Cycle 1: Pause and unpause
-      await config.connect(guardian).pauseAll();
-      void expect(await InternalStateOrchestrator.paused()).to.be.true;
+      await liquidityOrchestrator.connect(guardian).pause();
       void expect(await liquidityOrchestrator.paused()).to.be.true;
 
-      await config.connect(owner).unpauseAll();
-      void expect(await InternalStateOrchestrator.paused()).to.be.false;
+      await liquidityOrchestrator.connect(owner).unpause();
       void expect(await liquidityOrchestrator.paused()).to.be.false;
       // Cycle 2: Pause and unpause again
-      await config.connect(owner).pauseAll(); // Owner can also pause
-      void expect(await InternalStateOrchestrator.paused()).to.be.true;
+      await liquidityOrchestrator.connect(owner).pause(); // Owner can also pause
       void expect(await liquidityOrchestrator.paused()).to.be.true;
 
-      await config.connect(owner).unpauseAll();
-      void expect(await InternalStateOrchestrator.paused()).to.be.false;
+      await liquidityOrchestrator.connect(owner).unpause();
       void expect(await liquidityOrchestrator.paused()).to.be.false;
 
-      await time.increase(await InternalStateOrchestrator.epochDuration());
-      const [_upkeepNeeded, performData] = await InternalStateOrchestrator.checkUpkeep("0x");
+      await time.increase(await liquidityOrchestrator.epochDuration());
 
-      await expect(InternalStateOrchestrator.connect(automationRegistry).performUpkeep(performData)).to.not.be.reverted;
+      await expect(liquidityOrchestrator.connect(automationRegistry).performUpkeep("0x", "0x", "0x")).to.not.be
+        .reverted;
     });
 
     it("should preserve state across pause/unpause", async function () {
@@ -384,13 +322,13 @@ describe("Protocol Pause Functionality", function () {
       const depositBefore = await transparentVault.pendingDeposit(await config.maxFulfillBatchSize());
 
       // Pause
-      await config.connect(guardian).pauseAll();
+      await liquidityOrchestrator.connect(guardian).pause();
 
       // State should be unchanged
       expect(await transparentVault.pendingDeposit(await config.maxFulfillBatchSize())).to.equal(depositBefore);
 
       // Unpause
-      await config.connect(owner).unpauseAll();
+      await liquidityOrchestrator.connect(owner).unpause();
 
       // State should still be unchanged
       expect(await transparentVault.pendingDeposit(await config.maxFulfillBatchSize())).to.equal(depositBefore);
@@ -402,20 +340,19 @@ describe("Protocol Pause Functionality", function () {
 
     it("should block epoch progression when paused", async function () {
       // Start an epoch
-      await InternalStateOrchestrator.connect(automationRegistry).performUpkeep("0x");
+      await liquidityOrchestrator.connect(automationRegistry).performUpkeep("0x", "0x", "0x");
 
       // Pause protocol
-      await config.connect(guardian).pauseAll();
+      await liquidityOrchestrator.connect(guardian).pause();
 
       // Cannot continue epoch
       await expect(
-        InternalStateOrchestrator.connect(automationRegistry).performUpkeep("0x"),
-      ).to.be.revertedWithCustomError(InternalStateOrchestrator, "EnforcedPause");
+        liquidityOrchestrator.connect(automationRegistry).performUpkeep("0x", "0x", "0x"),
+      ).to.be.revertedWithCustomError(liquidityOrchestrator, "EnforcedPause");
 
-      await expect(liquidityOrchestrator.connect(automationRegistry).performUpkeep("0x")).to.be.revertedWithCustomError(
-        liquidityOrchestrator,
-        "EnforcedPause",
-      );
+      await expect(
+        liquidityOrchestrator.connect(automationRegistry).performUpkeep("0x", "0x", "0x"),
+      ).to.be.revertedWithCustomError(liquidityOrchestrator, "EnforcedPause");
     });
   });
 });
