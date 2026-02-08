@@ -130,10 +130,8 @@ describe("Orchestrators", function () {
 
     console.log("orionConfig address", await orionConfig.getAddress());
 
-    const ERC4626PriceAdapterFactory = await ethers.getContractFactory("ERC4626PriceAdapter");
-    orionPriceAdapter = (await ERC4626PriceAdapterFactory.deploy(
-      await orionConfig.getAddress(),
-    )) as unknown as ERC4626PriceAdapter;
+    const MockPriceAdapterFactory = await ethers.getContractFactory("MockPriceAdapter");
+    orionPriceAdapter = (await MockPriceAdapterFactory.deploy()) as unknown as ERC4626PriceAdapter;
     await orionPriceAdapter.waitForDeployment();
 
     await orionConfig.connect(owner).updateProtocolFees(10, 1000);
@@ -169,6 +167,7 @@ describe("Orchestrators", function () {
     );
     orionExecutionAdapter = (await ERC4626ExecutionAdapterFactory.deploy(
       await orionConfig.getAddress(),
+      await liquidityOrchestrator.getAddress(),
     )) as unknown as ERC4626ExecutionAdapter;
     await orionExecutionAdapter.waitForDeployment();
 
