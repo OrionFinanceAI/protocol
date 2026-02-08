@@ -52,11 +52,6 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     /// @dev Can only be called by the Orion Config contract.
     function setExecutionAdapter(address asset, IExecutionAdapter adapter) external;
 
-    /// @notice Unregister the execution adapter for an asset.
-    /// @param asset The address of the asset.
-    /// @dev Can only be called by the Orion Config contract.
-    function unsetExecutionAdapter(address asset) external;
-
     /// @notice Return deposit funds to a user who cancelled their deposit request
     /// @dev Called by vault contracts when users cancel deposit requests
     /// @param user The user to return funds to
@@ -84,4 +79,10 @@ interface ILiquidityOrchestrator is AutomationCompatibleInterface {
     ///      Includes safety checks to prevent predatory withdrawals that could break protocol operations.
     /// @param amount The amount of underlying assets to withdraw
     function withdrawLiquidity(uint256 amount) external;
+
+    /// @notice Synchronous redemption for decommissioned vaults
+    /// @dev Called by vault contracts to process synchronous redemptions for LPs with share tokens
+    /// @param assets The amount of underlying assets to withdraw
+    /// @param receiver The address to receive the underlying assets
+    function withdraw(uint256 assets, address receiver) external;
 }

@@ -23,6 +23,7 @@ protocol-costs/
 reports/
 docs/
 orion-strategies/
+.cursor/
 # files
 *.env
 *.log
@@ -32,6 +33,7 @@ orion-strategies/
 coverage.json
 package-lock.json
 *.lock
+gasReporterOutput.json
 
 res/
 running_node/
@@ -53,4 +55,3 @@ artifacts/hardhat/
 
 !artifacts/contracts/**/*.json
 artifacts/contracts/**/*.dbg.json
-
