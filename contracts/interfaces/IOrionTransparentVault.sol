@@ -6,6 +6,7 @@ import "./IOrionVault.sol";
 /// @title IOrionTransparentVault
 /// @notice Interface for the Orion transparent vault
 /// @author Orion Finance
+/// @custom:security-contact security@orionfinance.ai
 interface IOrionTransparentVault is IOrionVault {
     /// @dev Struct representing a token and its weight in an intent.
     /// @param token The address of the ERC20 token.
@@ -13,14 +14,6 @@ interface IOrionTransparentVault is IOrionVault {
     struct IntentPosition {
         address token;
         uint32 weight;
-    }
-
-    /// @dev Struct representing a token and its shares in a portfolio.
-    /// @param token The address of the ERC20 token.
-    /// @param shares The number of shares per asset (uint256 for portfolio shares).
-    struct PortfolioPosition {
-        address token;
-        uint256 shares;
     }
 
     /// @notice Submit a plaintext portfolio intent.
@@ -40,8 +33,10 @@ interface IOrionTransparentVault is IOrionVault {
     /// @notice Updates the vault's portfolio state and total assets
     /// @dev Can only be called by the liquidity orchestrator.
     ///      Clears the previous portfolio and replaces it with the new one.
-    /// @param portfolio Array of PortfolioPosition structs
-    ///        It contains the new portfolio token addresses and plaintext number of shares per asset.
+    ///      Updates the high watermark if the current share price exceeds it.
+    ///      The system maintains a single global high watermark shared across all LPs.
+    /// @param tokens Array of token addresses in the portfolio
+    /// @param shares Array of shares per asset (parallel to tokens array)
     /// @param newTotalAssets The new total assets value for the vault
-    function updateVaultState(PortfolioPosition[] calldata portfolio, uint256 newTotalAssets) external;
+    function updateVaultState(address[] calldata tokens, uint256[] calldata shares, uint256 newTotalAssets) external;
 }

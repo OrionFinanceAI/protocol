@@ -1,29 +1,28 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import { SepoliaConfig } from "@fhevm/solidity/config/ZamaConfig.sol";
+import { ZamaEthereumConfig } from "@fhevm/solidity/config/ZamaConfig.sol";
 import { euint128, ebool, FHE } from "@fhevm/solidity/lib/FHE.sol";
 import "./OrionVault.sol";
 import "../interfaces/IOrionConfig.sol";
 import "../interfaces/IOrionEncryptedVault.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
-import { EventsLib } from "../libraries/EventsLib.sol";
 
 /**
  * @title OrionEncryptedVault
- * @notice A privacy-preserving implementation of OrionVault where curator intents are submitted in encrypted form
+ * @notice A privacy-preserving implementation of OrionVault where strategist intents are submitted in encrypted form
  * @author Orion Finance
  * @dev
- * This implementation stores curator intents as a mapping of token addresses to encrypted allocation percentages.
+ * This implementation stores strategist intents as a mapping of token addresses to encrypted allocation percentages.
  * The intents are submitted and stored in encrypted form using FHEVM, making this suitable for use cases requiring
  * privacy of the portfolio allocation strategy, while maintaining capital efficiency.
  */
-contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault {
+contract OrionEncryptedVault is ZamaEthereumConfig, OrionVault, IOrionEncryptedVault {
     /// @notice Current portfolio shares per asset (w_0) - mapping of token address to live allocation
     mapping(address => euint128) internal _portfolio;
     address[] internal _portfolioKeys;
 
-    /// @notice Curator intent (w_1) - mapping of token address to target allocation
+    /// @notice Strategist intent (w_1) - mapping of token address to target allocation
     mapping(address => euint128) internal _intent;
     address[] internal _intentKeys;
 
@@ -37,43 +36,68 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
     /// @notice Whether the intent is valid
     bool public isIntentValid;
 
-    /// @notice Constructor
-    /// @param vaultOwner The address of the vault owner
-    /// @param curator The address of the vault curator
-    /// @param configAddress The address of the OrionConfig contract
-    /// @param name The name of the vault
-    /// @param symbol The symbol of the vault
-    /// @param feeType The fee type
-    /// @param performanceFee The performance fee
-    /// @param managementFee The management fee
-    constructor(
-        address vaultOwner,
-        address curator,
-        IOrionConfig configAddress,
-        string memory name,
-        string memory symbol,
-        uint8 feeType,
-        uint16 performanceFee,
-        uint16 managementFee
-    ) OrionVault(vaultOwner, curator, configAddress, name, symbol, feeType, performanceFee, managementFee) {
+    /// @notice Constructor that disables initializers for the implementation contract
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    // solhint-disable-next-line use-natspec
+    constructor() ZamaEthereumConfig() {
+        _disableInitializers();
+    }
+
+    /// @notice Initialize the vault
+    /// @param manager_ The address of the vault manager
+    /// @param strategist_ The address of the vault strategist
+    /// @param config_ The address of the OrionConfig contract
+    /// @param name_ The name of the vault
+    /// @param symbol_ The symbol of the vault
+    /// @param feeType_ The fee type
+    /// @param performanceFee_ The performance fee
+    /// @param managementFee_ The management fee
+    /// @param depositAccessControl_ The address of the deposit access control contract (address(0) = permissionless)
+    function initialize(
+        address manager_,
+        address strategist_,
+        IOrionConfig config_,
+        string memory name_,
+        string memory symbol_,
+        uint8 feeType_,
+        uint16 performanceFee_,
+        uint16 managementFee_,
+        address depositAccessControl_
+    ) public initializer {
+        __OrionVault_init(
+            manager_,
+            strategist_,
+            config_,
+            name_,
+            symbol_,
+            feeType_,
+            performanceFee_,
+            managementFee_,
+            depositAccessControl_
+        );
+
         _ezero = FHE.asEuint128(0);
         _eTrue = FHE.asEbool(true);
-        _encryptedTotalWeight = FHE.asEuint128(uint128(10 ** curatorIntentDecimals));
+        _encryptedTotalWeight = FHE.asEuint128(uint128(10 ** config.strategistIntentDecimals()));
         // slither-disable-next-line unused-return
         FHE.allowThis(_ezero);
         // slither-disable-next-line unused-return
         FHE.allowThis(_eTrue);
         // slither-disable-next-line unused-return
         FHE.allowThis(_encryptedTotalWeight);
+
+        // Initial intent: 100% underlying asset
+        _intent[address(config.underlyingAsset())] = _encryptedTotalWeight;
+        _intentKeys.push(address(config.underlyingAsset()));
     }
 
-    /// --------- CURATOR FUNCTIONS ---------
+    /// --------- STRATEGIST FUNCTIONS ---------
 
     /// @inheritdoc IOrionEncryptedVault
     function submitIntent(
         EncryptedIntent[] calldata intent,
         bytes calldata inputProof
-    ) external onlyCurator nonReentrant {
+    ) external onlyStrategist nonReentrant {
         if (intent.length == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
 
         isIntentValid = false; // Reset intent validity flag, asynchronous callback can update it.
@@ -115,8 +139,6 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
             _intentKeys.push(token);
             delete _seenTokens[token];
         }
-
-        emit EventsLib.OrderSubmitted(msg.sender);
     }
 
     /// @notice Validates the intent
@@ -132,9 +154,6 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
 
         bytes32[] memory cipherTexts = new bytes32[](1);
         cipherTexts[0] = FHE.toBytes32(isIntentEValid);
-
-        // slither-disable-next-line unused-return
-        FHE.requestDecryption(cipherTexts, this.callbackDecryptSingleEbool.selector);
     }
 
     // --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
@@ -153,20 +172,28 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
 
     /// @inheritdoc IOrionEncryptedVault
     function getIntent() external view returns (address[] memory tokens, euint128[] memory weights) {
-        uint16 length = uint16(_intentKeys.length);
-        tokens = new address[](length);
-        weights = new euint128[](length);
-        for (uint16 i = 0; i < length; ++i) {
-            tokens[i] = _intentKeys[i];
-            weights[i] = _intent[_intentKeys[i]];
+        if (isDecommissioning) {
+            tokens = new address[](1);
+            weights = new euint128[](1);
+            tokens[0] = address(config.underlyingAsset());
+            weights[0] = _encryptedTotalWeight;
+        } else {
+            uint16 length = uint16(_intentKeys.length);
+            tokens = new address[](length);
+            weights = new euint128[](length);
+            for (uint16 i = 0; i < length; ++i) {
+                tokens[i] = _intentKeys[i];
+                weights[i] = _intent[_intentKeys[i]];
+            }
         }
     }
 
     /// @inheritdoc IOrionEncryptedVault
     function updateVaultState(
-        EncryptedPortfolio[] calldata portfolio,
+        address[] calldata tokens,
+        euint128[] calldata shares,
         uint256 newTotalAssets
-    ) external onlyInternalStatesOrchestrator {
+    ) external onlyLiquidityOrchestrator {
         // Clear previous portfolio by setting weights to zero
         uint16 portfolioLength = uint16(_portfolioKeys.length);
         for (uint16 i = 0; i < portfolioLength; ++i) {
@@ -175,35 +202,21 @@ contract OrionEncryptedVault is SepoliaConfig, OrionVault, IOrionEncryptedVault 
         delete _portfolioKeys;
 
         // Update portfolio
-        uint16 newPortfolioLength = uint16(portfolio.length);
+        uint16 newPortfolioLength = uint16(tokens.length);
         for (uint16 i = 0; i < newPortfolioLength; ++i) {
-            _portfolio[portfolio[i].token] = portfolio[i].value;
-            _portfolioKeys.push(portfolio[i].token);
+            _portfolio[tokens[i]] = shares[i];
+            _portfolioKeys.push(tokens[i]);
         }
 
         _totalAssets = newTotalAssets;
 
-        // Update high watermark if current price is higher
         uint256 currentSharePrice = convertToAssets(10 ** decimals());
 
         if (currentSharePrice > feeModel.highWaterMark) {
             feeModel.highWaterMark = currentSharePrice;
         }
-
-        // Emit event for tracking state updates
-        emit EventsLib.VaultStateUpdated(newTotalAssets);
     }
 
-    // --------- ZAMA COPROCESSOR FUNCTIONS ---------
-
-    /// @inheritdoc IOrionEncryptedVault
-    function callbackDecryptSingleEbool(
-        uint256 requestID,
-        bytes calldata cleartexts,
-        bytes calldata decryptionProof
-    ) external {
-        FHE.checkSignatures(requestID, cleartexts, decryptionProof);
-
-        isIntentValid = abi.decode(cleartexts, (bool));
-    }
+    /// @dev Storage gap to allow for future upgrades
+    uint256[50] private __gap;
 }

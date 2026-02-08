@@ -2,11 +2,9 @@
 pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
-import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import "./OrionVault.sol";
 import "../interfaces/IOrionConfig.sol";
 import "../interfaces/IOrionTransparentVault.sol";
-import "../interfaces/IOrionStrategy.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { EventsLib } from "../libraries/EventsLib.sol";
 
@@ -15,12 +13,10 @@ import { EventsLib } from "../libraries/EventsLib.sol";
  * @notice A transparent implementation of OrionVault supporting both active and passive management strategies
  * @author Orion Finance
  * @dev
- * This implementation supports two curator types:
- * 1. Active Management: Wallet curators submit intents via submitIntent() (push-based)
- * 2. Passive Management: Smart contract curators implement IOrionStrategy for on-demand intent computation (pull-based)
- *
- * The vault automatically detects curator type and handles intent retrieval accordingly.
- * Vault owners can switch between active and passive management by updating the curator.
+ * This implementation supports two strategist types:
+ * 1. Active Management: Wallet strategists submit intents via submitIntent()
+ * 2. Passive Management: Smart contract strategists implement IOrionStrategist for on-demand intent computation
+ * @custom:security-contact security@orionfinance.ai
  */
 contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
@@ -28,68 +24,90 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     /// @notice Current portfolio shares per asset (w_0) - mapping of token address to live allocation
     EnumerableMap.AddressToUintMap internal _portfolio;
 
-    /// @notice Curator intent (w_1) - mapping of token address to target allocation
-    /// @dev Only used for active management (wallet curators). Passive curators compute intents on-demand.
+    /// @notice Strategist intent (w_1) - mapping of token address to target allocation
     EnumerableMap.AddressToUintMap internal _portfolioIntent;
 
-    /// @notice Flag indicating if the current curator is a passive curator (smart contract)
-    /// @dev This is cached to avoid repeated interface checks during intent retrieval
-    bool private _isPassiveCurator;
-
-    /// @notice Constructor
-    /// @param vaultOwner The address of the vault owner
-    /// @param curator The address of the vault curator
-    /// @param configAddress The address of the OrionConfig contract
-    /// @param name The name of the vault
-    /// @param symbol The symbol of the vault
-    /// @param feeType The fee type
-    /// @param performanceFee The performance fee
-    /// @param managementFee The management fee
-    constructor(
-        address vaultOwner,
-        address curator,
-        IOrionConfig configAddress,
-        string memory name,
-        string memory symbol,
-        uint8 feeType,
-        uint16 performanceFee,
-        uint16 managementFee
-    ) OrionVault(vaultOwner, curator, configAddress, name, symbol, feeType, performanceFee, managementFee) {
-        _updateCuratorType();
+    /// @notice Constructor that disables initializers for the implementation contract
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    // solhint-disable-next-line use-natspec
+    constructor() {
+        _disableInitializers();
     }
 
-    /// --------- CURATOR FUNCTIONS ---------
+    /// @notice Initialize the vault
+    /// @param manager_ The address of the vault manager
+    /// @param strategist_ The address of the vault strategist
+    /// @param config_ The address of the OrionConfig contract
+    /// @param name_ The name of the vault
+    /// @param symbol_ The symbol of the vault
+    /// @param feeType_ The fee type
+    /// @param performanceFee_ The performance fee
+    /// @param managementFee_ The management fee
+    /// @param depositAccessControl_ The address of the deposit access control contract (address(0) = permissionless)
+    function initialize(
+        address manager_,
+        address strategist_,
+        IOrionConfig config_,
+        string memory name_,
+        string memory symbol_,
+        uint8 feeType_,
+        uint16 performanceFee_,
+        uint16 managementFee_,
+        address depositAccessControl_
+    ) public initializer {
+        // Call parent initializer
+        __OrionVault_init(
+            manager_,
+            strategist_,
+            config_,
+            name_,
+            symbol_,
+            feeType_,
+            performanceFee_,
+            managementFee_,
+            depositAccessControl_
+        );
+
+        // slither-disable-next-line unused-return
+        _portfolioIntent.set(address(config.underlyingAsset()), uint32(10 ** config.strategistIntentDecimals()));
+    }
+
+    /// --------- STRATEGIST FUNCTIONS ---------
 
     /// @inheritdoc IOrionTransparentVault
-    function submitIntent(Position[] calldata intent) external onlyCurator {
-        if (_isPassiveCurator) revert ErrorsLib.InvalidArguments();
-        if (intent.length == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
+    function submitIntent(IntentPosition[] calldata intent) external onlyStrategist {
+        uint256 len = intent.length;
+        if (len == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
 
         _portfolioIntent.clear();
 
-        // Extract asset addresses for validation
-        address[] memory assets = new address[](intent.length);
+        address[] memory assets = new address[](len);
+        uint256[] memory weights = new uint256[](len);
 
         uint256 totalWeight = 0;
-        uint16 intentLength = uint16(intent.length);
-        for (uint16 i = 0; i < intentLength; ++i) {
-            address token = intent[i].token;
-            uint32 weight = intent[i].value;
+
+        for (uint256 i; i < len; ++i) {
+            IntentPosition calldata pos = intent[i];
+            address token = pos.token;
+            uint32 weight = pos.weight;
+
             assets[i] = token;
+            weights[i] = weight;
+
             bool inserted = _portfolioIntent.set(token, weight);
             if (!inserted) revert ErrorsLib.TokenAlreadyInOrder(token);
             totalWeight += weight;
         }
 
-        // Validate that all assets in the intent are whitelisted for this vault
+        // Validate that all assets in the intent are whitelisted
         _validateIntentAssets(assets);
         // Validate that the total weight is 100%
-        if (totalWeight != 10 ** curatorIntentDecimals) revert ErrorsLib.InvalidTotalWeight();
+        if (totalWeight != 10 ** config.strategistIntentDecimals()) revert ErrorsLib.InvalidTotalWeight();
 
-        emit EventsLib.OrderSubmitted(msg.sender);
+        emit EventsLib.OrderSubmitted(msg.sender, assets, weights);
     }
 
-    // --------- INTERNAL STATES ORCHESTRATOR FUNCTIONS ---------
+    // --------- INTERNAL STATE ORCHESTRATOR FUNCTIONS ---------
 
     /// @inheritdoc IOrionTransparentVault
     function getPortfolio() external view returns (address[] memory tokens, uint256[] memory sharesPerAsset) {
@@ -105,11 +123,12 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
     /// @inheritdoc IOrionTransparentVault
     function getIntent() external view returns (address[] memory tokens, uint32[] memory weights) {
-        if (_isPassiveCurator) {
-            // For passive curators, compute pull intent from strategy
-            return _computePassiveIntent();
+        if (isDecommissioning) {
+            tokens = new address[](1);
+            weights = new uint32[](1);
+            tokens[0] = address(config.underlyingAsset());
+            weights[0] = uint32(10 ** config.strategistIntentDecimals()); // 100%
         } else {
-            // For active curators, return stored pushed intent
             uint16 length = uint16(_portfolioIntent.length());
             tokens = new address[](length);
             weights = new uint32[](length);
@@ -123,79 +142,36 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
     /// @inheritdoc IOrionTransparentVault
     function updateVaultState(
-        Position[] calldata portfolio,
+        address[] calldata tokens,
+        uint256[] calldata shares,
         uint256 newTotalAssets
-    ) external onlyInternalStatesOrchestrator {
+    ) external onlyLiquidityOrchestrator {
         _portfolio.clear();
 
-        uint16 portfolioLength = uint16(portfolio.length);
+        uint16 portfolioLength = uint16(tokens.length);
         for (uint16 i = 0; i < portfolioLength; ++i) {
             // slither-disable-next-line unused-return
-            _portfolio.set(portfolio[i].token, portfolio[i].value);
+            _portfolio.set(tokens[i], shares[i]);
         }
 
         _totalAssets = newTotalAssets;
 
-        // Update high watermark if current price is higher
         uint256 currentSharePrice = convertToAssets(10 ** decimals());
 
         if (currentSharePrice > feeModel.highWaterMark) {
             feeModel.highWaterMark = currentSharePrice;
         }
 
-        // Emit event for tracking state updates
-        emit EventsLib.VaultStateUpdated(newTotalAssets);
+        emit EventsLib.VaultStateUpdated(
+            newTotalAssets,
+            totalSupply(),
+            currentSharePrice,
+            feeModel.highWaterMark,
+            tokens,
+            shares
+        );
     }
 
-    /// --------- VAULT OWNER FUNCTIONS ---------
-
-    /// @notice Override updateCurator to handle curator type detection
-    /// @param newCurator The new curator address
-    function updateCurator(address newCurator) external override(OrionVault, IOrionVault) onlyVaultOwner {
-        if (newCurator == address(0)) revert ErrorsLib.InvalidAddress();
-        curator = newCurator;
-        _updateCuratorType();
-        emit CuratorUpdated(newCurator);
-    }
-
-    /// --------- INTERNAL FUNCTIONS ---------
-
-    /// @notice Update the curator type flag based on ERC-165 interface detection
-    function _updateCuratorType() internal {
-        if (curator.code.length == 0) {
-            // EOA (wallet) - active curator
-            _isPassiveCurator = false;
-        } else {
-            // Smart contract - check if it supports IOrionStrategy interface
-            try IERC165(curator).supportsInterface(type(IOrionStrategy).interfaceId) returns (bool supported) {
-                _isPassiveCurator = supported;
-            } catch {
-                // If supportsInterface fails, treat as active curator (push-based)
-                _isPassiveCurator = false;
-            }
-        }
-    }
-
-    /// @notice Compute intent for passive curators
-    /// @return tokens Array of token addresses
-    /// @return weights Array of weights
-    function _computePassiveIntent() internal view returns (address[] memory tokens, uint32[] memory weights) {
-        address[] memory vaultWhitelistedAssets = this.vaultWhitelist();
-        // Call the passive curator to compute intent
-        Position[] memory intent = IOrionStrategy(curator).computeIntent(vaultWhitelistedAssets);
-
-        // Convert to return format
-        tokens = new address[](intent.length);
-        weights = new uint32[](intent.length);
-        for (uint16 i = 0; i < intent.length; ++i) {
-            tokens[i] = intent[i].token;
-            weights[i] = intent[i].value;
-        }
-    }
-
-    /// @notice Get the curator type
-    /// @return isPassive True if the curator is passive (smart contract), false if active (wallet)
-    function isPassiveCurator() external view returns (bool isPassive) {
-        return _isPassiveCurator;
-    }
+    /// @dev Storage gap to allow for future upgrades
+    uint256[50] private __gap;
 }

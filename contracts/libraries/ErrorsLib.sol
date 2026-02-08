@@ -4,9 +4,10 @@ pragma solidity ^0.8.28;
 /// @title ErrorsLib
 /// @notice Centralized library for reusable custom errors across the protocol.
 /// @author Orion Finance
+/// @custom:security-contact security@orionfinance.ai
 library ErrorsLib {
     /// @notice Caller is not authorized to perform the requested action.
-    error UnauthorizedAccess();
+    error NotAuthorized();
 
     /// @notice Address parameter is the zero address.
     error ZeroAddress();
@@ -35,12 +36,6 @@ library ErrorsLib {
     /// @param token The duplicate token address.
     error TokenAlreadyInOrder(address token);
 
-    /// @notice Caller is not authorized to perform this action.
-    error NotAuthorized();
-
-    /// @notice Operation attempted before the required time or condition has been met.
-    error TooEarly();
-
     /// @notice Insufficient amount to complete the operation.
     error InsufficientAmount();
 
@@ -53,21 +48,37 @@ library ErrorsLib {
     /// @notice One or more function arguments are invalid.
     error InvalidArguments();
 
-    /// @notice System is in an invalid or unexpected state.
-    error InvalidState();
-
     /// @notice The adapter is not compatible with the asset.
-    error InvalidAdapter();
+    /// @param asset The asset address that is not compatible with the adapter.
+    error InvalidAdapter(address asset);
 
     /// @notice Operation cannot be performed because the system is not idle.
     error SystemNotIdle();
 
-    /// @notice Transfer of tokens failed.
-    error TransferFailed();
+    /// @notice Vault is decommissioned and cannot accept new requests.
+    error VaultDecommissioned();
 
-    /// @notice The curator contract does not properly implement the required interface.
-    error InvalidCuratorContract();
+    /// @notice The deposit amount is below the minimum required amount.
+    /// @param amount The amount that was provided.
+    /// @param minimum The minimum amount required.
+    error BelowMinimumDeposit(uint256 amount, uint256 minimum);
 
-    /// @notice The strategy is not compatible with the provided whitelisted assets.
-    error InvalidStrategy();
+    /// @notice The redeem amount is below the minimum required amount.
+    /// @param amount The amount that was provided.
+    /// @param minimum The minimum amount required.
+    error BelowMinimumRedeem(uint256 amount, uint256 minimum);
+
+    /// @notice Deposit not allowed due to access control restrictions.
+    error DepositNotAllowed();
+
+    /// @notice Slippage exceeds the configured tolerance.
+    /// @param asset The asset address where slippage was detected.
+    /// @param actual The actual value observed.
+    /// @param expected The expected value.
+    error SlippageExceeded(address asset, uint256 actual, uint256 expected);
+
+    /// @notice Thrown when the zk proof's commitment doesn't match the onchain commitment.
+    /// @param proofCommitment The commitment from the zk proof.
+    /// @param onchainCommitment The commitment from the onchain.
+    error CommitmentMismatch(bytes32 proofCommitment, bytes32 onchainCommitment);
 }

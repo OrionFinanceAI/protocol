@@ -2,9 +2,9 @@ name: "CI"
 
 on:
   pull_request:
-    branches: [main, fhevm]
+    branches: [main]
   push:
-    branches: [main, fhevm]
+    branches: [main]
 
 jobs:
   ci:
@@ -13,23 +13,26 @@ jobs:
 
     steps:
       - name: "Check out the repo"
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
         with:
           submodules: recursive
 
       - name: "Install Pnpm"
-        uses: pnpm/action-setup@v2
+        uses: pnpm/action-setup@v4
         with:
           version: "8"
 
       - name: "Setup Node.js"
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v6
         with:
           cache: pnpm
           node-version: lts/*
 
       - name: "Install dependencies"
         run: pnpm install
+
+      - name: "Audit dependencies"
+        run: pnpm audit --prod --audit-level high
 
       - name: "Build and typechain"
         run: pnpm typechain
@@ -49,11 +52,6 @@ jobs:
 
       - name: "Run tests and generate coverage report"
         run: pnpm coverage
-        env:
-          RPC_URL: ${{ secrets.RPC_URL }}
-          DEPLOYER_PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
-          LP_PRIVATE_KEY: ${{ secrets.LP_PRIVATE_KEY }}
-          ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
 
       - name: "Upload coverage to Codecov"
         uses: codecov/codecov-action@v5
@@ -73,17 +71,17 @@ jobs:
 
     steps:
       - name: "Check out the repo"
-        uses: "actions/checkout@v3"
+        uses: "actions/checkout@v6"
         with:
           submodules: recursive
 
       - name: "Install Pnpm"
-        uses: pnpm/action-setup@v2
+        uses: pnpm/action-setup@v4
         with:
           version: "8"
 
       - name: "Setup Node.js"
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v6
         with:
           cache: pnpm
           node-version: lts/*
@@ -103,3 +101,126 @@ jobs:
           DEPLOYER_PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
           LP_PRIVATE_KEY: ${{ secrets.LP_PRIVATE_KEY }}
           ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
+
+  publish-abis:
+    name: "Publish Contract ABIs"
+    runs-on: ubuntu-latest
+
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [ci, slither]
+    permissions:
+      contents: write
+
+    steps:
+      - name: "Check out the repo"
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: "Install Pnpm"
+        uses: pnpm/action-setup@v4
+        with:
+          version: "8"
+
+      - name: "Setup Node.js"
+        uses: actions/setup-node@v6
+        with:
+          cache: pnpm
+          node-version: lts/*
+
+      - name: "Install dependencies"
+        run: pnpm install
+
+      - name: "Compile contracts"
+        run: pnpm compile
+        env:
+          RPC_URL: ${{ secrets.RPC_URL }}
+          DEPLOYER_PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
+          LP_PRIVATE_KEY: ${{ secrets.LP_PRIVATE_KEY }}
+          ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
+
+      - name: "Extract and package ABIs + Bytecode"
+        run: |
+          set -e
+
+          mkdir -p abis
+
+          find artifacts/contracts -name "*.json" \
+            ! -name "*.dbg.json" \
+            ! -path "*/mocks/*" \
+            ! -path "*/test/*" \
+            -exec sh -c '
+              for file do
+                contract_name=$(basename "$file" .json)
+                jq "{abi: .abi, bytecode: .bytecode, deployedBytecode: .deployedBytecode}" "$file" > "abis/${contract_name}.json"
+              done
+            ' sh {} +
+
+
+          ls abis/*.json | xargs -I {} basename {} .json | jq -R -s 'split("\n") | map(select(length > 0))' > abis/index.json
+
+          tar -czvf contract-abis.tar.gz abis/
+
+          zip -r contract-abis.zip abis/
+
+      - name: "Get package version"
+        id: package_version
+        run: echo "version=$(jq -r '.version' package.json)" >> $GITHUB_OUTPUT
+
+      - name: "Create or update ABI release"
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: abis-v${{ steps.package_version.outputs.version }}
+          name: Contract ABIs v${{ steps.package_version.outputs.version }}
+          body: |
+            ## Contract ABIs
+
+            Auto-generated ABI artifacts from commit ${{ github.sha }}.
+
+            ### Download Options
+
+            **All ABIs (archive):**
+            ```bash
+            # tar.gz
+            curl -L -o contract-abis.tar.gz \
+              "https://github.com/${{ github.repository }}/releases/download/abis-v${{ steps.package_version.outputs.version }}/contract-abis.tar.gz"
+            tar -xzf contract-abis.tar.gz
+
+            # zip
+            curl -L -o contract-abis.zip \
+              "https://github.com/${{ github.repository }}/releases/download/abis-v${{ steps.package_version.outputs.version }}/contract-abis.zip"
+            ```
+
+            **Individual ABIs:**
+            ```bash
+            # Example: Download OrionTransparentVault ABI
+            curl -L -o OrionTransparentVault.json \
+              "https://github.com/${{ github.repository }}/releases/download/abis-v${{ steps.package_version.outputs.version }}/OrionTransparentVault.json"
+            ```
+
+            **Python:**
+            ```python
+            import requests
+            import json
+
+            url = "https://github.com/${{ github.repository }}/releases/download/abis-v${{ steps.package_version.outputs.version }}/OrionTransparentVault.json"
+            abi = requests.get(url).json()
+            ```
+
+            **TypeScript/JavaScript:**
+            ```typescript
+            const response = await fetch(
+              "https://github.com/${{ github.repository }}/releases/download/abis-v${{ steps.package_version.outputs.version }}/OrionTransparentVault.json"
+            );
+            const abi = await response.json();
+            ```
+
+            ### Available Contracts
+
+            See `index.json` for a list of all available contract ABIs.
+          files: |
+            contract-abis.tar.gz
+            contract-abis.zip
+            abis/*.json
+          fail_on_unmatched_files: true
+          make_latest: true

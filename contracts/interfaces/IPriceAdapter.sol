@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 /// @title IPriceAdapter
 /// @notice Interface for price adapters
 /// @author Orion Finance
+/// @custom:security-contact security@orionfinance.ai
 interface IPriceAdapter {
     /// @notice Get the price data for an asset
     /// @param asset The address of the asset to get the price for
@@ -15,6 +16,6 @@ interface IPriceAdapter {
 
     /// @notice Validates that the given asset is compatible with this adapter
     /// @param asset The address of the asset to validate
-    /// @return true if the asset is compatible, reverts otherwise
-    function validatePriceAdapter(address asset) external view returns (bool);
+    /// @dev Reverts with InvalidAdapter if the asset is not compatible
+    function validatePriceAdapter(address asset) external view;
 }

@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "./interfaces/IOrionConfig.sol";
 import "./interfaces/IOrionVault.sol";
+import "./interfaces/IOrionTransparentVault.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import { ErrorsLib } from "./libraries/ErrorsLib.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -13,7 +16,6 @@ import "./interfaces/IPriceAdapterRegistry.sol";
 import "./interfaces/ILiquidityOrchestrator.sol";
 import "./interfaces/IPriceAdapter.sol";
 import "./interfaces/IExecutionAdapter.sol";
-import "./interfaces/IInternalStateOrchestrator.sol";
 
 /**
  *     ██████╗ ██████╗ ██╗ ██████╗ ███╗   ██╗    ███████╗██╗███╗   ██╗ █████╗ ███╗   ██╗ ██████╗███████╗
@@ -24,34 +26,45 @@ import "./interfaces/IInternalStateOrchestrator.sol";
  *     ╚═════╝ ╚═╝  ╚═╝╚═╝ ╚═════╝ ╚═╝  ╚═══╝    ╚═╝     ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝
  *
  * @title OrionConfig
- * @notice This contract is responsible for configuring the Orion protocol.
+ * @notice Configuration contract for Orion protocol using UUPS upgradeable pattern
  * @author Orion Finance
+ * @custom:security-contact security@orionfinance.ai
  */
-contract OrionConfig is Ownable, IOrionConfig {
+contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable, IOrionConfig {
+    using EnumerableSet for EnumerableSet.AddressSet;
+
+    /// @notice Guardian address for emergency pausing
+    address public guardian;
+
     /// @notice Underlying asset address
     IERC20 public underlyingAsset;
-    /// @notice Address of the internal states orchestrator
-    address public internalStatesOrchestrator;
     /// @notice Address of the liquidity orchestrator
     address public liquidityOrchestrator;
-    /// @notice Address of the transparent vault factory
-    address public transparentVaultFactory;
-    /// @notice Address of the encrypted vault factory
-    address public encryptedVaultFactory;
+    /// @notice Address of the vault factory
+    address public vaultFactory;
     /// @notice Address of the price adapter registry
     address public priceAdapterRegistry;
 
-    /// @notice Decimals for curator intent
-    uint8 public curatorIntentDecimals;
+    /// @notice Decimals for strategist intent
+    uint8 public constant strategistIntentDecimals = 9;
     /// @notice Decimals for price adapter
     uint8 public priceAdapterDecimals;
     /// @notice Risk-free rate in basis points. Same decimals as BASIS_POINTS_FACTOR
     uint16 public riskFreeRate;
+    /// @notice Maximum risk-free rate (8% = 800)
+    uint16 public constant MAX_RISK_FREE_RATE = 800;
+    /// @notice Minimum deposit amount in underlying asset units
+    uint256 public minDepositAmount;
+    /// @notice Minimum redeem amount in share units
+    uint256 public minRedeemAmount;
+    /// @notice Fee change cooldown duration in seconds (7 days default)
+    uint256 public feeChangeCooldownDuration;
+    /// @notice Maximum number of requests to process per fulfill calls
+    uint256 public maxFulfillBatchSize;
 
     // Vault-specific configuration
-    using EnumerableSet for EnumerableSet.AddressSet;
     EnumerableSet.AddressSet private whitelistedAssets;
-    EnumerableSet.AddressSet private whitelistedVaultOwners;
+    EnumerableSet.AddressSet private whitelistedManager;
 
     /// @notice Mapping of token address to its decimals
     mapping(address => uint8) public tokenDecimals;
@@ -59,25 +72,60 @@ contract OrionConfig is Ownable, IOrionConfig {
     // Orion-specific configuration
     EnumerableSet.AddressSet private transparentVaults;
     EnumerableSet.AddressSet private encryptedVaults;
+    EnumerableSet.AddressSet private decommissioningInProgressVaults;
+    EnumerableSet.AddressSet private decommissionedVaults;
+
+    /// @notice Assets pending removal (stays whitelisted until completeAssetRemoval)
+    address[] private _decommissioningAssets;
+
+    /// @notice Old volume fee coefficient (used during cooldown period)
+    uint16 private oldVFeeCoefficient;
+    /// @notice Old revenue share fee coefficient (used during cooldown period)
+    uint16 private oldRsFeeCoefficient;
+
+    /// @notice Volume fee coefficient
+    uint16 public vFeeCoefficient;
+    /// @notice Revenue share fee coefficient
+    uint16 public rsFeeCoefficient;
+
+    /// @notice Timestamp when new protocol fee rates become effective
+    uint256 public newProtocolFeeRatesTimestamp;
 
     modifier onlyFactories() {
-        if (msg.sender != transparentVaultFactory && msg.sender != encryptedVaultFactory)
-            revert ErrorsLib.UnauthorizedAccess();
+        if (msg.sender != vaultFactory) revert ErrorsLib.NotAuthorized();
         _;
     }
 
-    /// @notice The constructor sets the underlying asset for the protocol
+    modifier onlyLiquidityOrchestrator() {
+        if (msg.sender != liquidityOrchestrator) revert ErrorsLib.NotAuthorized();
+        _;
+    }
+
+    /// @notice Constructor that disables initializers for the implementation contract
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    /// @notice Initializer function (replaces constructor)
     /// @param initialOwner The address that will own this contract
     /// @param underlyingAsset_ The address of the underlying asset contract
     /// @dev The underlying asset is automatically added to the investment universe whitelist because:
-    /// @dev - Curators may decide to be underleveraged in their active positions;
+    /// @dev - Strategists may decide to be underleveraged in their active positions;
     /// @dev - removeWhitelistedAsset could trigger forced liquidations.
-    constructor(address initialOwner, address underlyingAsset_) Ownable(initialOwner) {
+    function initialize(address initialOwner, address underlyingAsset_) public initializer {
+        if (initialOwner == address(0)) revert ErrorsLib.ZeroAddress();
         if (underlyingAsset_ == address(0)) revert ErrorsLib.ZeroAddress();
+
+        __Ownable_init(initialOwner);
+        __Ownable2Step_init();
+        __UUPSUpgradeable_init();
+
         underlyingAsset = IERC20(underlyingAsset_);
 
-        curatorIntentDecimals = 9; // 9 for uint32
         priceAdapterDecimals = 14; // 14 for uint128
+        feeChangeCooldownDuration = 7 days; // Default 7 day cooldown
+        maxFulfillBatchSize = 150; // Default 150 requests per fulfill call
 
         // Store underlying asset decimals
         tokenDecimals[underlyingAsset_] = IERC20Metadata(underlyingAsset_).decimals();
@@ -86,16 +134,44 @@ contract OrionConfig is Ownable, IOrionConfig {
         whitelistedAssets.add(underlyingAsset_);
 
         // slither-disable-next-line unused-return
-        whitelistedVaultOwners.add(initialOwner);
+        whitelistedManager.add(initialOwner);
     }
 
     // === Protocol Configuration ===
 
     /// @inheritdoc IOrionConfig
-    function setInternalStatesOrchestrator(address orchestrator) external onlyOwner {
-        if (orchestrator == address(0)) revert ErrorsLib.ZeroAddress();
-        if (internalStatesOrchestrator != address(0)) revert ErrorsLib.AlreadyRegistered();
-        internalStatesOrchestrator = orchestrator;
+    function updateProtocolFees(uint16 _vFeeCoefficient, uint16 _rsFeeCoefficient) external onlyOwner {
+        /// Maximum volume fee: 0.5%
+        /// Maximum revenue share fee: 20%
+        if (_vFeeCoefficient > 50 || _rsFeeCoefficient > 2_000) revert ErrorsLib.InvalidArguments();
+        if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+
+        // Store current active fees as old;
+        // if already in cooldown this is the old rate, so prior schedule is effectively cancelled
+        (uint16 oldVFee, uint16 oldRsFee) = activeProtocolFees();
+        oldVFeeCoefficient = oldVFee;
+        oldRsFeeCoefficient = oldRsFee;
+
+        // Update to new fees immediately in storage
+        vFeeCoefficient = _vFeeCoefficient;
+        rsFeeCoefficient = _rsFeeCoefficient;
+
+        // Set when new rates become effective
+        newProtocolFeeRatesTimestamp = block.timestamp + feeChangeCooldownDuration;
+
+        emit EventsLib.ProtocolFeeChangeScheduled(_vFeeCoefficient, _rsFeeCoefficient, newProtocolFeeRatesTimestamp);
+    }
+
+    /// @notice Returns the active protocol fees (old during cooldown, new after)
+    /// @return vFee The active volume fee coefficient
+    /// @return rsFee The active revenue share fee coefficient
+    function activeProtocolFees() public view returns (uint16 vFee, uint16 rsFee) {
+        // If we're still in cooldown period, return old rates
+        if (newProtocolFeeRatesTimestamp > block.timestamp) {
+            return (oldVFeeCoefficient, oldRsFeeCoefficient);
+        }
+        // Otherwise return new rates
+        return (vFeeCoefficient, rsFeeCoefficient);
     }
 
     /// @inheritdoc IOrionConfig
@@ -106,14 +182,11 @@ contract OrionConfig is Ownable, IOrionConfig {
     }
 
     /// @inheritdoc IOrionConfig
-    function setVaultFactories(address transparentFactory, address encryptedFactory) external onlyOwner {
+    function setVaultFactory(address factory) external onlyOwner {
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
-        if (transparentFactory == address(0)) revert ErrorsLib.ZeroAddress();
-        if (encryptedFactory == address(0)) revert ErrorsLib.ZeroAddress();
-        if (transparentVaultFactory != address(0) || encryptedVaultFactory != address(0))
-            revert ErrorsLib.AlreadyRegistered();
-        transparentVaultFactory = transparentFactory;
-        encryptedVaultFactory = encryptedFactory;
+        if (factory == address(0)) revert ErrorsLib.ZeroAddress();
+        if (vaultFactory != address(0)) revert ErrorsLib.AlreadyRegistered();
+        vaultFactory = factory;
     }
 
     /// @inheritdoc IOrionConfig
@@ -126,10 +199,63 @@ contract OrionConfig is Ownable, IOrionConfig {
     /// @inheritdoc IOrionConfig
     function setProtocolRiskFreeRate(uint16 _riskFreeRate) external onlyOwner {
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+        if (_riskFreeRate > MAX_RISK_FREE_RATE) revert ErrorsLib.InvalidArguments();
 
         riskFreeRate = _riskFreeRate;
 
         emit EventsLib.RiskFreeRateUpdated(riskFreeRate);
+    }
+
+    /// @inheritdoc IOrionConfig
+    function setMinDepositAmount(uint256 amount) external {
+        if (msg.sender != guardian && msg.sender != owner()) revert ErrorsLib.NotAuthorized();
+        if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+        if (amount == 0) revert ErrorsLib.InvalidArguments();
+
+        minDepositAmount = amount;
+
+        emit EventsLib.MinDepositAmountUpdated(amount);
+    }
+
+    /// @inheritdoc IOrionConfig
+    function setMinRedeemAmount(uint256 amount) external {
+        if (msg.sender != guardian && msg.sender != owner()) revert ErrorsLib.NotAuthorized();
+        if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+        if (amount == 0) revert ErrorsLib.InvalidArguments();
+
+        minRedeemAmount = amount;
+
+        emit EventsLib.MinRedeemAmountUpdated(amount);
+    }
+
+    /// @inheritdoc IOrionConfig
+    function setFeeChangeCooldownDuration(uint256 duration) external onlyOwner {
+        if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+
+        feeChangeCooldownDuration = duration;
+
+        emit EventsLib.FeeChangeCooldownDurationUpdated(duration);
+    }
+
+    /// @inheritdoc IOrionConfig
+    function setMaxFulfillBatchSize(uint256 size) external {
+        if (msg.sender != guardian && msg.sender != owner()) revert ErrorsLib.NotAuthorized();
+        if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+        if (size == 0) revert ErrorsLib.InvalidArguments();
+
+        maxFulfillBatchSize = size;
+
+        emit EventsLib.MaxFulfillBatchSizeUpdated(size);
+    }
+
+    /// @notice Sets the guardian address for emergency pausing
+    /// @param _guardian The new guardian address
+    /// @dev Only owner can set the guardian
+    function setGuardian(address _guardian) external onlyOwner {
+        if (_guardian == address(0)) revert ErrorsLib.ZeroAddress();
+
+        guardian = _guardian;
+        emit EventsLib.GuardianUpdated(_guardian);
     }
 
     // === Whitelist Functions ===
@@ -138,12 +264,12 @@ contract OrionConfig is Ownable, IOrionConfig {
     function addWhitelistedAsset(address asset, address priceAdapter, address executionAdapter) external onlyOwner {
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
-        bool inserted = whitelistedAssets.add(asset);
-        if (!inserted) revert ErrorsLib.AlreadyRegistered();
+        if (!this.isWhitelisted(asset)) {
+            // slither-disable-next-line unused-return
+            whitelistedAssets.add(asset);
+        }
 
         // Store token decimals
-        // ⚠️ WARNING: Assumes ERC20 decimals are immutable (standard-compliant).
-        // Non-standard tokens that allow decimals to change at runtime MUST NOT be whitelisted.
         tokenDecimals[asset] = IERC20Metadata(asset).decimals();
 
         // Register the adapters
@@ -157,15 +283,16 @@ contract OrionConfig is Ownable, IOrionConfig {
     function removeWhitelistedAsset(address asset) external onlyOwner {
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
-        bool removed = whitelistedAssets.remove(asset);
-        if (!removed) revert ErrorsLib.TokenNotWhitelisted(asset);
+        if (asset == address(underlyingAsset)) revert ErrorsLib.InvalidArguments();
+        if (!whitelistedAssets.contains(asset)) revert ErrorsLib.TokenNotWhitelisted(asset);
 
-        delete tokenDecimals[asset];
+        // Add to decommissioning only; whitelisted until completeAssetRemoval for consistent commitment/prices
+        for (uint256 i = 0; i < _decommissioningAssets.length; ++i) {
+            if (_decommissioningAssets[i] == asset) return;
+        }
+        _decommissioningAssets.push(asset);
 
-        IPriceAdapterRegistry(priceAdapterRegistry).unsetPriceAdapter(asset);
-        ILiquidityOrchestrator(liquidityOrchestrator).unsetExecutionAdapter(asset);
-
-        emit EventsLib.WhitelistedAssetRemoved(asset);
+        emit EventsLib.AssetDecommissioningInitiated(asset);
     }
 
     /// @inheritdoc IOrionConfig
@@ -184,19 +311,106 @@ contract OrionConfig is Ownable, IOrionConfig {
     }
 
     /// @inheritdoc IOrionConfig
+    function decommissioningAssets() external view returns (address[] memory) {
+        return _decommissioningAssets;
+    }
+
+    /// @inheritdoc IOrionConfig
+    function completeAssetsRemoval() external onlyLiquidityOrchestrator {
+        for (uint256 i = 0; i < _decommissioningAssets.length; ++i) {
+            // slither-disable-next-line unused-return
+            whitelistedAssets.remove(_decommissioningAssets[i]);
+            emit EventsLib.WhitelistedAssetRemoved(_decommissioningAssets[i]);
+        }
+        delete _decommissioningAssets;
+    }
+
+    /// @inheritdoc IOrionConfig
+    function getAllWhitelistedAssetNames() external view returns (string[] memory names) {
+        address[] memory assets = this.getAllWhitelistedAssets();
+        uint256 length = assets.length;
+        names = new string[](length);
+        for (uint256 i = 0; i < length; ++i) {
+            names[i] = IERC20Metadata(assets[i]).name();
+        }
+        return names;
+    }
+
+    /// @inheritdoc IOrionConfig
+    function getAllTokenDecimals() external view returns (uint8[] memory decimals) {
+        uint16 length = uint16(whitelistedAssets.length());
+        decimals = new uint8[](length);
+        for (uint16 i = 0; i < length; ++i) {
+            address asset = whitelistedAssets.at(i);
+            decimals[i] = tokenDecimals[asset];
+        }
+        return decimals;
+    }
+
+    /// @inheritdoc IOrionConfig
     function isWhitelisted(address asset) external view returns (bool) {
         return whitelistedAssets.contains(asset);
     }
 
     /// @inheritdoc IOrionConfig
-    function addWhitelistedVaultOwner(address vaultOwner) external onlyOwner {
-        bool inserted = whitelistedVaultOwners.add(vaultOwner);
+    function addWhitelistedManager(address manager) external {
+        if (msg.sender != guardian && msg.sender != owner()) revert ErrorsLib.NotAuthorized();
+        bool inserted = whitelistedManager.add(manager);
         if (!inserted) revert ErrorsLib.AlreadyRegistered();
+        emit EventsLib.ManagerAdded(manager);
     }
 
     /// @inheritdoc IOrionConfig
-    function isWhitelistedVaultOwner(address vaultOwner) external view returns (bool) {
-        return whitelistedVaultOwners.contains(vaultOwner);
+    function removeWhitelistedManager(address manager) external onlyOwner {
+        if (!this.isWhitelistedManager(manager)) revert ErrorsLib.InvalidAddress();
+        if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+
+        // Decommission all vaults associated with this manager
+        // Check transparent vaults
+        address[] memory transparentVaultsList = this.getAllOrionVaults(EventsLib.VaultType.Transparent);
+        for (uint256 i = 0; i < transparentVaultsList.length; ++i) {
+            address vault = transparentVaultsList[i];
+            if (IOrionVault(vault).manager() == manager) {
+                // Mark vault for decommissioning
+                // slither-disable-next-line unused-return
+                decommissioningInProgressVaults.add(vault);
+                IOrionVault(vault).overrideIntentForDecommissioning();
+                emit EventsLib.VaultDecommissioningInitiated(vault);
+            }
+        }
+
+        // Check encrypted vaults
+        address[] memory encryptedVaultsList = this.getAllOrionVaults(EventsLib.VaultType.Encrypted);
+        for (uint256 i = 0; i < encryptedVaultsList.length; ++i) {
+            address vault = encryptedVaultsList[i];
+            if (IOrionVault(vault).manager() == manager) {
+                // Mark vault for decommissioning
+                // slither-disable-next-line unused-return
+                decommissioningInProgressVaults.add(vault);
+                IOrionVault(vault).overrideIntentForDecommissioning();
+                emit EventsLib.VaultDecommissioningInitiated(vault);
+            }
+        }
+
+        bool removed = whitelistedManager.remove(manager);
+        if (!removed) revert ErrorsLib.InvalidAddress();
+
+        emit EventsLib.ManagerRemoved(manager);
+    }
+
+    /// @inheritdoc IOrionConfig
+    function isWhitelistedManager(address manager) external view returns (bool) {
+        return whitelistedManager.contains(manager);
+    }
+
+    /// @inheritdoc IOrionConfig
+    function getAllOrionManagers() external view returns (address[] memory managers) {
+        uint16 length = uint16(whitelistedManager.length());
+        managers = new address[](length);
+        for (uint16 i = 0; i < length; ++i) {
+            managers[i] = whitelistedManager.at(i);
+        }
+        return managers;
     }
 
     // === Orion Vaults ===
@@ -217,18 +431,22 @@ contract OrionConfig is Ownable, IOrionConfig {
     }
 
     /// @inheritdoc IOrionConfig
-    function removeOrionVault(address vault, EventsLib.VaultType vaultType) external onlyOwner {
+    function removeOrionVault(address vault) external {
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
-        bool removed;
-        if (vaultType == EventsLib.VaultType.Encrypted) {
-            removed = encryptedVaults.remove(vault);
-        } else {
-            removed = transparentVaults.remove(vault);
+        if (!this.isOrionVault(vault)) {
+            revert ErrorsLib.InvalidAddress();
         }
 
-        if (!removed) revert ErrorsLib.UnauthorizedAccess();
-        emit EventsLib.OrionVaultRemoved(vault);
+        address vaultManager = IOrionVault(vault).manager();
+        if (msg.sender != owner() && msg.sender != vaultManager) {
+            revert ErrorsLib.NotAuthorized();
+        }
+
+        // slither-disable-next-line unused-return
+        decommissioningInProgressVaults.add(vault);
+        IOrionVault(vault).overrideIntentForDecommissioning();
+        emit EventsLib.VaultDecommissioningInitiated(vault);
     }
 
     /// @inheritdoc IOrionConfig
@@ -250,16 +468,66 @@ contract OrionConfig is Ownable, IOrionConfig {
     }
 
     /// @inheritdoc IOrionConfig
+    function isDecommissioningVault(address vault) external view returns (bool) {
+        return decommissioningInProgressVaults.contains(vault);
+    }
+
+    /// @inheritdoc IOrionConfig
+    function isDecommissionedVault(address vault) external view returns (bool) {
+        return decommissionedVaults.contains(vault);
+    }
+
+    /// @inheritdoc IOrionConfig
+    function getAllDecommissionedVaults() external view returns (address[] memory vaults) {
+        uint16 length = uint16(decommissionedVaults.length());
+        vaults = new address[](length);
+        for (uint16 i = 0; i < length; ++i) {
+            vaults[i] = decommissionedVaults.at(i);
+        }
+        return vaults;
+    }
+
+    /// @inheritdoc IOrionConfig
+    function completeVaultDecommissioning(address vault) external onlyLiquidityOrchestrator {
+        if (!this.isDecommissioningVault(vault)) revert ErrorsLib.InvalidAddress();
+
+        bool removedFromEncrypted = encryptedVaults.remove(vault);
+        if (!removedFromEncrypted) {
+            bool removedFromTransparent = transparentVaults.remove(vault);
+            if (!removedFromTransparent) {
+                revert ErrorsLib.InvalidAddress();
+            }
+        }
+
+        // Remove from decommissioning in progress list
+        // slither-disable-next-line unused-return
+        decommissioningInProgressVaults.remove(vault);
+
+        // Add to decommissioned vaults list
+        // slither-disable-next-line unused-return
+        decommissionedVaults.add(vault);
+
+        emit EventsLib.OrionVaultDecommissioned(vault);
+    }
+
+    /// @inheritdoc IOrionConfig
     function isSystemIdle() public view returns (bool) {
         return
             ILiquidityOrchestrator(liquidityOrchestrator).currentPhase() ==
-            ILiquidityOrchestrator.LiquidityUpkeepPhase.Idle &&
-            IInternalStateOrchestrator(internalStatesOrchestrator).currentPhase() ==
-            IInternalStateOrchestrator.InternalUpkeepPhase.Idle;
+            ILiquidityOrchestrator.LiquidityUpkeepPhase.Idle;
     }
 
     /// @inheritdoc IOrionConfig
     function getTokenDecimals(address token) external view returns (uint8) {
         return tokenDecimals[token];
     }
+
+    /// @notice Authorizes an upgrade to a new implementation
+    /// @dev This function is required by UUPS and can only be called by the owner
+    /// @param newImplementation The address of the new implementation contract
+    // solhint-disable-next-line no-empty-blocks, use-natspec
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+
+    /// @dev Storage gap to allow for future upgrades
+    uint256[50] private __gap;
 }

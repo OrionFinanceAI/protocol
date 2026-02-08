@@ -8,14 +8,14 @@ import {
   MockPriceAdapter,
   MockExecutionAdapter,
   OrionConfig,
-  InternalStatesOrchestrator,
   LiquidityOrchestrator,
-  EncryptedVaultFactory,
+  VaultFactory,
   OrionEncryptedVault,
   PriceAdapterRegistry,
 } from "../typechain-types";
+import { deployUpgradeableProtocol, VaultType } from "./helpers/deployUpgradeable";
 
-let encryptedVaultFactory: EncryptedVaultFactory;
+let vaultFactory: VaultFactory;
 let orionConfig: OrionConfig;
 let underlyingAsset: MockUnderlyingAsset;
 let mockAsset1: MockERC4626Asset;
@@ -25,19 +25,25 @@ let mockPriceAdapter2: MockPriceAdapter;
 let mockExecutionAdapter1: MockExecutionAdapter;
 let mockExecutionAdapter2: MockExecutionAdapter;
 let priceAdapterRegistry: PriceAdapterRegistry;
-let internalStatesOrchestrator: InternalStatesOrchestrator;
 let liquidityOrchestrator: LiquidityOrchestrator;
 let encryptedVault: OrionEncryptedVault;
 
-let owner: SignerWithAddress, curator: SignerWithAddress, other: SignerWithAddress;
+let owner: SignerWithAddress, strategist: SignerWithAddress, other: SignerWithAddress;
 
 beforeEach(async function () {
-  [owner, curator, other] = await ethers.getSigners();
+  [owner, strategist, other] = await ethers.getSigners();
 
   const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
   const underlyingAssetDeployed = await MockUnderlyingAssetFactory.deploy(6);
   await underlyingAssetDeployed.waitForDeployment();
   underlyingAsset = underlyingAssetDeployed as unknown as MockUnderlyingAsset;
+
+  const deployed = await deployUpgradeableProtocol(owner, underlyingAsset);
+
+  orionConfig = deployed.orionConfig;
+  liquidityOrchestrator = deployed.liquidityOrchestrator;
+  priceAdapterRegistry = deployed.priceAdapterRegistry;
+  vaultFactory = deployed.vaultFactory;
 
   const MockERC4626AssetFactory = await ethers.getContractFactory("MockERC4626Asset");
   const mockAsset1Deployed = await MockERC4626AssetFactory.deploy(
@@ -56,35 +62,6 @@ beforeEach(async function () {
   await mockAsset2Deployed.waitForDeployment();
   mockAsset2 = mockAsset2Deployed as unknown as MockERC4626Asset;
 
-  // Deploy OrionConfig
-  const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
-  const orionConfigDeployed = await OrionConfigFactory.deploy(owner.address, await underlyingAsset.getAddress());
-  await orionConfigDeployed.waitForDeployment();
-  orionConfig = orionConfigDeployed as unknown as OrionConfig;
-
-  const EncryptedVaultFactoryFactory = await ethers.getContractFactory("EncryptedVaultFactory");
-  const encryptedVaultFactoryDeployed = await EncryptedVaultFactoryFactory.deploy(await orionConfig.getAddress());
-  await encryptedVaultFactoryDeployed.waitForDeployment();
-  encryptedVaultFactory = encryptedVaultFactoryDeployed as unknown as EncryptedVaultFactory;
-
-  const InternalStatesOrchestratorFactory = await ethers.getContractFactory("InternalStatesOrchestrator");
-  const internalStatesOrchestratorDeployed = await InternalStatesOrchestratorFactory.deploy(
-    owner.address,
-    await orionConfig.getAddress(),
-    await other.address,
-  );
-  await internalStatesOrchestratorDeployed.waitForDeployment();
-  internalStatesOrchestrator = internalStatesOrchestratorDeployed as unknown as InternalStatesOrchestrator;
-
-  const LiquidityOrchestratorFactory = await ethers.getContractFactory("LiquidityOrchestrator");
-  const liquidityOrchestratorDeployed = await LiquidityOrchestratorFactory.deploy(
-    owner.address,
-    await orionConfig.getAddress(),
-    await other.address,
-  );
-  await liquidityOrchestratorDeployed.waitForDeployment();
-  liquidityOrchestrator = liquidityOrchestratorDeployed as unknown as LiquidityOrchestrator;
-
   const MockPriceAdapterFactory = await ethers.getContractFactory("MockPriceAdapter");
   mockPriceAdapter1 = (await MockPriceAdapterFactory.deploy()) as unknown as MockPriceAdapter;
   await mockPriceAdapter1.waitForDeployment();
@@ -99,18 +76,6 @@ beforeEach(async function () {
   mockExecutionAdapter2 = (await MockExecutionAdapterFactory.deploy()) as unknown as MockExecutionAdapter;
   await mockExecutionAdapter2.waitForDeployment();
 
-  const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistry");
-  const priceAdapterRegistryDeployed = await PriceAdapterRegistryFactory.deploy(
-    owner.address,
-    await orionConfig.getAddress(),
-  );
-  await priceAdapterRegistryDeployed.waitForDeployment();
-  priceAdapterRegistry = priceAdapterRegistryDeployed as unknown as PriceAdapterRegistry;
-
-  await orionConfig.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
-  await orionConfig.setLiquidityOrchestrator(await liquidityOrchestrator.getAddress());
-  await orionConfig.setVaultFactories(other.address, await encryptedVaultFactory.getAddress());
-  await orionConfig.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
   await orionConfig.setProtocolRiskFreeRate(0.0423 * 10_000);
 
   await orionConfig.addWhitelistedAsset(
@@ -125,16 +90,16 @@ beforeEach(async function () {
   );
 });
 
-describe("EncryptedVault - Curator Pipeline", function () {
+describe("EncryptedVault - Strategist Pipeline", function () {
   describe("Vault Creation", function () {
     it("Should create an encrypted vault with correct parameters", async function () {
-      const tx = await encryptedVaultFactory.connect(owner).createVault(curator.address, "Test Vault", "TV", 0, 0, 0);
+      const tx = await vaultFactory.connect(owner).createVault(strategist.address, "Test Vault", "TV", 0, 0, 0, ethers.ZeroAddress, VaultType.Encrypted);
       const receipt = await tx.wait();
 
       // Find the vault creation event
       const event = receipt?.logs.find((log) => {
         try {
-          const parsed = encryptedVaultFactory.interface.parseLog(log);
+          const parsed = vaultFactory.interface.parseLog(log);
           return parsed?.name === "OrionVaultCreated";
         } catch {
           return false;
@@ -142,7 +107,7 @@ describe("EncryptedVault - Curator Pipeline", function () {
       });
 
       void expect(event).to.not.be.undefined;
-      const parsedEvent = encryptedVaultFactory.interface.parseLog(event!);
+      const parsedEvent = vaultFactory.interface.parseLog(event!);
       const vaultAddress = parsedEvent?.args[0];
 
       void expect(vaultAddress).to.not.equal(ethers.ZeroAddress);
@@ -154,78 +119,31 @@ describe("EncryptedVault - Curator Pipeline", function () {
       )) as unknown as OrionEncryptedVault;
 
       // Verify vault properties
-      void expect(await encryptedVault.vaultOwner()).to.equal(owner.address);
-      void expect(await encryptedVault.curator()).to.equal(curator.address);
+      void expect(await encryptedVault.manager()).to.equal(owner.address);
+      void expect(await encryptedVault.strategist()).to.equal(strategist.address);
       void expect(await encryptedVault.config()).to.equal(await orionConfig.getAddress());
-    });
-
-    it("Should initialize vault whitelist to match config whitelist after deployment", async function () {
-      const tx = await encryptedVaultFactory.connect(owner).createVault(curator.address, "Test Vault", "TV", 0, 0, 0);
-      const receipt = await tx.wait();
-
-      // Find the vault creation event
-      const event = receipt?.logs.find((log) => {
-        try {
-          const parsed = encryptedVaultFactory.interface.parseLog(log);
-          return parsed?.name === "OrionVaultCreated";
-        } catch {
-          return false;
-        }
-      });
-
-      const parsedEvent = encryptedVaultFactory.interface.parseLog(event!);
-      const vaultAddress = parsedEvent?.args[0];
-
-      // Get the vault contract
-      encryptedVault = (await ethers.getContractAt(
-        "OrionEncryptedVault",
-        vaultAddress,
-      )) as unknown as OrionEncryptedVault;
-
-      // Get config whitelist
-      const configWhitelist = await orionConfig.getAllWhitelistedAssets();
-
-      // Get vault whitelist
-      const vaultWhitelist = await encryptedVault.vaultWhitelist();
-
-      // Compare the whitelists
-      expect(vaultWhitelist.length).to.equal(configWhitelist.length);
-
-      // Sort both arrays to ensure order doesn't affect comparison
-      const sortedConfigWhitelist = [...configWhitelist].sort();
-      const sortedVaultWhitelist = [...vaultWhitelist].sort();
-
-      for (let i = 0; i < sortedConfigWhitelist.length; i++) {
-        expect(sortedVaultWhitelist[i]).to.equal(sortedConfigWhitelist[i]);
-      }
     });
   });
 
-  describe("Curator Operations", function () {
+  describe("Strategist Operations", function () {
     beforeEach(async function () {
       // Create a vault first
-      const tx = await encryptedVaultFactory.connect(owner).createVault(curator.address, "Test Vault", "TV", 0, 0, 0);
+      const tx = await vaultFactory.connect(owner).createVault(strategist.address, "Test Vault", "TV", 0, 0, 0, ethers.ZeroAddress, VaultType.Encrypted);
       const receipt = await tx.wait();
       const event = receipt?.logs.find((log) => {
         try {
-          const parsed = encryptedVaultFactory.interface.parseLog(log);
+          const parsed = vaultFactory.interface.parseLog(log);
           return parsed?.name === "OrionVaultCreated";
         } catch {
           return false;
         }
       });
-      const parsedEvent = encryptedVaultFactory.interface.parseLog(event!);
+      const parsedEvent = vaultFactory.interface.parseLog(event!);
       const vaultAddress = parsedEvent?.args[0];
       encryptedVault = (await ethers.getContractAt(
         "OrionEncryptedVault",
         vaultAddress,
       )) as unknown as OrionEncryptedVault;
-    });
-
-    it("Should allow vault owner to update vault whitelist", async function () {
-      const newWhitelist = [await mockAsset1.getAddress(), await mockAsset2.getAddress()];
-
-      await expect(encryptedVault.connect(owner).updateVaultWhitelist(newWhitelist)).to.not.be.reverted;
     });
 
     it("Should allow vault owner to update fee model", async function () {
@@ -237,28 +155,23 @@ describe("EncryptedVault - Curator Pipeline", function () {
         .reverted;
     });
 
-    it("Should allow vault owner to claim curator fees", async function () {
+    it("Should allow manager to claim vault fees", async function () {
       // Note: In a real scenario, fees would be accrued by the liquidity orchestrator
       // For testing purposes, we'll skip the fee accrual step and just test the claim function
-      // The claim function requires pendingCuratorFees > 0, so we'll test the revert case
 
       const claimAmount = ethers.parseUnits("50", 6); // Try to claim 50 USDC
 
-      await expect(encryptedVault.connect(owner).claimCuratorFees(claimAmount)).to.be.revertedWithCustomError(
+      await expect(encryptedVault.connect(owner).claimVaultFees(claimAmount)).to.be.revertedWithCustomError(
         encryptedVault,
         "InsufficientAmount",
       );
     });
 
-    it("Should allow curator to submit encrypted intent", async function () {
-      // First update the whitelist to include the assets we want to use
-      const whitelist = [await mockAsset1.getAddress(), await mockAsset2.getAddress()];
-      await encryptedVault.connect(owner).updateVaultWhitelist(whitelist);
-
+    it("Should allow strategist to submit encrypted intent", async function () {
       // Create encrypted intent with 60% in asset1 and 40% in asset2
-      const encryptedIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), curator.address);
+      const encryptedIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), strategist.address);
 
-      // Add encrypted weights (60% and 40% in curator intent decimals)
+      // Add encrypted weights (60% and 40% in strategist intent decimals)
       encryptedIntentBuffer.add128(600000000); // 60% * 10^9
       encryptedIntentBuffer.add128(400000000); // 40% * 10^9
 
@@ -275,15 +188,12 @@ describe("EncryptedVault - Curator Pipeline", function () {
         },
       ];
 
-      await encryptedVault.connect(curator).submitIntent(encryptedIntent, encryptedIntentCiphertexts.inputProof);
+      await encryptedVault.connect(strategist).submitIntent(encryptedIntent, encryptedIntentCiphertexts.inputProof);
     });
 
     it("Should reject encrypted intent with invalid total weight", async function () {
-      const whitelist = [await mockAsset1.getAddress(), await mockAsset2.getAddress()];
-      await encryptedVault.connect(owner).updateVaultWhitelist(whitelist);
-
       // Create encrypted intent with total weight != 100%
-      const encryptedIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), curator.address);
+      const encryptedIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), strategist.address);
 
       // Add encrypted weights (60% and 30% - total = 90%)
       encryptedIntentBuffer.add128(600000000); // 60% * 10^9
@@ -307,7 +217,7 @@ describe("EncryptedVault - Curator Pipeline", function () {
       ];
 
       // This should fail validation in the FHE callback
-      await expect(encryptedVault.connect(curator).submitIntent(encryptedIntent, inputProofHex)).to.not.be.reverted; // The transaction succeeds, but intent validity will be false
+      await expect(encryptedVault.connect(strategist).submitIntent(encryptedIntent, inputProofHex)).to.not.be.reverted; // The transaction succeeds, but intent validity will be false
     });
 
     it("Should reject encrypted intent with non-whitelisted assets", async function () {
@@ -320,7 +230,7 @@ describe("EncryptedVault - Curator Pipeline", function () {
       );
       await nonWhitelistedAsset.waitForDeployment();
 
-      const encryptedIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), curator.address);
+      const encryptedIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), strategist.address);
 
       encryptedIntentBuffer.add128(1000000000); // 100% * 10^9
 
@@ -334,17 +244,14 @@ describe("EncryptedVault - Curator Pipeline", function () {
       ];
 
       await expect(
-        encryptedVault.connect(curator).submitIntent(encryptedIntent, encryptedIntentCiphertexts.inputProof),
+        encryptedVault.connect(strategist).submitIntent(encryptedIntent, encryptedIntentCiphertexts.inputProof),
       ).to.be.revertedWithCustomError(encryptedVault, "TokenNotWhitelisted");
     });
 
-    it("Should reject encrypted intent from non-curator", async function () {
-      const whitelist = [await mockAsset1.getAddress(), await mockAsset2.getAddress()];
-      await encryptedVault.connect(owner).updateVaultWhitelist(whitelist);
-
+    it("Should reject encrypted intent from non-strategist", async function () {
       const encryptedIntentBuffer = fhevm.createEncryptedInput(
         await encryptedVault.getAddress(),
-        other.address, // Using other address instead of curator
+        other.address, // Using other address instead of strategist
       );
 
       encryptedIntentBuffer.add128(1000000000); // 100% * 10^9
@@ -360,29 +267,23 @@ describe("EncryptedVault - Curator Pipeline", function () {
 
       await expect(
         encryptedVault.connect(other).submitIntent(encryptedIntent, encryptedIntentCiphertexts.inputProof),
-      ).to.be.revertedWithCustomError(encryptedVault, "UnauthorizedAccess");
+      ).to.be.revertedWithCustomError(encryptedVault, "NotAuthorized");
     });
 
     it("Should reject empty encrypted intent", async function () {
-      const whitelist = [await mockAsset1.getAddress(), await mockAsset2.getAddress()];
-      await encryptedVault.connect(owner).updateVaultWhitelist(whitelist);
-
-      const encryptedIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), curator.address);
+      const encryptedIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), strategist.address);
 
       const encryptedIntentCiphertexts = await encryptedIntentBuffer.encrypt();
 
       const encryptedIntent: Array<{ token: string; weight: string }> = []; // Empty intent
 
       await expect(
-        encryptedVault.connect(curator).submitIntent(encryptedIntent, encryptedIntentCiphertexts.inputProof),
+        encryptedVault.connect(strategist).submitIntent(encryptedIntent, encryptedIntentCiphertexts.inputProof),
       ).to.be.revertedWithCustomError(encryptedVault, "OrderIntentCannotBeEmpty");
     });
 
     it("Should reject encrypted intent with duplicate tokens", async function () {
-      const whitelist = [await mockAsset1.getAddress(), await mockAsset2.getAddress()];
-      await encryptedVault.connect(owner).updateVaultWhitelist(whitelist);
-
-      const encryptedIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), curator.address);
+      const encryptedIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), strategist.address);
 
       // Add encrypted weights
       encryptedIntentBuffer.add128(500000000); // 50% * 10^9
@@ -402,7 +303,7 @@ describe("EncryptedVault - Curator Pipeline", function () {
       ];
 
       await expect(
-        encryptedVault.connect(curator).submitIntent(encryptedIntent, encryptedIntentCiphertexts.inputProof),
+        encryptedVault.connect(strategist).submitIntent(encryptedIntent, encryptedIntentCiphertexts.inputProof),
       ).to.be.revertedWithCustomError(encryptedVault, "TokenAlreadyInOrder");
     });
   });
@@ -410,17 +311,17 @@ describe("EncryptedVault - Curator Pipeline", function () {
   describe("Vault State Management", function () {
     beforeEach(async function () {
       // Create a vault first
-      const tx = await encryptedVaultFactory.connect(owner).createVault(curator.address, "Test Vault", "TV", 0, 0, 0);
+      const tx = await vaultFactory.connect(owner).createVault(strategist.address, "Test Vault", "TV", 0, 0, 0, ethers.ZeroAddress, VaultType.Encrypted);
       const receipt = await tx.wait();
       const event = receipt?.logs.find((log) => {
         try {
-          const parsed = encryptedVaultFactory.interface.parseLog(log);
+          const parsed = vaultFactory.interface.parseLog(log);
           return parsed?.name === "OrionVaultCreated";
         } catch {
           return false;
         }
       });
-      const parsedEvent = encryptedVaultFactory.interface.parseLog(event!);
+      const parsedEvent = vaultFactory.interface.parseLog(event!);
       const vaultAddress = parsedEvent?.args[0];
       encryptedVault = (await ethers.getContractAt(
         "OrionEncryptedVault",
@@ -428,7 +329,7 @@ describe("EncryptedVault - Curator Pipeline", function () {
       )) as unknown as OrionEncryptedVault;
     });
 
-    it("Should reject vault state update from non-liquidity orchestrator", async function () {
+    it("Should reject vault state update from non-strategist", async function () {
       const newTotalAssets = ethers.parseUnits("1000", 6);
 
       const encryptedPortfolio = [
@@ -468,36 +369,32 @@ describe("EncryptedVault - Curator Pipeline", function () {
   });
 
   describe("Full Pipeline Integration", function () {
-    it("Should execute complete encrypted curator pipeline successfully", async function () {
+    it("Should execute complete encrypted strategist pipeline successfully", async function () {
       // 1. Create vault
-      const tx = await encryptedVaultFactory
+      const tx = await vaultFactory
         .connect(owner)
-        .createVault(curator.address, "Integration Test Vault", "ITV", 0, 0, 0);
+        .createVault(strategist.address, "Integration Test Vault", "ITV", 0, 0, 0, ethers.ZeroAddress, VaultType.Encrypted);
       const receipt = await tx.wait();
       const event = receipt?.logs.find((log) => {
         try {
-          const parsed = encryptedVaultFactory.interface.parseLog(log);
+          const parsed = vaultFactory.interface.parseLog(log);
           return parsed?.name === "OrionVaultCreated";
         } catch {
           return false;
         }
       });
-      const parsedEvent = encryptedVaultFactory.interface.parseLog(event!);
+      const parsedEvent = vaultFactory.interface.parseLog(event!);
       const vaultAddress = parsedEvent?.args[0];
       encryptedVault = (await ethers.getContractAt(
         "OrionEncryptedVault",
         vaultAddress,
       )) as unknown as OrionEncryptedVault;
 
-      // 2. Update vault whitelist
-      const whitelist = [await mockAsset1.getAddress(), await mockAsset2.getAddress()];
-      await encryptedVault.connect(owner).updateVaultWhitelist(whitelist);
-
       // 3. Update fee model
       await encryptedVault.connect(owner).updateFeeModel(0, 2000, 100);
 
       // 4. Submit encrypted intent
-      const encryptedIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), curator.address);
+      const encryptedIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), strategist.address);
 
       // Add encrypted weights (70% and 30%)
       encryptedIntentBuffer.add128(700000000); // 70% * 10^9
@@ -516,7 +413,7 @@ describe("EncryptedVault - Curator Pipeline", function () {
         },
       ];
 
-      await encryptedVault.connect(curator).submitIntent(encryptedIntent, encryptedIntentCiphertexts.inputProof);
+      await encryptedVault.connect(strategist).submitIntent(encryptedIntent, encryptedIntentCiphertexts.inputProof);
 
       // 5. Verify the encrypted intent was stored (we can only check the tokens, not the encrypted weights)
       const [tokens, weights] = await encryptedVault.getIntent();
@@ -537,32 +434,28 @@ describe("EncryptedVault - Curator Pipeline", function () {
   describe("FHE Integration Tests", function () {
     beforeEach(async function () {
       // Create a vault first
-      const tx = await encryptedVaultFactory
+      const tx = await vaultFactory
         .connect(owner)
-        .createVault(curator.address, "FHE Test Vault", "FTV", 0, 0, 0);
+        .createVault(strategist.address, "FHE Test Vault", "FTV", 0, 0, 0, ethers.ZeroAddress, VaultType.Encrypted);
       const receipt = await tx.wait();
       const event = receipt?.logs.find((log) => {
         try {
-          const parsed = encryptedVaultFactory.interface.parseLog(log);
+          const parsed = vaultFactory.interface.parseLog(log);
           return parsed?.name === "OrionVaultCreated";
         } catch {
           return false;
         }
       });
-      const parsedEvent = encryptedVaultFactory.interface.parseLog(event!);
+      const parsedEvent = vaultFactory.interface.parseLog(event!);
       const vaultAddress = parsedEvent?.args[0];
       encryptedVault = (await ethers.getContractAt(
         "OrionEncryptedVault",
         vaultAddress,
       )) as unknown as OrionEncryptedVault;
-
-      // Update whitelist
-      const whitelist = [await mockAsset1.getAddress(), await mockAsset2.getAddress()];
-      await encryptedVault.connect(owner).updateVaultWhitelist(whitelist);
     });
 
     it("Should handle single asset encrypted intent", async function () {
-      const encryptedIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), curator.address);
+      const encryptedIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), strategist.address);
 
       encryptedIntentBuffer.add128(1000000000); // 100% * 10^9
 
@@ -575,7 +468,7 @@ describe("EncryptedVault - Curator Pipeline", function () {
         },
       ];
 
-      await expect(encryptedVault.connect(curator).submitIntent(encryptedIntent, encryptedIntentCiphertexts.inputProof))
+      await expect(encryptedVault.connect(strategist).submitIntent(encryptedIntent, encryptedIntentCiphertexts.inputProof))
         .to.not.be.reverted;
 
       const [tokens, weights] = await encryptedVault.getIntent();
@@ -584,7 +477,7 @@ describe("EncryptedVault - Curator Pipeline", function () {
     });
 
     it("Should handle multiple asset encrypted intent with equal weights", async function () {
-      const encryptedIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), curator.address);
+      const encryptedIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), strategist.address);
 
       // Add equal weights (50% each)
       encryptedIntentBuffer.add128(500000000); // 50% * 10^9
@@ -603,7 +496,7 @@ describe("EncryptedVault - Curator Pipeline", function () {
         },
       ];
 
-      await expect(encryptedVault.connect(curator).submitIntent(encryptedIntent, encryptedIntentCiphertexts.inputProof))
+      await expect(encryptedVault.connect(strategist).submitIntent(encryptedIntent, encryptedIntentCiphertexts.inputProof))
         .to.not.be.reverted;
 
       const [tokens, weights] = await encryptedVault.getIntent();
@@ -612,7 +505,7 @@ describe("EncryptedVault - Curator Pipeline", function () {
     });
 
     it("Should handle encrypted intent with zero weights", async function () {
-      const encryptedIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), curator.address);
+      const encryptedIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), strategist.address);
 
       // Add weights including zero
       encryptedIntentBuffer.add128(1000000000); // 100% * 10^9
@@ -632,13 +525,13 @@ describe("EncryptedVault - Curator Pipeline", function () {
       ];
 
       // This should fail validation in the FHE callback due to zero weight
-      await expect(encryptedVault.connect(curator).submitIntent(encryptedIntent, encryptedIntentCiphertexts.inputProof))
+      await expect(encryptedVault.connect(strategist).submitIntent(encryptedIntent, encryptedIntentCiphertexts.inputProof))
         .to.not.be.reverted; // Transaction succeeds, but intent validity will be false
     });
 
     it("Should properly cleanup previous intent when submitting new intent", async function () {
       // Submit first intent with asset1 only (100%)
-      const firstIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), curator.address);
+      const firstIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), strategist.address);
       firstIntentBuffer.add128(1000000000); // 100% * 10^9
       const firstIntentCiphertexts = await firstIntentBuffer.encrypt();
 
@@ -650,7 +543,7 @@ describe("EncryptedVault - Curator Pipeline", function () {
       ];
 
       // Submit first intent
-      await expect(encryptedVault.connect(curator).submitIntent(firstIntent, firstIntentCiphertexts.inputProof)).to.not
+      await expect(encryptedVault.connect(strategist).submitIntent(firstIntent, firstIntentCiphertexts.inputProof)).to.not
         .be.reverted;
 
       // Verify first intent was stored
@@ -659,7 +552,7 @@ describe("EncryptedVault - Curator Pipeline", function () {
       expect(weights.length).to.equal(1);
 
       // Submit second intent with asset2 only (100%) - different asset
-      const secondIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), curator.address);
+      const secondIntentBuffer = fhevm.createEncryptedInput(await encryptedVault.getAddress(), strategist.address);
       secondIntentBuffer.add128(1000000000); // 100% * 10^9
       const secondIntentCiphertexts = await secondIntentBuffer.encrypt();
 
@@ -671,7 +564,7 @@ describe("EncryptedVault - Curator Pipeline", function () {
       ];
 
       // Submit second intent - this should cleanup the previous intent
-      await expect(encryptedVault.connect(curator).submitIntent(secondIntent, secondIntentCiphertexts.inputProof)).to
+      await expect(encryptedVault.connect(strategist).submitIntent(secondIntent, secondIntentCiphertexts.inputProof)).to
         .not.be.reverted;
 
       // Verify second intent replaced the first intent

@@ -1,7 +1,7 @@
 {
   "name": "@orion-finance/protocol",
   "description": "Orion Finance Protocol",
-  "version": "0.4.4",
+  "version": "2.1.0",
   "engines": {
     "node": ">=20.0.0"
   },
@@ -16,7 +16,9 @@
     "compile": "cross-env TS_NODE_TRANSPILE_ONLY=true hardhat compile",
     "compile:sepolia": "cross-env TS_NODE_TRANSPILE_ONLY=true hardhat compile --network sepolia",
     "coverage": "SOLIDITY_COVERAGE=true hardhat coverage",
-    "deploy:sepolia": "hardhat run scripts/deploy.ts --network sepolia",
+    "deploy:sepolia": "hardhat run protocol-ops/deploy.ts --network sepolia",
+    "deploy:protocol:localhost": "hardhat run scripts/deployProtocolLocalhost.ts --network localhost",
+    "perform:upkeep:localhost": "hardhat run scripts/performUpkeepLocalhost.ts --network localhost",
     "docgen": "hardhat docgen",
     "lint": "pnpm lint:sol && pnpm lint:ts && pnpm prettier:check",
     "lint:sol": "solhint --max-warnings 20 \"contracts/**/*.sol\"",
@@ -26,43 +28,42 @@
     "test:sepolia": "hardhat test --network sepolia",
     "prettier:check": "prettier --check \"**/*.{js,json,md,sol,ts,yml}\"",
     "prettier:write": "prettier --write \"**/*.{js,json,md,sol,ts,yml}\"",
-    "slither": "HARDHAT_CONFIG=hardhat.slither.config.ts slither . --filter-paths 'lib|node_modules|dependencies|contracts/mocks' --fail-medium",
-    "verify": "hardhat run scripts/verify.ts --network sepolia",
-    "verify:vault": "hardhat run scripts/verify-vault.ts --network sepolia"
+    "slither": "slither . --filter-paths 'lib|node_modules|dependencies|contracts/mocks' --fail-medium",
+    "verify:vault": "hardhat run protocol-ops/verify-vault.ts --network sepolia"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
     "@eslint/js": "^9.33.0",
-    "@fhevm/hardhat-plugin": "^0.1.0",
-    "@fhevm/mock-utils": "0.1.0",
+    "@fhevm/hardhat-plugin": "^0.4.0",
+    "@fhevm/mock-utils": "^0.4.0",
     "@nomicfoundation/hardhat-chai-matchers": "^2.1.0",
     "@nomicfoundation/hardhat-ethers": "^3.1.0",
-    "@nomicfoundation/hardhat-toolbox": "^3.0.0",
+    "@nomicfoundation/hardhat-network-helpers": "^1.1.2",
+    "@nomicfoundation/hardhat-toolbox": "^6.1.0",
     "@nomicfoundation/hardhat-verify": "^2.1.0",
     "@openzeppelin/hardhat-upgrades": "^3.9.1",
     "@typechain/ethers-v6": "^0.5.1",
     "@typechain/hardhat": "^9.1.0",
     "@types/chai": "^4.3.20",
     "@types/mocha": "^10.0.10",
-    "@types/node": "^20.19.9",
+    "@types/node": "^25.0.6",
     "@typescript-eslint/eslint-plugin": "^8.38.0",
     "@typescript-eslint/parser": "^8.38.0",
-    "@zama-fhe/oracle-solidity": "^0.1.0",
-    "@zama-fhe/relayer-sdk": "^0.2.0",
-    "chai": "^4.5.0",
+    "@zama-fhe/relayer-sdk": "^0.4.0",
+    "chai": "^6.2.2",
     "chai-as-promised": "^8.0.1",
-    "cross-env": "^7.0.3",
-    "dotenv": "^16.6.1",
+    "cross-env": "^10.1.0",
+    "dotenv": "^17.2.3",
     "eslint": "^9.0.0",
     "eslint-config-prettier": "^9.1.2",
     "ethers": "^6.15.0",
-    "hardhat": "^2.26.2",
+    "hardhat": "^2.28.4",
     "hardhat-deploy": "^0.11.45",
     "hardhat-gas-reporter": "^2.3.0",
     "mocha": "^11.7.1",
     "prettier": "^3.6.2",
     "prettier-plugin-solidity": "^1.4.3",
-    "rimraf": "^5.0.10",
+    "rimraf": "^6.1.2",
     "solhint": "^6.0.1",
     "solhint-plugin-prettier": "^0.1.0",
     "solidity-coverage": "^0.8.16",
@@ -74,8 +75,38 @@
   },
   "dependencies": {
     "@chainlink/contracts": "^1.4.0",
-    "@fhevm/solidity": "^0.8.0",
+    "@fhevm/solidity": "^0.10.0",
     "@openzeppelin/contracts": "^5.4.0",
+    "@openzeppelin/contracts-upgradeable": "^5.4.0",
     "encrypted-types": "^0.0.4"
+  },
+  "pnpm": {
+    "overrides": {
+      "@openzeppelin/contracts-upgradeable@>=4.3.0 <4.8.3": "^4.9.6",
+      "@openzeppelin/contracts@>=4.3.0 <4.8.3": "^4.9.6"
+    },
+    "peerDependencyRules": {
+      "ignoreMissing": [
+        "@nomicfoundation/hardhat-ethers",
+        "@nomicfoundation/hardhat-verify",
+        "@nomicfoundation/hardhat-network-helpers"
+      ],
+      "allowedVersions": {
+        "hardhat": "2.x",
+        "chai": "4.x",
+        "ethers": "6.x",
+        "@typechain/ethers-v6": "0.x",
+        "@typechain/hardhat": "9.x",
+        "hardhat-gas-reporter": "2.x"
+      }
+    },
+    "allowedDeprecatedVersions": {
+      "glob": "*",
+      "inflight": "*",
+      "rimraf": "*",
+      "@types/minimatch": "*",
+      "lodash.isequal": "*",
+      "zksync-web3": "*"
+    }
   }
 }

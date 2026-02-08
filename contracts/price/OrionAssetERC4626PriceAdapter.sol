@@ -6,14 +6,19 @@ import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/I
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
+
 /**
  * @title OrionAssetERC4626PriceAdapter
  * @notice Price adapter for ERC-4626 vaults sharing the same underlying asset as the Orion protocol.
  * @author Orion Finance
  * @dev This adapter assumes that the target vault and the Orion protocol use the same underlying asset.
  *      It is not safe to use this adapter with vaults that are based on a different asset.
+ * @custom:security-contact security@orionfinance.ai
  */
 contract OrionAssetERC4626PriceAdapter is IPriceAdapter {
+    using Math for uint256;
+
     /// @notice Orion Config contract address
     IOrionConfig public config;
 
@@ -22,6 +27,9 @@ contract OrionAssetERC4626PriceAdapter is IPriceAdapter {
 
     /// @notice Decimals of the underlying asset
     uint8 public underlyingAssetDecimals;
+
+    /// @notice Decimals of the price
+    uint8 public constant PRICE_DECIMALS = 10;
 
     /// @notice Constructor
     /// @param configAddress The address of the OrionConfig contract
@@ -34,21 +42,23 @@ contract OrionAssetERC4626PriceAdapter is IPriceAdapter {
     }
 
     /// @inheritdoc IPriceAdapter
-    /// @notice Returns the raw price of one share of the given ERC4626 vault in underlying asset decimals.
-    /// @param vaultAsset The address of the ERC4626-compliant vault.
-    /// @return price The raw price of one share in underlying asset decimals
-    /// @return decimals The number of decimals for the returned price (underlying asset decimals)
-    function getPriceData(address vaultAsset) external view returns (uint256 price, uint8 decimals) {
-        try IERC4626(vaultAsset).asset() returns (address vaultUnderlyingAsset) {
-            if (vaultUnderlyingAsset != underlyingAsset) revert ErrorsLib.InvalidAddress();
+    function validatePriceAdapter(address asset) external view {
+        try IERC4626(asset).asset() returns (address underlying) {
+            if (underlying != underlyingAsset) revert ErrorsLib.InvalidAdapter(asset);
         } catch {
-            revert ErrorsLib.InvalidAddress(); // Adapter not valid for this vault
+            revert ErrorsLib.InvalidAdapter(asset);
         }
+    }
 
+    /// @inheritdoc IPriceAdapter
+    function getPriceData(address vaultAsset) external view returns (uint256 price, uint8 decimals) {
         uint8 vaultAssetDecimals = IERC20Metadata(vaultAsset).decimals();
-        uint256 oneShare = 10 ** vaultAssetDecimals;
-        uint256 underlyingAssetAmount = IERC4626(vaultAsset).convertToAssets(oneShare);
+        uint256 precisionAmount = 10 ** (PRICE_DECIMALS + vaultAssetDecimals);
 
-        return (underlyingAssetAmount, underlyingAssetDecimals);
+        // Floor rounding here, previewMint uses ceil in execution,
+        // buffer to deal with negligible truncation and rounding errors.
+        uint256 underlyingAssetAmount = IERC4626(vaultAsset).convertToAssets(precisionAmount);
+
+        return (underlyingAssetAmount, PRICE_DECIMALS + underlyingAssetDecimals);
     }
 }

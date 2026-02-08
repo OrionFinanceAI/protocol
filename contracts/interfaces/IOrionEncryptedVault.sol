@@ -17,14 +17,6 @@ interface IOrionEncryptedVault is IOrionVault {
         externalEuint128 weight;
     }
 
-    /// @dev Struct representing a token and its shares in a portfolio.
-    /// @param token The address of the ERC20 token.
-    /// @param shares The encrypted number of shares per asset.
-    struct EncryptedPortfolio {
-        address token;
-        euint128 shares;
-    }
-
     /// @notice Submit an encrypted portfolio intent.
     /// @param intent EncryptedIntent structs array containing the tokens and encrypted weights.
     /// @param inputProof ZKPoK to validate the authenticity of the encrypted inputs.
@@ -48,18 +40,8 @@ interface IOrionEncryptedVault is IOrionVault {
     /// @notice Updates the vault's portfolio state and total assets
     /// @dev Can only be called by the liquidity orchestrator.
     ///      Clears the previous portfolio and replaces it with the new one.
-    /// @param portfolio Array of EncryptedPortfolio structs
-    ///        It contains the new portfolio token addresses and encrypted number of shares per asset.
+    /// @param tokens Array of token addresses
+    /// @param shares Array of encrypted shares per asset
     /// @param newTotalAssets The new total assets value for the vault
-    function updateVaultState(EncryptedPortfolio[] calldata portfolio, uint256 newTotalAssets) external;
-
-    /// @notice Callback function to decrypt a single ebool
-    /// @param requestID The request ID
-    /// @param cleartexts The cleartexts
-    /// @param decryptionProof The decryption proof
-    function callbackDecryptSingleEbool(
-        uint256 requestID,
-        bytes calldata cleartexts,
-        bytes calldata decryptionProof
-    ) external;
+    function updateVaultState(address[] calldata tokens, euint128[] calldata shares, uint256 newTotalAssets) external;
 }

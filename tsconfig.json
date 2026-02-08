@@ -7,7 +7,7 @@
     "forceConsistentCasingInFileNames": true,
     "outDir": "dist"
   },
-  "files": ["./hardhat.config.ts", "./hardhat.slither.config.ts"],
-  "include": ["src/**/*.ts", "scripts/**/*.ts", "test/**/*.ts"],
+  "files": ["./hardhat.config.ts"],
+  "include": ["src/**/*.ts", "test/**/*.ts", "scripts/**/*.ts"],
   "exclude": ["**/*.js", "node_modules", "lib/fhevm-solidity"]
 }

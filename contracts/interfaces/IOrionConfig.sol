@@ -7,12 +7,8 @@ import "../libraries/EventsLib.sol";
 /// @title IOrionConfig
 /// @notice Interface for the Orion config contract
 /// @author Orion Finance
+/// @custom:security-contact security@orionfinance.ai
 interface IOrionConfig {
-    /// @notice Returns the address of the internal states orchestrator contract
-    /// @dev This orchestrator manages the internal state transitions of the protocol
-    /// @return The address of the internal states orchestrator
-    function internalStatesOrchestrator() external view returns (address);
-
     /// @notice Returns the address of the liquidity orchestrator contract
     /// @dev This orchestrator manages liquidity operations and coordination
     /// @return The address of the liquidity orchestrator
@@ -28,10 +24,10 @@ interface IOrionConfig {
     /// @return The address of the price adapter registry
     function priceAdapterRegistry() external view returns (address);
 
-    /// @notice Returns the number of decimal places used for curator intent calculations
-    /// @dev This value is used to scale curator intent values for precision
-    /// @return The number of decimal places for curator intents
-    function curatorIntentDecimals() external view returns (uint8);
+    /// @notice Returns the number of decimal places used for strategist intent calculations
+    /// @dev This value is used to scale strategist intent values for precision
+    /// @return The number of decimal places for strategist intents
+    function strategistIntentDecimals() external view returns (uint8);
 
     /// @notice Returns the number of decimal places used for price adapters
     /// @dev This value is used to scale price adapter values for precision
@@ -42,21 +38,32 @@ interface IOrionConfig {
     /// @return The risk-free rate
     function riskFreeRate() external view returns (uint16);
 
-    /// @notice Sets the internal states orchestrator for the protocol
-    /// @dev Can only be called by the contract owner
-    /// @param orchestrator The address of the internal states orchestrator
-    function setInternalStatesOrchestrator(address orchestrator) external;
+    /// @notice Returns the guardian address
+    /// @return The guardian address
+    function guardian() external view returns (address);
+
+    /// @notice Updates the protocol fees
+    /// @dev If called while a previous fee change is still in cooldown, the prior scheduled change is cancelled:
+    ///      activeProtocolFees() returns the current (old) rates, which are stored as old coefficients, then the new
+    ///      coefficients overwrite the prior schedule. The previously scheduled intermediate fees never take effect.
+    /// @param _vFeeCoefficient The new volume fee coefficient
+    /// @param _rsFeeCoefficient The new revenue share fee coefficient
+    function updateProtocolFees(uint16 _vFeeCoefficient, uint16 _rsFeeCoefficient) external;
+
+    /// @notice Returns the active protocol fees (old during cooldown, new after)
+    /// @return vFee The active volume fee coefficient
+    /// @return rsFee The active revenue share fee coefficient
+    function activeProtocolFees() external view returns (uint16 vFee, uint16 rsFee);
 
     /// @notice Sets the liquidity orchestrator for the protocol
     /// @dev Can only be called by the contract owner
     /// @param orchestrator The address of the liquidity orchestrator
     function setLiquidityOrchestrator(address orchestrator) external;
 
-    /// @notice Sets the vault factories for the protocol
+    /// @notice Sets the vault factory for the protocol
     /// @dev Can only be called by the contract owner
-    /// @param transparentFactory The address of the transparent vault factory
-    /// @param encryptedFactory The address of the encrypted vault factory
-    function setVaultFactories(address transparentFactory, address encryptedFactory) external;
+    /// @param vaultFactory The address of the vault factory
+    function setVaultFactory(address vaultFactory) external;
 
     /// @notice Sets the price adapter registry for the protocol
     /// @dev Can only be called by the contract owner
@@ -88,20 +95,45 @@ interface IOrionConfig {
     /// @return An array of whitelisted asset addresses
     function getAllWhitelistedAssets() external view returns (address[] memory);
 
+    /// @notice Returns ERC20 human-readable names for all whitelisted assets
+    /// @return names Array of token names in same order as getAllWhitelistedAssets()
+    function getAllWhitelistedAssetNames() external view returns (string[] memory names);
+
+    /// @notice Returns the token decimals for all whitelisted assets
+    /// @dev Returns decimals in the same order as getAllWhitelistedAssets()
+    /// @return decimals Array of token decimals corresponding to whitelisted assets
+    function getAllTokenDecimals() external view returns (uint8[] memory decimals);
+
     /// @notice Checks if an asset is whitelisted
     /// @param asset The address of the asset to check
     /// @return True if the asset is whitelisted, false otherwise
     function isWhitelisted(address asset) external view returns (bool);
 
-    /// @notice Adds a vault owner to the whitelist
-    /// @dev Can only be called by the contract owner
-    /// @param vaultOwner The address of the vault owner to whitelist
-    function addWhitelistedVaultOwner(address vaultOwner) external;
+    /// @notice Decommissioning assets (pending liquidation)
+    /// @return An array of decommissioning asset addresses
+    function decommissioningAssets() external view returns (address[] memory);
 
-    /// @notice Checks if a vault owner is whitelisted
-    /// @param vaultOwner The address of the vault owner to check
-    /// @return True if the vault owner is whitelisted, false otherwise
-    function isWhitelistedVaultOwner(address vaultOwner) external view returns (bool);
+    /// @notice Completes assets removal; only callable by liquidity orchestrator
+    function completeAssetsRemoval() external;
+
+    /// @notice Adds a manager to the whitelist
+    /// @dev Can only be called by the contract owner
+    /// @param manager The address of the manager to whitelist
+    function addWhitelistedManager(address manager) external;
+
+    /// @notice Removes a manager from the whitelist
+    /// @dev Can only be called by the contract owner
+    /// @param manager The address of the manager to remove from whitelist
+    function removeWhitelistedManager(address manager) external;
+
+    /// @notice Checks if a manager is whitelisted
+    /// @param manager The address of the manager to check
+    /// @return True if the manager is whitelisted, false otherwise
+    function isWhitelistedManager(address manager) external view returns (bool);
+
+    /// @notice Returns all Orion manager addresses
+    /// @return An array of Orion manager addresses
+    function getAllOrionManagers() external view returns (address[] memory);
 
     /// @notice Adds a new Orion vault to the protocol registry
     /// @dev Only callable by the vault factories contracts
@@ -110,12 +142,13 @@ interface IOrionConfig {
     function addOrionVault(address vault, EventsLib.VaultType vaultType) external;
 
     /// @notice Deregisters an Orion vault from the protocol's registry
-    /// @dev Callable exclusively by the contract owner. This action does not destroy the vault itself;
-    /// @dev it merely disconnects the vault from the protocol, which causes the share price to stale
-    /// @dev and renders curator intents inactive.
+    /// @dev Callable by the contract owner or by the vault's manager.
+    /// @dev This action does not destroy the vault itself; it merely disconnects the vault from the
+    /// @dev protocol, which causes the share price to stale and renders strategist intents inactive.
+    /// @dev The vault remains in both active and decommissioning states, allowing orchestrator to
+    /// @dev process it one last time to liquidate all positions before final removal.
     /// @param vault The address of the vault to be removed from the registry
-    /// @param vaultType The type of the vault—either encrypted or transparent
-    function removeOrionVault(address vault, EventsLib.VaultType vaultType) external;
+    function removeOrionVault(address vault) external;
 
     /// @notice Returns all Orion vault addresses
     /// @param vaultType Whether to return encrypted or transparent vaults
@@ -138,6 +171,10 @@ interface IOrionConfig {
     /// @return True if the address is a decommissioned Orion vault, false otherwise
     function isDecommissionedVault(address vault) external view returns (bool);
 
+    /// @notice Returns all decommissioned Orion vault addresses
+    /// @return An array of decommissioned vault addresses
+    function getAllDecommissionedVaults() external view returns (address[] memory);
+
     /// @notice Completes the decommissioning process for a vault
     /// @dev This function removes the vault from the active vault lists and moves it to decommissioned vaults
     /// @dev Only callable by the liquidity orchestrator after vault liquidation is complete
@@ -145,7 +182,7 @@ interface IOrionConfig {
     function completeVaultDecommissioning(address vault) external;
 
     /// @notice Checks if the system is idle
-    /// @dev This function checks if both the liquidity orchestrator and the internal states orchestrator are idle
+    /// @dev This function checks if both the liquidity orchestrator and the internal state orchestrator are idle
     /// @return True if the system is idle, false otherwise
     function isSystemIdle() external view returns (bool);
 
@@ -154,4 +191,40 @@ interface IOrionConfig {
     /// @param token The address of the token
     /// @return The number of decimals for the token
     function getTokenDecimals(address token) external view returns (uint8);
+
+    /// @notice Returns the minimum deposit amount
+    /// @return The minimum deposit amount in underlying asset units
+    function minDepositAmount() external view returns (uint256);
+
+    /// @notice Returns the minimum redeem amount
+    /// @return The minimum redeem amount in share units
+    function minRedeemAmount() external view returns (uint256);
+
+    /// @notice Sets the minimum deposit amount
+    /// @dev Can be called by the contract owner or guardian
+    /// @param amount The new minimum deposit amount in underlying asset units
+    function setMinDepositAmount(uint256 amount) external;
+
+    /// @notice Sets the minimum redeem amount
+    /// @dev Can be called by the contract owner or guardian
+    /// @param amount The new minimum redeem amount in share units
+    function setMinRedeemAmount(uint256 amount) external;
+
+    /// @notice Returns the fee change cooldown duration
+    /// @return The cooldown duration in seconds
+    function feeChangeCooldownDuration() external view returns (uint256);
+
+    /// @notice Sets the fee change cooldown duration
+    /// @dev Can only be called by the contract owner
+    /// @param duration The new cooldown duration in seconds
+    function setFeeChangeCooldownDuration(uint256 duration) external;
+
+    /// @notice Returns the maximum fulfill batch size
+    /// @return The maximum fulfill batch size
+    function maxFulfillBatchSize() external view returns (uint256);
+
+    /// @notice Sets the maximum fulfill batch size
+    /// @dev Can be called by the contract owner or guardian
+    /// @param size The new maximum fulfill batch size
+    function setMaxFulfillBatchSize(uint256 size) external;
 }

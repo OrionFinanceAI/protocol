@@ -1,5 +1,6 @@
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
+import "@openzeppelin/hardhat-upgrades";
 import { ethers } from "hardhat";
 
 import {
@@ -8,18 +9,21 @@ import {
   MockPriceAdapter,
   MockExecutionAdapter,
   OrionConfig,
-  InternalStatesOrchestrator,
   LiquidityOrchestrator,
-  EncryptedVaultFactory,
-  OrionEncryptedVault,
   TransparentVaultFactory,
-  PriceAdapterRegistry,
+  OrionTransparentVault,
 } from "../typechain-types";
-import { Log } from "ethers";
+import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
+import { resetNetwork } from "./helpers/resetNetwork";
+import { impersonateAccount, setBalance } from "@nomicfoundation/hardhat-network-helpers";
+
+before(async function () {
+  await resetNetwork();
+});
 
 let transparentVaultFactory: TransparentVaultFactory;
-let encryptedVaultFactory: EncryptedVaultFactory;
 let orionConfig: OrionConfig;
+let liquidityOrchestrator: LiquidityOrchestrator;
 let underlyingAsset: MockUnderlyingAsset;
 let mockAsset1: MockERC4626Asset;
 let mockAsset2: MockERC4626Asset;
@@ -27,21 +31,21 @@ let mockPriceAdapter1: MockPriceAdapter;
 let mockPriceAdapter2: MockPriceAdapter;
 let mockExecutionAdapter1: MockExecutionAdapter;
 let mockExecutionAdapter2: MockExecutionAdapter;
-let priceAdapterRegistry: PriceAdapterRegistry;
-let internalStatesOrchestrator: InternalStatesOrchestrator;
-let liquidityOrchestrator: LiquidityOrchestrator;
-let vault: OrionEncryptedVault; // Using encrypted vault as the test subject
+let vault: OrionTransparentVault;
 
-let owner: SignerWithAddress, curator: SignerWithAddress, other: SignerWithAddress, user: SignerWithAddress;
+let owner: SignerWithAddress, strategist: SignerWithAddress, other: SignerWithAddress, user: SignerWithAddress;
 
 beforeEach(async function () {
-  [owner, curator, other, user] = await ethers.getSigners();
+  [owner, strategist, other, user] = await ethers.getSigners();
 
-  const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
-  const underlyingAssetDeployed = await MockUnderlyingAssetFactory.deploy(6);
-  await underlyingAssetDeployed.waitForDeployment();
-  underlyingAsset = underlyingAssetDeployed as unknown as MockUnderlyingAsset;
+  const deployed = await deployUpgradeableProtocol(owner);
 
+  underlyingAsset = deployed.underlyingAsset;
+  orionConfig = deployed.orionConfig;
+  liquidityOrchestrator = deployed.liquidityOrchestrator;
+  transparentVaultFactory = deployed.transparentVaultFactory;
+
+  // Deploy additional mock ERC4626 assets for testing
   const MockERC4626AssetFactory = await ethers.getContractFactory("MockERC4626Asset");
   const mockAsset1Deployed = await MockERC4626AssetFactory.deploy(
     await underlyingAsset.getAddress(),
@@ -59,40 +63,7 @@ beforeEach(async function () {
   await mockAsset2Deployed.waitForDeployment();
   mockAsset2 = mockAsset2Deployed as unknown as MockERC4626Asset;
 
-  // Deploy OrionConfig
-  const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
-  const orionConfigDeployed = await OrionConfigFactory.deploy(owner.address, await underlyingAsset.getAddress());
-  await orionConfigDeployed.waitForDeployment();
-  orionConfig = orionConfigDeployed as unknown as OrionConfig;
-
-  const TransparentVaultFactoryFactory = await ethers.getContractFactory("TransparentVaultFactory");
-  const transparentVaultFactoryDeployed = await TransparentVaultFactoryFactory.deploy(await orionConfig.getAddress());
-  await transparentVaultFactoryDeployed.waitForDeployment();
-  transparentVaultFactory = transparentVaultFactoryDeployed as unknown as TransparentVaultFactory;
-
-  const EncryptedVaultFactoryFactory = await ethers.getContractFactory("EncryptedVaultFactory");
-  const encryptedVaultFactoryDeployed = await EncryptedVaultFactoryFactory.deploy(await orionConfig.getAddress());
-  await encryptedVaultFactoryDeployed.waitForDeployment();
-  encryptedVaultFactory = encryptedVaultFactoryDeployed as unknown as EncryptedVaultFactory;
-
-  const InternalStatesOrchestratorFactory = await ethers.getContractFactory("InternalStatesOrchestrator");
-  const internalStatesOrchestratorDeployed = await InternalStatesOrchestratorFactory.deploy(
-    owner.address,
-    await orionConfig.getAddress(),
-    await other.address,
-  );
-  await internalStatesOrchestratorDeployed.waitForDeployment();
-  internalStatesOrchestrator = internalStatesOrchestratorDeployed as unknown as InternalStatesOrchestrator;
-
-  const LiquidityOrchestratorFactory = await ethers.getContractFactory("LiquidityOrchestrator");
-  const liquidityOrchestratorDeployed = await LiquidityOrchestratorFactory.deploy(
-    owner.address,
-    await orionConfig.getAddress(),
-    await other.address,
-  );
-  await liquidityOrchestratorDeployed.waitForDeployment();
-  liquidityOrchestrator = liquidityOrchestratorDeployed as unknown as LiquidityOrchestrator;
-
+  // Deploy mock adapters for testing
   const MockPriceAdapterFactory = await ethers.getContractFactory("MockPriceAdapter");
   mockPriceAdapter1 = (await MockPriceAdapterFactory.deploy()) as unknown as MockPriceAdapter;
   await mockPriceAdapter1.waitForDeployment();
@@ -107,21 +78,7 @@ beforeEach(async function () {
   mockExecutionAdapter2 = (await MockExecutionAdapterFactory.deploy()) as unknown as MockExecutionAdapter;
   await mockExecutionAdapter2.waitForDeployment();
 
-  const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistry");
-  const priceAdapterRegistryDeployed = await PriceAdapterRegistryFactory.deploy(
-    owner.address,
-    await orionConfig.getAddress(),
-  );
-  await priceAdapterRegistryDeployed.waitForDeployment();
-  priceAdapterRegistry = priceAdapterRegistryDeployed as unknown as PriceAdapterRegistry;
-
-  await orionConfig.setInternalStatesOrchestrator(await internalStatesOrchestrator.getAddress());
-  await orionConfig.setLiquidityOrchestrator(await liquidityOrchestrator.getAddress());
-  await orionConfig.setVaultFactories(
-    await transparentVaultFactory.getAddress(),
-    await encryptedVaultFactory.getAddress(),
-  );
-  await orionConfig.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
+  // Configure protocol
   await orionConfig.setProtocolRiskFreeRate(0.0423 * 10_000);
 
   await orionConfig.addWhitelistedAsset(
@@ -136,19 +93,21 @@ beforeEach(async function () {
   );
 
   // Create a vault for testing
-  const tx = await encryptedVaultFactory.connect(owner).createVault(curator.address, "Test Vault", "TV", 0, 0, 0);
+  const tx = await transparentVaultFactory
+    .connect(owner)
+    .createVault(strategist.address, "Test Vault", "TV", 0, 0, 0, ethers.ZeroAddress);
   const receipt = await tx.wait();
   const event = receipt?.logs.find((log) => {
     try {
-      const parsed = encryptedVaultFactory.interface.parseLog(log);
+      const parsed = transparentVaultFactory.interface.parseLog(log);
       return parsed?.name === "OrionVaultCreated";
     } catch {
       return false;
     }
   });
-  const parsedEvent = encryptedVaultFactory.interface.parseLog(event!);
+  const parsedEvent = transparentVaultFactory.interface.parseLog(event!);
   const vaultAddress = parsedEvent?.args[0];
-  vault = (await ethers.getContractAt("OrionEncryptedVault", vaultAddress)) as unknown as OrionEncryptedVault;
+  vault = (await ethers.getContractAt("OrionTransparentVault", vaultAddress)) as unknown as OrionTransparentVault;
 
   // Give user some underlying assets for testing
   await underlyingAsset.mint(user.address, ethers.parseUnits("10000", 6));
@@ -156,79 +115,87 @@ beforeEach(async function () {
 });
 
 describe("Config", function () {
-  describe("setVaultFactories", function () {
-    it("Should revert as factories are immutable for the owner as well", async function () {
+  describe("setVaultFactory", function () {
+    it("Should revert as factory is immutable for the owner as well", async function () {
       const maliciousTransparentVault = other.address;
-      const maliciousEncryptedVault = other.address;
 
-      await expect(
-        orionConfig.connect(owner).setVaultFactories(maliciousTransparentVault, maliciousEncryptedVault),
-      ).to.be.revertedWithCustomError(orionConfig, "AlreadyRegistered");
+      await expect(orionConfig.connect(owner).setVaultFactory(maliciousTransparentVault)).to.be.revertedWithCustomError(
+        orionConfig,
+        "AlreadyRegistered",
+      );
     });
   });
   describe("removeWhitelistedAsset", function () {
-    it("Should successfully remove a whitelisted asset", async function () {
+    it("Should start decommissioning: asset stays whitelisted and is in decommissioning list", async function () {
       const assetAddress = await mockAsset1.getAddress();
 
       expect(await orionConfig.isWhitelisted(assetAddress)).to.equal(true);
-      await expect(orionConfig.removeWhitelistedAsset(assetAddress)).to.not.be.reverted;
-      expect(await orionConfig.isWhitelisted(assetAddress)).to.equal(false);
+      await expect(orionConfig.connect(owner).removeWhitelistedAsset(assetAddress)).to.not.be.reverted;
+      // Asset remains whitelisted until completeAssetsRemoval
+      expect(await orionConfig.isWhitelisted(assetAddress)).to.equal(true);
+      const decomm = await orionConfig.decommissioningAssets();
+      expect(decomm).to.include(assetAddress);
     });
 
-    it("Should emit WhitelistedAssetRemoved event when removing asset", async function () {
+    it("Should emit AssetDecommissioningInitiated when removing asset", async function () {
       const assetAddress = await mockAsset1.getAddress();
 
-      await expect(orionConfig.removeWhitelistedAsset(assetAddress))
-        .to.emit(orionConfig, "WhitelistedAssetRemoved")
+      await expect(orionConfig.connect(owner).removeWhitelistedAsset(assetAddress))
+        .to.emit(orionConfig, "AssetDecommissioningInitiated")
         .withArgs(assetAddress);
     });
 
-    it("Should update whitelisted assets count after removal", async function () {
+    it("Should not emit AssetDecommissioningInitiated on second call for same asset", async function () {
+      const assetAddress = await mockAsset1.getAddress();
+
+      await expect(orionConfig.connect(owner).removeWhitelistedAsset(assetAddress))
+        .to.emit(orionConfig, "AssetDecommissioningInitiated")
+        .withArgs(assetAddress);
+
+      await expect(orionConfig.connect(owner).removeWhitelistedAsset(assetAddress)).to.not.emit(
+        orionConfig,
+        "AssetDecommissioningInitiated",
+      );
+    });
+
+    it("Should keep whitelist count unchanged until completeAssetsRemoval", async function () {
       const initialCount = await orionConfig.whitelistedAssetsLength();
       expect(initialCount).to.equal(3); // underlying asset + 2 test assets
 
-      await orionConfig.removeWhitelistedAsset(await mockAsset1.getAddress());
-      const finalCount = await orionConfig.whitelistedAssetsLength();
-      expect(finalCount).to.equal(2); // underlying asset + 1 test asset
+      await orionConfig.connect(owner).removeWhitelistedAsset(await mockAsset1.getAddress());
+      // Asset still whitelisted during decommissioning
+      const countAfterDecommission = await orionConfig.whitelistedAssetsLength();
+      expect(countAfterDecommission).to.equal(3);
+      const decomm = await orionConfig.decommissioningAssets();
+      expect(decomm.length).to.equal(1);
     });
 
-    it("Should remove asset from getAllWhitelistedAssets array", async function () {
+    it("Should keep asset in getAllWhitelistedAssets until completeAssetsRemoval", async function () {
       const assetAddress = await mockAsset1.getAddress();
 
       const initialAssets = await orionConfig.getAllWhitelistedAssets();
       expect(initialAssets).to.include(assetAddress);
 
-      await orionConfig.removeWhitelistedAsset(assetAddress);
+      const initialAssetNames = await orionConfig.getAllWhitelistedAssetNames();
+      const assetName = await mockAsset1.name();
+      expect(initialAssetNames).to.include(assetName);
 
-      const finalAssets = await orionConfig.getAllWhitelistedAssets();
-      expect(finalAssets).to.not.include(assetAddress);
-    });
+      await orionConfig.connect(owner).removeWhitelistedAsset(assetAddress);
 
-    it("Should remove price adapter from registry when removing asset", async function () {
-      const assetAddress = await mockAsset1.getAddress();
+      // Asset stays in whitelist during decommissioning (for consistent state commitment)
+      const assetsAfterDecommission = await orionConfig.getAllWhitelistedAssets();
+      expect(assetsAfterDecommission).to.include(assetAddress);
+      const decomm = await orionConfig.decommissioningAssets();
+      expect(decomm).to.include(assetAddress);
 
-      await expect(priceAdapterRegistry.getPrice(assetAddress)).to.not.be.reverted;
-      await orionConfig.removeWhitelistedAsset(assetAddress);
-      await expect(priceAdapterRegistry.getPrice(assetAddress)).to.be.revertedWithCustomError(
-        priceAdapterRegistry,
-        "AdapterNotSet",
-      );
-    });
-
-    it("Should remove execution adapter from liquidity orchestrator when removing asset", async function () {
-      const assetAddress = await mockAsset1.getAddress();
-
-      const executionAdapterBefore = await liquidityOrchestrator.executionAdapterOf(assetAddress);
-      expect(executionAdapterBefore).to.not.equal(ethers.ZeroAddress);
-      await orionConfig.removeWhitelistedAsset(assetAddress);
-      const executionAdapterAfter = await liquidityOrchestrator.executionAdapterOf(assetAddress);
-      expect(executionAdapterAfter).to.equal(ethers.ZeroAddress);
+      const assetNamesAfterDecommission = await orionConfig.getAllWhitelistedAssetNames();
+      expect(assetNamesAfterDecommission).to.include(assetName);
     });
 
     it("Should revert when trying to remove non-whitelisted asset", async function () {
-      const nonWhitelistedAsset = other.address;
+      const nonWhitelistedAsset = user.address;
 
-      await expect(orionConfig.removeWhitelistedAsset(nonWhitelistedAsset))
+      await expect(orionConfig.connect(owner).removeWhitelistedAsset(nonWhitelistedAsset))
         .to.be.revertedWithCustomError(orionConfig, "TokenNotWhitelisted")
         .withArgs(nonWhitelistedAsset);
     });
@@ -249,7 +216,7 @@ describe("Config", function () {
 
       await expect(orionConfig.connect(user).addOrionVault(maliciousVault, vaultType)).to.be.revertedWithCustomError(
         orionConfig,
-        "UnauthorizedAccess",
+        "NotAuthorized",
       );
     });
 
@@ -259,167 +226,78 @@ describe("Config", function () {
 
       await expect(orionConfig.connect(owner).addOrionVault(maliciousVault, vaultType)).to.be.revertedWithCustomError(
         orionConfig,
-        "UnauthorizedAccess",
+        "NotAuthorized",
       );
     });
   });
 
-  describe("removeOrionVault", function () {
-    it("Should successfully remove an encrypted vault", async function () {
-      const vaultAddress = await vault.getAddress();
+  describe("addWhitelistedManager", function () {
+    it("Should successfully add a whitelisted manager", async function () {
+      const newManager = other.address;
 
-      // Verify vault is initially registered
-      expect(await orionConfig.isOrionVault(vaultAddress)).to.equal(true);
-
-      // Remove the vault
-      await expect(orionConfig.removeOrionVault(vaultAddress, 1)).to.not.be.reverted; // 1 = EventsLib.VaultType.Encrypted
-
-      // Verify vault is no longer registered
-      expect(await orionConfig.isOrionVault(vaultAddress)).to.equal(false);
+      expect(await orionConfig.isWhitelistedManager(newManager)).to.equal(false);
+      await expect(orionConfig.addWhitelistedManager(newManager)).to.not.be.reverted;
+      expect(await orionConfig.isWhitelistedManager(newManager)).to.equal(true);
     });
 
-    it("Should successfully remove a transparent vault", async function () {
-      // Create a transparent vault
-      const tx = await transparentVaultFactory
-        .connect(owner)
-        .createVault(curator.address, "Test Transparent Vault", "TTV", 0, 0, 0);
-      const receipt = await tx.wait();
-      const event = receipt?.logs.find((log: Log) => {
-        try {
-          const parsed = transparentVaultFactory.interface.parseLog(log);
-          return parsed?.name === "OrionVaultCreated";
-        } catch {
-          return false;
-        }
-      });
-      const parsedEvent = transparentVaultFactory.interface.parseLog(event!);
-      const transparentVaultAddress = parsedEvent?.args[0];
+    it("Should revert when trying to add already whitelisted manager", async function () {
+      const existingManager = owner.address;
 
-      // Verify transparent vault is initially registered
-      expect(await orionConfig.isOrionVault(transparentVaultAddress)).to.equal(true);
-
-      // Remove the transparent vault
-      await expect(orionConfig.removeOrionVault(transparentVaultAddress, 0)).to.not.be.reverted; // 0 = EventsLib.VaultType.Transparent
-
-      // Verify transparent vault is no longer registered
-      expect(await orionConfig.isOrionVault(transparentVaultAddress)).to.equal(false);
-    });
-
-    it("Should emit OrionVaultRemoved event when removing vault", async function () {
-      const vaultAddress = await vault.getAddress();
-
-      await expect(orionConfig.removeOrionVault(vaultAddress, 1)) // 1 = EventsLib.VaultType.Encrypted
-        .to.emit(orionConfig, "OrionVaultRemoved")
-        .withArgs(vaultAddress);
+      expect(await orionConfig.isWhitelistedManager(existingManager)).to.equal(true);
+      await expect(orionConfig.addWhitelistedManager(existingManager)).to.be.revertedWithCustomError(
+        orionConfig,
+        "AlreadyRegistered",
+      );
     });
 
     it("Should revert when called by non-owner", async function () {
-      const vaultAddress = await vault.getAddress();
+      const newManager = other.address;
 
-      await expect(orionConfig.connect(user).removeOrionVault(vaultAddress, 1))
+      await expect(orionConfig.connect(user).addWhitelistedManager(newManager)).to.be.revertedWithCustomError(
+        orionConfig,
+        "NotAuthorized",
+      );
+    });
+  });
+
+  describe("removeWhitelistedManager", function () {
+    it("Should successfully remove a whitelisted manager", async function () {
+      const ManagerToRemove = other.address;
+
+      // First, add the manager to whitelist
+      await orionConfig.addWhitelistedManager(ManagerToRemove);
+      expect(await orionConfig.isWhitelistedManager(ManagerToRemove)).to.equal(true);
+
+      // Ensure the manager is present in getAllOrionManagers before removal
+      const allManagersBefore = await orionConfig.getAllOrionManagers();
+      expect(allManagersBefore.map((a: string) => a.toLowerCase())).to.include(ManagerToRemove.toLowerCase());
+
+      // Remove the manager
+      await expect(orionConfig.removeWhitelistedManager(ManagerToRemove)).to.not.be.reverted;
+      expect(await orionConfig.isWhitelistedManager(ManagerToRemove)).to.equal(false);
+
+      // Ensure the manager is _not_ present in getAllOrionManagers after removal
+      const allManagersAfter = await orionConfig.getAllOrionManagers();
+      expect(allManagersAfter.map((a: string) => a.toLowerCase())).to.not.include(ManagerToRemove.toLowerCase());
+    });
+
+    it("Should revert when trying to remove non-whitelisted manager", async function () {
+      const nonWhitelistedManager = user.address;
+
+      expect(await orionConfig.isWhitelistedManager(nonWhitelistedManager)).to.equal(false);
+      await expect(orionConfig.removeWhitelistedManager(nonWhitelistedManager)).to.be.revertedWithCustomError(
+        orionConfig,
+        "InvalidAddress",
+      );
+    });
+
+    it("Should revert when called by non-owner", async function () {
+      const ManagerToRemove = other.address;
+      await orionConfig.addWhitelistedManager(ManagerToRemove);
+
+      await expect(orionConfig.connect(user).removeWhitelistedManager(ManagerToRemove))
         .to.be.revertedWithCustomError(orionConfig, "OwnableUnauthorizedAccount")
         .withArgs(user.address);
-    });
-
-    it("Should revert when trying to remove non-registered vault", async function () {
-      const nonRegisteredVault = other.address;
-
-      await expect(orionConfig.removeOrionVault(nonRegisteredVault, 1)).to.be.revertedWithCustomError(
-        orionConfig,
-        "UnauthorizedAccess",
-      );
-    });
-
-    it("Should revert when trying to remove vault with zero address", async function () {
-      await expect(orionConfig.removeOrionVault(ethers.ZeroAddress, 1)).to.be.revertedWithCustomError(
-        orionConfig,
-        "UnauthorizedAccess",
-      );
-    });
-
-    it("Should update vault count after removal", async function () {
-      const vaultAddress = await vault.getAddress();
-
-      // Get initial count of encrypted vaults
-      const initialVaults = await orionConfig.getAllOrionVaults(1); // 1 = EventsLib.VaultType.Encrypted
-      const initialCount = initialVaults.length;
-      expect(initialCount).to.be.greaterThan(0);
-
-      // Remove the vault
-      await orionConfig.removeOrionVault(vaultAddress, 1);
-
-      // Get final count of encrypted vaults
-      const finalVaults = await orionConfig.getAllOrionVaults(1);
-      const finalCount = finalVaults.length;
-      expect(finalCount).to.equal(initialCount - 1);
-    });
-
-    it("Should remove vault from getAllOrionVaults array", async function () {
-      const vaultAddress = await vault.getAddress();
-
-      // Verify vault is in the array initially
-      const initialVaults = await orionConfig.getAllOrionVaults(1); // 1 = EventsLib.VaultType.Encrypted
-      expect(initialVaults).to.include(vaultAddress);
-
-      // Remove the vault
-      await orionConfig.removeOrionVault(vaultAddress, 1);
-
-      // Verify vault is no longer in the array
-      const finalVaults = await orionConfig.getAllOrionVaults(1);
-      expect(finalVaults).to.not.include(vaultAddress);
-    });
-
-    it("Should return false for isOrionVault after removal", async function () {
-      const vaultAddress = await vault.getAddress();
-
-      // Verify vault is initially registered
-      expect(await orionConfig.isOrionVault(vaultAddress)).to.equal(true);
-
-      // Remove the vault
-      await orionConfig.removeOrionVault(vaultAddress, 1);
-
-      // Verify vault is no longer registered
-      expect(await orionConfig.isOrionVault(vaultAddress)).to.equal(false);
-    });
-
-    it("Should handle removal of vault with wrong vault type", async function () {
-      const vaultAddress = await vault.getAddress();
-
-      // Try to remove encrypted vault as transparent vault (wrong type)
-      await expect(orionConfig.removeOrionVault(vaultAddress, 0)) // 0 = EventsLib.VaultType.Transparent
-        .to.be.revertedWithCustomError(orionConfig, "UnauthorizedAccess");
-
-      // Verify vault is still registered
-      expect(await orionConfig.isOrionVault(vaultAddress)).to.equal(true);
-    });
-
-    it("Should allow removal of multiple vaults", async function () {
-      // Create another encrypted vault
-      const tx = await encryptedVaultFactory.connect(owner).createVault(other.address, "Test Vault 2", "TV2", 0, 0, 0);
-      const receipt = await tx.wait();
-      const event = receipt?.logs.find((log: Log) => {
-        try {
-          const parsed = encryptedVaultFactory.interface.parseLog(log);
-          return parsed?.name === "OrionVaultCreated";
-        } catch {
-          return false;
-        }
-      });
-      const parsedEvent = encryptedVaultFactory.interface.parseLog(event!);
-      const vault2Address = parsedEvent?.args[0];
-
-      // Verify both vaults are registered
-      expect(await orionConfig.isOrionVault(await vault.getAddress())).to.equal(true);
-      expect(await orionConfig.isOrionVault(vault2Address)).to.equal(true);
-
-      // Remove first vault
-      await orionConfig.removeOrionVault(await vault.getAddress(), 1);
-      expect(await orionConfig.isOrionVault(await vault.getAddress())).to.equal(false);
-      expect(await orionConfig.isOrionVault(vault2Address)).to.equal(true);
-
-      // Remove second vault
-      await orionConfig.removeOrionVault(vault2Address, 1);
-      expect(await orionConfig.isOrionVault(vault2Address)).to.equal(false);
     });
   });
 });
@@ -429,7 +307,6 @@ describe("OrionVault - Base Functionality", function () {
     it("Should revert deposit function with SynchronousCallDisabled error", async function () {
       const depositAmount = ethers.parseUnits("100", 6);
 
-      await expect(vault.previewDeposit(depositAmount)).to.be.revertedWithCustomError(vault, "SynchronousCallDisabled");
       await expect(vault.deposit(depositAmount, user.address)).to.be.revertedWithCustomError(
         vault,
         "SynchronousCallDisabled",
@@ -439,7 +316,6 @@ describe("OrionVault - Base Functionality", function () {
     it("Should revert mint function with SynchronousCallDisabled error", async function () {
       const mintAmount = ethers.parseUnits("100", 18);
 
-      await expect(vault.previewMint(mintAmount)).to.be.revertedWithCustomError(vault, "SynchronousCallDisabled");
       await expect(vault.mint(mintAmount, user.address)).to.be.revertedWithCustomError(
         vault,
         "SynchronousCallDisabled",
@@ -449,10 +325,6 @@ describe("OrionVault - Base Functionality", function () {
     it("Should revert withdraw function with SynchronousCallDisabled error", async function () {
       const withdrawAmount = ethers.parseUnits("100", 6);
 
-      await expect(vault.previewWithdraw(withdrawAmount)).to.be.revertedWithCustomError(
-        vault,
-        "SynchronousCallDisabled",
-      );
       await expect(vault.withdraw(withdrawAmount, user.address, user.address)).to.be.revertedWithCustomError(
         vault,
         "SynchronousCallDisabled",
@@ -462,7 +334,6 @@ describe("OrionVault - Base Functionality", function () {
     it("Should revert redeem function with SynchronousCallDisabled error", async function () {
       const redeemAmount = ethers.parseUnits("100", 18);
 
-      await expect(vault.previewRedeem(redeemAmount)).to.be.revertedWithCustomError(vault, "SynchronousCallDisabled");
       await expect(vault.redeem(redeemAmount, user.address, user.address)).to.be.revertedWithCustomError(
         vault,
         "SynchronousCallDisabled",
@@ -485,14 +356,14 @@ describe("OrionVault - Base Functionality", function () {
       await vault.connect(user).requestDeposit(depositAmount);
 
       // Verify deposit request was created
-      const pendingDeposits = await vault.pendingDeposit();
+      const pendingDeposits = await vault.pendingDeposit(await orionConfig.maxFulfillBatchSize());
       expect(pendingDeposits).to.equal(depositAmount);
 
       // Cancel the deposit request
       await expect(vault.connect(user).cancelDepositRequest(depositAmount)).to.not.be.reverted;
 
       // Verify deposit request was cancelled
-      const pendingDepositsAfter = await vault.pendingDeposit();
+      const pendingDepositsAfter = await vault.pendingDeposit(await orionConfig.maxFulfillBatchSize());
       expect(pendingDepositsAfter).to.equal(0);
     });
 
@@ -529,7 +400,7 @@ describe("OrionVault - Base Functionality", function () {
       await expect(vault.connect(user).cancelDepositRequest(cancelAmount)).to.not.be.reverted;
 
       // Verify remaining amount
-      const pendingDeposits = await vault.pendingDeposit();
+      const pendingDeposits = await vault.pendingDeposit(await orionConfig.maxFulfillBatchSize());
       expect(pendingDeposits).to.equal(remainingAmount);
     });
   });
@@ -553,50 +424,189 @@ describe("OrionVault - Base Functionality", function () {
     });
   });
 
-  describe("Curator Management", function () {
-    it("Should allow vault owner to update curator", async function () {
-      const newCurator = other.address;
+  describe("Redeem Request Cancellation", function () {
+    beforeEach(async function () {
+      // Setup: Give user shares by depositing and fulfilling
+      const depositAmount = ethers.parseUnits("1000", 6);
 
-      await expect(vault.connect(owner).updateCurator(newCurator)).to.not.be.reverted;
+      // Mint and approve underlying asset for user
+      await underlyingAsset.mint(user.address, depositAmount);
+      await underlyingAsset.connect(user).approve(await vault.getAddress(), depositAmount);
 
-      // Verify curator was updated
-      const updatedCurator = await vault.curator();
-      expect(updatedCurator).to.equal(newCurator);
+      // Request deposit
+      await vault.connect(user).requestDeposit(depositAmount);
+
+      // Fund the LiquidityOrchestrator so it can fulfill the deposit
+      await underlyingAsset.mint(owner.address, depositAmount);
+      await underlyingAsset.connect(owner).approve(await liquidityOrchestrator.getAddress(), depositAmount);
+      await liquidityOrchestrator.connect(owner).depositLiquidity(depositAmount);
+
+      // Impersonate LiquidityOrchestrator to fulfill deposit (gives user shares)
+      const loAddress = await liquidityOrchestrator.getAddress();
+      await impersonateAccount(loAddress);
+      await setBalance(loAddress, ethers.parseEther("1"));
+      const loSigner = await ethers.getSigner(loAddress);
+
+      await vault.connect(loSigner).fulfillDeposit(depositAmount);
+
+      // Stop impersonation
+      await ethers.provider.send("hardhat_stopImpersonatingAccount", [loAddress]);
     });
 
-    it("Should revert when non-owner tries to update curator", async function () {
-      const newCurator = other.address;
+    describe("Edge Cases", function () {
+      it("Should revert when calling cancelRedeemRequest with zero amount", async function () {
+        await expect(vault.connect(user).cancelRedeemRequest(0)).to.be.revertedWithCustomError(
+          vault,
+          "AmountMustBeGreaterThanZero",
+        );
+      });
 
-      await expect(vault.connect(user).updateCurator(newCurator)).to.be.revertedWithCustomError(
+      it("Should revert when calling cancelRedeemRequest with amount greater than pending redeem", async function () {
+        const userShares = await vault.balanceOf(user.address);
+        expect(userShares).to.be.gt(0n, "User should have shares after deposit fulfillment");
+
+        const redeemAmount = userShares / 2n;
+        const cancelAmountGreaterThanPending = redeemAmount * 2n;
+
+        await vault.connect(user).approve(await vault.getAddress(), redeemAmount);
+        await vault.connect(user).requestRedeem(redeemAmount);
+
+        await expect(
+          vault.connect(user).cancelRedeemRequest(cancelAmountGreaterThanPending),
+        ).to.be.revertedWithCustomError(vault, "InsufficientAmount");
+      });
+    });
+
+    it("Should allow user to cancel redeem request", async function () {
+      const userSharesBefore = await vault.balanceOf(user.address);
+      expect(userSharesBefore).to.be.gt(0n, "User should have shares after deposit fulfillment");
+
+      // Use half of user's shares for the test
+      const redeemAmount = userSharesBefore / 2n;
+
+      // Approve vault to transfer shares
+      await vault.connect(user).approve(await vault.getAddress(), redeemAmount);
+
+      // Request redeem
+      await vault.connect(user).requestRedeem(redeemAmount);
+
+      // Verify redeem request was created
+      const pendingRedeems = await vault.pendingRedeem(await orionConfig.maxFulfillBatchSize());
+      expect(pendingRedeems).to.be.gte(redeemAmount);
+
+      // User should have fewer shares (locked in pending redeem)
+      const sharesAfterRequest = await vault.balanceOf(user.address);
+      expect(sharesAfterRequest).to.equal(userSharesBefore - redeemAmount);
+
+      // Cancel the redeem request
+      await expect(vault.connect(user).cancelRedeemRequest(redeemAmount)).to.not.be.reverted;
+
+      // Verify shares were returned to user
+      const sharesAfterCancel = await vault.balanceOf(user.address);
+      expect(sharesAfterCancel).to.equal(userSharesBefore);
+    });
+
+    it("Should allow partial cancellation of redeem request", async function () {
+      const userSharesBefore = await vault.balanceOf(user.address);
+      expect(userSharesBefore).to.be.gt(0n, "User should have shares after deposit fulfillment");
+
+      // Use half of user's shares, cancel 30% of that
+      const redeemAmount = userSharesBefore / 2n;
+      const cancelAmount = (redeemAmount * 3n) / 10n; // 30% of redeem amount
+      const remainingRedeem = redeemAmount - cancelAmount;
+
+      // Approve vault to transfer shares
+      await vault.connect(user).approve(await vault.getAddress(), redeemAmount);
+
+      // Request redeem
+      await vault.connect(user).requestRedeem(redeemAmount);
+
+      // Cancel partial amount
+      await expect(vault.connect(user).cancelRedeemRequest(cancelAmount)).to.not.be.reverted;
+
+      // Verify partial shares were returned
+      const sharesAfterPartialCancel = await vault.balanceOf(user.address);
+      expect(sharesAfterPartialCancel).to.equal(userSharesBefore - remainingRedeem);
+
+      // Verify pending redeems matches the remaining amount for this single request
+      const pendingRedeems = await vault.pendingRedeem(await orionConfig.maxFulfillBatchSize());
+      expect(pendingRedeems).to.equal(remainingRedeem);
+    });
+
+    it("Should revert when caller has no pending redeem request", async function () {
+      // User has shares from beforeEach but has NOT opened a redeem request yet
+      const userShares = await vault.balanceOf(user.address);
+      expect(userShares).to.be.gt(0n, "User should have shares after deposit fulfillment");
+
+      const cancelAmount = userShares / 2n;
+      await expect(vault.connect(user).cancelRedeemRequest(cancelAmount)).to.be.revertedWithCustomError(
         vault,
-        "UnauthorizedAccess",
+        "InsufficientAmount",
       );
     });
 
-    it("Should revert when setting curator to zero address", async function () {
-      await expect(vault.connect(owner).updateCurator(ethers.ZeroAddress)).to.be.revertedWithCustomError(
+    it("Should revert when a different account attempts to cancel someone else's redeem", async function () {
+      const userSharesBefore = await vault.balanceOf(user.address);
+      expect(userSharesBefore).to.be.gt(0n, "User should have shares after deposit fulfillment");
+
+      const redeemAmount = userSharesBefore / 2n;
+
+      await vault.connect(user).approve(await vault.getAddress(), redeemAmount);
+
+      await vault.connect(user).requestRedeem(redeemAmount);
+
+      // Verify user's redeem request exists
+      const pendingRedeems = await vault.pendingRedeem(await orionConfig.maxFulfillBatchSize());
+      expect(pendingRedeems).to.be.gte(redeemAmount);
+
+      await expect(vault.connect(other).cancelRedeemRequest(redeemAmount)).to.be.revertedWithCustomError(
         vault,
-        "InvalidAddress",
+        "InsufficientAmount",
+      );
+
+      // Verify user's redeem request is still intact
+      const pendingRedeemsAfter = await vault.pendingRedeem(await orionConfig.maxFulfillBatchSize());
+      expect(pendingRedeemsAfter).to.equal(pendingRedeems);
+    });
+  });
+
+  describe("Strategist Management", function () {
+    it("Should allow manager to update strategist", async function () {
+      const newStrategist = other.address;
+
+      await expect(vault.connect(owner).updateStrategist(newStrategist)).to.not.be.reverted;
+
+      // Verify strategist was updated
+      const updatedStrategist = await vault.strategist();
+      expect(updatedStrategist).to.equal(newStrategist);
+    });
+
+    it("Should revert when non-manager tries to update strategist", async function () {
+      const newStrategist = other.address;
+
+      await expect(vault.connect(user).updateStrategist(newStrategist)).to.be.revertedWithCustomError(
+        vault,
+        "NotAuthorized",
       );
     });
 
-    it("Should emit CuratorUpdated event when curator is updated", async function () {
-      const newCurator = other.address;
+    it("Should emit StrategistUpdated event when strategist is updated", async function () {
+      const newStrategist = other.address;
 
-      await expect(vault.connect(owner).updateCurator(newCurator))
-        .to.emit(vault, "CuratorUpdated")
-        .withArgs(newCurator);
+      await expect(vault.connect(owner).updateStrategist(newStrategist))
+        .to.emit(vault, "StrategistUpdated")
+        .withArgs(newStrategist);
     });
   });
 
   describe("Pending Amounts", function () {
     it("Should return zero pending deposits initially", async function () {
-      const pendingDeposits = await vault.pendingDeposit();
+      const pendingDeposits = await vault.pendingDeposit(await orionConfig.maxFulfillBatchSize());
       expect(pendingDeposits).to.equal(0);
     });
 
     it("Should return zero pending redemptions initially", async function () {
-      const pendingRedeems = await vault.pendingRedeem();
+      const pendingRedeems = await vault.pendingRedeem(await orionConfig.maxFulfillBatchSize());
       expect(pendingRedeems).to.equal(0);
     });
 
@@ -607,32 +617,25 @@ describe("OrionVault - Base Functionality", function () {
       await vault.connect(user).requestDeposit(depositAmount);
 
       // Check pending deposits
-      const pendingDeposits = await vault.pendingDeposit();
+      const pendingDeposits = await vault.pendingDeposit(await orionConfig.maxFulfillBatchSize());
       expect(pendingDeposits).to.equal(depositAmount);
     });
   });
 
   describe("Access Control", function () {
-    it("Should only allow vault owner to call owner-only functions", async function () {
-      // Test updateCurator function
-      await expect(vault.connect(user).updateCurator(other.address)).to.be.revertedWithCustomError(
+    it("Should only allow manager to call owner-only functions", async function () {
+      await expect(vault.connect(user).updateStrategist(other.address)).to.be.revertedWithCustomError(
         vault,
-        "UnauthorizedAccess",
+        "NotAuthorized",
       );
 
-      await expect(vault.connect(curator).updateCurator(other.address)).to.be.revertedWithCustomError(
+      await expect(vault.connect(strategist).updateStrategist(other.address)).to.be.revertedWithCustomError(
         vault,
-        "UnauthorizedAccess",
+        "NotAuthorized",
       );
 
       // Only owner should be able to call
-      await expect(vault.connect(owner).updateCurator(other.address)).to.not.be.reverted;
-    });
-
-    it("Should only allow curator to call curator-only functions", async function () {
-      // This would be tested in the specific vault implementations
-      // (transparent or encrypted) since submitIntent is implemented there
-      expect(await vault.curator()).to.equal(curator.address);
+      await expect(vault.connect(owner).updateStrategist(other.address)).to.not.be.reverted;
     });
   });
 
