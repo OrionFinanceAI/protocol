@@ -2,13 +2,13 @@ import { expect } from "chai";
 import { ethers, upgrades } from "hardhat";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import "@openzeppelin/hardhat-upgrades";
-import { MockUnderlyingAsset, MockERC4626Asset, OrionAssetERC4626PriceAdapter, OrionConfig } from "../typechain-types";
+import { MockUnderlyingAsset, MockERC4626Asset, ERC4626PriceAdapter, OrionConfig } from "../typechain-types";
 import { resetNetwork } from "./helpers/resetNetwork";
 
 describe("Price Adapter Truncation", function () {
   let underlying: MockUnderlyingAsset;
   let vault: MockERC4626Asset;
-  let priceAdapter: OrionAssetERC4626PriceAdapter;
+  let priceAdapter: ERC4626PriceAdapter;
   let orionConfig: OrionConfig;
   let deployer: SignerWithAddress;
 
@@ -30,10 +30,10 @@ describe("Price Adapter Truncation", function () {
     })) as unknown as OrionConfig;
     await orionConfig.waitForDeployment();
 
-    const OrionAssetERC4626PriceAdapterFactory = await ethers.getContractFactory("OrionAssetERC4626PriceAdapter");
-    priceAdapter = (await OrionAssetERC4626PriceAdapterFactory.deploy(
+    const ERC4626PriceAdapterFactory = await ethers.getContractFactory("ERC4626PriceAdapter");
+    priceAdapter = (await ERC4626PriceAdapterFactory.deploy(
       await orionConfig.getAddress(),
-    )) as unknown as OrionAssetERC4626PriceAdapter;
+    )) as unknown as ERC4626PriceAdapter;
     await priceAdapter.waitForDeployment();
 
     const MockERC4626AssetFactory = await ethers.getContractFactory("MockERC4626Asset");
