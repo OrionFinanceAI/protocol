@@ -1,7 +1,14 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
-import { MockUnderlyingAsset, MockERC4626Asset, ERC4626PriceAdapter, OrionConfig, MockExecutionAdapter, MockPriceAdapter } from "../typechain-types";
+import {
+  MockUnderlyingAsset,
+  MockERC4626Asset,
+  ERC4626PriceAdapter,
+  OrionConfig,
+  MockExecutionAdapter,
+  MockPriceAdapter,
+} from "../typechain-types";
 import { resetNetwork } from "./helpers/resetNetwork";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 
@@ -45,7 +52,7 @@ describe("Price Adapter Truncation", function () {
     await orionConfig.addWhitelistedAsset(
       await vaultUnderlying.getAddress(),
       await mockUnderlyingPriceAdapter.getAddress(),
-      await mockExecutionAdapter.getAddress()
+      await mockExecutionAdapter.getAddress(),
     );
 
     // Deploy ERC4626PriceAdapter for testing precision
@@ -70,7 +77,7 @@ describe("Price Adapter Truncation", function () {
     await orionConfig.addWhitelistedAsset(
       await vault.getAddress(),
       await priceAdapter.getAddress(),
-      await vaultMockExecutionAdapter.getAddress()
+      await vaultMockExecutionAdapter.getAddress(),
     );
 
     const hugeDeposit = ethers.parseUnits("1000000000000000000000000", 18);
@@ -108,8 +115,9 @@ describe("Price Adapter Truncation", function () {
 
     // Step 3: Compose the prices manually
     // Price = (underlyingPerShare * underlyingPriceInUSDC) / (10^vaultDecimals) normalized to 14 decimals
-    const expectedPrice = (underlyingPerShare * underlyingPriceInUSDC * (10n ** 14n)) /
-                          (oneVaultShare * (10n ** BigInt(underlyingPriceDecimals)));
+    const expectedPrice =
+      (underlyingPerShare * underlyingPriceInUSDC * 10n ** 14n) /
+      (oneVaultShare * 10n ** BigInt(underlyingPriceDecimals));
 
     // Step 4: Get price from ERC4626PriceAdapter
     const [priceFromAdapter, priceDecimals] = await priceAdapter.getPriceData(await vault.getAddress());
@@ -119,9 +127,8 @@ describe("Price Adapter Truncation", function () {
 
     // Verify price matches our manual calculation (perfect precision, no truncation)
     // Allow for at most 1 unit of the lowest decimal place due to rounding in different order of operations
-    const priceDifference = priceFromAdapter > expectedPrice
-      ? priceFromAdapter - expectedPrice
-      : expectedPrice - priceFromAdapter;
+    const priceDifference =
+      priceFromAdapter > expectedPrice ? priceFromAdapter - expectedPrice : expectedPrice - priceFromAdapter;
 
     expect(priceDifference).to.be.lte(1n, "ERC4626PriceAdapter should preserve precision within 1 unit");
   });

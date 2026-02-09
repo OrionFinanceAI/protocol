@@ -221,9 +221,7 @@ describe("Orchestrator Configuration", function () {
     // Set minibatch size to a large value to process all vaults in one batch for tests
     await liquidityOrchestrator.connect(owner).updateMinibatchSize(8);
 
-    const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
-      "ERC4626ExecutionAdapter",
-    );
+    const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
     orionExecutionAdapter = (await ERC4626ExecutionAdapterFactory.deploy(
       await orionConfig.getAddress(),
       await liquidityOrchestrator.getAddress(),

@@ -294,10 +294,6 @@ describe("LiquidityOrchestrator - Centralized Slippage Management", function () 
       const slippage = await liquidityOrchestrator.slippageTolerance();
       const expectedApproval = (estimatedUnderlying * (BASIS_POINTS_FACTOR + slippage)) / BASIS_POINTS_FACTOR;
 
-      // Spy on adapter before calling buy
-      const adapterAddress = await executionAdapter.getAddress();
-      const underlyingAddress = await underlyingAsset.getAddress();
-
       // Execute buy through LO's internal call mechanism
       // Note: We can't directly test _executeBuy as it's internal, but we verify via integration
 
@@ -328,12 +324,12 @@ describe("LiquidityOrchestrator - Centralized Slippage Management", function () 
 
       // Calculate with 2% slippage
       let slippage = await liquidityOrchestrator.slippageTolerance();
-      let maxAmount1 = (estimatedUnderlying * (BASIS_POINTS_FACTOR + slippage)) / BASIS_POINTS_FACTOR;
+      const maxAmount1 = (estimatedUnderlying * (BASIS_POINTS_FACTOR + slippage)) / BASIS_POINTS_FACTOR;
 
       // Change to 5% slippage
       await liquidityOrchestrator.setSlippageTolerance(500);
       slippage = await liquidityOrchestrator.slippageTolerance();
-      let maxAmount2 = (estimatedUnderlying * (BASIS_POINTS_FACTOR + slippage)) / BASIS_POINTS_FACTOR;
+      const maxAmount2 = (estimatedUnderlying * (BASIS_POINTS_FACTOR + slippage)) / BASIS_POINTS_FACTOR;
 
       // Verify the max amount increased
       expect(maxAmount2).to.be.gt(maxAmount1);
