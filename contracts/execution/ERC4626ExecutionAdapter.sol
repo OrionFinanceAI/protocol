@@ -95,30 +95,28 @@ contract ERC4626ExecutionAdapter is IExecutionAdapter {
     function buy(
         address vaultAsset,
         uint256 sharesAmount,
-        uint256 estimatedUnderlyingAmount
+        uint256 /* estimatedUnderlyingAmount */
     ) external override onlyLiquidityOrchestrator returns (uint256 executionUnderlyingAmount) {
-        return _buyInternal(vaultAsset, sharesAmount, estimatedUnderlyingAmount, "");
+        return _buyInternal(vaultAsset, sharesAmount, "");
     }
 
     /// @inheritdoc IExecutionAdapter
     function sell(
         address vaultAsset,
         uint256 sharesAmount,
-        uint256 estimatedUnderlyingAmount
+        uint256 /* estimatedUnderlyingAmount */
     ) external override onlyLiquidityOrchestrator returns (uint256 executionUnderlyingAmount) {
-        return _sellInternal(vaultAsset, sharesAmount, estimatedUnderlyingAmount, "");
+        return _sellInternal(vaultAsset, sharesAmount, "");
     }
 
     /// @notice Internal buy implementation with routing
     /// @param vaultAsset The ERC4626 vault asset to buy
     /// @param sharesAmount The amount of vault shares to mint
-    /// @param estimatedUnderlyingAmount The estimated underlying amount to spend
     /// @param routeParams Optional routing parameters for cross-asset swaps
     /// @return executionUnderlyingAmount The amount of protocol underlying spent
     function _buyInternal(
         address vaultAsset,
         uint256 sharesAmount,
-        uint256 estimatedUnderlyingAmount,
         bytes memory routeParams
     ) internal returns (uint256 executionUnderlyingAmount) {
         // Validate asset
@@ -210,13 +208,11 @@ contract ERC4626ExecutionAdapter is IExecutionAdapter {
     /// @notice Internal sell implementation with routing
     /// @param vaultAsset The ERC4626 vault asset to sell
     /// @param sharesAmount The amount of vault shares to redeem
-    /// @param estimatedUnderlyingAmount The estimated underlying amount to receive
     /// @param routeParams Optional routing parameters for cross-asset swaps
     /// @return executionUnderlyingAmount The amount of protocol underlying received
     function _sellInternal(
         address vaultAsset,
         uint256 sharesAmount,
-        uint256 estimatedUnderlyingAmount,
         bytes memory routeParams
     ) internal returns (uint256 executionUnderlyingAmount) {
         // Validate asset

@@ -5,20 +5,11 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract MockERC4626Asset is ERC4626 {
-    uint8 private immutable _decimals;
-
     constructor(
         ERC20 _underlyingAsset,
         string memory _name,
         string memory _symbol
-    ) ERC20(_name, _symbol) ERC4626(_underlyingAsset) {
-        _decimals = _underlyingAsset.decimals();
-    }
-
-    /// @notice Override to return underlying asset decimals instead of default 18
-    function decimals() public view virtual override(ERC4626) returns (uint8) {
-        return _decimals;
-    }
+    ) ERC20(_name, _symbol) ERC4626(_underlyingAsset) {}
 
     /// @notice Simulate gains by directly transferring underlying assets to the vault
     /// @dev This increases total assets without minting shares, effectively increasing share price
