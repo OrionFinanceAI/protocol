@@ -748,6 +748,20 @@ contract LiquidityOrchestrator is
         }
     }
 
+    /// @notice Calculate maximum amount with slippage applied
+    /// @param estimatedAmount The estimated amount
+    /// @return maxAmount Maximum amount including slippage tolerance
+    function _calculateMaxWithSlippage(uint256 estimatedAmount) internal view returns (uint256 maxAmount) {
+        return estimatedAmount.mulDiv(BASIS_POINTS_FACTOR + slippageTolerance, BASIS_POINTS_FACTOR);
+    }
+
+    /// @notice Calculate minimum amount with slippage applied
+    /// @param estimatedAmount The estimated amount
+    /// @return minAmount Minimum amount including slippage tolerance
+    function _calculateMinWithSlippage(uint256 estimatedAmount) internal view returns (uint256 minAmount) {
+        return estimatedAmount.mulDiv(BASIS_POINTS_FACTOR - slippageTolerance, BASIS_POINTS_FACTOR);
+    }
+
     /// @notice Executes a sell order
     /// @param asset The asset to sell
     /// @param sharesAmount The amount of shares to sell
@@ -772,16 +786,12 @@ contract LiquidityOrchestrator is
     /// @param asset The asset to buy
     /// @param sharesAmount The amount of shares to buy
     /// @param estimatedUnderlyingAmount The estimated underlying amount to spend
-    /// @dev The adapter handles slippage tolerance internally.
     function _executeBuy(address asset, uint256 sharesAmount, uint256 estimatedUnderlyingAmount) external onlySelf {
         IExecutionAdapter adapter = executionAdapterOf[asset];
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
 
-        // Approve adapter to spend underlying assets
-        IERC20(underlyingAsset).forceApprove(
-            address(adapter),
-            estimatedUnderlyingAmount.mulDiv(BASIS_POINTS_FACTOR + slippageTolerance, BASIS_POINTS_FACTOR)
-        );
+        // Approve adapter to spend underlying assets with slippage tolerance
+        IERC20(underlyingAsset).forceApprove(address(adapter), _calculateMaxWithSlippage(estimatedUnderlyingAmount));
 
         // Execute buy through adapter, pull underlying assets from this contract and push shares to it.
         uint256 executionUnderlyingAmount = adapter.buy(asset, sharesAmount, estimatedUnderlyingAmount);
