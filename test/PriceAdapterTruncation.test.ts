@@ -1,6 +1,7 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
+import "@openzeppelin/hardhat-upgrades";
 import {
   MockUnderlyingAsset,
   MockERC4626Asset,
