@@ -83,11 +83,9 @@ describe("Whitelist and Vault Removal Flows", function () {
 
     console.log("orionConfig address", await orionConfig.getAddress());
 
-    // Deploy price adapter
-    const ERC4626PriceAdapterFactory = await ethers.getContractFactory("ERC4626PriceAdapter");
-    orionPriceAdapter = (await ERC4626PriceAdapterFactory.deploy(
-      await orionConfig.getAddress(),
-    )) as unknown as ERC4626PriceAdapter;
+    // Deploy MockPriceAdapter - these vaults use USDC as underlying (same-asset), ERC4626PriceAdapter rejects same-asset
+    const MockPriceAdapterFactory = await ethers.getContractFactory("MockPriceAdapter");
+    orionPriceAdapter = (await MockPriceAdapterFactory.deploy()) as unknown as ERC4626PriceAdapter;
     await orionPriceAdapter.waitForDeployment();
 
     // Configure protocol
