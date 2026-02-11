@@ -18,19 +18,13 @@ interface IExecutionAdapter {
 
     /// @notice Executes a sell operation by converting asset shares to underlying assets
     /// @param asset The address of the asset to sell
-    /// @param sharesAmount The amount of shares to sell
+    /// @param sharesAmount The amount of asset shares to sell
     /// @return executionUnderlyingAmount The actual execution underlying amount received
-    function sell(
-        address asset,
-        uint256 sharesAmount
-    ) external returns (uint256 executionUnderlyingAmount);
+    function sell(address asset, uint256 sharesAmount) external returns (uint256 executionUnderlyingAmount);
 
     /// @notice Executes a buy operation by converting underlying assets to asset shares
     /// @param asset The address of the asset to buy
-    /// @param sharesAmount The amount of shares to buy
+    /// @param sharesAmount The amount of underlying assets to buy
     /// @return executionUnderlyingAmount The actual execution underlying amount spent
-    function buy(
-        address asset,
-        uint256 sharesAmount
-    ) external returns (uint256 executionUnderlyingAmount);
+    function buy(address asset, uint256 sharesAmount) external returns (uint256 executionUnderlyingAmount);
 }

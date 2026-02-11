@@ -8,11 +8,7 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
-import {
-  UniswapV3ExecutionAdapter,
-  MockUniswapV3Router,
-  MockUnderlyingAsset,
-} from "../../typechain-types";
+import { UniswapV3ExecutionAdapter, MockUniswapV3Router, MockUnderlyingAsset } from "../../typechain-types";
 
 describe("Swap Executors - Unit Tests", function () {
   let adapter: SignerWithAddress;
