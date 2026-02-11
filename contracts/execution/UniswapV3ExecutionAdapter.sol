@@ -1,35 +1,21 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import { ISwapExecutor } from "../../interfaces/ISwapExecutor.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { ErrorsLib } from "../../libraries/ErrorsLib.sol";
+import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { ISwapRouter } from "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
+import { IExecutionAdapter } from "../interfaces/IExecutionAdapter.sol";
 
 /**
- * @title UniswapV3TokenSwapExecutor
- * @notice Executes token swaps via Uniswap V3 router
+ * @title UniswapV3ExecutionAdapter
+ * @notice Executes token trades via Uniswap V3 pools
  * @author Orion Finance
- * @dev Dedicated token swap executor for arbitrary token pairs via Uniswap V3
- *
- * Route Parameters Format (abi.encode):
- * - uint24 fee: Uniswap V3 fee tier (500 = 0.05%, 3000 = 0.3%, 10000 = 1%)
- *
- * Architecture:
- * - Stateless swap execution
- * - No slippage logic (enforced by caller)
- * - No oracle dependency
- * - Optimized for volatile token pairs (USDC/WETH, USDC/WBTC, etc.)
- *
- * Security:
- * - All approvals are transient and zeroed after use
- * - Refunds unused input tokens to caller
- * - Respects amountInMax and amountOutMin limits
+ * @dev Dedicated token execution adapter for arbitrary token pairs via Uniswap V3
  *
  * @custom:security-contact security@orionfinance.ai
  */
-contract UniswapV3TokenSwapExecutor is ISwapExecutor {
+contract UniswapV3ExecutionAdapter is IExecutionAdapter {
     using SafeERC20 for IERC20;
 
     /// @notice Uniswap V3 SwapRouter contract

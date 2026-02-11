@@ -2,7 +2,7 @@
  * ERC4626ExecutionAdapter E2E Tests
  *
  * Tests the new architecture where:
- * 1. Token swap executors are registered for tokens (WETH → UniswapV3TokenSwapExecutor)
+ * 1. Token swap executors are registered for tokens (WETH → UniswapV3ExecutionAdapter)
  * 2. Vault adapters are registered for vaults (Morpho WETH vault → ERC4626ExecutionAdapter)
  * 3. Vault adapters delegate to swap executors via LO's executionAdapterOf mapping
  *
@@ -21,7 +21,7 @@ import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import {
   OrionConfig,
   ERC4626ExecutionAdapter,
-  UniswapV3TokenSwapExecutor,
+  UniswapV3ExecutionAdapter,
   ChainlinkPriceAdapter,
   MockERC4626PriceAdapter,
   IERC4626,
@@ -61,7 +61,7 @@ describe("ERC4626ExecutionAdapter", function () {
 
   // Adapters
   let vaultAdapter: ERC4626ExecutionAdapter;
-  let tokenSwapExecutor: UniswapV3TokenSwapExecutor;
+  let tokenSwapExecutor: UniswapV3ExecutionAdapter;
 
   // Price adapters
   let chainlinkAdapter: ChainlinkPriceAdapter;
@@ -139,7 +139,7 @@ describe("ERC4626ExecutionAdapter", function () {
       vaultPriceAdapter = await VaultPriceAdapterFactory.deploy(await orionConfig.getAddress());
 
       // Deploy token swap executor (for WETH token swaps)
-      const TokenSwapExecutorFactory = await ethers.getContractFactory("UniswapV3TokenSwapExecutor");
+      const TokenSwapExecutorFactory = await ethers.getContractFactory("UniswapV3ExecutionAdapter");
       tokenSwapExecutor = await TokenSwapExecutorFactory.deploy(MAINNET.UNISWAP_ROUTER);
 
       // Deploy vault adapter (for ERC4626 vaults)

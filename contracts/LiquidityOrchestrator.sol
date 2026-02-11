@@ -774,7 +774,9 @@ contract LiquidityOrchestrator is
         IERC20(asset).forceApprove(address(adapter), sharesAmount);
 
         // Execute sell through adapter, pull shares from this contract and push underlying assets to it.
-        uint256 executionUnderlyingAmount = adapter.sell(asset, sharesAmount, estimatedUnderlyingAmount);
+        uint256 executionUnderlyingAmount = adapter.sell(asset, sharesAmount);
+
+        // TODO: _calculateMinWithSlippage, executionUnderlyingAmount, estimatedUnderlyingAmount to be used to fail high slippage trades.
 
         // Clean up approval
         IERC20(asset).forceApprove(address(adapter), 0);
@@ -794,7 +796,7 @@ contract LiquidityOrchestrator is
         IERC20(underlyingAsset).forceApprove(address(adapter), _calculateMaxWithSlippage(estimatedUnderlyingAmount));
 
         // Execute buy through adapter, pull underlying assets from this contract and push shares to it.
-        uint256 executionUnderlyingAmount = adapter.buy(asset, sharesAmount, estimatedUnderlyingAmount);
+        uint256 executionUnderlyingAmount = adapter.buy(asset, sharesAmount);
 
         // Clean up approval
         IERC20(underlyingAsset).forceApprove(address(adapter), 0);

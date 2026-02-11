@@ -9,19 +9,17 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import {
-  UniswapV3TokenSwapExecutor,
-  CurveSwapExecutor,
+  UniswapV3ExecutionAdapter,
   MockUniswapV3Router,
   MockUnderlyingAsset,
-  MockCurvePool,
 } from "../../typechain-types";
 
 describe("Swap Executors - Unit Tests", function () {
   let adapter: SignerWithAddress;
   let user: SignerWithAddress;
 
-  describe("UniswapV3TokenSwapExecutor", function () {
-    let executor: UniswapV3TokenSwapExecutor;
+  describe("UniswapV3ExecutionAdapter", function () {
+    let executor: UniswapV3ExecutionAdapter;
     let mockRouter: MockUniswapV3Router;
     let mockTokenIn: MockUnderlyingAsset;
     let mockTokenOut: MockUnderlyingAsset;
@@ -42,9 +40,9 @@ describe("Swap Executors - Unit Tests", function () {
       mockRouter = routerDeployed as unknown as MockUniswapV3Router;
 
       // Deploy executor
-      const ExecutorFactory = await ethers.getContractFactory("UniswapV3TokenSwapExecutor");
+      const ExecutorFactory = await ethers.getContractFactory("UniswapV3ExecutionAdapter");
       const executorDeployed = await ExecutorFactory.deploy(await mockRouter.getAddress());
-      executor = executorDeployed as unknown as UniswapV3TokenSwapExecutor;
+      executor = executorDeployed as unknown as UniswapV3ExecutionAdapter;
     });
 
     describe("Exact-Output Swap", function () {
@@ -217,163 +215,6 @@ describe("Swap Executors - Unit Tests", function () {
             .connect(adapter)
             .swapExactOutput(ethers.ZeroAddress, await mockTokenOut.getAddress(), 1000, 2000, routeParams),
         ).to.be.reverted;
-      });
-    });
-  });
-
-  describe("CurveSwapExecutor", function () {
-    let executor: CurveSwapExecutor;
-    let mockPool: MockCurvePool;
-    let mockTokenIn: MockUnderlyingAsset;
-    let mockTokenOut: MockUnderlyingAsset;
-
-    beforeEach(async function () {
-      [, adapter, user] = await ethers.getSigners();
-
-      // Deploy mock tokens
-      const MockERC20 = await ethers.getContractFactory("MockUnderlyingAsset");
-      const tokenInDeployed = await MockERC20.deploy(6);
-      const tokenOutDeployed = await MockERC20.deploy(6);
-      mockTokenIn = tokenInDeployed as unknown as MockUnderlyingAsset; // USDC
-      mockTokenOut = tokenOutDeployed as unknown as MockUnderlyingAsset; // USDT
-
-      // Deploy mock Curve pool
-      const MockCurvePoolFactory = await ethers.getContractFactory("MockCurvePool");
-      const poolDeployed = await MockCurvePoolFactory.deploy();
-      mockPool = poolDeployed as unknown as MockCurvePool;
-
-      // Deploy executor
-      const ExecutorFactory = await ethers.getContractFactory("CurveSwapExecutor");
-      executor = await ExecutorFactory.deploy();
-    });
-
-    describe("Exact-Output Swap (Stablecoin)", function () {
-      it("Should approximate exact-output for stablecoins", async function () {
-        const amountOut = ethers.parseUnits("1000", 6); // 1000 USDT
-        const amountInMax = ethers.parseUnits("1005", 6); // Max 1005 USDC (allows for buffer)
-        const routeParams = ethers.AbiCoder.defaultAbiCoder().encode(
-          ["address", "int128", "int128", "bool"],
-          [await mockPool.getAddress(), 0, 1, false],
-        );
-
-        await mockTokenIn.mint(adapter.address, amountInMax);
-        await mockTokenIn.connect(adapter).approve(await executor.getAddress(), amountInMax);
-
-        // Configure mock pool to mint output tokens
-        await mockPool.setTokenOut(await mockTokenOut.getAddress());
-
-        // Mock Curve pool to return slightly more than requested (1001 USDT)
-        await mockPool.setNextExchangeResult(ethers.parseUnits("1001", 6));
-
-        await executor
-          .connect(adapter)
-          .swapExactOutput(
-            await mockTokenIn.getAddress(),
-            await mockTokenOut.getAddress(),
-            amountOut,
-            amountInMax,
-            routeParams,
-          );
-
-        // Verify adapter received at least the exact amount
-        const outputBalance = await mockTokenOut.balanceOf(adapter.address);
-        expect(outputBalance).to.be.gte(amountOut);
-      });
-
-      it("Should refund excess output tokens", async function () {
-        const amountOut = ethers.parseUnits("1000", 6);
-        const amountInMax = ethers.parseUnits("1005", 6);
-        const routeParams = ethers.AbiCoder.defaultAbiCoder().encode(
-          ["address", "int128", "int128", "bool"],
-          [await mockPool.getAddress(), 0, 1, false],
-        );
-
-        await mockTokenIn.mint(adapter.address, amountInMax);
-        await mockTokenIn.connect(adapter).approve(await executor.getAddress(), amountInMax);
-
-        // Configure mock pool
-        await mockPool.setTokenOut(await mockTokenOut.getAddress());
-
-        // Mock pool returns 1010 USDT (10 more than needed)
-        const actualOut = ethers.parseUnits("1010", 6);
-        await mockPool.setNextExchangeResult(actualOut);
-
-        await executor
-          .connect(adapter)
-          .swapExactOutput(
-            await mockTokenIn.getAddress(),
-            await mockTokenOut.getAddress(),
-            amountOut,
-            amountInMax,
-            routeParams,
-          );
-
-        // Adapter should receive all output (including excess)
-        const outputBalance = await mockTokenOut.balanceOf(adapter.address);
-        expect(outputBalance).to.equal(actualOut);
-      });
-    });
-
-    describe("Exact-Input Swap", function () {
-      it("Should execute exact-input swap successfully", async function () {
-        const amountIn = ethers.parseUnits("1000", 6);
-        const amountOutMin = ethers.parseUnits("995", 6); // Min 995 USDT
-        const routeParams = ethers.AbiCoder.defaultAbiCoder().encode(
-          ["address", "int128", "int128", "bool"],
-          [await mockPool.getAddress(), 0, 1, false],
-        );
-
-        await mockTokenIn.mint(adapter.address, amountIn);
-        await mockTokenIn.connect(adapter).approve(await executor.getAddress(), amountIn);
-
-        // Configure mock pool
-        await mockPool.setTokenOut(await mockTokenOut.getAddress());
-
-        // Mock pool returns 998 USDT
-        await mockPool.setNextExchangeResult(ethers.parseUnits("998", 6));
-
-        await executor
-          .connect(adapter)
-          .swapExactInput(
-            await mockTokenIn.getAddress(),
-            await mockTokenOut.getAddress(),
-            amountIn,
-            amountOutMin,
-            routeParams,
-          );
-
-        const outputBalance = await mockTokenOut.balanceOf(adapter.address);
-        expect(outputBalance).to.be.gte(amountOutMin);
-      });
-
-      it("Should support exchange_underlying for wrapped tokens", async function () {
-        const amountIn = ethers.parseUnits("1000", 6);
-        const amountOutMin = ethers.parseUnits("995", 6);
-        const routeParams = ethers.AbiCoder.defaultAbiCoder().encode(
-          ["address", "int128", "int128", "bool"],
-          [await mockPool.getAddress(), 0, 1, true], // useUnderlying = true
-        );
-
-        await mockTokenIn.mint(adapter.address, amountIn);
-        await mockTokenIn.connect(adapter).approve(await executor.getAddress(), amountIn);
-
-        // Configure mock pool
-        await mockPool.setTokenOut(await mockTokenOut.getAddress());
-
-        await mockPool.setNextExchangeResult(ethers.parseUnits("998", 6));
-
-        await executor
-          .connect(adapter)
-          .swapExactInput(
-            await mockTokenIn.getAddress(),
-            await mockTokenOut.getAddress(),
-            amountIn,
-            amountOutMin,
-            routeParams,
-          );
-
-        // Verify pool.exchange_underlying was called (check mock state)
-        void expect(await mockPool.lastUsedUnderlying()).to.be.true;
       });
     });
   });

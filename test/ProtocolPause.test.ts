@@ -108,13 +108,13 @@ describe("Protocol Pause Functionality", function () {
     await priceAdapterDeployed.waitForDeployment();
 
     // Deploy Mock Swap Executor
-    const MockSwapExecutorFactory = await ethers.getContractFactory("MockSwapExecutor");
-    const mockSwapExecutor = await MockSwapExecutorFactory.deploy();
-    await mockSwapExecutor.waitForDeployment();
+    const MockExecutionAdapterFactory = await ethers.getContractFactory("MockExecutionAdapter");
+    const MockExecutionAdapter = await MockExecutionAdapterFactory.deploy();
+    await MockExecutionAdapter.waitForDeployment();
 
     // Deploy Execution Adapter
     const AdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
-    const adapterDeployed = await AdapterFactory.deploy(await config.getAddress(), await mockSwapExecutor.getAddress());
+    const adapterDeployed = await AdapterFactory.deploy(await config.getAddress(), await MockExecutionAdapter.getAddress());
     await adapterDeployed.waitForDeployment();
     adapter = adapterDeployed as unknown as ERC4626ExecutionAdapter;
 

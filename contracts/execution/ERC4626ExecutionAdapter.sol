@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import { ISwapExecutor } from "../interfaces/ISwapExecutor.sol";
 import { IExecutionAdapter } from "../interfaces/IExecutionAdapter.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
@@ -13,22 +12,11 @@ import { ILiquidityOrchestrator } from "../interfaces/ILiquidityOrchestrator.sol
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 /**
  * @title ERC4626ExecutionAdapter
- * @notice ERC4626 execution adapter that delegates swaps to token-specific swap executors
+ * @notice Underlying-agnostic ERC4626 execution adapter
  * @author Orion Finance
  * @dev Architecture:
- * - Handles same-asset flows: USDC → vault (no swap)
- * - Handles cross-asset flows: USDC → SwapExecutor → underlying → vault
- * - Gets swap executor from LO's executionAdapterOf[vaultUnderlying]
- *
- * Example setup:
- * - WETH token → UniswapV3TokenSwapExecutor (for USDC/WETH swaps)
- * - WETH vault → This adapter (for vault operations)
- * - This adapter calls executionAdapterOf[WETH] to get swap executor for swaps
- *
- * Security:
- * - Only LiquidityOrchestrator can call buy/sell
- * - All approvals are transient and zeroed after use
- * - Refunds unused input tokens to caller
+ * - Handles same-asset flows: protocolUnderlying=vaultUnderlying → vaultShares
+ * - Handles cross-asset flows: protocolUnderlying → ExecutionAdapter → vaultUnderlying → vaultShares
  *
  * @custom:security-contact security@orionfinance.ai
  */
@@ -94,47 +82,19 @@ contract ERC4626ExecutionAdapter is IExecutionAdapter {
     /// @inheritdoc IExecutionAdapter
     function buy(
         address vaultAsset,
-        uint256 sharesAmount,
-        uint256 /* estimatedUnderlyingAmount */
+        uint256 sharesAmount
     ) external override onlyLiquidityOrchestrator returns (uint256 executionUnderlyingAmount) {
-        return _buyInternal(vaultAsset, sharesAmount, "");
-    }
-
-    /// @inheritdoc IExecutionAdapter
-    function sell(
-        address vaultAsset,
-        uint256 sharesAmount,
-        uint256 /* estimatedUnderlyingAmount */
-    ) external override onlyLiquidityOrchestrator returns (uint256 executionUnderlyingAmount) {
-        return _sellInternal(vaultAsset, sharesAmount, "");
-    }
-
-    /// @notice Internal buy implementation with routing
-    /// @param vaultAsset The ERC4626 vault asset to buy
-    /// @param sharesAmount The amount of vault shares to mint
-    /// @param routeParams Optional routing parameters for cross-asset swaps
-    /// @return executionUnderlyingAmount The amount of protocol underlying spent
-    function _buyInternal(
-        address vaultAsset,
-        uint256 sharesAmount,
-        bytes memory routeParams
-    ) internal returns (uint256 executionUnderlyingAmount) {
         // Validate asset
         this.validateExecutionAdapter(vaultAsset);
 
         IERC4626 vault = IERC4626(vaultAsset);
         address vaultUnderlying = vault.asset();
 
-        // Get max underlying from LO's allowance (includes slippage)
-        uint256 maxUnderlying = UNDERLYING_ASSET.allowance(msg.sender, address(this));
-
         // Acquire vault underlying (either directly or via swap)
         (uint256 underlyingSpent, uint256 vaultUnderlyingReceived) = _acquireVaultUnderlying(
             vault,
             vaultUnderlying,
             sharesAmount,
-            maxUnderlying,
-            routeParams,
             vaultAsset
         );
 
@@ -153,12 +113,18 @@ contract ERC4626ExecutionAdapter is IExecutionAdapter {
         executionUnderlyingAmount = underlyingSpent;
     }
 
+    /// @inheritdoc IExecutionAdapter
+    function sell(
+        address vaultAsset,
+        uint256 sharesAmount
+    ) external override onlyLiquidityOrchestrator returns (uint256 executionUnderlyingAmount) {
+        return _sellInternal(vaultAsset, sharesAmount, "");
+    }
+
     /// @notice Acquires vault underlying either directly or via swap
     /// @param vault The ERC4626 vault
     /// @param vaultUnderlying The underlying asset of the vault
     /// @param sharesAmount The amount of shares to mint
-    /// @param maxUnderlying Maximum underlying approved by LO
-    /// @param routeParams Routing parameters for swap
     /// @param vaultAsset The vault asset address (for error reporting)
     /// @return underlyingSpent Amount of protocol underlying spent
     /// @return vaultUnderlyingReceived Amount of vault underlying acquired
@@ -166,16 +132,11 @@ contract ERC4626ExecutionAdapter is IExecutionAdapter {
         IERC4626 vault,
         address vaultUnderlying,
         uint256 sharesAmount,
-        uint256 maxUnderlying,
-        bytes memory routeParams,
         address vaultAsset
     ) internal returns (uint256 underlyingSpent, uint256 vaultUnderlyingReceived) {
         if (vaultUnderlying == address(UNDERLYING_ASSET)) {
             // Same-asset: no swap needed
             uint256 underlyingNeeded = vault.previewMint(sharesAmount);
-            if (underlyingNeeded > maxUnderlying) {
-                revert ErrorsLib.SlippageExceeded(vaultAsset, underlyingNeeded, maxUnderlying);
-            }
             UNDERLYING_ASSET.safeTransferFrom(msg.sender, address(this), underlyingNeeded);
             return (underlyingNeeded, underlyingNeeded);
         } else {

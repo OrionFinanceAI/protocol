@@ -59,9 +59,9 @@ describe("Execution Adapter Validation - Comprehensive Tests", function () {
     await priceAdapter.waitForDeployment();
 
     // Deploy mock swap executor
-    const MockSwapExecutorFactory = await ethers.getContractFactory("MockSwapExecutor");
-    const mockSwapExecutor = await MockSwapExecutorFactory.deploy();
-    await mockSwapExecutor.waitForDeployment();
+    const MockExecutionAdapterFactory = await ethers.getContractFactory("MockExecutionAdapter");
+    const MockExecutionAdapter = await MockExecutionAdapterFactory.deploy();
+    await MockExecutionAdapter.waitForDeployment();
 
     // Deploy execution adapter
     const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
