@@ -281,6 +281,7 @@ contract LiquidityOrchestrator is
 
     /// @inheritdoc ILiquidityOrchestrator
     function setSlippageTolerance(uint256 _slippageTolerance) external onlyOwner {
+        if (_slippageTolerance > BASIS_POINTS_FACTOR) revert ErrorsLib.InvalidArguments();
         slippageTolerance = _slippageTolerance;
     }
 
@@ -750,15 +751,13 @@ contract LiquidityOrchestrator is
 
     /// @notice Calculate maximum amount with slippage applied
     /// @param estimatedAmount The estimated amount
-    /// @return maxAmount Maximum amount including slippage tolerance
-    function _calculateMaxWithSlippage(uint256 estimatedAmount) internal view returns (uint256 maxAmount) {
+    function _calculateMaxWithSlippage(uint256 estimatedAmount) internal view returns (uint256) {
         return estimatedAmount.mulDiv(BASIS_POINTS_FACTOR + slippageTolerance, BASIS_POINTS_FACTOR);
     }
 
     /// @notice Calculate minimum amount with slippage applied
     /// @param estimatedAmount The estimated amount
-    /// @return minAmount Minimum amount including slippage tolerance
-    function _calculateMinWithSlippage(uint256 estimatedAmount) internal view returns (uint256 minAmount) {
+    function _calculateMinWithSlippage(uint256 estimatedAmount) internal view returns (uint256) {
         return estimatedAmount.mulDiv(BASIS_POINTS_FACTOR - slippageTolerance, BASIS_POINTS_FACTOR);
     }
 
@@ -776,7 +775,11 @@ contract LiquidityOrchestrator is
         // Execute sell through adapter, pull shares from this contract and push underlying assets to it.
         uint256 executionUnderlyingAmount = adapter.sell(asset, sharesAmount);
 
-        // TODO: _calculateMinWithSlippage, executionUnderlyingAmount, estimatedUnderlyingAmount to be used to fail high slippage trades.
+        // Validate slippage of trade is within tolerance.
+        uint256 minUnderlyingAmount = _calculateMinWithSlippage(estimatedUnderlyingAmount);
+        if (executionUnderlyingAmount < minUnderlyingAmount) {
+            revert ErrorsLib.SlippageExceeded(asset, executionUnderlyingAmount, minUnderlyingAmount);
+        }
 
         // Clean up approval
         IERC20(asset).forceApprove(address(adapter), 0);
