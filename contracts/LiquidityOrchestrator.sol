@@ -443,11 +443,13 @@ contract LiquidityOrchestrator is
         } else if (currentPhase == LiquidityUpkeepPhase.SellingLeg) {
             StatesStruct memory states = _verifyPerformData(_publicValues, proofBytes, statesBytes);
 
-            // Update buffer amount
-            bufferAmount = states.bufferAmount;
-            // Accrue protocol fees
-            pendingProtocolFees += states.epochProtocolFees;
-            emit EventsLib.ProtocolFeesAccrued(states.epochProtocolFees);
+            if (currentMinibatchIndex == 0) {
+                // Update buffer amount
+                bufferAmount = states.bufferAmount;
+                // Accrue protocol fees
+                pendingProtocolFees += states.epochProtocolFees;
+                emit EventsLib.ProtocolFeesAccrued(states.epochProtocolFees);
+            }
 
             _processMinibatchSell(states.sellLeg);
         } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
