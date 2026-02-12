@@ -1,0 +1,143 @@
+// SPDX-License-Identifier: BUSL-1.1
+pragma solidity ^0.8.28;
+
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { ErrorsLib } from "../libraries/ErrorsLib.sol";
+import { ISwapRouter } from "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
+import { IUniswapV3Factory } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
+import { IExecutionAdapter } from "../interfaces/IExecutionAdapter.sol";
+import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
+
+/**
+ * @title UniswapV3ExecutionAdapter
+ * @notice Execution adapter for Uniswap V3 pools
+ * @author Orion Finance
+ *
+ * @custom:security-contact security@orionfinance.ai
+ */
+contract UniswapV3ExecutionAdapter is IExecutionAdapter, Ownable2Step {
+    using SafeERC20 for IERC20;
+
+    /// @notice Uniswap V3 Factory contract
+    IUniswapV3Factory public immutable UNISWAP_V3_FACTORY;
+
+    /// @notice Uniswap V3 SwapRouter contract
+    ISwapRouter public immutable SWAP_ROUTER;
+
+    /// @notice Orion Config contract
+    IOrionConfig public immutable CONFIG;
+
+    /// @notice Protocol underlying asset
+    address public immutable UNDERLYING_ASSET;
+
+    /// @notice asset => Uniswap V3 pool fee tier
+    mapping(address => uint24) public assetFee;
+
+    /// @dev Restricts function to only owner or guardian
+    modifier onlyOwnerOrGuardian() {
+        if (msg.sender != owner() && msg.sender != CONFIG.guardian()) {
+            revert ErrorsLib.NotAuthorized();
+        }
+        _;
+    }
+
+    /**
+     * @notice Constructor
+     * @param initialOwner_ The address of the initial owner
+     * @param factoryAddress Uniswap V3 Factory address
+     * @param swapRouterAddress Uniswap V3 SwapRouter address
+     * @param configAddress OrionConfig contract address
+     */
+    constructor(
+        address initialOwner_,
+        address factoryAddress,
+        address swapRouterAddress,
+        address configAddress
+    ) Ownable(initialOwner_) {
+        if (initialOwner_ == address(0)) revert ErrorsLib.ZeroAddress();
+        if (factoryAddress == address(0)) revert ErrorsLib.ZeroAddress();
+        if (swapRouterAddress == address(0)) revert ErrorsLib.ZeroAddress();
+        if (configAddress == address(0)) revert ErrorsLib.ZeroAddress();
+
+        UNISWAP_V3_FACTORY = IUniswapV3Factory(factoryAddress);
+        SWAP_ROUTER = ISwapRouter(swapRouterAddress);
+        CONFIG = IOrionConfig(configAddress);
+        UNDERLYING_ASSET = address(CONFIG.underlyingAsset());
+    }
+
+    /// @notice Sets the fee tier for a given asset
+    /// @param asset The address of the asset
+    /// @param fee The fee tier to set
+    function setAssetFee(address asset, uint24 fee) external onlyOwnerOrGuardian {
+        if (asset == address(0)) revert ErrorsLib.ZeroAddress();
+
+        address pool = UNISWAP_V3_FACTORY.getPool(asset, address(UNDERLYING_ASSET), fee);
+
+        if (pool == address(0)) revert ErrorsLib.InvalidAdapter(asset);
+
+        assetFee[asset] = fee;
+    }
+
+    /// @inheritdoc IExecutionAdapter
+    function validateExecutionAdapter(address asset) external view override {
+        if (assetFee[asset] == 0) revert ErrorsLib.InvalidAdapter(asset);
+    }
+
+    /// @inheritdoc IExecutionAdapter
+    function sell(address asset, uint256 amount) external returns (uint256 receivedAmount) {
+        // Pull input from caller
+        IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
+
+        // Approve router
+        IERC20(asset).forceApprove(address(SWAP_ROUTER), amount);
+
+        // Execute exact input swap
+        ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
+            tokenIn: asset,
+            tokenOut: UNDERLYING_ASSET,
+            fee: assetFee[asset],
+            recipient: msg.sender,
+            deadline: block.timestamp,
+            amountIn: amount,
+            amountOutMinimum: 0,
+            sqrtPriceLimitX96: 0
+        });
+
+        receivedAmount = SWAP_ROUTER.exactInputSingle(params);
+
+        // Clean up approval
+        IERC20(asset).forceApprove(address(SWAP_ROUTER), 0);
+    }
+
+    /// @inheritdoc IExecutionAdapter
+    function buy(address asset, uint256 amount) external returns (uint256 spentAmount) {
+        // TODO.
+        //     // Decode fee tier from route params
+        //     uint24 fee = abi.decode(routeParams, (uint24));
+        //     // Pull max input from caller
+        //     IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amountInMax);
+        //     // Approve router
+        //     IERC20(tokenIn).forceApprove(address(SWAP_ROUTER), amountInMax);
+        //     // Execute exact output swap
+        //     ISwapRouter.ExactOutputSingleParams memory params = ISwapRouter.ExactOutputSingleParams({
+        //         tokenIn: tokenIn,
+        //         tokenOut: tokenOut,
+        //         fee: fee,
+        //         recipient: msg.sender,
+        //         deadline: block.timestamp,
+        //         amountOut: amountOut,
+        //         amountInMaximum: amountInMax,
+        //         sqrtPriceLimitX96: 0
+        //     });
+        //     amountIn = SWAP_ROUTER.exactOutputSingle(params);
+        //     // Clean up approval
+        //     IERC20(tokenIn).forceApprove(address(SWAP_ROUTER), 0);
+        //     // Refund unused input
+        //     uint256 unusedBalance = IERC20(tokenIn).balanceOf(address(this));
+        //     if (unusedBalance > 0) {
+        //         IERC20(tokenIn).safeTransfer(msg.sender, unusedBalance);
+        //     }
+    }
+}
