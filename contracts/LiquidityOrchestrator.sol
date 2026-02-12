@@ -92,6 +92,9 @@ contract LiquidityOrchestrator is
     /// @notice Current minibatch index
     uint8 public currentMinibatchIndex;
 
+    /// @notice Whether epoch protocol fees have been accrued this epoch
+    bool private epochFeesAccrued;
+
     /// @notice Target buffer ratio
     uint256 public targetBufferRatio;
 
@@ -443,11 +446,14 @@ contract LiquidityOrchestrator is
         } else if (currentPhase == LiquidityUpkeepPhase.SellingLeg) {
             StatesStruct memory states = _verifyPerformData(_publicValues, proofBytes, statesBytes);
 
-            // Update buffer amount
-            bufferAmount = states.bufferAmount;
-            // Accrue protocol fees
-            pendingProtocolFees += states.epochProtocolFees;
-            emit EventsLib.ProtocolFeesAccrued(states.epochProtocolFees);
+            if (currentMinibatchIndex == 0 && !epochFeesAccrued) {
+                // Update buffer amount
+                bufferAmount = states.bufferAmount;
+                // Accrue protocol fees once per epoch
+                pendingProtocolFees += states.epochProtocolFees;
+                emit EventsLib.ProtocolFeesAccrued(states.epochProtocolFees);
+                epochFeesAccrued = true;
+            }
 
             _processMinibatchSell(states.sellLeg);
         } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
@@ -806,6 +812,7 @@ contract LiquidityOrchestrator is
             i1 = uint16(vaultsEpoch.length);
             currentPhase = LiquidityUpkeepPhase.Idle;
             currentMinibatchIndex = 0;
+            epochFeesAccrued = false;
             _nextUpdateTime = block.timestamp + epochDuration;
             emit EventsLib.EpochEnd(epochCounter);
             ++epochCounter;

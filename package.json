@@ -1,7 +1,7 @@
 {
   "name": "@orion-finance/protocol",
   "description": "Orion Finance Protocol",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "engines": {
     "node": ">=20.0.0"
   },
@@ -29,7 +29,8 @@
     "prettier:check": "prettier --check \"**/*.{js,json,md,sol,ts,yml}\"",
     "prettier:write": "prettier --write \"**/*.{js,json,md,sol,ts,yml}\"",
     "slither": "slither . --filter-paths 'lib|node_modules|dependencies|contracts/mocks' --fail-medium",
-    "verify:vault": "hardhat run protocol-ops/verify-vault.ts --network sepolia"
+    "verify:vault": "hardhat run protocol-ops/verify-vault.ts --network sepolia",
+    "storage-layout": "hardhat run scripts/check-storage-layout.ts"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
