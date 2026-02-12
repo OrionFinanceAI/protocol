@@ -35,6 +35,18 @@ find "$DOCS_DIR" -name "*.md" -type f | while read -r file; do
         }
 
         {
+            # Convert angle-bracketed URLs to markdown links
+            while (match($0, /<https:\/\/[^>]+>/)) {
+                url = substr($0, RSTART + 1, RLENGTH - 2)  # Extract URL without <>
+                # Extract last path segment (after last /)
+                n = split(url, parts, "/")
+                text = parts[n]
+                # Convert hyphens to spaces
+                gsub(/-/, " ", text)
+                # Replace <url> with [text](url)
+                $0 = substr($0, 1, RSTART - 1) "[" text "](" url ")" substr($0, RSTART + RLENGTH)
+            }
+
             # Clean up extra spaces
             gsub(/[[:space:]]+/, " ", $0)
             gsub(/^[[:space:]]+/, "", $0)
