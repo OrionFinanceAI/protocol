@@ -9,6 +9,7 @@ pragma solidity ^0.8.28;
 contract MockOrionConfig {
     address public immutable UNDERLYING_ASSET;
     address public admin;
+    address public guardian;
     address public liquidityOrchestrator;
     address public priceAdapterRegistryAddress;
     uint256 public slippageTolerance = 200; // 2% in basis points
@@ -56,5 +57,9 @@ contract MockOrionConfig {
 
     function setTokenDecimals(address token, uint8 decimals) external {
         tokenDecimals[token] = decimals;
+    }
+
+    function setGuardian(address _guardian) external {
+        guardian = _guardian;
     }
 }
