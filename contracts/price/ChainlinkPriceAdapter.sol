@@ -104,7 +104,9 @@ contract ChainlinkPriceAdapter is IPriceAdapter {
 
         // Validate feed is callable
         // slither-disable-next-line unused-return
-        try AggregatorV3Interface(feed).decimals() returns (uint8) {} catch {
+        try AggregatorV3Interface(feed).decimals() returns (uint8) {
+            // solhint-disable-previous-line no-empty-blocks
+        } catch {
             revert ErrorsLib.InvalidAdapter(asset);
         }
 
@@ -146,12 +148,8 @@ contract ChainlinkPriceAdapter is IPriceAdapter {
         (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound) = chainlinkFeed
             .latestRoundData();
 
-        // CRITICAL SECURITY CHECKS (from Euler & Morpho best practices)
+        if (answer < 1) revert ErrorsLib.InvalidPrice();
 
-        // Check 1: Validate answer is positive
-        if (answer <= 0) revert ErrorsLib.InvalidPrice();
-
-        // Check 2: Verify data is not stale
         if (block.timestamp - updatedAt > feedConfig.maxStaleness) {
             revert ErrorsLib.StalePrice();
         }

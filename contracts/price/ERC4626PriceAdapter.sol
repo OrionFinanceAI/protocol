@@ -83,7 +83,7 @@ contract ERC4626PriceAdapter is IPriceAdapter {
         // This is CRITICAL - we need underlying → USDC pricing
         // slither-disable-next-line unused-return
         try PRICE_REGISTRY.getPrice(underlying) returns (uint256) {
-            // Price feed exists and is callable
+            // solhint-disable-previous-line no-empty-blocks
         } catch {
             revert ErrorsLib.InvalidAdapter(asset);
         }
