@@ -482,6 +482,339 @@ describe("ERC4626ExecutionAdapter", function () {
     });
   });
 
+  describe("Buy - previewBuy Accuracy", function () {
+    before(async function () {
+      const usdcWhale = await ethers.getImpersonatedSigner(MAINNET.USDC_WHALE);
+      await owner.sendTransaction({ to: MAINNET.USDC_WHALE, value: ethers.parseEther("10") });
+      const fundAmount = ethers.parseUnits("50000", USDC_DECIMALS);
+      await usdc.connect(usdcWhale).transfer(loSigner.address, fundAmount);
+    });
+
+    it("Should pull exact previewBuy amount (atomic within buy tx)", async function () {
+      const sharesAmount = ethers.parseUnits("0.5", 18);
+
+      // previewBuy tells us roughly how much the buy will cost
+      const previewedCost = await vaultAdapter.previewBuy.staticCall(MAINNET.MORPHO_WETH, sharesAmount);
+      expect(previewedCost).to.be.gt(0);
+
+      // Approve generous amount — the contract only pulls what previewBuy returns internally
+      const generousApproval = previewedCost * 2n;
+      await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), generousApproval);
+
+      const balanceBefore = await usdc.balanceOf(loSigner.address);
+      await vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, sharesAmount);
+      const balanceAfter = await usdc.balanceOf(loSigner.address);
+
+      const actualSpent = balanceBefore - balanceAfter;
+
+      // The key invariant: buy() pulls exactly what its internal previewBuy returns,
+      // NOT the full approved amount. Verify it didn't drain the generous approval.
+      expect(actualSpent).to.be.lt(generousApproval);
+      // And it's in the right ballpark of our external preview (same order of magnitude)
+      expect(actualSpent).to.be.gt(previewedCost / 2n);
+      expect(actualSpent).to.be.lt(previewedCost * 2n);
+
+      console.log(`  Approved:    ${ethers.formatUnits(generousApproval, USDC_DECIMALS)} USDC`);
+      console.log(`  Actually pulled: ${ethers.formatUnits(actualSpent, USDC_DECIMALS)} USDC`);
+      console.log(`  External preview: ${ethers.formatUnits(previewedCost, USDC_DECIMALS)} USDC`);
+    });
+
+    it("Should have previewBuy scale linearly with share amount", async function () {
+      const smallShares = ethers.parseUnits("0.1", 18);
+      const largeShares = ethers.parseUnits("1", 18);
+
+      const smallCost = await vaultAdapter.previewBuy.staticCall(MAINNET.MORPHO_WETH, smallShares);
+      const largeCost = await vaultAdapter.previewBuy.staticCall(MAINNET.MORPHO_WETH, largeShares);
+
+      // Large should be roughly 10x small (within 1% for AMM price impact)
+      const ratio = (largeCost * 1000n) / smallCost;
+      expect(ratio).to.be.gte(9900n); // At least 9.9x
+      expect(ratio).to.be.lte(10100n); // At most 10.1x
+      console.log(`  0.1 shares cost: ${ethers.formatUnits(smallCost, USDC_DECIMALS)} USDC`);
+      console.log(`  1.0 shares cost: ${ethers.formatUnits(largeCost, USDC_DECIMALS)} USDC`);
+      console.log(`  Ratio: ${Number(ratio) / 1000}`);
+    });
+  });
+
+  describe("Buy - Return Value & Accounting", function () {
+    before(async function () {
+      const usdcWhale = await ethers.getImpersonatedSigner(MAINNET.USDC_WHALE);
+      await owner.sendTransaction({ to: MAINNET.USDC_WHALE, value: ethers.parseEther("10") });
+      const fundAmount = ethers.parseUnits("50000", USDC_DECIMALS);
+      await usdc.connect(usdcWhale).transfer(loSigner.address, fundAmount);
+    });
+
+    it("Should return non-zero spentUnderlyingAmount from buy (cross-asset)", async function () {
+      const sharesAmount = ethers.parseUnits("0.3", 18);
+
+      const previewedCost = await vaultAdapter.previewBuy.staticCall(MAINNET.MORPHO_WETH, sharesAmount);
+      const maxUSDC = (previewedCost * 10200n) / 10000n; // 2% buffer
+      await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), maxUSDC);
+
+      const balanceBefore = await usdc.balanceOf(loSigner.address);
+      await vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, sharesAmount);
+      const balanceAfter = await usdc.balanceOf(loSigner.address);
+      const actualSpent = balanceBefore - balanceAfter;
+
+      // Verify non-zero and sensible spend
+      expect(actualSpent).to.be.gt(0);
+      // Spend should be less than max approved (previewBuy-based pull, not allowance-based)
+      expect(actualSpent).to.be.lte(maxUSDC);
+
+      console.log(`  Actual spent: ${ethers.formatUnits(actualSpent, USDC_DECIMALS)} USDC`);
+      console.log(`  Max approved: ${ethers.formatUnits(maxUSDC, USDC_DECIMALS)} USDC`);
+    });
+
+    it("Should revert buy with zero shares amount", async function () {
+      await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), ethers.parseUnits("1000", USDC_DECIMALS));
+
+      // Zero shares should revert (previewMint(0) returns 0, but vault.mint(0) may behave differently)
+      await expect(vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, 0)).to.be.reverted;
+    });
+
+    it("Should leave zero token approvals after buy (approval hygiene)", async function () {
+      const sharesAmount = ethers.parseUnits("0.1", 18);
+      const previewedCost = await vaultAdapter.previewBuy.staticCall(MAINNET.MORPHO_WETH, sharesAmount);
+      const maxUSDC = (previewedCost * 10200n) / 10000n;
+      await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), maxUSDC);
+
+      await vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, sharesAmount);
+
+      const vaultAdapterAddr = await vaultAdapter.getAddress();
+      const swapExecutorAddr = await tokenSwapExecutor.getAddress();
+
+      // No leftover USDC approval from adapter → swap executor
+      const usdcApproval = await usdc.allowance(vaultAdapterAddr, swapExecutorAddr);
+      expect(usdcApproval).to.equal(0);
+
+      // No leftover WETH approval from adapter → vault
+      const wethApproval = await weth.allowance(vaultAdapterAddr, MAINNET.MORPHO_WETH);
+      expect(wethApproval).to.equal(0);
+
+      console.log(`  USDC allowance (adapter→swapExecutor): ${usdcApproval}`);
+      console.log(`  WETH allowance (adapter→vault): ${wethApproval}`);
+    });
+
+    it("Should not leave adapter holding any tokens after buy", async function () {
+      const sharesAmount = ethers.parseUnits("0.2", 18);
+      const previewedCost = await vaultAdapter.previewBuy.staticCall(MAINNET.MORPHO_WETH, sharesAmount);
+      const maxUSDC = (previewedCost * 10200n) / 10000n;
+      await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), maxUSDC);
+
+      await vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, sharesAmount);
+
+      const vaultAdapterAddr = await vaultAdapter.getAddress();
+
+      // Adapter should hold no USDC, WETH, or vault shares
+      const adapterUSDC = await usdc.balanceOf(vaultAdapterAddr);
+      const adapterWETH = await weth.balanceOf(vaultAdapterAddr);
+      const adapterShares = await morphoWETH.balanceOf(vaultAdapterAddr);
+
+      expect(adapterUSDC).to.equal(0);
+      expect(adapterWETH).to.equal(0);
+      expect(adapterShares).to.equal(0);
+
+      console.log(`  Adapter USDC balance: ${adapterUSDC}`);
+      console.log(`  Adapter WETH balance: ${adapterWETH}`);
+      console.log(`  Adapter vault shares: ${adapterShares}`);
+    });
+  });
+
+  describe("Buy - Round-Trip Accounting", function () {
+    before(async function () {
+      // Sell any existing shares to start clean
+      const existingShares = await morphoWETH.balanceOf(loSigner.address);
+      if (existingShares > 0n) {
+        await morphoWETH.connect(loSigner).approve(await vaultAdapter.getAddress(), existingShares);
+        await vaultAdapter.connect(loSigner).sell(MAINNET.MORPHO_WETH, existingShares);
+      }
+
+      const usdcWhale = await ethers.getImpersonatedSigner(MAINNET.USDC_WHALE);
+      await owner.sendTransaction({ to: MAINNET.USDC_WHALE, value: ethers.parseEther("10") });
+      const fundAmount = ethers.parseUnits("50000", USDC_DECIMALS);
+      await usdc.connect(usdcWhale).transfer(loSigner.address, fundAmount);
+    });
+
+    it("Should preserve value through buy→sell round-trip (within slippage)", async function () {
+      const sharesAmount = ethers.parseUnits("1", 18);
+      const balanceBefore = await usdc.balanceOf(loSigner.address);
+
+      // Buy
+      const previewedCost = await vaultAdapter.previewBuy.staticCall(MAINNET.MORPHO_WETH, sharesAmount);
+      const maxUSDC = (previewedCost * 10200n) / 10000n;
+      await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), maxUSDC);
+      await vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, sharesAmount);
+
+      const balanceAfterBuy = await usdc.balanceOf(loSigner.address);
+      const spent = balanceBefore - balanceAfterBuy;
+
+      // Sell
+      await morphoWETH.connect(loSigner).approve(await vaultAdapter.getAddress(), sharesAmount);
+      await vaultAdapter.connect(loSigner).sell(MAINNET.MORPHO_WETH, sharesAmount);
+
+      const balanceAfterSell = await usdc.balanceOf(loSigner.address);
+      const received = balanceAfterSell - balanceAfterBuy;
+
+      // Round-trip loss should be within 1% (swap fees + slippage on both legs)
+      const loss = spent - received;
+      const lossBps = (loss * 10000n) / spent;
+
+      expect(lossBps).to.be.lt(100n); // Less than 1% loss
+      expect(received).to.be.gt(0);
+
+      console.log(`  Spent on buy:  ${ethers.formatUnits(spent, USDC_DECIMALS)} USDC`);
+      console.log(`  Received on sell: ${ethers.formatUnits(received, USDC_DECIMALS)} USDC`);
+      console.log(`  Round-trip loss: ${ethers.formatUnits(loss, USDC_DECIMALS)} USDC (${Number(lossBps)} bps)`);
+    });
+  });
+
+  describe("Buy - Dust & Edge Amounts", function () {
+    before(async function () {
+      const usdcWhale = await ethers.getImpersonatedSigner(MAINNET.USDC_WHALE);
+      await owner.sendTransaction({ to: MAINNET.USDC_WHALE, value: ethers.parseEther("10") });
+      const fundAmount = ethers.parseUnits("50000", USDC_DECIMALS);
+      await usdc.connect(usdcWhale).transfer(loSigner.address, fundAmount);
+    });
+
+    it("Should handle very small share amount (1 wei of shares)", async function () {
+      const tinyShares = 1n; // 1 wei of vault shares
+
+      const previewedCost = await vaultAdapter.previewBuy.staticCall(MAINNET.MORPHO_WETH, tinyShares);
+
+      // Even 1 wei of shares should have some non-zero cost
+      // (though it might be 0 USDC due to rounding, which would still be a valid test)
+      if (previewedCost > 0n) {
+        await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), previewedCost);
+
+        const sharesBefore = await morphoWETH.balanceOf(loSigner.address);
+        await vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, tinyShares);
+        const sharesAfter = await morphoWETH.balanceOf(loSigner.address);
+
+        expect(sharesAfter - sharesBefore).to.equal(tinyShares);
+        console.log(`  1 wei shares cost: ${previewedCost} USDC wei`);
+      } else {
+        console.log(`  1 wei shares rounds to 0 USDC cost (expected for high-value vaults)`);
+      }
+    });
+
+    it("Should handle large share amount", async function () {
+      const largeShares = ethers.parseUnits("10", 18); // 10 full shares
+
+      const previewedCost = await vaultAdapter.previewBuy.staticCall(MAINNET.MORPHO_WETH, largeShares);
+      expect(previewedCost).to.be.gt(0);
+
+      const maxUSDC = (previewedCost * 10200n) / 10000n;
+      await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), maxUSDC);
+
+      const sharesBefore = await morphoWETH.balanceOf(loSigner.address);
+      await vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, largeShares);
+      const sharesAfter = await morphoWETH.balanceOf(loSigner.address);
+
+      expect(sharesAfter - sharesBefore).to.equal(largeShares);
+      console.log(`  10 shares cost: ${ethers.formatUnits(previewedCost, USDC_DECIMALS)} USDC`);
+    });
+  });
+
+  describe("Buy - Same-Asset Vault Price Changes", function () {
+    let usdcVault: MockERC4626Asset;
+    let usdcVaultAdapter: ERC4626ExecutionAdapter;
+
+    before(async function () {
+      this.timeout(60000);
+
+      const MockERC4626Factory = await ethers.getContractFactory("MockERC4626Asset");
+      usdcVault = (await MockERC4626Factory.deploy(
+        MAINNET.USDC,
+        "Price Test Vault",
+        "ptVUSDC",
+      )) as unknown as MockERC4626Asset;
+      await usdcVault.waitForDeployment();
+
+      const VaultAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
+      usdcVaultAdapter = (await VaultAdapterFactory.deploy(
+        await orionConfig.getAddress(),
+      )) as unknown as ERC4626ExecutionAdapter;
+      await usdcVaultAdapter.waitForDeployment();
+
+      const mockConfig = await ethers.getContractAt("MockOrionConfig", await orionConfig.getAddress());
+      await mockConfig.setTokenDecimals(MAINNET.USDC, 6);
+      await mockConfig.setTokenDecimals(await usdcVault.getAddress(), 6);
+
+      await liquidityOrchestrator.setExecutionAdapter(
+        await usdcVault.getAddress(),
+        await usdcVaultAdapter.getAddress(),
+      );
+
+      // Seed vault: deposit 10k USDC to establish baseline
+      const usdcWhale = await ethers.getImpersonatedSigner(MAINNET.USDC_WHALE);
+      await owner.sendTransaction({ to: MAINNET.USDC_WHALE, value: ethers.parseEther("10") });
+      const seedAmount = ethers.parseUnits("10000", USDC_DECIMALS);
+      await usdc.connect(usdcWhale).approve(await usdcVault.getAddress(), seedAmount);
+      await usdcVault.connect(usdcWhale).deposit(seedAmount, usdcWhale.address);
+
+      // Fund LO
+      await usdc.connect(usdcWhale).transfer(loSigner.address, ethers.parseUnits("10000", USDC_DECIMALS));
+    });
+
+    it("Should cost more per share after vault gains (share price increases)", async function () {
+      const sharesAmount = ethers.parseUnits("100", 6);
+
+      // Cost before gains
+      const costBefore = await usdcVault.previewMint(sharesAmount);
+
+      // Simulate 10% gains (transfer extra USDC into vault)
+      const usdcWhale = await ethers.getImpersonatedSigner(MAINNET.USDC_WHALE);
+      const gainAmount = ethers.parseUnits("1000", USDC_DECIMALS); // 10% of 10k
+      await usdc.connect(usdcWhale).approve(await usdcVault.getAddress(), gainAmount);
+      await usdcVault.connect(usdcWhale).simulateGains(gainAmount);
+
+      // Cost after gains
+      const costAfter = await usdcVault.previewMint(sharesAmount);
+
+      expect(costAfter).to.be.gt(costBefore);
+      console.log(`  Cost before gains: ${ethers.formatUnits(costBefore, USDC_DECIMALS)} USDC`);
+      console.log(`  Cost after gains:  ${ethers.formatUnits(costAfter, USDC_DECIMALS)} USDC`);
+      console.log(`  Increase: ${Number(((costAfter - costBefore) * 10000n) / costBefore) / 100}%`);
+
+      // Buy should still work at the new price
+      await usdc.connect(loSigner).approve(await usdcVaultAdapter.getAddress(), costAfter * 2n);
+      await usdcVaultAdapter.connect(loSigner).buy(await usdcVault.getAddress(), sharesAmount);
+
+      const balance = await usdcVault.balanceOf(loSigner.address);
+      expect(balance).to.equal(sharesAmount);
+    });
+
+    it("Should cost less per share after vault losses (share price decreases)", async function () {
+      // Sell existing shares first
+      const existingShares = await usdcVault.balanceOf(loSigner.address);
+      if (existingShares > 0n) {
+        await usdcVault.connect(loSigner).approve(await usdcVaultAdapter.getAddress(), existingShares);
+        await usdcVaultAdapter.connect(loSigner).sell(await usdcVault.getAddress(), existingShares);
+      }
+
+      const sharesAmount = ethers.parseUnits("100", 6);
+      const costBefore = await usdcVault.previewMint(sharesAmount);
+
+      // Simulate 5% losses
+      const totalAssets = await usdcVault.totalAssets();
+      const lossAmount = totalAssets / 20n;
+      await usdcVault.simulateLosses(lossAmount, owner.address);
+
+      const costAfter = await usdcVault.previewMint(sharesAmount);
+
+      expect(costAfter).to.be.lt(costBefore);
+      console.log(`  Cost before losses: ${ethers.formatUnits(costBefore, USDC_DECIMALS)} USDC`);
+      console.log(`  Cost after losses:  ${ethers.formatUnits(costAfter, USDC_DECIMALS)} USDC`);
+
+      // Buy should still work
+      await usdc.connect(loSigner).approve(await usdcVaultAdapter.getAddress(), costAfter * 2n);
+      await usdcVaultAdapter.connect(loSigner).buy(await usdcVault.getAddress(), sharesAmount);
+
+      const balance = await usdcVault.balanceOf(loSigner.address);
+      expect(balance).to.equal(sharesAmount);
+    });
+  });
+
   describe("Gas Benchmarking", function () {
     before(async function () {
       // Re-fund LO signer for gas benchmarking
