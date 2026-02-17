@@ -207,8 +207,13 @@ contract ERC4626ExecutionAdapter is IExecutionAdapter {
 
         // Approve vault and mint exact shares
         IERC20(vaultUnderlying).forceApprove(vaultAsset, vaultUnderlyingNeeded);
-        vault.mint(sharesAmount, address(this));
+        uint256 actualVaultUnderlyingSpent = vault.mint(sharesAmount, address(this));
         IERC20(vaultUnderlying).forceApprove(vaultAsset, 0);
+
+        // Sanity check: vault should not consume more than previewed
+        if (actualVaultUnderlyingSpent > vaultUnderlyingNeeded) {
+            revert ErrorsLib.SlippageExceeded(vaultUnderlying, actualVaultUnderlyingSpent, vaultUnderlyingNeeded);
+        }
 
         IERC20(vaultAsset).safeTransfer(msg.sender, sharesAmount);
     }
