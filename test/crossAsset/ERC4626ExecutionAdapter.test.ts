@@ -815,6 +815,142 @@ describe("ERC4626ExecutionAdapter", function () {
     });
   });
 
+  describe("Cross-Asset Buy - Dust & Execution Measurement", function () {
+    before(async function () {
+      // Sell any existing shares to start clean
+      const existingShares = await morphoWETH.balanceOf(loSigner.address);
+      if (existingShares > 0n) {
+        await morphoWETH.connect(loSigner).approve(await vaultAdapter.getAddress(), existingShares);
+        await vaultAdapter.connect(loSigner).sell(MAINNET.MORPHO_WETH, existingShares);
+      }
+
+      const usdcWhale = await ethers.getImpersonatedSigner(MAINNET.USDC_WHALE);
+      await owner.sendTransaction({ to: MAINNET.USDC_WHALE, value: ethers.parseEther("10") });
+      const fundAmount = ethers.parseUnits("50000", USDC_DECIMALS);
+      await usdc.connect(usdcWhale).transfer(loSigner.address, fundAmount);
+    });
+
+    it("Should have buy() return value match actual USDC balance delta (same block)", async function () {
+      const sharesAmount = ethers.parseUnits("1", 18);
+
+      // Generous approval so it's not the limiting factor
+      const previewedCost = await vaultAdapter.previewBuy.staticCall(MAINNET.MORPHO_WETH, sharesAmount);
+      const maxUSDC = previewedCost * 2n;
+      await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), maxUSDC);
+
+      // buy() returns spentUnderlyingAmount — capture it via staticCall (block N)
+      const returnValue = await vaultAdapter.connect(loSigner).buy.staticCall(MAINNET.MORPHO_WETH, sharesAmount);
+
+      // Now actually execute (block N+1)
+      await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), maxUSDC);
+      const balanceBefore = await usdc.balanceOf(loSigner.address);
+      await vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, sharesAmount);
+      const balanceAfter = await usdc.balanceOf(loSigner.address);
+
+      const actualDelta = balanceBefore - balanceAfter;
+
+      // The return value from staticCall and the actual delta may differ by cross-block drift,
+      // but the actual delta IS the ground truth at block N+1
+      expect(actualDelta).to.be.gt(0);
+
+      // Dust between staticCall return (block N) and actual spend (block N+1)
+      const dust = actualDelta > returnValue ? actualDelta - returnValue : returnValue - actualDelta;
+      // Cross-block Quoter drift should be negligible — less than 10 USDC wei (0.00001 USDC)
+      expect(dust).to.be.lte(10);
+
+      console.log(`  staticCall return: ${ethers.formatUnits(returnValue, USDC_DECIMALS)} USDC`);
+      console.log(`  Actual delta:      ${ethers.formatUnits(actualDelta, USDC_DECIMALS)} USDC`);
+      console.log(`  Cross-block dust:  ${dust} USDC wei`);
+    });
+
+    it("Should have previewBuy→buy cross-block dust < 10 USDC wei", async function () {
+      const sharesAmount = ethers.parseUnits("0.5", 18);
+
+      // Block N: previewBuy
+      const previewedCost = await vaultAdapter.previewBuy.staticCall(MAINNET.MORPHO_WETH, sharesAmount);
+
+      // Block N+1: actual buy
+      const maxUSDC = previewedCost * 2n;
+      await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), maxUSDC);
+
+      const balanceBefore = await usdc.balanceOf(loSigner.address);
+      await vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, sharesAmount);
+      const balanceAfter = await usdc.balanceOf(loSigner.address);
+
+      const actualSpent = balanceBefore - balanceAfter;
+
+      // Measure dust: |previewBuy(N) - actualSpent(N+1)|
+      const dust = actualSpent > previewedCost ? actualSpent - previewedCost : previewedCost - actualSpent;
+
+      // Cross-block dust from Uniswap Quoter secondsPerLiquidityCumulative drift
+      // should be negligible — typically 0-2 wei
+      expect(dust).to.be.lte(10);
+
+      console.log(`  previewBuy (block N):   ${ethers.formatUnits(previewedCost, USDC_DECIMALS)} USDC`);
+      console.log(`  actualSpent (block N+1): ${ethers.formatUnits(actualSpent, USDC_DECIMALS)} USDC`);
+      console.log(`  Dust: ${dust} USDC wei (${Number(dust) / 1e6} USDC)`);
+    });
+
+    it("Should leave zero dust in the adapter after cross-asset buy", async function () {
+      const sharesAmount = ethers.parseUnits("0.3", 18);
+
+      const previewedCost = await vaultAdapter.previewBuy.staticCall(MAINNET.MORPHO_WETH, sharesAmount);
+      await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), previewedCost * 2n);
+
+      await vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, sharesAmount);
+
+      const adapterAddr = await vaultAdapter.getAddress();
+
+      // All three token balances must be exactly zero — no dust stuck
+      const adapterUSDC = await usdc.balanceOf(adapterAddr);
+      const adapterWETH = await weth.balanceOf(adapterAddr);
+      const adapterShares = await morphoWETH.balanceOf(adapterAddr);
+
+      expect(adapterUSDC).to.equal(0, "USDC dust in adapter");
+      expect(adapterWETH).to.equal(0, "WETH dust in adapter");
+      expect(adapterShares).to.equal(0, "Vault share dust in adapter");
+
+      console.log(`  Adapter USDC: ${adapterUSDC}`);
+      console.log(`  Adapter WETH: ${adapterWETH}`);
+      console.log(`  Adapter shares: ${adapterShares}`);
+    });
+
+    it("Should deliver exact shares and spend only what needed", async function () {
+      const sharesAmount = ethers.parseUnits("2", 18);
+
+      const previewedCost = await vaultAdapter.previewBuy.staticCall(MAINNET.MORPHO_WETH, sharesAmount);
+      const generousApproval = previewedCost * 3n; // 3x what's needed
+      await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), generousApproval);
+
+      const sharesBefore = await morphoWETH.balanceOf(loSigner.address);
+      const usdcBefore = await usdc.balanceOf(loSigner.address);
+
+      await vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, sharesAmount);
+
+      const sharesAfter = await morphoWETH.balanceOf(loSigner.address);
+      const usdcAfter = await usdc.balanceOf(loSigner.address);
+
+      const sharesReceived = sharesAfter - sharesBefore;
+      const usdcSpent = usdcBefore - usdcAfter;
+
+      // Exact shares — no rounding
+      expect(sharesReceived).to.equal(sharesAmount);
+
+      // Spent well under the generous approval (previewBuy-based pull, not allowance-based)
+      expect(usdcSpent).to.be.lt(generousApproval);
+
+      // Spent should be close to previewed cost (within dust)
+      const dust = usdcSpent > previewedCost ? usdcSpent - previewedCost : previewedCost - usdcSpent;
+      expect(dust).to.be.lte(10);
+
+      console.log(`  Shares requested: ${ethers.formatUnits(sharesAmount, 18)}`);
+      console.log(`  Shares received:  ${ethers.formatUnits(sharesReceived, 18)}`);
+      console.log(`  USDC approved:    ${ethers.formatUnits(generousApproval, USDC_DECIMALS)}`);
+      console.log(`  USDC spent:       ${ethers.formatUnits(usdcSpent, USDC_DECIMALS)}`);
+      console.log(`  Dust:             ${dust} USDC wei`);
+    });
+  });
+
   describe("Gas Benchmarking", function () {
     before(async function () {
       // Re-fund LO signer for gas benchmarking
