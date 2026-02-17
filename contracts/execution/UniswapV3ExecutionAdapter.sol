@@ -121,6 +121,7 @@ contract UniswapV3ExecutionAdapter is IExecutionAdapter, Ownable2Step {
 
     /// @inheritdoc IExecutionAdapter
     function previewBuy(address asset, uint256 amount) external returns (uint256 underlyingAmount) {
+        // slither-disable-next-line unused-return
         (underlyingAmount, , , ) = QUOTER.quoteExactOutputSingle(
             IQuoterV2.QuoteExactOutputSingleParams({
                 tokenIn: UNDERLYING_ASSET,
