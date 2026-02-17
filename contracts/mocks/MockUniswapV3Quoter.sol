@@ -20,7 +20,10 @@ contract MockUniswapV3Quoter {
 
     function quoteExactOutputSingle(
         QuoteExactOutputSingleParams memory
-    ) external returns (uint256 amountIn, uint160 sqrtPriceX96After, uint32 initializedTicksCrossed, uint256 gasEstimate) {
+    )
+        external
+        returns (uint256 amountIn, uint160 sqrtPriceX96After, uint32 initializedTicksCrossed, uint256 gasEstimate)
+    {
         amountIn = nextAmountIn;
         sqrtPriceX96After = 0;
         initializedTicksCrossed = 0;
