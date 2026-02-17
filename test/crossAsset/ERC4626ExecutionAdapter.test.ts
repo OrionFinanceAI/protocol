@@ -40,8 +40,11 @@ const MAINNET = {
   MORPHO_WETH: "0x31A5684983EeE865d943A696AAC155363bA024f9", // Vault Bridge WETH (vbgtWETH)
 
   // Uniswap V3
+  UNISWAP_V3_FACTORY: "0x1F98431c8aD98523631AE4a59f267346ea31F984",
   UNISWAP_ROUTER: "0xE592427A0AEce92De3Edee1F18E0157C05861564",
+  UNISWAP_QUOTER_V2: "0x61fFE014bA17989E743c5F6cB21bF9697530B21e",
   USDC_WETH_POOL: "0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640", // 0.05% fee
+  WETH_FEE: 500, // 0.05% fee tier for USDC-WETH pool
 
   // Chainlink Oracles
   CHAINLINK_ETH_USD: "0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419",
@@ -140,14 +143,20 @@ describe("ERC4626ExecutionAdapter", function () {
 
       // Deploy token swap executor (for WETH token swaps)
       const TokenSwapExecutorFactory = await ethers.getContractFactory("UniswapV3ExecutionAdapter");
-      tokenSwapExecutor = await TokenSwapExecutorFactory.deploy(MAINNET.UNISWAP_ROUTER);
+      tokenSwapExecutor = await TokenSwapExecutorFactory.deploy(
+        owner.address,
+        MAINNET.UNISWAP_V3_FACTORY,
+        MAINNET.UNISWAP_ROUTER,
+        MAINNET.UNISWAP_QUOTER_V2,
+        await orionConfig.getAddress(),
+      );
+
+      // Register WETH fee tier so the adapter can swap USDC ↔ WETH
+      await tokenSwapExecutor.setAssetFee(MAINNET.WETH, MAINNET.WETH_FEE);
 
       // Deploy vault adapter (for ERC4626 vaults)
       const VaultAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
-      vaultAdapter = await VaultAdapterFactory.deploy(
-        await orionConfig.getAddress(),
-        await liquidityOrchestrator.getAddress(),
-      );
+      vaultAdapter = await VaultAdapterFactory.deploy(await orionConfig.getAddress());
 
       void expect(await tokenSwapExecutor.getAddress()).to.be.properAddress;
       void expect(await vaultAdapter.getAddress()).to.be.properAddress;
@@ -248,7 +257,7 @@ describe("ERC4626ExecutionAdapter", function () {
       await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), maxUSDC);
 
       // Execute buy
-      const tx = await vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, sharesAmount, estimatedUSDCCost);
+      const tx = await vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, sharesAmount);
 
       const receipt = await tx.wait();
       console.log(`  Gas used: ${receipt!.gasUsed.toLocaleString()}`);
@@ -276,8 +285,7 @@ describe("ERC4626ExecutionAdapter", function () {
 
       await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), tooLowAllowance);
 
-      await expect(vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, sharesAmount, estimatedUSDCCost)).to.be
-        .reverted; // Should revert due to insufficient allowance/slippage
+      await expect(vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, sharesAmount)).to.be.reverted; // Should revert due to insufficient allowance
     });
   });
 
@@ -310,7 +318,7 @@ describe("ERC4626ExecutionAdapter", function () {
       await morphoWETH.connect(loSigner).approve(await vaultAdapter.getAddress(), sharesToSell);
 
       // Execute sell (LO validates final amount, adapter passes 0 as minAmount)
-      const tx = await vaultAdapter.connect(loSigner).sell(MAINNET.MORPHO_WETH, sharesToSell, estimatedUSDCReceived);
+      const tx = await vaultAdapter.connect(loSigner).sell(MAINNET.MORPHO_WETH, sharesToSell);
 
       const receipt = await tx.wait();
       console.log(`  Gas used: ${receipt!.gasUsed.toLocaleString()}`);
@@ -415,7 +423,7 @@ describe("ERC4626ExecutionAdapter", function () {
       const maxUSDC = (estimatedCost * (10000n + BigInt(SLIPPAGE_TOLERANCE))) / 10000n;
       await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), maxUSDC);
 
-      await vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, exactShares, estimatedCost);
+      await vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, exactShares);
 
       // Verify EXACTLY 2.5 shares received (no drift)
       const sharesBalance = await morphoWETH.balanceOf(loSigner.address);
@@ -439,7 +447,7 @@ describe("ERC4626ExecutionAdapter", function () {
         const maxUSDC = (estimatedCost * (10000n + BigInt(SLIPPAGE_TOLERANCE))) / 10000n;
         await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), maxUSDC);
 
-        await vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, buyAmount, maxUSDC);
+        await vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, buyAmount);
 
         totalSharesExpected += buyAmount;
 
@@ -461,7 +469,7 @@ describe("ERC4626ExecutionAdapter", function () {
       const maxUSDC = (estimatedCost * (10000n + BigInt(SLIPPAGE_TOLERANCE))) / 10000n;
       await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), maxUSDC);
 
-      await vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, sharesAmount, estimatedCost);
+      await vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, sharesAmount);
 
       const balanceAfter = await usdc.balanceOf(loSigner.address);
       const actualSpent = balanceBefore - balanceAfter;
@@ -498,13 +506,13 @@ describe("ERC4626ExecutionAdapter", function () {
       const maxUSDC = (estimatedCost * (10000n + BigInt(SLIPPAGE_TOLERANCE))) / 10000n;
       await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), maxUSDC);
 
-      const tx = await vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, sharesAmount, estimatedCost);
+      const tx = await vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, sharesAmount);
 
       const receipt = await tx.wait();
-      console.log(`  Buy gas cost: ${receipt!.gasUsed.toLocaleString()}`);
+      console.log(`  Buy gas cost: ${receipt!.gasUsed.toLocaleString()} (includes previewBuy Quoter call)`);
 
-      // Should be under 700k gas (includes delegation + swap + vault deposit)
-      expect(receipt!.gasUsed).to.be.lt(700000);
+      // Should be under 750k gas (includes previewBuy Quoter ~70k + swap + vault deposit)
+      expect(receipt!.gasUsed).to.be.lt(750000);
     });
 
     it("Should benchmark sell operation gas cost", async function () {
@@ -512,7 +520,7 @@ describe("ERC4626ExecutionAdapter", function () {
 
       await morphoWETH.connect(loSigner).approve(await vaultAdapter.getAddress(), sharesToSell);
 
-      const tx = await vaultAdapter.connect(loSigner).sell(MAINNET.MORPHO_WETH, sharesToSell, 0n);
+      const tx = await vaultAdapter.connect(loSigner).sell(MAINNET.MORPHO_WETH, sharesToSell);
 
       const receipt = await tx.wait();
       console.log(`  Sell gas cost: ${receipt!.gasUsed.toLocaleString()}`);
@@ -537,16 +545,14 @@ describe("ERC4626ExecutionAdapter", function () {
 
       // Deploy vault adapter for USDC vault
       const VaultAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
-      const usdcVaultAdapterDeployed = await VaultAdapterFactory.deploy(
-        await orionConfig.getAddress(),
-        await liquidityOrchestrator.getAddress(),
-      );
+      const usdcVaultAdapterDeployed = await VaultAdapterFactory.deploy(await orionConfig.getAddress());
       await usdcVaultAdapterDeployed.waitForDeployment();
       usdcVaultAdapter = usdcVaultAdapterDeployed as unknown as ERC4626ExecutionAdapter;
 
-      // Register USDC vault decimals in config (required for validation)
+      // Register token decimals in config (required for _validateExecutionAdapter checks)
       const mockConfig = await ethers.getContractAt("MockOrionConfig", await orionConfig.getAddress());
-      await mockConfig.setTokenDecimals(await usdcVault.getAddress(), 6); // Vault inherits USDC decimals
+      await mockConfig.setTokenDecimals(MAINNET.USDC, 6); // USDC underlying is 6 decimals
+      await mockConfig.setTokenDecimals(await usdcVault.getAddress(), 6); // Vault shares also 6 decimals
 
       // Register USDC vault in LO
       await liquidityOrchestrator.setExecutionAdapter(
@@ -593,9 +599,7 @@ describe("ERC4626ExecutionAdapter", function () {
       await usdc.connect(loSigner).approve(await usdcVaultAdapter.getAddress(), underlyingNeeded * 2n);
 
       // Execute buy
-      const tx = await usdcVaultAdapter
-        .connect(loSigner)
-        .buy(await usdcVault.getAddress(), sharesAmount, underlyingNeeded);
+      const tx = await usdcVaultAdapter.connect(loSigner).buy(await usdcVault.getAddress(), sharesAmount);
       const receipt = await tx.wait();
 
       console.log(`  Same-asset buy gas: ${receipt!.gasUsed.toLocaleString()}`);
@@ -615,20 +619,18 @@ describe("ERC4626ExecutionAdapter", function () {
         const sharesAmount = ethers.parseUnits("100", 6); // Vault has 6 decimals
         const underlyingNeeded = await usdcVault.previewMint(sharesAmount);
         await usdc.connect(loSigner).approve(await usdcVaultAdapter.getAddress(), underlyingNeeded * 2n);
-        await usdcVaultAdapter.connect(loSigner).buy(await usdcVault.getAddress(), sharesAmount, underlyingNeeded);
+        await usdcVaultAdapter.connect(loSigner).buy(await usdcVault.getAddress(), sharesAmount);
         sharesToSell = await usdcVault.balanceOf(loSigner.address);
       }
 
       const initialUSDC = await usdc.balanceOf(loSigner.address);
-      const underlyingExpected = await usdcVault.previewRedeem(sharesToSell);
+      void (await usdcVault.previewRedeem(sharesToSell)); // sanity check only
 
       // Approve adapter
       await usdcVault.connect(loSigner).approve(await usdcVaultAdapter.getAddress(), sharesToSell);
 
       // Execute sell
-      const tx = await usdcVaultAdapter
-        .connect(loSigner)
-        .sell(await usdcVault.getAddress(), sharesToSell, underlyingExpected);
+      const tx = await usdcVaultAdapter.connect(loSigner).sell(await usdcVault.getAddress(), sharesToSell);
       const receipt = await tx.wait();
 
       console.log(`  Same-asset sell gas: ${receipt!.gasUsed.toLocaleString()}`);
@@ -649,9 +651,7 @@ describe("ERC4626ExecutionAdapter", function () {
       const tooLittle = underlyingNeeded / 2n;
       await usdc.connect(loSigner).approve(await usdcVaultAdapter.getAddress(), tooLittle);
 
-      await expect(
-        usdcVaultAdapter.connect(loSigner).buy(await usdcVault.getAddress(), sharesAmount, underlyingNeeded),
-      ).to.be.revertedWithCustomError(usdcVaultAdapter, "SlippageExceeded");
+      await expect(usdcVaultAdapter.connect(loSigner).buy(await usdcVault.getAddress(), sharesAmount)).to.be.reverted; // ERC20 allowance error — adapter tries to pull previewMint result but only tooLittle approved
     });
   });
 
@@ -662,7 +662,7 @@ describe("ERC4626ExecutionAdapter", function () {
       // Ensure no allowance
       await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), 0);
 
-      await expect(vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, sharesAmount, 0n)).to.be.reverted;
+      await expect(vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, sharesAmount)).to.be.reverted;
     });
 
     it("Should reject sell without share allowance", async function () {
@@ -684,25 +684,26 @@ describe("ERC4626ExecutionAdapter", function () {
       const maxUSDC = (estimatedCost * (10000n + BigInt(SLIPPAGE_TOLERANCE))) / 10000n;
 
       await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), maxUSDC);
-      await vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, sharesAmount, estimatedCost);
+      await vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, sharesAmount);
 
       // Now try to sell without approval
       await morphoWETH.connect(loSigner).approve(await vaultAdapter.getAddress(), 0);
 
-      await expect(vaultAdapter.connect(loSigner).sell(MAINNET.MORPHO_WETH, sharesAmount, estimatedCost)).to.be
-        .reverted;
+      await expect(vaultAdapter.connect(loSigner).sell(MAINNET.MORPHO_WETH, sharesAmount)).to.be.reverted;
     });
 
     it("Should reject non-LO caller", async function () {
       const sharesAmount = ethers.parseUnits("1", 18);
 
-      await expect(
-        vaultAdapter.connect(owner).buy(MAINNET.MORPHO_WETH, sharesAmount, 0n),
-      ).to.be.revertedWithCustomError(vaultAdapter, "NotAuthorized");
+      await expect(vaultAdapter.connect(owner).buy(MAINNET.MORPHO_WETH, sharesAmount)).to.be.revertedWithCustomError(
+        vaultAdapter,
+        "NotAuthorized",
+      );
 
-      await expect(
-        vaultAdapter.connect(owner).sell(MAINNET.MORPHO_WETH, sharesAmount, 0n),
-      ).to.be.revertedWithCustomError(vaultAdapter, "NotAuthorized");
+      await expect(vaultAdapter.connect(owner).sell(MAINNET.MORPHO_WETH, sharesAmount)).to.be.revertedWithCustomError(
+        vaultAdapter,
+        "NotAuthorized",
+      );
     });
 
     it("Should handle vault with zero liquidity", async function () {
@@ -724,8 +725,7 @@ describe("ERC4626ExecutionAdapter", function () {
       await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), maxUSDC);
 
       // Should work - vault will mint at 1:1 initially
-      await expect(vaultAdapter.connect(loSigner).buy(await emptyVault.getAddress(), sharesAmount, maxUSDC)).to.not.be
-        .reverted;
+      await expect(vaultAdapter.connect(loSigner).buy(await emptyVault.getAddress(), sharesAmount)).to.not.be.reverted;
     });
   });
 });
