@@ -5,6 +5,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { ISwapRouter } from "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
+import { IQuoterV2 } from "@uniswap/v3-periphery/contracts/interfaces/IQuoterV2.sol";
 import { IUniswapV3Factory } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import { IExecutionAdapter } from "../interfaces/IExecutionAdapter.sol";
 import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
@@ -25,6 +26,9 @@ contract UniswapV3ExecutionAdapter is IExecutionAdapter, Ownable2Step {
 
     /// @notice Uniswap V3 SwapRouter contract
     ISwapRouter public immutable SWAP_ROUTER;
+
+    /// @notice Uniswap V3 QuoterV2 contract
+    IQuoterV2 public immutable QUOTER;
 
     /// @notice Orion Config contract
     IOrionConfig public immutable CONFIG;
@@ -48,21 +52,25 @@ contract UniswapV3ExecutionAdapter is IExecutionAdapter, Ownable2Step {
      * @param initialOwner_ The address of the initial owner
      * @param factoryAddress Uniswap V3 Factory address
      * @param swapRouterAddress Uniswap V3 SwapRouter address
+     * @param quoterAddress Uniswap V3 QuoterV2 address
      * @param configAddress OrionConfig contract address
      */
     constructor(
         address initialOwner_,
         address factoryAddress,
         address swapRouterAddress,
+        address quoterAddress,
         address configAddress
     ) Ownable(initialOwner_) {
         if (initialOwner_ == address(0)) revert ErrorsLib.ZeroAddress();
         if (factoryAddress == address(0)) revert ErrorsLib.ZeroAddress();
         if (swapRouterAddress == address(0)) revert ErrorsLib.ZeroAddress();
+        if (quoterAddress == address(0)) revert ErrorsLib.ZeroAddress();
         if (configAddress == address(0)) revert ErrorsLib.ZeroAddress();
 
         UNISWAP_V3_FACTORY = IUniswapV3Factory(factoryAddress);
         SWAP_ROUTER = ISwapRouter(swapRouterAddress);
+        QUOTER = IQuoterV2(quoterAddress);
         CONFIG = IOrionConfig(configAddress);
         UNDERLYING_ASSET = address(CONFIG.underlyingAsset());
     }
@@ -112,32 +120,51 @@ contract UniswapV3ExecutionAdapter is IExecutionAdapter, Ownable2Step {
     }
 
     /// @inheritdoc IExecutionAdapter
+    function previewBuy(address asset, uint256 amount) external returns (uint256 underlyingAmount) {
+        (underlyingAmount, , , ) = QUOTER.quoteExactOutputSingle(
+            IQuoterV2.QuoteExactOutputSingleParams({
+                tokenIn: UNDERLYING_ASSET,
+                tokenOut: asset,
+                amount: amount,
+                fee: assetFee[asset],
+                sqrtPriceLimitX96: 0
+            })
+        );
+    }
+
+    /// @inheritdoc IExecutionAdapter
     function buy(address asset, uint256 amount) external returns (uint256 spentAmount) {
-        // TODO.
-        //     // Decode fee tier from route params
-        //     uint24 fee = abi.decode(routeParams, (uint24));
-        //     // Pull max input from caller
-        //     IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amountInMax);
-        //     // Approve router
-        //     IERC20(tokenIn).forceApprove(address(SWAP_ROUTER), amountInMax);
-        //     // Execute exact output swap
-        //     ISwapRouter.ExactOutputSingleParams memory params = ISwapRouter.ExactOutputSingleParams({
-        //         tokenIn: tokenIn,
-        //         tokenOut: tokenOut,
-        //         fee: fee,
-        //         recipient: msg.sender,
-        //         deadline: block.timestamp,
-        //         amountOut: amountOut,
-        //         amountInMaximum: amountInMax,
-        //         sqrtPriceLimitX96: 0
-        //     });
-        //     amountIn = SWAP_ROUTER.exactOutputSingle(params);
-        //     // Clean up approval
-        //     IERC20(tokenIn).forceApprove(address(SWAP_ROUTER), 0);
-        //     // Refund unused input
-        //     uint256 unusedBalance = IERC20(tokenIn).balanceOf(address(this));
-        //     if (unusedBalance > 0) {
-        //         IERC20(tokenIn).safeTransfer(msg.sender, unusedBalance);
-        //     }
+        // Caller must have approved the underlying amount (from previewBuy result).
+        // Reading allowance avoids a redundant Quoter call when called from ERC4626ExecutionAdapter.
+        uint256 amountInMaximum = IERC20(UNDERLYING_ASSET).allowance(msg.sender, address(this));
+
+        // Pull approved amount from caller
+        IERC20(UNDERLYING_ASSET).safeTransferFrom(msg.sender, address(this), amountInMaximum);
+
+        // Approve router
+        IERC20(UNDERLYING_ASSET).forceApprove(address(SWAP_ROUTER), amountInMaximum);
+
+        // Execute exact output swap
+        ISwapRouter.ExactOutputSingleParams memory params = ISwapRouter.ExactOutputSingleParams({
+            tokenIn: UNDERLYING_ASSET,
+            tokenOut: asset,
+            fee: assetFee[asset],
+            recipient: msg.sender,
+            deadline: block.timestamp,
+            amountOut: amount,
+            amountInMaximum: amountInMaximum,
+            sqrtPriceLimitX96: 0
+        });
+
+        spentAmount = SWAP_ROUTER.exactOutputSingle(params);
+
+        // Refund unused underlying to caller (triggered when max+slippage was approved;
+        // zero-cost in atomic previewBuy→buy flows since spentAmount == amountInMaximum)
+        if (spentAmount < amountInMaximum) {
+            IERC20(UNDERLYING_ASSET).safeTransfer(msg.sender, amountInMaximum - spentAmount);
+        }
+
+        // Clean up approval
+        IERC20(UNDERLYING_ASSET).forceApprove(address(SWAP_ROUTER), 0);
     }
 }

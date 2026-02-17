@@ -52,6 +52,8 @@ contract ERC4626ExecutionAdapter is IExecutionAdapter {
         LIQUIDITY_ORCHESTRATOR = ILiquidityOrchestrator(CONFIG.liquidityOrchestrator());
     }
 
+    /// @notice Validates that an asset is a properly configured ERC4626 vault
+    /// @param asset The vault asset address to validate
     function _validateExecutionAdapter(address asset) internal view {
         // 1. Verify asset implements IERC4626
         try IERC4626(asset).asset() returns (address vaultUnderlying) {
@@ -87,6 +89,22 @@ contract ERC4626ExecutionAdapter is IExecutionAdapter {
     /// @inheritdoc IExecutionAdapter
     function validateExecutionAdapter(address asset) external view override {
         _validateExecutionAdapter(asset);
+    }
+
+    /// @inheritdoc IExecutionAdapter
+    function previewBuy(address vaultAsset, uint256 sharesAmount) external returns (uint256 underlyingAmount) {
+        IERC4626 vault = IERC4626(vaultAsset);
+        address vaultUnderlying = vault.asset();
+        uint256 vaultUnderlyingNeeded = vault.previewMint(sharesAmount);
+
+        if (vaultUnderlying == address(UNDERLYING_ASSET)) {
+            return vaultUnderlyingNeeded;
+        } else {
+            IExecutionAdapter swapExecutor = IExecutionAdapter(
+                address(LIQUIDITY_ORCHESTRATOR.executionAdapterOf(vaultUnderlying))
+            );
+            return swapExecutor.previewBuy(vaultUnderlying, vaultUnderlyingNeeded);
+        }
     }
 
     /// @inheritdoc IExecutionAdapter
@@ -126,72 +144,72 @@ contract ERC4626ExecutionAdapter is IExecutionAdapter {
         address vaultAsset,
         uint256 sharesAmount
     ) external override onlyLiquidityOrchestrator returns (uint256 spentUnderlyingAmount) {
-        // Validate asset
         _validateExecutionAdapter(vaultAsset);
 
         IERC4626 vault = IERC4626(vaultAsset);
         address vaultUnderlying = vault.asset();
 
         if (vaultUnderlying == address(UNDERLYING_ASSET)) {
-            // Preview the required underlying amount for minting exact shares
-            uint256 previewedUnderlyingAmount = vault.previewMint(sharesAmount);
-
-            // Pull previewed amount from the caller
-            UNDERLYING_ASSET.safeTransferFrom(msg.sender, address(this), previewedUnderlyingAmount);
-
-            // Approve vault to spend underlying assets
-            UNDERLYING_ASSET.forceApprove(vaultAsset, previewedUnderlyingAmount);
-
-            // Mint exact shares. Vault will pull the required underlying amount
-            // This guarantees sharesAmount shares are minted.
-            spentUnderlyingAmount = vault.mint(sharesAmount, address(this));
-            // Some ERC4626 implementations may leave dust in the adapter;
-            // we accept that, as target shares are minted.
-
-            // Clean up approval
-            UNDERLYING_ASSET.forceApprove(vaultAsset, 0);
-
-            // Push all minted shares to the caller (LO)
-            IERC20(vaultAsset).safeTransfer(msg.sender, sharesAmount);
+            spentUnderlyingAmount = _buySameAsset(vault, vaultAsset, sharesAmount);
         } else {
-            // TODO. Implement this case.
-            // // Cross-asset: swap USDC → vaultUnderlying
-            // UNDERLYING_ASSET.safeTransferFrom(msg.sender, address(this), maxUnderlying);
-            // IExecutionAdapter swapExecutor = IExecutionAdapter(
-            //     address(LIQUIDITY_ORCHESTRATOR.executionAdapterOf(vaultUnderlying))
-            // );
-            // UNDERLYING_ASSET.forceApprove(address(swapExecutor), maxUnderlying);
-            // uint24 fee = routeParams.length > 0 ? abi.decode(routeParams, (uint24)) : 3000;
-            // uint256 underlyingNeeded = vault.previewMint(sharesAmount);
-            // underlyingSpent = swapExecutor.swapExactOutput(
-            //     address(UNDERLYING_ASSET),
-            //     vaultUnderlying,
-            //     underlyingNeeded,
-            //     maxUnderlying,
-            //     abi.encode(fee)
-            // );
-            // UNDERLYING_ASSET.forceApprove(address(swapExecutor), 0);
-            // // Refund excess to LO
-            // uint256 unusedBalance = UNDERLYING_ASSET.balanceOf(address(this));
-            // if (unusedBalance > 0) {
-            //     UNDERLYING_ASSET.safeTransfer(msg.sender, unusedBalance);
-            // }
+            spentUnderlyingAmount = _buyCrossAsset(vault, vaultAsset, vaultUnderlying, sharesAmount);
         }
+    }
 
-        // TODO: assess below logic/extract common components in if else above.
+    /// @notice Same-asset buy: protocolUnderlying → vault shares (no swap needed)
+    /// @param vault The ERC4626 vault contract
+    /// @param vaultAsset The vault address
+    /// @param sharesAmount The number of vault shares to mint
+    /// @return spentUnderlyingAmount The underlying amount spent
+    function _buySameAsset(
+        IERC4626 vault,
+        address vaultAsset,
+        uint256 sharesAmount
+    ) private returns (uint256 spentUnderlyingAmount) {
+        uint256 previewedUnderlyingAmount = vault.previewMint(sharesAmount);
 
-        // // Approve vault and mint exact shares
-        // IERC20(vaultUnderlying).forceApprove(vaultAsset, vaultUnderlyingReceived);
+        UNDERLYING_ASSET.safeTransferFrom(msg.sender, address(this), previewedUnderlyingAmount);
+        UNDERLYING_ASSET.forceApprove(vaultAsset, previewedUnderlyingAmount);
 
-        // // Mint exact shares requested
-        // // slither-disable-next-line unused-return
-        // vault.mint(sharesAmount, address(this));
+        // Mint exact shares; vault pulls the required underlying.
+        // Some ERC4626 implementations may leave dust — we accept that.
+        spentUnderlyingAmount = vault.mint(sharesAmount, address(this));
 
-        // IERC20(vaultUnderlying).forceApprove(vaultAsset, 0);
+        UNDERLYING_ASSET.forceApprove(vaultAsset, 0);
+        IERC20(vaultAsset).safeTransfer(msg.sender, sharesAmount);
+    }
 
-        // // Transfer shares to LO
-        // IERC20(vaultAsset).safeTransfer(msg.sender, sharesAmount);
+    /// @notice Cross-asset buy: protocolUnderlying → swap executor → vaultUnderlying → vault shares
+    /// @param vault The ERC4626 vault contract
+    /// @param vaultAsset The vault address
+    /// @param vaultUnderlying The vault's underlying token address
+    /// @param sharesAmount The number of vault shares to mint
+    /// @return spentUnderlyingAmount The underlying amount spent
+    function _buyCrossAsset(
+        IERC4626 vault,
+        address vaultAsset,
+        address vaultUnderlying,
+        uint256 sharesAmount
+    ) private returns (uint256 spentUnderlyingAmount) {
+        uint256 vaultUnderlyingNeeded = vault.previewMint(sharesAmount);
 
-        // executionUnderlyingAmount = underlyingSpent;
+        IExecutionAdapter swapExecutor = IExecutionAdapter(
+            address(LIQUIDITY_ORCHESTRATOR.executionAdapterOf(vaultUnderlying))
+        );
+
+        // Pull exact input based on atomic preview
+        uint256 underlyingNeeded = swapExecutor.previewBuy(vaultUnderlying, vaultUnderlyingNeeded);
+        UNDERLYING_ASSET.safeTransferFrom(msg.sender, address(this), underlyingNeeded);
+        UNDERLYING_ASSET.forceApprove(address(swapExecutor), underlyingNeeded);
+
+        spentUnderlyingAmount = swapExecutor.buy(vaultUnderlying, vaultUnderlyingNeeded);
+        UNDERLYING_ASSET.forceApprove(address(swapExecutor), 0);
+
+        // Approve vault and mint exact shares
+        IERC20(vaultUnderlying).forceApprove(vaultAsset, vaultUnderlyingNeeded);
+        vault.mint(sharesAmount, address(this));
+        IERC20(vaultUnderlying).forceApprove(vaultAsset, 0);
+
+        IERC20(vaultAsset).safeTransfer(msg.sender, sharesAmount);
     }
 }

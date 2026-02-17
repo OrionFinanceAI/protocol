@@ -22,6 +22,12 @@ interface IExecutionAdapter {
     /// @return executionUnderlyingAmount The actual execution underlying amount received
     function sell(address asset, uint256 sharesAmount) external returns (uint256 executionUnderlyingAmount);
 
+    /// @notice Previews the underlying amount required to buy a given amount of an asset
+    /// @param asset The address of the asset to buy
+    /// @param sharesAmount The amount of asset shares to buy
+    /// @return underlyingAmount The underlying amount required
+    function previewBuy(address asset, uint256 sharesAmount) external returns (uint256 underlyingAmount);
+
     /// @notice Executes a buy operation by converting underlying assets to asset shares
     /// @param asset The address of the asset to buy
     /// @param sharesAmount The amount of underlying assets to buy
