@@ -16,6 +16,15 @@ import "@openzeppelin/contracts/access/Ownable2Step.sol";
  * @notice Execution adapter for Uniswap V3 pools
  * @author Orion Finance
  *
+ * @dev Security design: sell() and buy() are intentionally permissionless because this adapter
+ *      is a low-level swap component called by higher-level adapters (e.g. ERC4626ExecutionAdapter)
+ *      rather than directly by the LiquidityOrchestrator. Access control is enforced upstream:
+ *      LO (onlyAuthorizedTrigger) → ERC4626ExecutionAdapter (onlyLiquidityOrchestrator) → this adapter.
+ *
+ *      amountOutMinimum is set to 0 at the Uniswap level because slippage protection is enforced
+ *      by the LiquidityOrchestrator after execution via _calculateMinWithSlippage / _calculateMaxWithSlippage.
+ *      This avoids duplicating slippage checks and keeps the slippage tolerance centralized in the LO.
+ *
  * @custom:security-contact security@orionfinance.ai
  */
 contract UniswapV3ExecutionAdapter is IExecutionAdapter, Ownable2Step {
@@ -94,14 +103,16 @@ contract UniswapV3ExecutionAdapter is IExecutionAdapter, Ownable2Step {
     }
 
     /// @inheritdoc IExecutionAdapter
-    function sell(address asset, uint256 amount) external returns (uint256 receivedAmount) {
+    /// @dev Permissionless by design — called by ERC4626ExecutionAdapter, not directly by LO.
+    ///      amountOutMinimum = 0 because slippage is enforced by LO after execution.
+    function sell(address asset, uint256 amount) external override returns (uint256 receivedAmount) {
         // Pull input from caller
         IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
 
         // Approve router
         IERC20(asset).forceApprove(address(SWAP_ROUTER), amount);
 
-        // Execute exact input swap
+        // Execute exact input swap (amountOutMinimum=0: slippage checked by LO post-execution)
         ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
             tokenIn: asset,
             tokenOut: UNDERLYING_ASSET,
@@ -120,7 +131,7 @@ contract UniswapV3ExecutionAdapter is IExecutionAdapter, Ownable2Step {
     }
 
     /// @inheritdoc IExecutionAdapter
-    function previewBuy(address asset, uint256 amount) external returns (uint256 underlyingAmount) {
+    function previewBuy(address asset, uint256 amount) external override returns (uint256 underlyingAmount) {
         // slither-disable-next-line unused-return
         (underlyingAmount, , , ) = QUOTER.quoteExactOutputSingle(
             IQuoterV2.QuoteExactOutputSingleParams({
@@ -134,7 +145,9 @@ contract UniswapV3ExecutionAdapter is IExecutionAdapter, Ownable2Step {
     }
 
     /// @inheritdoc IExecutionAdapter
-    function buy(address asset, uint256 amount) external returns (uint256 spentAmount) {
+    /// @dev Permissionless by design — called by ERC4626ExecutionAdapter, not directly by LO.
+    ///      amountInMaximum is derived from caller's approval; slippage enforced by LO post-execution.
+    function buy(address asset, uint256 amount) external override returns (uint256 spentAmount) {
         // Caller must have approved the underlying amount (from previewBuy result).
         // Reading allowance avoids a redundant Quoter call when called from ERC4626ExecutionAdapter.
         uint256 amountInMaximum = IERC20(UNDERLYING_ASSET).allowance(msg.sender, address(this));
