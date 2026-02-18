@@ -225,7 +225,6 @@ describe("Orchestrator Configuration", function () {
     const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
     orionExecutionAdapter = (await ERC4626ExecutionAdapterFactory.deploy(
       await orionConfig.getAddress(),
-      await liquidityOrchestrator.getAddress(),
     )) as unknown as ERC4626ExecutionAdapter;
     await orionExecutionAdapter.waitForDeployment();
 

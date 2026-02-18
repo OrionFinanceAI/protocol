@@ -114,10 +114,7 @@ describe("Protocol Pause Functionality", function () {
 
     // Deploy Execution Adapter
     const AdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
-    const adapterDeployed = await AdapterFactory.deploy(
-      await config.getAddress(),
-      await MockExecutionAdapter.getAddress(),
-    );
+    const adapterDeployed = await AdapterFactory.deploy(await config.getAddress());
     await adapterDeployed.waitForDeployment();
     adapter = adapterDeployed as unknown as ERC4626ExecutionAdapter;
 

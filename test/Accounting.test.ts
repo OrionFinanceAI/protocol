@@ -119,10 +119,7 @@ describe("OrionVault Accounting", function () {
     const priceAdapter = await MockPriceAdapterFactory.deploy();
     await priceAdapter.waitForDeployment();
     const ExecutionAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
-    const executionAdapter = await ExecutionAdapterFactory.deploy(
-      await orionConfig.getAddress(),
-      await liquidityOrchestrator.getAddress(),
-    );
+    const executionAdapter = await ExecutionAdapterFactory.deploy(await orionConfig.getAddress());
     await executionAdapter.waitForDeployment();
 
     await orionConfig.addWhitelistedAsset(

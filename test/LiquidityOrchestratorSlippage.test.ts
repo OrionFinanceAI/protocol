@@ -83,7 +83,6 @@ describe("LiquidityOrchestrator - Centralized Slippage Management", function () 
     const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
     executionAdapter = (await ERC4626ExecutionAdapterFactory.deploy(
       await orionConfig.getAddress(),
-      await liquidityOrchestrator.getAddress(),
     )) as unknown as ERC4626ExecutionAdapter;
     await executionAdapter.waitForDeployment();
 
