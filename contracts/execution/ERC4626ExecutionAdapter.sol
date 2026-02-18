@@ -50,6 +50,8 @@ contract ERC4626ExecutionAdapter is IExecutionAdapter {
         CONFIG = IOrionConfig(configAddress);
         UNDERLYING_ASSET = IERC20(CONFIG.underlyingAsset());
         LIQUIDITY_ORCHESTRATOR = ILiquidityOrchestrator(CONFIG.liquidityOrchestrator());
+
+        if (address(LIQUIDITY_ORCHESTRATOR) == address(0)) revert ErrorsLib.ZeroAddress();
     }
 
     /// @notice Validates that an asset is a properly configured ERC4626 vault
