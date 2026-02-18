@@ -173,8 +173,9 @@ contract ChainlinkPriceAdapter is IPriceAdapter {
 
         // Handle inverse feeds (e.g., USDC/ETH → ETH/USDC)
         if (feedConfig.isInverse) {
-            // Invert: price = (10^INVERSE_DECIMALS)^2 / rawPrice
-            // Adjust decimals accordingly
+            // Invert: price = 10^(INVERSE_DECIMALS + feedDecimals) / rawPrice
+            // The result is expressed in INVERSE_DECIMALS precision.
+            // PriceAdapterRegistry normalizes from INVERSE_DECIMALS to priceAdapterDecimals.
             uint256 inversePrecision = 10 ** INVERSE_DECIMALS;
             rawPrice = (inversePrecision * (10 ** feedDecimals)) / rawPrice;
             feedDecimals = INVERSE_DECIMALS;
