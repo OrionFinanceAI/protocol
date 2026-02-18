@@ -78,13 +78,20 @@ library ErrorsLib {
     error SlippageExceeded(address asset, uint256 actual, uint256 expected);
 
     /// @notice Price data from oracle is stale or outdated.
-    error StalePrice();
+    /// @param asset The asset whose price feed is stale.
+    error StalePrice(address asset);
 
-    /// @notice Price returned from oracle is invalid (zero or negative).
-    error InvalidPrice();
+    /// @notice Price returned from oracle is invalid (zero, negative, or uninitialized).
+    /// @param asset The asset whose price is invalid.
+    /// @param price The invalid price value returned.
+    error InvalidPrice(address asset, int256 price);
 
     /// @notice Price is outside acceptable bounds.
-    error PriceOutOfBounds();
+    /// @param asset The asset whose price is out of bounds.
+    /// @param price The price that exceeded bounds.
+    /// @param min The minimum acceptable price.
+    /// @param max The maximum acceptable price.
+    error PriceOutOfBounds(address asset, uint256 price, uint256 min, uint256 max);
 
     /// @notice Thrown when the zk proof's commitment doesn't match the onchain commitment.
     /// @param proofCommitment The commitment from the zk proof.

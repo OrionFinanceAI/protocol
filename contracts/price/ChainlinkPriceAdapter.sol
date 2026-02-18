@@ -148,27 +148,27 @@ contract ChainlinkPriceAdapter is IPriceAdapter {
         (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound) = chainlinkFeed
             .latestRoundData();
 
-        if (answer < 1) revert ErrorsLib.InvalidPrice();
+        if (answer < 1) revert ErrorsLib.InvalidPrice(asset, answer);
 
         if (block.timestamp - updatedAt > feedConfig.maxStaleness) {
-            revert ErrorsLib.StalePrice();
+            revert ErrorsLib.StalePrice(asset);
         }
 
         // Check 3: Verify roundId validity (prevents returning stale data from previous rounds)
-        if (answeredInRound < roundId) revert ErrorsLib.StalePrice();
+        if (answeredInRound < roundId) revert ErrorsLib.StalePrice(asset);
 
         // Check 4: Verify feed is initialized
-        if (updatedAt == 0) revert ErrorsLib.InvalidPrice();
+        if (updatedAt == 0) revert ErrorsLib.InvalidPrice(asset, answer);
 
         // Check 5: Verify no future timestamps
-        if (startedAt > block.timestamp) revert ErrorsLib.InvalidPrice();
+        if (startedAt > block.timestamp) revert ErrorsLib.InvalidPrice(asset, answer);
 
         uint256 rawPrice = uint256(answer);
         uint8 feedDecimals = chainlinkFeed.decimals();
 
         // Check 6: Validate price bounds
         if (rawPrice < feedConfig.minPrice || rawPrice > feedConfig.maxPrice) {
-            revert ErrorsLib.PriceOutOfBounds();
+            revert ErrorsLib.PriceOutOfBounds(asset, rawPrice, feedConfig.minPrice, feedConfig.maxPrice);
         }
 
         // Handle inverse feeds (e.g., USDC/ETH → ETH/USDC)
