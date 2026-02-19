@@ -241,11 +241,11 @@ describe("ERC4626ExecutionAdapter", function () {
 
       // Get WETH → USD price from Chainlink
       const [wethPriceRaw, priceDecimals] = await chainlinkAdapter.getPriceData(MAINNET.WETH);
-      const wethPriceUSD = wethPriceRaw / BigInt(10 ** (Number(priceDecimals) - 2));
+      const wethPriceUSD = wethPriceRaw / 10n ** (priceDecimals - 2n);
       console.log(`  1 WETH = $${wethPriceUSD / 100n}`);
 
       // Estimate USDC cost
-      estimatedUSDCCost = (wethPerShare * wethPriceUSD) / BigInt(10 ** (18 + 2 - USDC_DECIMALS));
+      estimatedUSDCCost = (wethPerShare * wethPriceUSD) / 10n ** BigInt(18 + 2 - USDC_DECIMALS);
       console.log(`  Estimated cost: ${ethers.formatUnits(estimatedUSDCCost, USDC_DECIMALS)} USDC`);
     });
 
@@ -306,10 +306,10 @@ describe("ERC4626ExecutionAdapter", function () {
 
       // Get WETH → USD price
       const [wethPriceRaw, priceDecimals] = await chainlinkAdapter.getPriceData(MAINNET.WETH);
-      const wethPriceUSD = wethPriceRaw / BigInt(10 ** (Number(priceDecimals) - 2));
+      const wethPriceUSD = wethPriceRaw / 10n ** (priceDecimals - 2n);
 
-      // Estimate USDC received
-      estimatedUSDCReceived = (wethToReceive * BigInt(Number(wethPriceUSD))) / BigInt(10 ** (18 + 2 - USDC_DECIMALS));
+      // Estimate USDC received (all BigInt arithmetic, no Number truncation)
+      estimatedUSDCReceived = (wethToReceive * wethPriceUSD) / 10n ** BigInt(18 + 2 - USDC_DECIMALS);
       console.log(`  Estimated receive: ${ethers.formatUnits(estimatedUSDCReceived, USDC_DECIMALS)} USDC`);
     });
 
@@ -418,7 +418,7 @@ describe("ERC4626ExecutionAdapter", function () {
       const wethNeeded = await morphoWETH.convertToAssets(exactShares);
       const [wethPrice, priceDecimals] = await chainlinkAdapter.getPriceData(MAINNET.WETH);
       const estimatedCost =
-        (wethNeeded * wethPrice) / BigInt(10 ** (WETH_DECIMALS + Number(priceDecimals) - USDC_DECIMALS));
+        (wethNeeded * wethPrice) / 10n ** (BigInt(WETH_DECIMALS) + priceDecimals - BigInt(USDC_DECIMALS));
 
       const maxUSDC = (estimatedCost * (10000n + BigInt(SLIPPAGE_TOLERANCE))) / 10000n;
       await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), maxUSDC);
@@ -442,7 +442,7 @@ describe("ERC4626ExecutionAdapter", function () {
         const wethNeeded = await morphoWETH.convertToAssets(buyAmount);
         const [wethPrice, priceDecimals] = await chainlinkAdapter.getPriceData(MAINNET.WETH);
         const estimatedCost =
-          (wethNeeded * wethPrice) / BigInt(10 ** (WETH_DECIMALS + Number(priceDecimals) - USDC_DECIMALS));
+          (wethNeeded * wethPrice) / 10n ** (BigInt(WETH_DECIMALS) + priceDecimals - BigInt(USDC_DECIMALS));
 
         const maxUSDC = (estimatedCost * (10000n + BigInt(SLIPPAGE_TOLERANCE))) / 10000n;
         await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), maxUSDC);
@@ -464,7 +464,7 @@ describe("ERC4626ExecutionAdapter", function () {
       const wethNeeded = await morphoWETH.convertToAssets(sharesAmount);
       const [wethPrice, priceDecimals] = await chainlinkAdapter.getPriceData(MAINNET.WETH);
       const estimatedCost =
-        (wethNeeded * wethPrice) / BigInt(10 ** (WETH_DECIMALS + Number(priceDecimals) - USDC_DECIMALS));
+        (wethNeeded * wethPrice) / 10n ** (BigInt(WETH_DECIMALS) + priceDecimals - BigInt(USDC_DECIMALS));
 
       const maxUSDC = (estimatedCost * (10000n + BigInt(SLIPPAGE_TOLERANCE))) / 10000n;
       await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), maxUSDC);
@@ -970,7 +970,7 @@ describe("ERC4626ExecutionAdapter", function () {
       const [wethPrice, priceDecimals] = await chainlinkAdapter.getPriceData(MAINNET.WETH);
 
       const estimatedCost =
-        (wethPerShare * wethPrice) / BigInt(10 ** (WETH_DECIMALS + Number(priceDecimals) - USDC_DECIMALS));
+        (wethPerShare * wethPrice) / 10n ** (BigInt(WETH_DECIMALS) + priceDecimals - BigInt(USDC_DECIMALS));
 
       const maxUSDC = (estimatedCost * (10000n + BigInt(SLIPPAGE_TOLERANCE))) / 10000n;
       await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), maxUSDC);
@@ -1149,7 +1149,7 @@ describe("ERC4626ExecutionAdapter", function () {
       const wethNeeded = await morphoWETH.convertToAssets(sharesAmount);
       const [wethPrice, priceDecimals] = await chainlinkAdapter.getPriceData(MAINNET.WETH);
       const estimatedCost =
-        (wethNeeded * wethPrice) / BigInt(10 ** (WETH_DECIMALS + Number(priceDecimals) - USDC_DECIMALS));
+        (wethNeeded * wethPrice) / 10n ** (BigInt(WETH_DECIMALS) + priceDecimals - BigInt(USDC_DECIMALS));
       const maxUSDC = (estimatedCost * (10000n + BigInt(SLIPPAGE_TOLERANCE))) / 10000n;
 
       await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), maxUSDC);
@@ -1188,7 +1188,7 @@ describe("ERC4626ExecutionAdapter", function () {
       const wethNeeded = await morphoWETH.convertToAssets(sharesAmount);
       const [wethPrice, priceDecimals] = await chainlinkAdapter.getPriceData(MAINNET.WETH);
       const estimatedCost =
-        (wethNeeded * wethPrice) / BigInt(10 ** (WETH_DECIMALS + Number(priceDecimals) - USDC_DECIMALS));
+        (wethNeeded * wethPrice) / 10n ** (BigInt(WETH_DECIMALS) + priceDecimals - BigInt(USDC_DECIMALS));
       const maxUSDC = (estimatedCost * (10000n + BigInt(SLIPPAGE_TOLERANCE))) / 10000n;
 
       await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), maxUSDC);
