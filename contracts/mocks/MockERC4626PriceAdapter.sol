@@ -124,7 +124,7 @@ contract MockERC4626PriceAdapter is IPriceAdapter {
         // Step 3: Compose prices
         // Formula: (underlying/share) × (USDC/underlying) = USDC/share
         //
-        // underlyingPerShare is in underlying decimals
+        // underlyingPerShare is in vault underlying decimals (e.g., 18 for WETH, 8 for WBTC)
         // underlyingPriceInNumeraire is in priceAdapterDecimals
         // Result should be in priceAdapterDecimals
         //
@@ -132,8 +132,9 @@ contract MockERC4626PriceAdapter is IPriceAdapter {
         // - underlyingPerShare = 1.05e18 (WETH, 18 decimals)
         // - underlyingPriceInNumeraire = 3000e14 (price in 14 decimals)
         // - Result = (1.05e18 × 3000e14) / 1e18 = 3150e14
+        uint8 vaultUnderlyingDecimals = IERC20Metadata(underlying).decimals();
 
-        uint256 priceInNumeraire = underlyingPerShare.mulDiv(underlyingPriceInNumeraire, 10 ** underlyingDecimals);
+        uint256 priceInNumeraire = underlyingPerShare.mulDiv(underlyingPriceInNumeraire, 10 ** vaultUnderlyingDecimals);
 
         return (priceInNumeraire, priceAdapterDecimals);
     }
