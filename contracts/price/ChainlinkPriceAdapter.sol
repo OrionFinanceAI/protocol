@@ -51,6 +51,19 @@ contract ChainlinkPriceAdapter is IPriceAdapter {
     /// @notice Owner address (for feed configuration)
     address public owner;
 
+    /// @notice Pending owner for two-step ownership transfer
+    address public pendingOwner;
+
+    /// @notice Emitted when ownership is transferred
+    /// @param previousOwner The previous owner address
+    /// @param newOwner The new owner address
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+
+    /// @notice Emitted when a new owner is proposed
+    /// @param currentOwner The current owner address
+    /// @param proposedOwner The proposed new owner address
+    event OwnershipTransferStarted(address indexed currentOwner, address indexed proposedOwner);
+
     /// @notice Emitted when a Chainlink feed is configured for an asset
     /// @param asset The asset address
     /// @param feed The Chainlink aggregator address
@@ -186,12 +199,24 @@ contract ChainlinkPriceAdapter is IPriceAdapter {
     }
 
     /**
-     * @notice Transfer ownership
-     * @param newOwner New owner address
+     * @notice Propose a new owner
+     * @param newOwner The proposed new owner address
      */
     function transferOwnership(address newOwner) external {
         if (msg.sender != owner) revert ErrorsLib.NotAuthorized();
         if (newOwner == address(0)) revert ErrorsLib.ZeroAddress();
-        owner = newOwner;
+        pendingOwner = newOwner;
+        emit OwnershipTransferStarted(owner, newOwner);
+    }
+
+    /**
+     * @notice Accept ownership (must be called by the pending owner)
+     */
+    function acceptOwnership() external {
+        if (msg.sender != pendingOwner) revert ErrorsLib.NotAuthorized();
+        address previousOwner = owner;
+        owner = msg.sender;
+        pendingOwner = address(0);
+        emit OwnershipTransferred(previousOwner, msg.sender);
     }
 }
