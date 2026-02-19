@@ -276,15 +276,33 @@ describe("ChainlinkPriceAdapter - Coverage Tests", function () {
     });
   });
 
-  describe("transferOwnership", function () {
-    it("Should transfer ownership", async function () {
+  describe("transferOwnership (two-step)", function () {
+    it("Should transfer ownership via propose + accept", async function () {
       const newOwner = nonOwner.address;
       await chainlinkAdapter.transferOwnership(newOwner);
 
+      // Owner hasn't changed yet — pending owner must accept
+      expect(await chainlinkAdapter.owner()).to.equal(owner.address);
+      expect(await chainlinkAdapter.pendingOwner()).to.equal(newOwner);
+
+      // Accept ownership
+      await chainlinkAdapter.connect(nonOwner).acceptOwnership();
       expect(await chainlinkAdapter.owner()).to.equal(newOwner);
+      expect(await chainlinkAdapter.pendingOwner()).to.equal(ethers.ZeroAddress);
 
       // Transfer back for other tests
       await chainlinkAdapter.connect(nonOwner).transferOwnership(owner.address);
+      await chainlinkAdapter.acceptOwnership();
+    });
+
+    it("Should reject accept from non-pending owner", async function () {
+      await chainlinkAdapter.transferOwnership(nonOwner.address);
+      await expect(chainlinkAdapter.acceptOwnership()).to.be.revertedWithCustomError(chainlinkAdapter, "NotAuthorized");
+      // Clean up: accept with correct account
+      await chainlinkAdapter.connect(nonOwner).acceptOwnership();
+      // Transfer back
+      await chainlinkAdapter.connect(nonOwner).transferOwnership(owner.address);
+      await chainlinkAdapter.acceptOwnership();
     });
 
     it("Should reject zero address", async function () {
