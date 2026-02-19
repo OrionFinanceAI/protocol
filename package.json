@@ -87,7 +87,8 @@
   "pnpm": {
     "overrides": {
       "@openzeppelin/contracts-upgradeable@>=4.3.0 <4.8.3": "^4.9.6",
-      "@openzeppelin/contracts@>=4.3.0 <4.8.3": "^4.9.6"
+      "@openzeppelin/contracts@>=4.3.0 <4.8.3": "^4.9.6",
+      "minimatch@<10.2.1": ">=10.2.1"
     },
     "peerDependencyRules": {
       "ignoreMissing": [
