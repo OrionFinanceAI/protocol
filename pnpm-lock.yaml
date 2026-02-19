@@ -8,10 +8,15 @@ overrides:
   '@openzeppelin/contracts-upgradeable@>=4.3.0 <4.8.3': ^4.9.6
   '@openzeppelin/contracts@>=4.3.0 <4.8.3': ^4.9.6
 
+pnpmfileChecksum: sha256-Acg9pmrpa8s4ldQnxHL/MoBQiDX/xDc9XJUr79MLhfQ=
+
 importers:
 
   .:
     dependencies:
+      '@chainlink/contracts':
+        specifier: ^1.4.0
+        version: 1.5.0
       '@fhevm/solidity':
         specifier: ^0.10.0
         version: 0.10.0
@@ -303,6 +308,10 @@ packages:
 
   '@bytecodealliance/preview2-shim@0.17.0':
     resolution: {integrity: sha512-JorcEwe4ud0x5BS/Ar2aQWOQoFzjq/7jcnxYXCvSMh0oRm0dQXzOA+hqLDBnOMks1LLBA7dmiLLsEBl09Yd6iQ==}
+
+  '@chainlink/contracts@1.5.0':
+    resolution: {integrity: sha512-1fGJwjvivqAxvVOTqZUEXGR54CATtg0vjcXgSIk4Cfoad2nUhSG/qaWHXjLg1CkNTeOoteoxGQcpP/HiA5HsUA==}
+    engines: {node: '>=22', pnpm: '>=10'}
 
   '@colors/colors@1.5.0':
     resolution: {integrity: sha512-ooWCrlZP11i8GImSjTHYHLkvFDP48nS4+204nGb1RiX/WXYHmJA2III9/e2DWVabCESdW7hBAEzHRqUn9OUVvQ==}
@@ -3977,6 +3986,8 @@ snapshots:
   '@babel/helper-validator-identifier@7.28.5': {}
 
   '@bytecodealliance/preview2-shim@0.17.0': {}
+
+  '@chainlink/contracts@1.5.0': {}
 
   '@colors/colors@1.5.0':
     optional: true
