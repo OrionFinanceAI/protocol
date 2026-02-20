@@ -1,7 +1,7 @@
 {
   "name": "@orion-finance/protocol",
   "description": "Orion Finance Protocol",
-  "version": "2.0.1",
+  "version": "2.1.0",
   "engines": {
     "node": ">=20.0.0"
   },
@@ -80,6 +80,8 @@
     "@fhevm/solidity": "^0.10.0",
     "@openzeppelin/contracts": "^5.4.0",
     "@openzeppelin/contracts-upgradeable": "^5.4.0",
+    "@uniswap/v3-core": "^1.0.1",
+    "@uniswap/v3-periphery": "^1.4.4",
     "encrypted-types": "^0.0.4"
   },
   "pnpm": {

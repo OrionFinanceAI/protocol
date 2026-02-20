@@ -284,6 +284,7 @@ contract LiquidityOrchestrator is
 
     /// @inheritdoc ILiquidityOrchestrator
     function setSlippageTolerance(uint256 _slippageTolerance) external onlyOwner {
+        if (_slippageTolerance > BASIS_POINTS_FACTOR) revert ErrorsLib.InvalidArguments();
         slippageTolerance = _slippageTolerance;
     }
 
@@ -754,6 +755,18 @@ contract LiquidityOrchestrator is
         }
     }
 
+    /// @notice Calculate maximum amount with slippage applied
+    /// @param estimatedAmount The estimated amount
+    function _calculateMaxWithSlippage(uint256 estimatedAmount) internal view returns (uint256) {
+        return estimatedAmount.mulDiv(BASIS_POINTS_FACTOR + slippageTolerance, BASIS_POINTS_FACTOR);
+    }
+
+    /// @notice Calculate minimum amount with slippage applied
+    /// @param estimatedAmount The estimated amount
+    function _calculateMinWithSlippage(uint256 estimatedAmount) internal view returns (uint256) {
+        return estimatedAmount.mulDiv(BASIS_POINTS_FACTOR - slippageTolerance, BASIS_POINTS_FACTOR);
+    }
+
     /// @notice Executes a sell order
     /// @param asset The asset to sell
     /// @param sharesAmount The amount of shares to sell
@@ -766,7 +779,13 @@ contract LiquidityOrchestrator is
         IERC20(asset).forceApprove(address(adapter), sharesAmount);
 
         // Execute sell through adapter, pull shares from this contract and push underlying assets to it.
-        uint256 executionUnderlyingAmount = adapter.sell(asset, sharesAmount, estimatedUnderlyingAmount);
+        uint256 executionUnderlyingAmount = adapter.sell(asset, sharesAmount);
+
+        // Validate slippage of trade is within tolerance.
+        uint256 minUnderlyingAmount = _calculateMinWithSlippage(estimatedUnderlyingAmount);
+        if (executionUnderlyingAmount < minUnderlyingAmount) {
+            revert ErrorsLib.SlippageExceeded(asset, executionUnderlyingAmount, minUnderlyingAmount);
+        }
 
         // Clean up approval
         IERC20(asset).forceApprove(address(adapter), 0);
@@ -778,19 +797,15 @@ contract LiquidityOrchestrator is
     /// @param asset The asset to buy
     /// @param sharesAmount The amount of shares to buy
     /// @param estimatedUnderlyingAmount The estimated underlying amount to spend
-    /// @dev The adapter handles slippage tolerance internally.
     function _executeBuy(address asset, uint256 sharesAmount, uint256 estimatedUnderlyingAmount) external onlySelf {
         IExecutionAdapter adapter = executionAdapterOf[asset];
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
 
-        // Approve adapter to spend underlying assets
-        IERC20(underlyingAsset).forceApprove(
-            address(adapter),
-            estimatedUnderlyingAmount.mulDiv(BASIS_POINTS_FACTOR + slippageTolerance, BASIS_POINTS_FACTOR)
-        );
+        // Approve adapter to spend underlying assets with slippage tolerance
+        IERC20(underlyingAsset).forceApprove(address(adapter), _calculateMaxWithSlippage(estimatedUnderlyingAmount));
 
         // Execute buy through adapter, pull underlying assets from this contract and push shares to it.
-        uint256 executionUnderlyingAmount = adapter.buy(asset, sharesAmount, estimatedUnderlyingAmount);
+        uint256 executionUnderlyingAmount = adapter.buy(asset, sharesAmount);
 
         // Clean up approval
         IERC20(underlyingAsset).forceApprove(address(adapter), 0);

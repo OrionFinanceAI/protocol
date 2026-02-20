@@ -8,12 +8,12 @@ import { resetNetwork } from "./helpers/resetNetwork";
 import {
   MockUnderlyingAsset,
   MockERC4626Asset,
-  OrionAssetERC4626ExecutionAdapter,
+  ERC4626ExecutionAdapter,
   OrionConfig,
   LiquidityOrchestrator,
   TransparentVaultFactory,
   OrionTransparentVault,
-  OrionAssetERC4626PriceAdapter,
+  ERC4626PriceAdapter,
   KBestTvlWeightedAverage,
   KBestTvlWeightedAverageInvalid,
 } from "../typechain-types";
@@ -26,8 +26,8 @@ describe("Passive Strategist", function () {
   let mockAsset2: MockERC4626Asset;
   let mockAsset3: MockERC4626Asset;
   let mockAsset4: MockERC4626Asset;
-  let orionPriceAdapter: OrionAssetERC4626PriceAdapter;
-  let orionExecutionAdapter: OrionAssetERC4626ExecutionAdapter;
+  let orionPriceAdapter: ERC4626PriceAdapter;
+  let orionExecutionAdapter: ERC4626ExecutionAdapter;
   let liquidityOrchestrator: LiquidityOrchestrator;
   let transparentVault: OrionTransparentVault;
   let passiveStrategist: KBestTvlWeightedAverage;
@@ -114,11 +114,9 @@ describe("Passive Strategist", function () {
     liquidityOrchestrator = deployed.liquidityOrchestrator;
     transparentVaultFactory = deployed.transparentVaultFactory;
 
-    // Deploy OrionAssetERC4626PriceAdapter
-    const OrionAssetERC4626PriceAdapterFactory = await ethers.getContractFactory("OrionAssetERC4626PriceAdapter");
-    orionPriceAdapter = (await OrionAssetERC4626PriceAdapterFactory.deploy(
-      await orionConfig.getAddress(),
-    )) as unknown as OrionAssetERC4626PriceAdapter;
+    // Deploy MockPriceAdapter (for same-asset vaults)
+    const MockPriceAdapterFactory = await ethers.getContractFactory("MockPriceAdapter");
+    orionPriceAdapter = (await MockPriceAdapterFactory.deploy()) as unknown as ERC4626PriceAdapter;
     await orionPriceAdapter.waitForDeployment();
 
     // Configure protocol
@@ -126,12 +124,10 @@ describe("Passive Strategist", function () {
     await liquidityOrchestrator.setTargetBufferRatio(100); // 1% target buffer ratio
     await liquidityOrchestrator.setSlippageTolerance(50); // 0.5% slippage
 
-    const OrionAssetERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
-      "OrionAssetERC4626ExecutionAdapter",
-    );
-    orionExecutionAdapter = (await OrionAssetERC4626ExecutionAdapterFactory.deploy(
+    const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
+    orionExecutionAdapter = (await ERC4626ExecutionAdapterFactory.deploy(
       await orionConfig.getAddress(),
-    )) as unknown as OrionAssetERC4626ExecutionAdapter;
+    )) as unknown as ERC4626ExecutionAdapter;
     await orionExecutionAdapter.waitForDeployment();
 
     await orionConfig.addWhitelistedAsset(
