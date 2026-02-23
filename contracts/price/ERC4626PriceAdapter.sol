@@ -8,28 +8,11 @@ import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
 import { IPriceAdapterRegistry } from "../interfaces/IPriceAdapterRegistry.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
+
 /**
  * @title ERC4626PriceAdapter
  * @notice Price adapter for ERC-4626 vaults.
  * @author Orion Finance
- * @dev Composes vault share → underlying → USDC pricing via oracle
- *
- * Pricing Flow:
- * 1. Get vault share → underlying conversion rate (via ERC4626.convertToAssets)
- * 2. Get underlying → USDC price (via PriceAdapterRegistry oracle)
- * 3. Multiply: (underlying/share) × (USDC/underlying) = USDC/share
- *
- * Example (Cross-asset):
- * - Vault: Yearn WETH (yvWETH)
- * - 1 yvWETH = 1.05 WETH (vault appreciation)
- * - 1 WETH = 3000 USDC (from Chainlink oracle)
- * - Result: 1 yvWETH = 1.05 × 3000 = 3150 USDC
- *
- * Security:
- * - Validates underlying has price feed during registration
- * - Uses protocol's price adapter decimals for normalization (14 decimals)
- * - Handles arbitrary underlying decimals (WBTC=8, WETH=18, etc.)
- * - Does NOT support same-asset vaults (underlying == USDC)
  *
  * @custom:security-contact security@orionfinance.ai
  */
@@ -39,17 +22,17 @@ contract ERC4626PriceAdapter is IPriceAdapter {
     /// @notice Orion Config contract address
     IOrionConfig public immutable CONFIG;
 
-    /// @notice Price adapter registry for underlying asset prices
+    /// @notice Price adapter registry for vault underlying asset prices
     IPriceAdapterRegistry public immutable PRICE_REGISTRY;
 
-    /// @notice Protocol underlying asset (USDC)
+    /// @notice Protocol underlying asset
     IERC20Metadata public immutable UNDERLYING_ASSET;
 
-    /// @notice Underlying asset decimals (6 for USDC)
-    uint8 public immutable UNDERLYING_DECIMALS;
+    /// @notice Decimals of the protocol underlying
+    uint8 public immutable UNDERLYING_ASSET_DECIMALS;
 
-    /// @notice Price adapter decimals for normalization (14)
-    uint8 public immutable PRICE_ADAPTER_DECIMALS;
+    /// @notice Decimals of the price
+    uint8 public constant PRICE_DECIMALS = 10;
 
     /// @notice Constructor
     /// @param configAddress The address of the OrionConfig contract
@@ -59,40 +42,13 @@ contract ERC4626PriceAdapter is IPriceAdapter {
         CONFIG = IOrionConfig(configAddress);
         PRICE_REGISTRY = IPriceAdapterRegistry(CONFIG.priceAdapterRegistry());
         UNDERLYING_ASSET = IERC20Metadata(address(CONFIG.underlyingAsset()));
-        UNDERLYING_DECIMALS = UNDERLYING_ASSET.decimals();
-        PRICE_ADAPTER_DECIMALS = CONFIG.priceAdapterDecimals();
+        UNDERLYING_ASSET_DECIMALS = IERC20Metadata(UNDERLYING_ASSET).decimals();
     }
 
     /// @inheritdoc IPriceAdapter
     function validatePriceAdapter(address asset) external view {
-        // 1. Verify asset implements IERC4626
-        address underlying = address(0);
-        try IERC4626(asset).asset() returns (address _underlying) {
-            underlying = _underlying;
-            if (underlying == address(0)) revert ErrorsLib.InvalidAdapter(asset);
-
-            // Verify underlying is NOT the protocol underlying (use standard adapter for that)
-            if (underlying == address(UNDERLYING_ASSET)) {
-                revert ErrorsLib.InvalidAdapter(asset);
-            }
-        } catch {
-            revert ErrorsLib.InvalidAdapter(asset);
-        }
-
-        // 2. Verify underlying has a price feed registered
-        // This is CRITICAL - we need underlying → USDC pricing
-        // slither-disable-next-line unused-return
-        try PRICE_REGISTRY.getPrice(underlying) returns (uint256) {
-            // solhint-disable-previous-line no-empty-blocks
-        } catch {
-            revert ErrorsLib.InvalidAdapter(asset);
-        }
-
-        // 3. Verify vault decimals are registered in config
-        try IERC20Metadata(asset).decimals() returns (uint8 decimals) {
-            if (decimals != CONFIG.getTokenDecimals(asset)) {
-                revert ErrorsLib.InvalidAdapter(asset);
-            }
+        try IERC4626(asset).asset() returns (address vaultUnderlying) {
+            if (!CONFIG.isWhitelisted(vaultUnderlying)) revert ErrorsLib.InvalidAdapter(asset);
         } catch {
             revert ErrorsLib.InvalidAdapter(asset);
         }
@@ -101,33 +57,25 @@ contract ERC4626PriceAdapter is IPriceAdapter {
     /// @inheritdoc IPriceAdapter
     function getPriceData(address vaultAsset) external view returns (uint256 price, uint8 decimals) {
         IERC4626 vault = IERC4626(vaultAsset);
-        address underlying = vault.asset();
+        address vaultUnderlying = vault.asset();
 
-        // Step 1: Get vault share → underlying conversion
-        // Calculate how much underlying per 1 vault share
-        uint8 vaultDecimals = IERC20Metadata(vaultAsset).decimals();
-        uint256 oneShare = 10 ** vaultDecimals;
-        uint256 underlyingPerShare = vault.convertToAssets(oneShare);
+        uint8 vaultAssetDecimals = IERC20Metadata(vaultAsset).decimals();
+        uint256 precisionAmount = 10 ** (PRICE_DECIMALS + vaultAssetDecimals);
 
-        // Step 2: Get underlying → USDC price from oracle
-        // Price is already normalized to PRICE_ADAPTER_DECIMALS (14 decimals)
-        uint256 underlyingPriceInNumeraire = PRICE_REGISTRY.getPrice(underlying);
+        // Floor rounding here, previewMint uses ceil in execution,
+        // buffer to deal with negligible truncation and rounding errors.
+        uint256 vaultUnderlyingAssetAmount = vault.convertToAssets(precisionAmount);
 
-        // Step 3: Compose prices
-        // Formula: (underlying/share) × (USDC/underlying) = USDC/share
-        //
-        // underlyingPerShare is in underlying decimals
-        // underlyingPriceInNumeraire is in PRICE_ADAPTER_DECIMALS
-        // Result should be in PRICE_ADAPTER_DECIMALS
-        //
-        // Example:
-        // - underlyingPerShare = 1.05e18 (WETH, 18 decimals)
-        // - underlyingPriceInNumeraire = 3000e14 (price in 14 decimals)
-        // - Result = (1.05e18 × 3000e14) / 1e18 = 3150e14
+        if (vaultUnderlying == address(UNDERLYING_ASSET)) {
+            return (vaultUnderlyingAssetAmount, PRICE_DECIMALS + UNDERLYING_ASSET_DECIMALS);
+        }
 
-        uint8 underlyingDecimalsLocal = IERC20Metadata(underlying).decimals();
-        uint256 priceInNumeraire = underlyingPerShare.mulDiv(underlyingPriceInNumeraire, 10 ** underlyingDecimalsLocal);
+        uint256 vaultUnderlyingPrice = PRICE_REGISTRY.getPrice(vaultUnderlying);
+        uint256 vaultPrice = vaultUnderlyingAssetAmount.mulDiv(
+            vaultUnderlyingPrice,
+            10 ** CONFIG.priceAdapterDecimals()
+        );
 
-        return (priceInNumeraire, PRICE_ADAPTER_DECIMALS);
+        return (vaultPrice, PRICE_DECIMALS + CONFIG.getTokenDecimals(vaultUnderlying));
     }
 }
