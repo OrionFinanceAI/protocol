@@ -127,9 +127,8 @@ contract ChainlinkPriceAdapter is IPriceAdapter, Ownable2Step {
 
         // Verify feed is callable
         // slither-disable-next-line unused-return
-        try AggregatorV3Interface(feedConfig.feed).decimals() returns (uint8 feedDecimals) {
-            // Feed is valid - decimals retrieved successfully
-            feedDecimals; // Silence unused variable warning
+        try AggregatorV3Interface(feedConfig.feed).decimals() returns (uint8) {
+            // Decimals retrieved successfully
         } catch {
             revert ErrorsLib.InvalidAdapter(asset);
         }
