@@ -102,6 +102,20 @@ contract UniswapV3ExecutionAdapter is IExecutionAdapter, Ownable2Step {
     }
 
     /// @inheritdoc IExecutionAdapter
+    function previewBuy(address asset, uint256 amount) external override returns (uint256 underlyingAmount) {
+        // slither-disable-next-line unused-return
+        (underlyingAmount, , , ) = QUOTER.quoteExactOutputSingle(
+            IQuoterV2.QuoteExactOutputSingleParams({
+                tokenIn: UNDERLYING_ASSET,
+                tokenOut: asset,
+                amount: amount,
+                fee: assetFee[asset],
+                sqrtPriceLimitX96: 0
+            })
+        );
+    }
+
+    /// @inheritdoc IExecutionAdapter
     function sell(address asset, uint256 amount) external override returns (uint256 receivedAmount) {
         // Pull input from caller
         IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
@@ -109,7 +123,7 @@ contract UniswapV3ExecutionAdapter is IExecutionAdapter, Ownable2Step {
         // Approve router
         IERC20(asset).forceApprove(address(SWAP_ROUTER), amount);
 
-        // Execute exact input swap (amountOutMinimum=0: slippage checked by LO post-execution)
+        // Execute exact input swap
         ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
             tokenIn: asset,
             tokenOut: UNDERLYING_ASSET,
@@ -128,32 +142,13 @@ contract UniswapV3ExecutionAdapter is IExecutionAdapter, Ownable2Step {
     }
 
     /// @inheritdoc IExecutionAdapter
-    function previewBuy(address asset, uint256 amount) external override returns (uint256 underlyingAmount) {
-        // slither-disable-next-line unused-return
-        (underlyingAmount, , , ) = QUOTER.quoteExactOutputSingle(
-            IQuoterV2.QuoteExactOutputSingleParams({
-                tokenIn: UNDERLYING_ASSET,
-                tokenOut: asset,
-                amount: amount,
-                fee: assetFee[asset],
-                sqrtPriceLimitX96: 0
-            })
-        );
-    }
-
-    /// @inheritdoc IExecutionAdapter
-    /// @dev Permissionless by design — called by ERC4626ExecutionAdapter, not directly by LO.
-    ///      amountInMaximum is derived from caller's approval; slippage enforced by LO post-execution.
     function buy(address asset, uint256 amount) external override returns (uint256 spentAmount) {
-        // Caller must have approved the underlying amount (from previewBuy result).
-        // Reading allowance avoids a redundant Quoter call when called from ERC4626ExecutionAdapter.
-        uint256 amountInMaximum = IERC20(UNDERLYING_ASSET).allowance(msg.sender, address(this));
+        uint256 amountIn = this.previewBuy(asset, amount);
 
         // Pull approved amount from caller
-        IERC20(UNDERLYING_ASSET).safeTransferFrom(msg.sender, address(this), amountInMaximum);
+        IERC20(UNDERLYING_ASSET).safeTransferFrom(msg.sender, address(this), amountIn);
 
-        // Approve router
-        IERC20(UNDERLYING_ASSET).forceApprove(address(SWAP_ROUTER), amountInMaximum);
+        IERC20(UNDERLYING_ASSET).forceApprove(address(SWAP_ROUTER), amountIn);
 
         // Execute exact output swap
         ISwapRouter.ExactOutputSingleParams memory params = ISwapRouter.ExactOutputSingleParams({
@@ -163,19 +158,12 @@ contract UniswapV3ExecutionAdapter is IExecutionAdapter, Ownable2Step {
             recipient: msg.sender,
             deadline: block.timestamp,
             amountOut: amount,
-            amountInMaximum: amountInMaximum,
+            amountInMaximum: amountIn,
             sqrtPriceLimitX96: 0
         });
 
         spentAmount = SWAP_ROUTER.exactOutputSingle(params);
 
-        // Refund unused underlying to caller (triggered when max+slippage was approved;
-        // zero-cost in atomic previewBuy→buy flows since spentAmount == amountInMaximum)
-        if (spentAmount < amountInMaximum) {
-            IERC20(UNDERLYING_ASSET).safeTransfer(msg.sender, amountInMaximum - spentAmount);
-        }
-
-        // Clean up approval
         IERC20(UNDERLYING_ASSET).forceApprove(address(SWAP_ROUTER), 0);
     }
 }
