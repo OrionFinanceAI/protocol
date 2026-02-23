@@ -174,7 +174,6 @@ jobs:
 
           find artifacts/contracts -name "*.json" \
             ! -name "*.dbg.json" \
-            ! -path "*/mocks/*" \
             ! -path "*/test/*" \
             -exec sh -c '
               for file do

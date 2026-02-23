@@ -28,7 +28,7 @@
     "test:sepolia": "hardhat test --network sepolia",
     "prettier:check": "prettier --check \"**/*.{js,json,md,sol,ts,yml}\"",
     "prettier:write": "prettier --write \"**/*.{js,json,md,sol,ts,yml}\"",
-    "slither": "slither . --filter-paths 'lib|node_modules|dependencies|contracts/mocks' --fail-medium",
+    "slither": "slither . --filter-paths 'lib|node_modules|dependencies|test' --fail-medium",
     "verify:vault": "hardhat run protocol-ops/verify-vault.ts --network sepolia",
     "storage-layout": "hardhat run scripts/check-storage-layout.ts"
   },

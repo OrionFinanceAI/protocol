@@ -26,7 +26,6 @@ describe("ERC4626ExecutionAdapter - Atomic Guarantees (Unit)", function () {
   let owner: SignerWithAddress;
   let loSigner: SignerWithAddress;
 
-  // Mocks
   let usdc: MockUnderlyingAsset;
   let weth: MockUnderlyingAsset;
   let vault: MockERC4626Asset;

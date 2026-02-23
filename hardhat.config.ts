@@ -15,7 +15,7 @@ const config: HardhatUserConfig = {
   docgen: {
     outputDir: "./docs/",
     pages: "files",
-    exclude: ["mocks", "test"],
+    exclude: ["test"],
   },
 
   solidity: {
