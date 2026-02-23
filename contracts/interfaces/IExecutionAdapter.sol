@@ -26,6 +26,8 @@ interface IExecutionAdapter {
     /// @param asset The address of the asset to buy
     /// @param sharesAmount The amount of asset shares to buy
     /// @return underlyingAmount The underlying amount required
+    /// @dev Particularly useful in keeping execution adapters composable with each other, making refunding
+    ///      unnecessary when higher-level adapters use the previewed amount for downstream buy() calls.
     function previewBuy(address asset, uint256 sharesAmount) external returns (uint256 underlyingAmount);
 
     /// @notice Executes a buy operation by converting underlying assets to asset shares
