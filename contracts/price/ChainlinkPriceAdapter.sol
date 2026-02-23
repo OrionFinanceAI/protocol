@@ -5,18 +5,21 @@ import { IPriceAdapter } from "../interfaces/IPriceAdapter.sol";
 import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
+
 /**
  * @title ChainlinkPriceAdapter
  * @notice Price adapter for assets using Chainlink oracle feeds
  * @author Orion Finance
  * @dev Implements comprehensive security checks from Euler and Morpho Blue best practices
  *
- * Security Checks (ALL 5 are mandatory):
+ * Security Checks:
  * 1. answer > 0 (no zero or negative prices)
- * 2. updatedAt staleness check (block.timestamp - updatedAt <= maxStaleness)
- * 3. answeredInRound >= roundId (prevent stale round data)
- * 4. updatedAt != 0 (feed is initialized)
- * 5. startedAt <= block.timestamp (no future timestamps)
+ * 2. updatedAt != 0 (feed is initialized)
+ * 3. startedAt <= block.timestamp (no future timestamps)
+ * 4. answeredInRound >= roundId (prevent stale round data)
+ * 5. staleness (block.timestamp - updatedAt <= maxStaleness)
+ * 6. price bounds (minPrice <= rawPrice <= maxPrice)
  *
  * Additional Security:
  * - Configurable price bounds (minPrice, maxPrice) to detect manipulation
@@ -25,7 +28,7 @@ import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/shared/inte
  *
  * @custom:security-contact security@orionfinance.ai
  */
-contract ChainlinkPriceAdapter is IPriceAdapter {
+contract ChainlinkPriceAdapter is IPriceAdapter, Ownable2Step {
     /// @notice Orion protocol configuration contract
     // solhint-disable-next-line immutable-vars-naming, use-natspec
     IOrionConfig public immutable config;
@@ -48,22 +51,6 @@ contract ChainlinkPriceAdapter is IPriceAdapter {
     /// @notice Decimals used for inverse calculation
     uint8 public constant INVERSE_DECIMALS = 18;
 
-    /// @notice Owner address (for feed configuration)
-    address public owner;
-
-    /// @notice Pending owner for two-step ownership transfer
-    address public pendingOwner;
-
-    /// @notice Emitted when ownership is transferred
-    /// @param previousOwner The previous owner address
-    /// @param newOwner The new owner address
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
-
-    /// @notice Emitted when a new owner is proposed
-    /// @param currentOwner The current owner address
-    /// @param proposedOwner The proposed new owner address
-    event OwnershipTransferStarted(address indexed currentOwner, address indexed proposedOwner);
-
     /// @notice Emitted when a Chainlink feed is configured for an asset
     /// @param asset The asset address
     /// @param feed The Chainlink aggregator address
@@ -84,12 +71,11 @@ contract ChainlinkPriceAdapter is IPriceAdapter {
      * @notice Constructor
      * @param configAddress OrionConfig contract address
      */
-    constructor(address configAddress) {
+    constructor(address configAddress) Ownable(msg.sender) {
         if (configAddress == address(0)) revert ErrorsLib.ZeroAddress();
 
         config = IOrionConfig(configAddress);
         priceAdapterDecimals = config.priceAdapterDecimals();
-        owner = msg.sender;
     }
 
     /**
@@ -109,8 +95,7 @@ contract ChainlinkPriceAdapter is IPriceAdapter {
         uint256 _maxStaleness,
         uint256 _minPrice,
         uint256 _maxPrice
-    ) external {
-        if (msg.sender != owner) revert ErrorsLib.NotAuthorized();
+    ) external onlyOwner {
         if (asset == address(0) || feed == address(0)) revert ErrorsLib.ZeroAddress();
         if (_maxStaleness == 0) revert ErrorsLib.InvalidArguments();
         if (_maxPrice == 0) revert ErrorsLib.InvalidArguments();
@@ -162,25 +147,27 @@ contract ChainlinkPriceAdapter is IPriceAdapter {
         (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound) = chainlinkFeed
             .latestRoundData();
 
+        // Check 1: No zero or negative prices
         if (answer < 1) revert ErrorsLib.InvalidPrice(asset, answer);
 
+        // Check 2: Feed is initialized
+        if (updatedAt == 0) revert ErrorsLib.InvalidPrice(asset, answer);
+
+        // Check 3: No future timestamps
+        if (startedAt > block.timestamp) revert ErrorsLib.InvalidPrice(asset, answer);
+
+        // Check 4: Round id validity
+        if (answeredInRound < roundId) revert ErrorsLib.StalePrice(asset);
+
+        // Check 5: Staleness
         if (block.timestamp - updatedAt > feedConfig.maxStaleness) {
             revert ErrorsLib.StalePrice(asset);
         }
 
-        // Check 3: Verify roundId validity (prevents returning stale data from previous rounds)
-        if (answeredInRound < roundId) revert ErrorsLib.StalePrice(asset);
-
-        // Check 4: Verify feed is initialized
-        if (updatedAt == 0) revert ErrorsLib.InvalidPrice(asset, answer);
-
-        // Check 5: Verify no future timestamps
-        if (startedAt > block.timestamp) revert ErrorsLib.InvalidPrice(asset, answer);
-
         uint256 rawPrice = uint256(answer);
         uint8 feedDecimals = chainlinkFeed.decimals();
 
-        // Check 6: Validate price bounds
+        // Check 6: Price bounds
         if (rawPrice < feedConfig.minPrice || rawPrice > feedConfig.maxPrice) {
             revert ErrorsLib.PriceOutOfBounds(asset, rawPrice, feedConfig.minPrice, feedConfig.maxPrice);
         }
@@ -196,27 +183,5 @@ contract ChainlinkPriceAdapter is IPriceAdapter {
         }
 
         return (rawPrice, feedDecimals);
-    }
-
-    /**
-     * @notice Propose a new owner
-     * @param newOwner The proposed new owner address
-     */
-    function transferOwnership(address newOwner) external {
-        if (msg.sender != owner) revert ErrorsLib.NotAuthorized();
-        if (newOwner == address(0)) revert ErrorsLib.ZeroAddress();
-        pendingOwner = newOwner;
-        emit OwnershipTransferStarted(owner, newOwner);
-    }
-
-    /**
-     * @notice Accept ownership (must be called by the pending owner)
-     */
-    function acceptOwnership() external {
-        if (msg.sender != pendingOwner) revert ErrorsLib.NotAuthorized();
-        address previousOwner = owner;
-        owner = msg.sender;
-        pendingOwner = address(0);
-        emit OwnershipTransferred(previousOwner, msg.sender);
     }
 }
