@@ -6,36 +6,16 @@ import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 import "@openzeppelin/contracts/access/Ownable2Step.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
  * @title ChainlinkPriceAdapter
  * @notice Price adapter for assets using Chainlink oracle feeds
  * @author Orion Finance
- * @dev Implements comprehensive security checks from Euler and Morpho Blue best practices
- *
- * Security Checks:
- * 1. answer > 0 (no zero or negative prices)
- * 2. updatedAt != 0 (feed is initialized)
- * 3. startedAt <= block.timestamp (no future timestamps)
- * 4. answeredInRound >= roundId (prevent stale round data)
- * 5. staleness (block.timestamp - updatedAt <= maxStaleness)
- * 6. price bounds (minPrice <= rawPrice <= maxPrice)
- *
- * Additional Security:
- * - Configurable price bounds (minPrice, maxPrice) to detect manipulation
- * - Immutable feed configuration (deploy new adapter to change feeds)
- * - Supports inverse feeds (e.g., USDC/ETH → ETH/USDC)
  *
  * @custom:security-contact security@orionfinance.ai
  */
 contract ChainlinkPriceAdapter is IPriceAdapter, Ownable2Step {
-    /// @notice Orion protocol configuration contract
-    // solhint-disable-next-line immutable-vars-naming, use-natspec
-    IOrionConfig public immutable config;
-    /// @notice Decimals used for price normalization
-    // solhint-disable-next-line immutable-vars-naming, use-natspec
-    uint8 public immutable priceAdapterDecimals;
-
     /// @notice Feed configuration struct
     struct FeedConfig {
         address feed; // Chainlink aggregator address
@@ -69,14 +49,8 @@ contract ChainlinkPriceAdapter is IPriceAdapter, Ownable2Step {
 
     /**
      * @notice Constructor
-     * @param configAddress OrionConfig contract address
      */
-    constructor(address configAddress) Ownable(msg.sender) {
-        if (configAddress == address(0)) revert ErrorsLib.ZeroAddress();
-
-        config = IOrionConfig(configAddress);
-        priceAdapterDecimals = config.priceAdapterDecimals();
-    }
+    constructor() Ownable(msg.sender) {}
 
     /**
      * @notice Configure Chainlink feed for an asset
@@ -171,13 +145,10 @@ contract ChainlinkPriceAdapter is IPriceAdapter, Ownable2Step {
             revert ErrorsLib.PriceOutOfBounds(asset, rawPrice, feedConfig.minPrice, feedConfig.maxPrice);
         }
 
-        // Handle inverse feeds (e.g., USDC/ETH → ETH/USDC)
+        // Handle inverse feeds
         if (feedConfig.isInverse) {
-            // Invert: price = 10^(INVERSE_DECIMALS + feedDecimals) / rawPrice
-            // The result is expressed in INVERSE_DECIMALS precision.
-            // PriceAdapterRegistry normalizes from INVERSE_DECIMALS to priceAdapterDecimals.
             uint256 inversePrecision = 10 ** INVERSE_DECIMALS;
-            rawPrice = (inversePrecision * (10 ** feedDecimals)) / rawPrice;
+            rawPrice = Math.mulDiv(inversePrecision, 10 ** feedDecimals, rawPrice);
             feedDecimals = INVERSE_DECIMALS;
         }
 
