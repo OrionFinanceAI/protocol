@@ -32,13 +32,6 @@ contract ERC4626ExecutionAdapter is IExecutionAdapter {
     /// @notice Liquidity orchestrator contract
     ILiquidityOrchestrator public immutable LIQUIDITY_ORCHESTRATOR;
 
-    modifier onlyLiquidityOrchestrator() {
-        if (msg.sender != address(LIQUIDITY_ORCHESTRATOR)) {
-            revert ErrorsLib.NotAuthorized();
-        }
-        _;
-    }
-
     /**
      * @notice Constructor
      * @param configAddress OrionConfig contract address
@@ -105,7 +98,7 @@ contract ERC4626ExecutionAdapter is IExecutionAdapter {
     function sell(
         address vaultAsset,
         uint256 sharesAmount
-    ) external override onlyLiquidityOrchestrator returns (uint256 receivedUnderlyingAmount) {
+    ) external override returns (uint256 receivedUnderlyingAmount) {
         if (sharesAmount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(vaultAsset);
         // Atomically validate order generation assumptions
         _validateExecutionAdapter(vaultAsset);
@@ -134,10 +127,7 @@ contract ERC4626ExecutionAdapter is IExecutionAdapter {
     }
 
     /// @inheritdoc IExecutionAdapter
-    function buy(
-        address vaultAsset,
-        uint256 sharesAmount
-    ) external override onlyLiquidityOrchestrator returns (uint256 spentUnderlyingAmount) {
+    function buy(address vaultAsset, uint256 sharesAmount) external override returns (uint256 spentUnderlyingAmount) {
         if (sharesAmount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(vaultAsset);
         _validateExecutionAdapter(vaultAsset);
 

@@ -9,6 +9,7 @@ import { IQuoterV2 } from "@uniswap/v3-periphery/contracts/interfaces/IQuoterV2.
 import { IUniswapV3Factory } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import { IExecutionAdapter } from "../interfaces/IExecutionAdapter.sol";
 import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
+import { ILiquidityOrchestrator } from "../interfaces/ILiquidityOrchestrator.sol";
 import "@openzeppelin/contracts/access/Ownable2Step.sol";
 
 /**
@@ -16,14 +17,8 @@ import "@openzeppelin/contracts/access/Ownable2Step.sol";
  * @notice Execution adapter for Uniswap V3 pools
  * @author Orion Finance
  *
- * @dev Security design: sell() and buy() are intentionally permissionless because this adapter
- *      is a low-level swap component called by higher-level adapters (e.g. ERC4626ExecutionAdapter)
- *      rather than directly by the LiquidityOrchestrator. Access control is enforced upstream:
- *      LO (onlyAuthorizedTrigger) → ERC4626ExecutionAdapter (onlyLiquidityOrchestrator) → this adapter.
- *
- *      amountOutMinimum is set to 0 at the Uniswap level because slippage protection is enforced
- *      by the LiquidityOrchestrator after execution via _calculateMinWithSlippage / _calculateMaxWithSlippage.
- *      This avoids duplicating slippage checks and keeps the slippage tolerance centralized in the LO.
+ * @dev amountOutMinimum is set to 0 at the Uniswap level because slippage protection is enforced
+ *      by the LiquidityOrchestrator. This avoids duplicating slippage checks.
  *
  * @custom:security-contact security@orionfinance.ai
  */
@@ -44,6 +39,9 @@ contract UniswapV3ExecutionAdapter is IExecutionAdapter, Ownable2Step {
 
     /// @notice Protocol underlying asset
     address public immutable UNDERLYING_ASSET;
+
+    /// @notice Liquidity orchestrator contract
+    ILiquidityOrchestrator public immutable LIQUIDITY_ORCHESTRATOR;
 
     /// @notice asset => Uniswap V3 pool fee tier
     mapping(address => uint24) public assetFee;
@@ -82,6 +80,7 @@ contract UniswapV3ExecutionAdapter is IExecutionAdapter, Ownable2Step {
         QUOTER = IQuoterV2(quoterAddress);
         CONFIG = IOrionConfig(configAddress);
         UNDERLYING_ASSET = address(CONFIG.underlyingAsset());
+        LIQUIDITY_ORCHESTRATOR = ILiquidityOrchestrator(CONFIG.liquidityOrchestrator());
     }
 
     /// @notice Sets the fee tier for a given asset
@@ -103,8 +102,6 @@ contract UniswapV3ExecutionAdapter is IExecutionAdapter, Ownable2Step {
     }
 
     /// @inheritdoc IExecutionAdapter
-    /// @dev Permissionless by design — called by ERC4626ExecutionAdapter, not directly by LO.
-    ///      amountOutMinimum = 0 because slippage is enforced by LO after execution.
     function sell(address asset, uint256 amount) external override returns (uint256 receivedAmount) {
         // Pull input from caller
         IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);

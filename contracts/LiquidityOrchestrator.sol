@@ -169,6 +169,7 @@ contract LiquidityOrchestrator is
     }
 
     /// @dev Restricts function to only self
+    ///      Used on _executeSell and _executeBuy so they can stay external (required for try/catch)
     modifier onlySelf() {
         if (msg.sender != address(this)) revert ErrorsLib.NotAuthorized();
         _;
@@ -773,7 +774,11 @@ contract LiquidityOrchestrator is
     /// @param asset The asset to sell
     /// @param sharesAmount The amount of shares to sell
     /// @param estimatedUnderlyingAmount The estimated underlying amount to receive
-    function _executeSell(address asset, uint256 sharesAmount, uint256 estimatedUnderlyingAmount) external onlySelf {
+    function _executeSell(
+        address asset,
+        uint256 sharesAmount,
+        uint256 estimatedUnderlyingAmount
+    ) external onlySelf nonReentrant {
         IExecutionAdapter adapter = executionAdapterOf[asset];
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
 
@@ -799,7 +804,11 @@ contract LiquidityOrchestrator is
     /// @param asset The asset to buy
     /// @param sharesAmount The amount of shares to buy
     /// @param estimatedUnderlyingAmount The estimated underlying amount to spend
-    function _executeBuy(address asset, uint256 sharesAmount, uint256 estimatedUnderlyingAmount) external onlySelf {
+    function _executeBuy(
+        address asset,
+        uint256 sharesAmount,
+        uint256 estimatedUnderlyingAmount
+    ) external onlySelf nonReentrant {
         IExecutionAdapter adapter = executionAdapterOf[asset];
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
 
