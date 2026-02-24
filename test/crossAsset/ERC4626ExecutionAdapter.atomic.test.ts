@@ -297,6 +297,112 @@ describe("ERC4626ExecutionAdapter - Atomic Guarantees (Unit)", function () {
     });
   });
 
+  describe("Buy slippage enforcement", function () {
+    /**
+     * (a) USDC-underlying vault: oracle implies low share price but actual vault has high share price.
+     * Caller approves based on low estimate; adapter pulls previewMint (high) → insufficient allowance, order fails.
+     */
+    it("(a) USDC-underlying vault: very low share price from oracle, failing order", async function () {
+      const MockVaultFactory = await ethers.getContractFactory("MockERC4626Asset");
+      const highPriceUsdcVault = (await MockVaultFactory.deploy(
+        await usdc.getAddress(),
+        "High Price USDC Vault",
+        "hpUSDC",
+      )) as unknown as MockERC4626Asset;
+
+      await config.setTokenDecimals(await usdc.getAddress(), USDC_DECIMALS);
+      await config.setTokenDecimals(await highPriceUsdcVault.getAddress(), USDC_DECIMALS);
+      const HighPriceAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
+      const highPriceAdapter = (await HighPriceAdapterFactory.deploy(
+        await config.getAddress(),
+      )) as unknown as ERC4626ExecutionAdapter;
+      await liquidityOrchestrator.setExecutionAdapter(
+        await highPriceUsdcVault.getAddress(),
+        await highPriceAdapter.getAddress(),
+      );
+
+      // Seed vault: 100 USDC → 100 shares (1:1), then simulate gains so 1 share = 10_000 USDC
+      const seedUsdc = ethers.parseUnits("100", USDC_DECIMALS);
+      await usdc.mint(owner.address, seedUsdc + ethers.parseUnits("999900", USDC_DECIMALS));
+      await usdc.approve(await highPriceUsdcVault.getAddress(), seedUsdc);
+      await highPriceUsdcVault.deposit(seedUsdc, owner.address);
+      await usdc.transfer(await highPriceUsdcVault.getAddress(), ethers.parseUnits("999900", USDC_DECIMALS));
+      // Now totalAssets = 1e6 USDC, totalSupply = 100e6 (100 shares in 6 decimals). 1 share = 10_000 USDC.
+
+      const oneShare = ethers.parseUnits("1", USDC_DECIMALS);
+      const actualCost = await highPriceUsdcVault.previewMint(oneShare);
+
+      // Caller (LO) approves as if oracle said share was cheap (e.g. 100 USDC per share)
+      const lowApproval = ethers.parseUnits("100", USDC_DECIMALS);
+      expect(actualCost).to.be.gt(lowApproval); // actual cost far exceeds low approval → order must fail
+      await usdc.mint(loSigner.address, actualCost);
+      await usdc.connect(loSigner).approve(await highPriceAdapter.getAddress(), lowApproval);
+
+      await expect(highPriceAdapter.connect(loSigner).buy(await highPriceUsdcVault.getAddress(), oneShare)).to.be
+        .reverted; // ERC20: insufficient allowance when adapter pulls actualCost
+    });
+
+    /**
+     * (b) ERC20-underlying vault: very bad USDC/ERC20 exchange rate.
+     * previewBuy returns huge USDC needed; caller approved only a small amount → pull fails.
+     */
+    it("(b) ERC20-underlying vault: very bad USDC/ERC20 rate, failing order", async function () {
+      const sharesAmount = ethers.parseUnits("1", 18);
+      const badRateUsdcNeeded = ethers.parseUnits("1000000", USDC_DECIMALS); // 1M USDC for 1 share's WETH
+      await spySwapExecutor.setPreviewBuyReturn(badRateUsdcNeeded);
+
+      const smallApproval = ethers.parseUnits("2000", USDC_DECIMALS); // thought rate was good
+      await usdc.mint(loSigner.address, badRateUsdcNeeded);
+      await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), smallApproval);
+
+      await expect(vaultAdapter.connect(loSigner).buy(await vault.getAddress(), sharesAmount)).to.be.reverted; // insufficient allowance
+    });
+
+    /**
+     * (c) ERC20-underlying vault: bad share/ERC20 price but very good ERC20/USDC rate → net positive slippage, order passes.
+     */
+    it("(c) ERC20-underlying vault: bad share/ERC20 but good ERC20/USDC, net positive slippage, order passes", async function () {
+      // Use a fresh vault so share price is deterministic: 1 share = 0.1 WETH
+      const MockVaultFactory = await ethers.getContractFactory("MockERC4626Asset");
+      const lowPriceVault = (await MockVaultFactory.deploy(
+        await weth.getAddress(),
+        "Low WETH Price Vault",
+        "lwVault",
+      )) as unknown as MockERC4626Asset;
+      await config.setTokenDecimals(await lowPriceVault.getAddress(), WETH_DECIMALS);
+      await liquidityOrchestrator.setExecutionAdapter(
+        await lowPriceVault.getAddress(),
+        await vaultAdapter.getAddress(),
+      );
+
+      const oneWeth = ethers.parseUnits("1", WETH_DECIMALS);
+      const oneShare = ethers.parseUnits("1", 18);
+      await weth.mint(owner.address, oneWeth);
+      await weth.approve(await lowPriceVault.getAddress(), oneWeth);
+      await lowPriceVault.deposit(oneWeth, owner.address);
+      await lowPriceVault.simulateLosses(ethers.parseUnits("0.9", WETH_DECIMALS), owner.address);
+      const wethNeeded = await lowPriceVault.previewMint(oneShare);
+      const expectedWeth = ethers.parseUnits("0.1", WETH_DECIMALS);
+      expect(wethNeeded).to.be.gte(expectedWeth);
+      expect(wethNeeded).to.be.lte(expectedWeth + 1n); // round-up
+
+      // Spy: good USDC/WETH rate — 0.1 WETH costs only 100 USDC
+      const goodRateUsdc = ethers.parseUnits("100", USDC_DECIMALS);
+      await spySwapExecutor.setPreviewBuyReturn(goodRateUsdc);
+
+      const approvalWithSlippage = ethers.parseUnits("110", USDC_DECIMALS); // 10% buffer
+      await usdc.mint(loSigner.address, approvalWithSlippage);
+      await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), approvalWithSlippage);
+      await weth.mint(await spySwapExecutor.getAddress(), wethNeeded * 2n);
+
+      await expect(vaultAdapter.connect(loSigner).buy(await lowPriceVault.getAddress(), oneShare)).to.not.be.reverted;
+
+      const sharesReceived = await lowPriceVault.balanceOf(loSigner.address);
+      expect(sharesReceived).to.be.gte(oneShare);
+      expect(sharesReceived).to.be.lte(oneShare + 1n); // allow 1 wei rounding
+    });
+  });
+
   describe("Validation - vault whitelisted before underlying", function () {
     it("Should revert when vault underlying is not registered in config (simulates whitelist vault before underlying)", async function () {
       // Config that returns 0 for unset tokens (like OrionConfig)
