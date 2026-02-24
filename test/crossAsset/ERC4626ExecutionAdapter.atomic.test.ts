@@ -296,4 +296,25 @@ describe("ERC4626ExecutionAdapter - Atomic Guarantees (Unit)", function () {
       console.log(`  Approved:    ${ethers.formatUnits(generousApproval, USDC_DECIMALS)} USDC`);
     });
   });
+
+  describe("Validation - vault whitelisted before underlying", function () {
+    it("Should revert when vault underlying is not registered in config (simulates whitelist vault before underlying)", async function () {
+      // Config that returns 0 for unset tokens (like OrionConfig)
+      const strictConfigFactory = await ethers.getContractFactory("MockOrionConfig");
+      const strictConfig = (await strictConfigFactory.deploy(await usdc.getAddress())) as unknown as MockOrionConfig;
+      await strictConfig.setLiquidityOrchestrator(await liquidityOrchestrator.getAddress());
+      await strictConfig.setReturnZeroForUnsetTokens(true);
+      await strictConfig.setTokenDecimals(await vault.getAddress(), WETH_DECIMALS); // vault shares only; WETH not set => 0
+
+      const adapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
+      const adapter = (await adapterFactory.deploy(
+        await strictConfig.getAddress(),
+      )) as unknown as ERC4626ExecutionAdapter;
+
+      await expect(adapter.validateExecutionAdapter(await vault.getAddress())).to.be.revertedWithCustomError(
+        adapter,
+        "InvalidAdapter",
+      );
+    });
+  });
 });

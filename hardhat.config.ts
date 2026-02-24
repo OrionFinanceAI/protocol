@@ -57,10 +57,10 @@ const config: HardhatUserConfig = {
       gasPrice: 2_000_000_000,
     },
 
-    ...(!isCoverage
+    ...(!isCoverage && (process.env.SEPOLIA_RPC_URL ?? process.env.RPC_URL)
       ? {
           sepolia: {
-            url: process.env.RPC_URL!,
+            url: process.env.SEPOLIA_RPC_URL ?? process.env.RPC_URL!,
             accounts: [process.env.DEPLOYER_PRIVATE_KEY!, process.env.LP_PRIVATE_KEY!],
             chainId: 11155111,
           },
