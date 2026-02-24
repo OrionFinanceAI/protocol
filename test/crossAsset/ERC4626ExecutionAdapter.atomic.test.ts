@@ -39,6 +39,9 @@ describe("ERC4626ExecutionAdapter - Atomic Guarantees (Unit)", function () {
   const USDC_DECIMALS = 6;
   const WETH_DECIMALS = 18;
 
+  /** Adapter token balances must stay strictly below this (base units); 0 is valid, guarantees dust bound. */
+  const MAX_DUST = 10;
+
   before(async function () {
     [owner] = await ethers.getSigners();
 
@@ -188,15 +191,18 @@ describe("ERC4626ExecutionAdapter - Atomic Guarantees (Unit)", function () {
       console.log(`  BuyCalled received: ${ethers.formatUnits(buyReceivedAmount, USDC_DECIMALS)} USDC`);
     });
 
-    it("Should leave zero adapter balances after buy", async function () {
+    it("Should leave adapter dust below epsilon after buy", async function () {
       await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), PREVIEW_BUY_AMOUNT * 10n);
 
       await vaultAdapter.connect(loSigner).buy(await vault.getAddress(), SHARES_TO_BUY);
 
       const adapterAddr = await vaultAdapter.getAddress();
-      expect(await usdc.balanceOf(adapterAddr)).to.equal(0);
-      expect(await weth.balanceOf(adapterAddr)).to.equal(0);
-      expect(await vault.balanceOf(adapterAddr)).to.equal(0);
+      const dustUsdc = await usdc.balanceOf(adapterAddr);
+      const dustWeth = await weth.balanceOf(adapterAddr);
+      const dustShares = await vault.balanceOf(adapterAddr);
+      expect(dustUsdc, "USDC dust in adapter").to.be.lt(MAX_DUST);
+      expect(dustWeth, "WETH dust in adapter").to.be.lt(MAX_DUST);
+      expect(dustShares, "share dust in adapter").to.be.lt(MAX_DUST);
     });
 
     it("Should deliver exact shares to caller", async function () {

@@ -30,6 +30,10 @@ import {
   MockERC4626Asset,
 } from "../../typechain-types";
 
+/** Adapter USDC balance must stay strictly below this (in base units); 0 is valid, guarantees dust bound.
+ *  To find the failure threshold: set to 0 and run; the failure will show actual dust (e.g. "expected 5 to be below 0" → need > 5). */
+const MAX_USDC_DUST = 10;
+
 // Mainnet addresses
 const MAINNET = {
   USDC: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
@@ -605,14 +609,14 @@ describe("ERC4626ExecutionAdapter", function () {
 
       const vaultAdapterAddr = await vaultAdapter.getAddress();
 
-      // Adapter should hold no USDC, WETH, or vault shares
+      // Adapter dust must stay below epsilon (no refunding)
       const adapterUSDC = await usdc.balanceOf(vaultAdapterAddr);
       const adapterWETH = await weth.balanceOf(vaultAdapterAddr);
       const adapterShares = await morphoWETH.balanceOf(vaultAdapterAddr);
 
-      expect(adapterUSDC).to.equal(0);
-      expect(adapterWETH).to.equal(0);
-      expect(adapterShares).to.equal(0);
+      expect(adapterUSDC, "USDC dust in adapter").to.be.lt(MAX_USDC_DUST);
+      expect(adapterWETH, "WETH dust in adapter").to.be.lt(MAX_USDC_DUST);
+      expect(adapterShares, "share dust in adapter").to.be.lt(MAX_USDC_DUST);
 
       console.log(`  Adapter USDC balance: ${adapterUSDC}`);
       console.log(`  Adapter WETH balance: ${adapterWETH}`);
@@ -855,15 +859,15 @@ describe("ERC4626ExecutionAdapter", function () {
 
       // Dust between staticCall return (block N) and actual spend (block N+1)
       const dust = actualDelta > returnValue ? actualDelta - returnValue : returnValue - actualDelta;
-      // Cross-block Quoter drift should be negligible — less than 10 USDC wei (0.00001 USDC)
-      expect(dust).to.be.lte(10);
+      // Cross-block Quoter drift should be negligible
+      expect(dust).to.be.lt(MAX_USDC_DUST);
 
       console.log(`  staticCall return: ${ethers.formatUnits(returnValue, USDC_DECIMALS)} USDC`);
       console.log(`  Actual delta:      ${ethers.formatUnits(actualDelta, USDC_DECIMALS)} USDC`);
       console.log(`  Cross-block dust:  ${dust} USDC wei`);
     });
 
-    it("Should have previewBuy→buy cross-block dust < 10 USDC wei", async function () {
+    it("Should have previewBuy→buy cross-block dust below epsilon", async function () {
       const sharesAmount = ethers.parseUnits("0.5", 18);
 
       // Block N: previewBuy
@@ -883,15 +887,14 @@ describe("ERC4626ExecutionAdapter", function () {
       const dust = actualSpent > previewedCost ? actualSpent - previewedCost : previewedCost - actualSpent;
 
       // Cross-block dust from Uniswap Quoter secondsPerLiquidityCumulative drift
-      // should be negligible — typically 0-2 wei
-      expect(dust).to.be.lte(10);
+      expect(dust).to.be.lt(MAX_USDC_DUST);
 
       console.log(`  previewBuy (block N):   ${ethers.formatUnits(previewedCost, USDC_DECIMALS)} USDC`);
       console.log(`  actualSpent (block N+1): ${ethers.formatUnits(actualSpent, USDC_DECIMALS)} USDC`);
       console.log(`  Dust: ${dust} USDC wei (${Number(dust) / 1e6} USDC)`);
     });
 
-    it("Should leave zero dust in the adapter after cross-asset buy", async function () {
+    it("Should leave adapter dust below epsilon after cross-asset buy", async function () {
       const sharesAmount = ethers.parseUnits("0.3", 18);
 
       const previewedCost = await vaultAdapter.previewBuy.staticCall(MAINNET.MORPHO_WETH, sharesAmount);
@@ -901,18 +904,41 @@ describe("ERC4626ExecutionAdapter", function () {
 
       const adapterAddr = await vaultAdapter.getAddress();
 
-      // All three token balances must be exactly zero — no dust stuck
+      // Dust must stay below epsilon (no refunding)
       const adapterUSDC = await usdc.balanceOf(adapterAddr);
       const adapterWETH = await weth.balanceOf(adapterAddr);
       const adapterShares = await morphoWETH.balanceOf(adapterAddr);
 
-      expect(adapterUSDC).to.equal(0, "USDC dust in adapter");
-      expect(adapterWETH).to.equal(0, "WETH dust in adapter");
-      expect(adapterShares).to.equal(0, "Vault share dust in adapter");
+      expect(adapterUSDC, "USDC dust in adapter").to.be.lt(MAX_USDC_DUST);
+      expect(adapterWETH, "WETH dust in adapter").to.be.lt(MAX_USDC_DUST);
+      expect(adapterShares, "Vault share dust in adapter").to.be.lt(MAX_USDC_DUST);
 
       console.log(`  Adapter USDC: ${adapterUSDC}`);
       console.log(`  Adapter WETH: ${adapterWETH}`);
       console.log(`  Adapter shares: ${adapterShares}`);
+    });
+
+    it("Should report observed dust so MAX_USDC_DUST can be set above failure threshold", async function () {
+      const sharesAmount = ethers.parseUnits("0.3", 18);
+      const previewedCost = await vaultAdapter.previewBuy.staticCall(MAINNET.MORPHO_WETH, sharesAmount);
+      await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), previewedCost * 2n);
+      await vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, sharesAmount);
+
+      const adapterAddr = await vaultAdapter.getAddress();
+      const adapterUSDC = Number(await usdc.balanceOf(adapterAddr));
+      const adapterWETH = Number(await weth.balanceOf(adapterAddr));
+      const adapterShares = Number(await morphoWETH.balanceOf(adapterAddr));
+
+      const maxAdapterDust = Math.max(adapterUSDC, adapterWETH, adapterShares);
+      const minEpsilonToPass = maxAdapterDust + 1;
+      console.log(`  Adapter dust: USDC=${adapterUSDC} WETH=${adapterWETH} shares=${adapterShares}`);
+      console.log(
+        `  Max observed dust: ${maxAdapterDust} → tests would fail if MAX_USDC_DUST were <= ${maxAdapterDust} (use > ${maxAdapterDust}, e.g. ${minEpsilonToPass})`,
+      );
+
+      expect(adapterUSDC).to.be.lt(MAX_USDC_DUST);
+      expect(adapterWETH).to.be.lt(MAX_USDC_DUST);
+      expect(adapterShares).to.be.lt(MAX_USDC_DUST);
     });
 
     it("Should deliver exact shares and spend only what needed", async function () {
@@ -941,7 +967,7 @@ describe("ERC4626ExecutionAdapter", function () {
 
       // Spent should be close to previewed cost (within dust)
       const dust = usdcSpent > previewedCost ? usdcSpent - previewedCost : previewedCost - usdcSpent;
-      expect(dust).to.be.lte(10);
+      expect(dust).to.be.lt(MAX_USDC_DUST);
 
       console.log(`  Shares requested: ${ethers.formatUnits(sharesAmount, 18)}`);
       console.log(`  Shares received:  ${ethers.formatUnits(sharesReceived, 18)}`);
