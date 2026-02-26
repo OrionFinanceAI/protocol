@@ -42,6 +42,10 @@ library ErrorsLib {
     /// @notice Expected adapter address is not set.
     error AdapterNotSet();
 
+    /// @notice Price returned by the adapter must be greater than zero.
+    /// @param asset The asset address that has a zero or invalid price.
+    error PriceMustBeGreaterThanZero(address asset);
+
     /// @notice The underlying asset has an unsupported or invalid number of decimals.
     error InvalidUnderlyingDecimals();
 
