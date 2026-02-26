@@ -406,10 +406,11 @@ contract LiquidityOrchestrator is
     function transferRedemptionFunds(address user, uint256 amount) external {
         // Verify the caller is a registered vault
         if (!config.isOrionVault(msg.sender)) revert ErrorsLib.NotAuthorized();
-        if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
 
-        // Transfer underlying assets to the user
-        IERC20(underlyingAsset).safeTransfer(user, amount);
+        if (amount > 0) {
+            // Transfer underlying assets to the user
+            IERC20(underlyingAsset).safeTransfer(user, amount);
+        }
     }
 
     /// @inheritdoc ILiquidityOrchestrator
