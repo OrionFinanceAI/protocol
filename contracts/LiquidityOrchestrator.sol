@@ -408,10 +408,11 @@ contract LiquidityOrchestrator is
     function transferRedemptionFunds(address user, uint256 amount) external {
         // Verify the caller is a registered vault
         if (!config.isOrionVault(msg.sender)) revert ErrorsLib.NotAuthorized();
-        if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
 
-        // Transfer underlying assets to the user
-        IERC20(underlyingAsset).safeTransfer(user, amount);
+        if (amount > 0) {
+            // Transfer underlying assets to the user
+            IERC20(underlyingAsset).safeTransfer(user, amount);
+        }
     }
 
     /// @inheritdoc ILiquidityOrchestrator
@@ -561,7 +562,6 @@ contract LiquidityOrchestrator is
                 config.getAllWhitelistedAssets(),
                 config.getAllTokenDecimals(),
                 config.riskFreeRate(),
-                _failedEpochTokens,
                 config.decommissioningAssets()
             )
         );
@@ -702,8 +702,9 @@ contract LiquidityOrchestrator is
             try this._executeSell(token, amount, sellLeg.sellingEstimatedUnderlyingAmounts[i]) {
                 // successful execution, continue.
             } catch {
-                currentPhase = LiquidityUpkeepPhase.StateCommitment;
                 _failedEpochTokens.push(token);
+                // Incremental update of the epoch state commitment to avoid recomputing the entire commitment and restart epoch execution.
+                _currentEpoch.epochStateCommitment = keccak256(abi.encode(_currentEpoch.epochStateCommitment, token));
                 return;
             }
         }
@@ -733,8 +734,9 @@ contract LiquidityOrchestrator is
             try this._executeBuy(token, amount, buyLeg.buyingEstimatedUnderlyingAmounts[i]) {
                 // successful execution, continue.
             } catch {
-                currentPhase = LiquidityUpkeepPhase.StateCommitment;
                 _failedEpochTokens.push(token);
+                // Incremental update of the epoch state commitment to avoid recomputing the entire commitment and restart epoch execution.
+                _currentEpoch.epochStateCommitment = keccak256(abi.encode(_currentEpoch.epochStateCommitment, token));
                 return;
             }
         }
