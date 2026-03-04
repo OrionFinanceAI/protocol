@@ -14,6 +14,7 @@ contract MockOrionConfig {
     address public priceAdapterRegistryAddress;
     uint256 public slippageTolerance = 200; // 2% in basis points
     mapping(address => uint8) private tokenDecimals;
+    mapping(address => bool) private whitelisted;
     /// @dev When true, return 0 for unset tokens (simulates real OrionConfig where unwhitelisted tokens have no entry)
     bool public returnZeroForUnsetTokens;
 
@@ -60,6 +61,14 @@ contract MockOrionConfig {
 
     function setTokenDecimals(address token, uint8 decimals) external {
         tokenDecimals[token] = decimals;
+    }
+
+    function isWhitelisted(address asset) external view returns (bool) {
+        return whitelisted[asset];
+    }
+
+    function setWhitelisted(address asset, bool _whitelisted) external {
+        whitelisted[asset] = _whitelisted;
     }
 
     function setReturnZeroForUnsetTokens(bool _returnZero) external {

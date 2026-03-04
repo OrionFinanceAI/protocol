@@ -7,7 +7,6 @@
 
 import { expect } from "chai";
 import { ethers, network } from "hardhat";
-import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import {
   ERC4626PriceAdapter,
   MockOrionConfig,
@@ -21,14 +20,12 @@ const MAINNET = {
   USDC: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
   WETH: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
   WBTC: "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
-  MORPHO_WETH: "0x31A5684983EeE865d943A696AAC155363bA024f9", // Vault Bridge WETH
+  MORPHO_WETH: "0x31A5684983EeE865d943A696AAC155363bA024f9",
   CHAINLINK_ETH_USD: "0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419",
   CHAINLINK_BTC_USD: "0xF4030086522a5bEEa4988F8cA5B36dbC97BeE88c",
 };
 
 describe("ERC4626PriceAdapter - Coverage Tests", function () {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  let owner: SignerWithAddress;
   let orionConfig: MockOrionConfig;
   let vaultPriceAdapter: ERC4626PriceAdapter;
   let chainlinkAdapter: ChainlinkPriceAdapter;
@@ -44,15 +41,13 @@ describe("ERC4626PriceAdapter - Coverage Tests", function () {
       this.skip();
     }
 
-    [owner] = await ethers.getSigners();
-
     // Deploy mock config
     const MockOrionConfigFactory = await ethers.getContractFactory("MockOrionConfig");
-    orionConfig = await MockOrionConfigFactory.deploy(MAINNET.USDC);
+    orionConfig = (await MockOrionConfigFactory.deploy(MAINNET.USDC)) as unknown as MockOrionConfig;
 
     // Deploy Chainlink adapter
     const ChainlinkAdapterFactory = await ethers.getContractFactory("ChainlinkPriceAdapter");
-    chainlinkAdapter = await ChainlinkAdapterFactory.deploy(await orionConfig.getAddress());
+    chainlinkAdapter = (await ChainlinkAdapterFactory.deploy()) as unknown as ChainlinkPriceAdapter;
 
     // Configure feeds
     await chainlinkAdapter.configureFeed(
@@ -75,20 +70,23 @@ describe("ERC4626PriceAdapter - Coverage Tests", function () {
 
     // Deploy price registry
     const MockPriceAdapterRegistryFactory = await ethers.getContractFactory("MockPriceAdapterRegistry");
-    priceRegistry = await MockPriceAdapterRegistryFactory.deploy();
+    priceRegistry = (await MockPriceAdapterRegistryFactory.deploy()) as unknown as MockPriceAdapterRegistry;
     await priceRegistry.setPriceAdapter(MAINNET.WETH, await chainlinkAdapter.getAddress());
     await priceRegistry.setPriceAdapter(MAINNET.WBTC, await chainlinkAdapter.getAddress());
 
     // Configure mock config
-    const mockConfig = await ethers.getContractAt("MockOrionConfig", await orionConfig.getAddress());
-    await mockConfig.setPriceAdapterRegistry(await priceRegistry.getAddress());
+    await orionConfig.setPriceAdapterRegistry(await priceRegistry.getAddress());
+    await orionConfig.setWhitelisted(MAINNET.WETH, true);
+    await orionConfig.setWhitelisted(MAINNET.WBTC, true);
 
     // Deploy ERC4626 price adapter
     const ERC4626PriceAdapterFactory = await ethers.getContractFactory("ERC4626PriceAdapter");
-    vaultPriceAdapter = await ERC4626PriceAdapterFactory.deploy(await orionConfig.getAddress());
+    vaultPriceAdapter = (await ERC4626PriceAdapterFactory.deploy(
+      await orionConfig.getAddress(),
+    )) as unknown as ERC4626PriceAdapter;
 
     // Get Morpho vault instance
-    morphoWETH = await ethers.getContractAt("IERC4626", MAINNET.MORPHO_WETH);
+    morphoWETH = (await ethers.getContractAt("IERC4626", MAINNET.MORPHO_WETH)) as unknown as IERC4626;
   });
 
   describe("Constructor", function () {
@@ -104,17 +102,13 @@ describe("ERC4626PriceAdapter - Coverage Tests", function () {
       expect(await vaultPriceAdapter.CONFIG()).to.equal(await orionConfig.getAddress());
       expect(await vaultPriceAdapter.PRICE_REGISTRY()).to.equal(await priceRegistry.getAddress());
       expect(await vaultPriceAdapter.UNDERLYING_ASSET()).to.equal(MAINNET.USDC);
-      expect(await vaultPriceAdapter.UNDERLYING_DECIMALS()).to.equal(6);
-      expect(await vaultPriceAdapter.PRICE_ADAPTER_DECIMALS()).to.equal(14);
+      expect(await vaultPriceAdapter.UNDERLYING_ASSET_DECIMALS()).to.equal(6);
+      expect(await vaultPriceAdapter.PRICE_DECIMALS()).to.equal(10);
     });
   });
 
   describe("validatePriceAdapter", function () {
     it("Should validate Morpho WETH vault", async function () {
-      // Register vault decimals
-      const mockConfig = await ethers.getContractAt("MockOrionConfig", await orionConfig.getAddress());
-      await mockConfig.setTokenDecimals(MAINNET.MORPHO_WETH, 18);
-
       await expect(vaultPriceAdapter.validatePriceAdapter(MAINNET.MORPHO_WETH)).to.not.be.reverted;
     });
 
@@ -123,16 +117,6 @@ describe("ERC4626PriceAdapter - Coverage Tests", function () {
         vaultPriceAdapter,
         "InvalidAdapter",
       );
-    });
-
-    it("Should reject vault with zero underlying", async function () {
-      // Deploy mock vault that returns zero address
-      const MockERC4626Factory = await ethers.getContractFactory("MockERC4626Asset");
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const mockVault = await MockERC4626Factory.deploy(MAINNET.WETH, "Mock Vault", "mVAULT");
-
-      // This would need a special mock that returns address(0) - skip for now
-      // The validation happens at line 72 in ERC4626PriceAdapter
     });
 
     it("Should reject same-asset vault (USDC vault)", async function () {
@@ -148,35 +132,18 @@ describe("ERC4626PriceAdapter - Coverage Tests", function () {
     });
 
     it("Should reject vault with no price feed for underlying", async function () {
-      // Deploy vault with underlying that has no price feed (use random token)
+      // Deploy vault with underlying that has no price feed (random token not whitelisted)
       const MockERC20Factory = await ethers.getContractFactory("MockUnderlyingAsset");
-      const randomToken = await MockERC20Factory.deploy(18); // MockUnderlyingAsset only takes decimals
+      const randomToken = await MockERC20Factory.deploy(18);
       await randomToken.waitForDeployment();
 
       const MockERC4626Factory = await ethers.getContractFactory("MockERC4626Asset");
       const randomVault = await MockERC4626Factory.deploy(await randomToken.getAddress(), "Random Vault", "vRND");
       await randomVault.waitForDeployment();
 
-      const mockConfig = await ethers.getContractAt("MockOrionConfig", await orionConfig.getAddress());
-      await mockConfig.setTokenDecimals(await randomVault.getAddress(), 18);
-
       await expect(
         vaultPriceAdapter.validatePriceAdapter(await randomVault.getAddress()),
       ).to.be.revertedWithCustomError(vaultPriceAdapter, "InvalidAdapter");
-    });
-
-    it("Should reject vault with mismatched decimals in config", async function () {
-      // Register with wrong decimals
-      const mockConfig = await ethers.getContractAt("MockOrionConfig", await orionConfig.getAddress());
-      await mockConfig.setTokenDecimals(MAINNET.MORPHO_WETH, 8); // Wrong! Should be 18
-
-      await expect(vaultPriceAdapter.validatePriceAdapter(MAINNET.MORPHO_WETH)).to.be.revertedWithCustomError(
-        vaultPriceAdapter,
-        "InvalidAdapter",
-      );
-
-      // Fix for next tests
-      await mockConfig.setTokenDecimals(MAINNET.MORPHO_WETH, 18);
     });
   });
 
@@ -184,21 +151,15 @@ describe("ERC4626PriceAdapter - Coverage Tests", function () {
     it("Should calculate correct composed price for Morpho WETH vault", async function () {
       const [vaultPrice, priceDecimals] = await vaultPriceAdapter.getPriceData(MAINNET.MORPHO_WETH);
 
-      expect(priceDecimals).to.equal(14); // Protocol standard
+      expect(priceDecimals).to.equal(28); // PRICE_DECIMALS (10) + getTokenDecimals(WETH) (18)
 
-      // Get components for verification
-      const oneShare = ethers.parseUnits("1", 18);
-      const wethPerShare = await morphoWETH.convertToAssets(oneShare);
+      const precisionAmount = 10n ** 28n; // PRICE_DECIMALS (10) + vault decimals (18)
+      const wethForPrecisionShares = await morphoWETH.convertToAssets(precisionAmount);
       const wethPriceInUSD = await priceRegistry.getPrice(MAINNET.WETH);
-
-      // Calculated price should be: wethPerShare * wethPriceInUSD / 1e18
-      const expectedPrice = (wethPerShare * wethPriceInUSD) / BigInt(10 ** 18);
+      const priceAdapterDecimals = await orionConfig.priceAdapterDecimals();
+      const expectedPrice = (wethForPrecisionShares * wethPriceInUSD) / 10n ** BigInt(priceAdapterDecimals);
 
       expect(vaultPrice).to.be.closeTo(expectedPrice, expectedPrice / 100n); // Within 1%
-
-      console.log(`  Vault price: ${ethers.formatUnits(vaultPrice, 14)} USDC per share`);
-      console.log(`  WETH per share: ${ethers.formatUnits(wethPerShare, 18)}`);
-      console.log(`  WETH price: ${ethers.formatUnits(wethPriceInUSD, 14)} USDC`);
     });
 
     //#todo: Fix WBTC whale funding on fork
@@ -212,12 +173,9 @@ describe("ERC4626PriceAdapter - Coverage Tests", function () {
       const mockConfig = await ethers.getContractAt("MockOrionConfig", await orionConfig.getAddress());
       await mockConfig.setTokenDecimals(await wbtcVault.getAddress(), 18);
 
-      // Skip this test - WBTC whale funding not reliable on fork
-      this.skip();
-
       const [vaultPrice, priceDecimals] = await vaultPriceAdapter.getPriceData(await wbtcVault.getAddress());
 
-      expect(priceDecimals).to.equal(14);
+      expect(priceDecimals).to.equal(28); // PRICE_DECIMALS (10) + getTokenDecimals(WETH) (18)
       expect(vaultPrice).to.be.gt(0);
 
       console.log(`  WBTC vault price: ${ethers.formatUnits(vaultPrice, 14)} USDC per share`);

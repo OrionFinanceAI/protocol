@@ -55,7 +55,6 @@ describe("UniswapV3ExecutionAdapter - Unit Tests", function () {
     const MockQuoterFactory = await ethers.getContractFactory("MockUniswapV3Quoter");
     mockQuoter = (await MockQuoterFactory.deploy()) as unknown as MockUniswapV3Quoter;
 
-    // Deploy mock config
     const MockConfigFactory = await ethers.getContractFactory("MockOrionConfig");
     config = (await MockConfigFactory.deploy(await usdc.getAddress())) as unknown as MockOrionConfig;
     await config.setGuardian(guardian.address);
@@ -107,7 +106,6 @@ describe("UniswapV3ExecutionAdapter - Unit Tests", function () {
     });
 
     it("Should allow guardian to set fee tier", async function () {
-      // Create a new token and pool for this test
       const MockERC20 = await ethers.getContractFactory("MockUnderlyingAsset");
       const newToken = await MockERC20.deploy(18);
       await mockFactory.setPool(await newToken.getAddress(), await usdc.getAddress(), 500, MOCK_POOL);
@@ -125,7 +123,6 @@ describe("UniswapV3ExecutionAdapter - Unit Tests", function () {
     });
 
     it("Should revert when no pool exists for the fee tier", async function () {
-      // No pool registered for fee 10000
       await expect(adapter.setAssetFee(await weth.getAddress(), 10000)).to.be.reverted;
     });
   });
@@ -144,20 +141,16 @@ describe("UniswapV3ExecutionAdapter - Unit Tests", function () {
 
   describe("sell", function () {
     it("Should execute sell (exact input swap) and return received amount", async function () {
-      const sellAmount = ethers.parseUnits("1", WETH_DECIMALS); // 1 WETH
-      const expectedUSDC = ethers.parseUnits("2500", USDC_DECIMALS); // 2500 USDC
+      const sellAmount = ethers.parseUnits("1", WETH_DECIMALS);
+      const expectedUSDC = ethers.parseUnits("2500", USDC_DECIMALS);
 
-      // Configure mock router
       await mockRouter.setNextSwapResult(sellAmount, expectedUSDC);
 
-      // Mint WETH to user and approve adapter
       await weth.mint(user.address, sellAmount);
       await weth.connect(user).approve(await adapter.getAddress(), sellAmount);
 
-      // Execute sell
       await adapter.connect(user).sell(await weth.getAddress(), sellAmount);
 
-      // User should receive USDC (minted by mock router)
       const usdcBalance = await usdc.balanceOf(user.address);
       expect(usdcBalance).to.equal(expectedUSDC);
     });
@@ -172,7 +165,6 @@ describe("UniswapV3ExecutionAdapter - Unit Tests", function () {
 
       await adapter.connect(user).sell(await weth.getAddress(), sellAmount);
 
-      // Router allowance should be zero after swap
       const allowance = await weth.allowance(await adapter.getAddress(), await mockRouter.getAddress());
       expect(allowance).to.equal(0);
     });
@@ -192,53 +184,33 @@ describe("UniswapV3ExecutionAdapter - Unit Tests", function () {
 
   describe("buy", function () {
     it("Should execute buy (exact output swap) and return spent amount", async function () {
-      const buyAmount = ethers.parseUnits("1", WETH_DECIMALS); // 1 WETH
-      const amountInUsed = ethers.parseUnits("2500", USDC_DECIMALS); // router uses 2500 USDC
+      const buyAmount = ethers.parseUnits("1", WETH_DECIMALS);
+      const amountInUsed = ethers.parseUnits("2500", USDC_DECIMALS);
 
-      // Configure mock router: will consume 2500 USDC and output 1 WETH
+      // Configure mock quoter and router
+      await mockQuoter.setNextQuoteResult(amountInUsed);
       await mockRouter.setNextSwapResult(amountInUsed, buyAmount);
 
-      // Mint USDC to user and approve adapter with exact amount
-      const approvalAmount = amountInUsed;
-      await usdc.mint(user.address, approvalAmount);
-      await usdc.connect(user).approve(await adapter.getAddress(), approvalAmount);
+      await usdc.mint(user.address, amountInUsed);
+      await usdc.connect(user).approve(await adapter.getAddress(), amountInUsed);
 
       const balanceBefore = await usdc.balanceOf(user.address);
       await adapter.connect(user).buy(await weth.getAddress(), buyAmount);
       const balanceAfter = await usdc.balanceOf(user.address);
 
-      // User should have spent exactly amountInUsed
       expect(balanceBefore - balanceAfter).to.equal(amountInUsed);
 
-      // User should have received WETH
       const wethBalance = await weth.balanceOf(user.address);
       expect(wethBalance).to.be.gte(buyAmount);
-    });
-
-    it("Should refund unused USDC when router uses less than approved", async function () {
-      const buyAmount = ethers.parseUnits("1", WETH_DECIMALS);
-      const actualSpent = ethers.parseUnits("2400", USDC_DECIMALS);
-      const approvalAmount = ethers.parseUnits("3000", USDC_DECIMALS); // over-approve
-
-      // Router only uses 2400 of the 3000 approved
-      await mockRouter.setNextSwapResult(actualSpent, buyAmount);
-
-      await usdc.mint(user.address, approvalAmount);
-      await usdc.connect(user).approve(await adapter.getAddress(), approvalAmount);
-
-      const balanceBefore = await usdc.balanceOf(user.address);
-      await adapter.connect(user).buy(await weth.getAddress(), buyAmount);
-      const balanceAfter = await usdc.balanceOf(user.address);
-
-      // User should only lose actualSpent, the rest is refunded
-      expect(balanceBefore - balanceAfter).to.equal(actualSpent);
     });
 
     it("Should clean up router approval after buy", async function () {
       const buyAmount = ethers.parseUnits("0.5", WETH_DECIMALS);
       const amountInUsed = ethers.parseUnits("1300", USDC_DECIMALS);
 
+      await mockQuoter.setNextQuoteResult(amountInUsed);
       await mockRouter.setNextSwapResult(amountInUsed, buyAmount);
+
       await usdc.mint(user.address, amountInUsed);
       await usdc.connect(user).approve(await adapter.getAddress(), amountInUsed);
 

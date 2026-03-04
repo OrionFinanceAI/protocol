@@ -100,34 +100,24 @@ describe("Price Adapter Truncation", function () {
   });
 
   it("should demonstrate ERC4626 getPriceData preserves precision and avoids truncation", async function () {
-    // ERC4626PriceAdapter does: vault shares -> underlying (WETH) -> USDC
-    // We'll verify precision by manually calculating the expected price and comparing
+    // ERC4626PriceAdapter uses: precisionAmount = 10^(PRICE_DECIMALS + vaultDecimals), then
+    // vaultPrice = convertToAssets(precisionAmount).mulDiv(underlyingPrice, 10^priceAdapterDecimals)
+    // Replicate that formula for expected price.
 
-    // Step 1: Calculate vault shares -> underlying exchange rate
     const vaultDecimals = await vault.decimals();
-    const oneVaultShare = 10n ** BigInt(vaultDecimals);
-    const underlyingPerShare = await vault.convertToAssets(oneVaultShare);
+    const precisionAmount = 10n ** BigInt(10 + Number(vaultDecimals)); // PRICE_DECIMALS (10) + vault decimals (18) = 10^28
+    const vaultUnderlyingAssetAmount = await vault.convertToAssets(precisionAmount);
 
-    // Step 2: Get underlying -> USDC price from the underlying's price adapter
-    const underlyingPriceAdapter = await orionConfig.priceAdapterRegistry();
-    const priceRegistry = await ethers.getContractAt("PriceAdapterRegistry", underlyingPriceAdapter);
+    const priceRegistry = await ethers.getContractAt("PriceAdapterRegistry", await orionConfig.priceAdapterRegistry());
     const underlyingPriceInUSDC = await priceRegistry.getPrice(await vaultUnderlying.getAddress());
-    const underlyingPriceDecimals = 14; // PriceAdapterRegistry always returns prices with 14 decimals
+    const priceAdapterDecimals = await orionConfig.priceAdapterDecimals();
 
-    // Step 3: Compose the prices manually
-    // Price = (underlyingPerShare * underlyingPriceInUSDC) / (10^vaultDecimals) normalized to 14 decimals
-    const expectedPrice =
-      (underlyingPerShare * underlyingPriceInUSDC * 10n ** 14n) /
-      (oneVaultShare * 10n ** BigInt(underlyingPriceDecimals));
+    const expectedPrice = (vaultUnderlyingAssetAmount * underlyingPriceInUSDC) / 10n ** BigInt(priceAdapterDecimals);
 
-    // Step 4: Get price from ERC4626PriceAdapter
     const [priceFromAdapter, priceDecimals] = await priceAdapter.getPriceData(await vault.getAddress());
 
-    // Verify decimals
-    expect(priceDecimals).to.equal(14);
+    expect(priceDecimals).to.equal(28);
 
-    // Verify price matches our manual calculation (perfect precision, no truncation)
-    // Allow for at most 1 unit of the lowest decimal place due to rounding in different order of operations
     const priceDifference =
       priceFromAdapter > expectedPrice ? priceFromAdapter - expectedPrice : expectedPrice - priceFromAdapter;
 
