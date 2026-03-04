@@ -446,6 +446,7 @@ contract LiquidityOrchestrator is
         } else if (currentPhase == LiquidityUpkeepPhase.StateCommitment) {
             _currentEpoch.epochStateCommitment = _buildEpochStateCommitment();
             currentPhase = LiquidityUpkeepPhase.SellingLeg;
+            emit EventsLib.EpochStateCommitted(epochCounter, _currentEpoch.epochStateCommitment);
         } else if (currentPhase == LiquidityUpkeepPhase.SellingLeg) {
             StatesStruct memory states = _verifyPerformData(_publicValues, proofBytes, statesBytes);
 
@@ -705,6 +706,7 @@ contract LiquidityOrchestrator is
                 _failedEpochTokens.push(token);
                 // Incremental update of the epoch state commitment to avoid re-running the entire epoch execution.
                 _currentEpoch.epochStateCommitment = keccak256(abi.encode(_currentEpoch.epochStateCommitment, token));
+                emit EventsLib.EpochStateCommitted(epochCounter, _currentEpoch.epochStateCommitment);
                 return;
             }
         }
@@ -737,6 +739,7 @@ contract LiquidityOrchestrator is
                 _failedEpochTokens.push(token);
                 // Incremental update of the epoch state commitment to avoid re-running the entire epoch execution.
                 _currentEpoch.epochStateCommitment = keccak256(abi.encode(_currentEpoch.epochStateCommitment, token));
+                emit EventsLib.EpochStateCommitted(epochCounter, _currentEpoch.epochStateCommitment);
                 return;
             }
         }
