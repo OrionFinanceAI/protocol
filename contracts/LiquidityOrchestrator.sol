@@ -779,11 +779,7 @@ contract LiquidityOrchestrator is
     /// @param asset The asset to sell
     /// @param sharesAmount The amount of shares to sell
     /// @param estimatedUnderlyingAmount The estimated underlying amount to receive
-    function _executeSell(
-        address asset,
-        uint256 sharesAmount,
-        uint256 estimatedUnderlyingAmount
-    ) external onlySelf nonReentrant {
+    function _executeSell(address asset, uint256 sharesAmount, uint256 estimatedUnderlyingAmount) external onlySelf {
         IExecutionAdapter adapter = executionAdapterOf[asset];
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
 
@@ -809,17 +805,14 @@ contract LiquidityOrchestrator is
     /// @param asset The asset to buy
     /// @param sharesAmount The amount of shares to buy
     /// @param estimatedUnderlyingAmount The estimated underlying amount to spend
-    function _executeBuy(
-        address asset,
-        uint256 sharesAmount,
-        uint256 estimatedUnderlyingAmount
-    ) external onlySelf nonReentrant {
+    function _executeBuy(address asset, uint256 sharesAmount, uint256 estimatedUnderlyingAmount) external onlySelf {
         IExecutionAdapter adapter = executionAdapterOf[asset];
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
 
         // Approve adapter to spend underlying assets with slippage tolerance.
         // Slippage tolerance is enforced indirectly by capping the approval amount.
-        IERC20(underlyingAsset).forceApprove(address(adapter), _calculateMaxWithSlippage(estimatedUnderlyingAmount));
+        uint256 maxWithSlippage = _calculateMaxWithSlippage(estimatedUnderlyingAmount);
+        IERC20(underlyingAsset).forceApprove(address(adapter), maxWithSlippage);
 
         // Execute buy through adapter, pull underlying assets from this contract and push shares to it.
         uint256 executionUnderlyingAmount = adapter.buy(asset, sharesAmount);
