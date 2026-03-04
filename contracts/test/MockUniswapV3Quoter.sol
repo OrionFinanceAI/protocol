@@ -22,6 +22,7 @@ contract MockUniswapV3Quoter {
         QuoteExactOutputSingleParams memory
     )
         external
+        view
         returns (uint256 amountIn, uint160 sqrtPriceX96After, uint32 initializedTicksCrossed, uint256 gasEstimate)
     {
         amountIn = nextAmountIn;

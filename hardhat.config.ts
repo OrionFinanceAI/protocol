@@ -39,9 +39,7 @@ const config: HardhatUserConfig = {
       chainId: 31337,
       initialBaseFeePerGas: 0,
       // Fork mainnet when:
-      // 1. FORK_MAINNET=true (explicit forking for crossAsset tests)
-      // 2. SOLIDITY_COVERAGE=true (coverage needs forking for crossAsset tests)
-      ...((process.env.FORK_MAINNET === "true" || process.env.SOLIDITY_COVERAGE === "true") &&
+      ...(process.env.FORK_MAINNET === "true" &&
       process.env.MAINNET_RPC_URL
         ? {
             forking: {
