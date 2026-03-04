@@ -39,8 +39,7 @@ const config: HardhatUserConfig = {
       chainId: 31337,
       initialBaseFeePerGas: 0,
       // Fork mainnet when:
-      ...(process.env.FORK_MAINNET === "true" &&
-      process.env.MAINNET_RPC_URL
+      ...(process.env.FORK_MAINNET === "true" && process.env.MAINNET_RPC_URL
         ? {
             forking: {
               url: process.env.MAINNET_RPC_URL,

@@ -29,7 +29,7 @@ jobs:
           node-version: lts/*
 
       - name: "Install dependencies"
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: "Audit dependencies"
         run: pnpm audit --prod --audit-level high
@@ -101,7 +101,7 @@ jobs:
           node-version: lts/*
 
       - name: "Install dependencies"
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: "Install Slither"
         run: |
@@ -143,7 +143,7 @@ jobs:
           node-version: lts/*
 
       - name: "Install dependencies"
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: "Compile contracts"
         run: pnpm compile
