@@ -703,7 +703,7 @@ contract LiquidityOrchestrator is
                 // successful execution, continue.
             } catch {
                 _failedEpochTokens.push(token);
-                // Incremental update of the epoch state commitment to avoid recomputing the entire commitment and restart epoch execution.
+                // Incremental update of the epoch state commitment to avoid re-running the entire epoch execution.
                 _currentEpoch.epochStateCommitment = keccak256(abi.encode(_currentEpoch.epochStateCommitment, token));
                 return;
             }
@@ -735,7 +735,7 @@ contract LiquidityOrchestrator is
                 // successful execution, continue.
             } catch {
                 _failedEpochTokens.push(token);
-                // Incremental update of the epoch state commitment to avoid recomputing the entire commitment and restart epoch execution.
+                // Incremental update of the epoch state commitment to avoid re-running the entire epoch execution.
                 _currentEpoch.epochStateCommitment = keccak256(abi.encode(_currentEpoch.epochStateCommitment, token));
                 return;
             }

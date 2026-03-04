@@ -2,7 +2,6 @@
 pragma solidity ^0.8.28;
 
 import { IPriceAdapter } from "../interfaces/IPriceAdapter.sol";
-import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 import "@openzeppelin/contracts/access/Ownable2Step.sol";
