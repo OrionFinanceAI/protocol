@@ -20,7 +20,7 @@ jobs:
       - name: "Install Pnpm"
         uses: pnpm/action-setup@v4
         with:
-          version: "8"
+          version: "10"
 
       - name: "Setup Node.js"
         uses: actions/setup-node@v6
@@ -29,7 +29,7 @@ jobs:
           node-version: lts/*
 
       - name: "Install dependencies"
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: "Audit dependencies"
         run: pnpm audit --prod --audit-level high
@@ -50,8 +50,22 @@ jobs:
           echo "## Lint results" >> $GITHUB_STEP_SUMMARY
           echo "✅ Passed" >> $GITHUB_STEP_SUMMARY
 
-      - name: "Run tests and generate coverage report"
+      - name: "Run unit tests"
+        run: pnpm test
+        env:
+          RPC_URL: ${{ secrets.RPC_URL }}
+          DEPLOYER_PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
+          LP_PRIVATE_KEY: ${{ secrets.LP_PRIVATE_KEY }}
+          ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
+          MAINNET_RPC_URL: ${{ secrets.MAINNET_RPC_URL }}
+
+      - name: "Generate coverage report"
         run: pnpm coverage
+        env:
+          RPC_URL: ${{ secrets.RPC_URL }}
+          DEPLOYER_PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
+          LP_PRIVATE_KEY: ${{ secrets.LP_PRIVATE_KEY }}
+          ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
 
       - name: "Upload coverage to Codecov"
         uses: codecov/codecov-action@v5
@@ -78,7 +92,7 @@ jobs:
       - name: "Install Pnpm"
         uses: pnpm/action-setup@v4
         with:
-          version: "8"
+          version: "10"
 
       - name: "Setup Node.js"
         uses: actions/setup-node@v6
@@ -87,7 +101,7 @@ jobs:
           node-version: lts/*
 
       - name: "Install dependencies"
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: "Install Slither"
         run: |
@@ -120,7 +134,7 @@ jobs:
       - name: "Install Pnpm"
         uses: pnpm/action-setup@v4
         with:
-          version: "8"
+          version: "10"
 
       - name: "Setup Node.js"
         uses: actions/setup-node@v6
@@ -129,7 +143,7 @@ jobs:
           node-version: lts/*
 
       - name: "Install dependencies"
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: "Compile contracts"
         run: pnpm compile
@@ -147,7 +161,6 @@ jobs:
 
           find artifacts/contracts -name "*.json" \
             ! -name "*.dbg.json" \
-            ! -path "*/mocks/*" \
             ! -path "*/test/*" \
             -exec sh -c '
               for file do

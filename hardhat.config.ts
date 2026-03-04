@@ -15,7 +15,7 @@ const config: HardhatUserConfig = {
   docgen: {
     outputDir: "./docs/",
     pages: "files",
-    exclude: ["mocks", "test"],
+    exclude: ["test"],
   },
 
   solidity: {
@@ -38,6 +38,15 @@ const config: HardhatUserConfig = {
     hardhat: {
       chainId: 31337,
       initialBaseFeePerGas: 0,
+      // Fork mainnet when:
+      ...(process.env.FORK_MAINNET === "true" && process.env.MAINNET_RPC_URL
+        ? {
+            forking: {
+              url: process.env.MAINNET_RPC_URL,
+              blockNumber: 24490214,
+            },
+          }
+        : {}),
     },
     localhost: {
       url: "http://127.0.0.1:8545",
@@ -45,10 +54,10 @@ const config: HardhatUserConfig = {
       gasPrice: 2_000_000_000,
     },
 
-    ...(!isCoverage
+    ...(!isCoverage && (process.env.SEPOLIA_RPC_URL ?? process.env.RPC_URL)
       ? {
           sepolia: {
-            url: process.env.RPC_URL!,
+            url: process.env.SEPOLIA_RPC_URL ?? process.env.RPC_URL!,
             accounts: [process.env.DEPLOYER_PRIVATE_KEY!, process.env.LP_PRIVATE_KEY!],
             chainId: 11155111,
           },

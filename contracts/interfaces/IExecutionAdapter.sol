@@ -16,25 +16,23 @@ interface IExecutionAdapter {
     /// @param asset The address of the asset to validate
     function validateExecutionAdapter(address asset) external view;
 
+    /// @notice Previews the underlying amount required to buy a given amount of an asset
+    /// @param asset The address of the asset to buy
+    /// @param sharesAmount The amount of asset shares to buy
+    /// @return underlyingAmount The underlying amount required
+    /// @dev Particularly useful in keeping execution adapters composable with each other, making refunding
+    ///      unnecessary when higher-level adapters use the previewed amount for downstream buy() calls.
+    function previewBuy(address asset, uint256 sharesAmount) external returns (uint256 underlyingAmount);
+
     /// @notice Executes a sell operation by converting asset shares to underlying assets
     /// @param asset The address of the asset to sell
-    /// @param sharesAmount The amount of shares to sell
-    /// @param estimatedUnderlyingAmount The estimated underlying amount to receive
+    /// @param sharesAmount The amount of asset shares to sell
     /// @return executionUnderlyingAmount The actual execution underlying amount received
-    function sell(
-        address asset,
-        uint256 sharesAmount,
-        uint256 estimatedUnderlyingAmount
-    ) external returns (uint256 executionUnderlyingAmount);
+    function sell(address asset, uint256 sharesAmount) external returns (uint256 executionUnderlyingAmount);
 
     /// @notice Executes a buy operation by converting underlying assets to asset shares
     /// @param asset The address of the asset to buy
-    /// @param sharesAmount The amount of shares to buy
-    /// @param estimatedUnderlyingAmount The estimated underlying amount to spend
+    /// @param sharesAmount The amount of asset shares to buy
     /// @return executionUnderlyingAmount The actual execution underlying amount spent
-    function buy(
-        address asset,
-        uint256 sharesAmount,
-        uint256 estimatedUnderlyingAmount
-    ) external returns (uint256 executionUnderlyingAmount);
+    function buy(address asset, uint256 sharesAmount) external returns (uint256 executionUnderlyingAmount);
 }

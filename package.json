@@ -1,7 +1,7 @@
 {
   "name": "@orion-finance/protocol",
   "description": "Orion Finance Protocol",
-  "version": "2.0.3",
+  "version": "2.1.0",
   "engines": {
     "node": ">=20.0.0"
   },
@@ -24,11 +24,13 @@
     "lint:sol": "solhint --max-warnings 20 \"contracts/**/*.sol\"",
     "lint:ts": "eslint --ext .js,.ts .",
     "typechain": "cross-env TS_NODE_TRANSPILE_ONLY=true hardhat typechain",
-    "test": "hardhat test",
+    "test:no-fork": "cross-env FORK_MAINNET=false hardhat test",
+    "test:fork": "cross-env FORK_MAINNET=true hardhat test test/crossAsset/ChainlinkPriceAdapter.test.ts test/crossAsset/ERC4626PriceAdapter.test.ts test/crossAsset/ERC4626ExecutionAdapter.test.ts",
+    "test": "pnpm test:no-fork && pnpm test:fork",
     "test:sepolia": "hardhat test --network sepolia",
     "prettier:check": "prettier --check \"**/*.{js,json,md,sol,ts,yml}\"",
     "prettier:write": "prettier --write \"**/*.{js,json,md,sol,ts,yml}\"",
-    "slither": "slither . --filter-paths 'lib|node_modules|dependencies|contracts/mocks' --fail-medium",
+    "slither": "slither . --filter-paths 'lib|node_modules|dependencies|test' --fail-medium",
     "verify:vault": "hardhat run protocol-ops/verify-vault.ts --network sepolia",
     "storage-layout": "hardhat run scripts/check-storage-layout.ts"
   },
@@ -80,6 +82,8 @@
     "@fhevm/solidity": "^0.11.1",
     "@openzeppelin/contracts": "^5.4.0",
     "@openzeppelin/contracts-upgradeable": "^5.4.0",
+    "@uniswap/v3-core": "^1.0.1",
+    "@uniswap/v3-periphery": "^1.4.4",
     "encrypted-types": "^0.0.4"
   },
   "pnpm": {

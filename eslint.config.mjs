@@ -43,6 +43,8 @@ export default defineConfig([
     "**/yarn.lock",
     "**/.solcover.js",
     "**/eslint.config.mjs",
+    "protocol-costs",
+    "protocol-ops",
   ]),
 
   // JavaScript files configuration

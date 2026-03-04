@@ -9,12 +9,12 @@ import { resetNetwork } from "./helpers/resetNetwork";
 import {
   MockUnderlyingAsset,
   MockERC4626Asset,
-  OrionAssetERC4626ExecutionAdapter,
+  ERC4626ExecutionAdapter,
   OrionConfig,
   LiquidityOrchestrator,
   TransparentVaultFactory,
   OrionTransparentVault,
-  OrionAssetERC4626PriceAdapter,
+  ERC4626PriceAdapter,
 } from "../typechain-types";
 
 describe("Whitelist and Vault Removal Flows", function () {
@@ -23,8 +23,8 @@ describe("Whitelist and Vault Removal Flows", function () {
   let underlyingAsset: MockUnderlyingAsset;
   let mockAsset1: MockERC4626Asset;
   let mockAsset2: MockERC4626Asset;
-  let orionPriceAdapter: OrionAssetERC4626PriceAdapter;
-  let orionExecutionAdapter: OrionAssetERC4626ExecutionAdapter;
+  let orionPriceAdapter: ERC4626PriceAdapter;
+  let orionExecutionAdapter: ERC4626ExecutionAdapter;
   let liquidityOrchestrator: LiquidityOrchestrator;
   let testVault: OrionTransparentVault;
 
@@ -83,11 +83,9 @@ describe("Whitelist and Vault Removal Flows", function () {
 
     console.log("orionConfig address", await orionConfig.getAddress());
 
-    // Deploy price adapter
-    const OrionAssetERC4626PriceAdapterFactory = await ethers.getContractFactory("OrionAssetERC4626PriceAdapter");
-    orionPriceAdapter = (await OrionAssetERC4626PriceAdapterFactory.deploy(
-      await orionConfig.getAddress(),
-    )) as unknown as OrionAssetERC4626PriceAdapter;
+    // Deploy MockPriceAdapter - these vaults use USDC as underlying (same-asset), ERC4626PriceAdapter rejects same-asset
+    const MockPriceAdapterFactory = await ethers.getContractFactory("MockPriceAdapter");
+    orionPriceAdapter = (await MockPriceAdapterFactory.deploy()) as unknown as ERC4626PriceAdapter;
     await orionPriceAdapter.waitForDeployment();
 
     // Configure protocol
@@ -95,12 +93,10 @@ describe("Whitelist and Vault Removal Flows", function () {
     await liquidityOrchestrator.setTargetBufferRatio(100); // 1% target buffer ratio
     await liquidityOrchestrator.setSlippageTolerance(50); // 0.5% slippage
 
-    const OrionAssetERC4626ExecutionAdapterFactory = await ethers.getContractFactory(
-      "OrionAssetERC4626ExecutionAdapter",
-    );
-    orionExecutionAdapter = (await OrionAssetERC4626ExecutionAdapterFactory.deploy(
+    const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
+    orionExecutionAdapter = (await ERC4626ExecutionAdapterFactory.deploy(
       await orionConfig.getAddress(),
-    )) as unknown as OrionAssetERC4626ExecutionAdapter;
+    )) as unknown as ERC4626ExecutionAdapter;
     await orionExecutionAdapter.waitForDeployment();
 
     await orionConfig.addWhitelistedAsset(

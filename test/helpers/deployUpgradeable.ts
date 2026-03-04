@@ -85,7 +85,7 @@ export async function deployUpgradeableProtocol(
   await sp1VerifierGateway.addRoute(await sp1VerifierGroth16.getAddress());
 
   // cargo run --release --bin vkey
-  const vKey = "0x00dcc994ce74ee9842a9224176ea2aa5115883598b92686e0d764d3908352bb7";
+  const vKey = "0x007ccff4696ddd1d62fec2a106aa50309ba0fdee8fc2bcbc9c0b5ea68fe200f3";
 
   const LiquidityOrchestratorFactory = await ethers.getContractFactory("LiquidityOrchestrator");
   const liquidityOrchestrator = (await upgrades.deployProxy(

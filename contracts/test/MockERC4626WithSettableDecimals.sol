@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import "../mocks/MockERC4626Asset.sol";
+import "./MockERC4626Asset.sol";
 
 /**
  * @title MockERC4626WithSettableDecimals

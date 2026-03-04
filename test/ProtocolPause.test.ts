@@ -44,7 +44,7 @@ import { resetNetwork } from "./helpers/resetNetwork";
 import {
   MockUnderlyingAsset,
   MockERC4626Asset,
-  OrionAssetERC4626ExecutionAdapter,
+  ERC4626ExecutionAdapter,
   OrionConfig,
   LiquidityOrchestrator,
   OrionTransparentVault,
@@ -55,7 +55,7 @@ describe("Protocol Pause Functionality", function () {
   // Contract instances
   let underlyingAsset: MockUnderlyingAsset;
   let erc4626Asset: MockERC4626Asset;
-  let adapter: OrionAssetERC4626ExecutionAdapter;
+  let adapter: ERC4626ExecutionAdapter;
   let config: OrionConfig;
   let liquidityOrchestrator: LiquidityOrchestrator;
   let transparentVault: OrionTransparentVault;
@@ -103,15 +103,20 @@ describe("Protocol Pause Functionality", function () {
     erc4626Asset = erc4626AssetDeployed as unknown as MockERC4626Asset;
 
     // Deploy Price Adapter
-    const OrionAssetERC4626PriceAdapterFactory = await ethers.getContractFactory("OrionAssetERC4626PriceAdapter");
-    const priceAdapterDeployed = await OrionAssetERC4626PriceAdapterFactory.deploy(await config.getAddress());
+    const MockPriceAdapterFactory = await ethers.getContractFactory("MockPriceAdapter");
+    const priceAdapterDeployed = await MockPriceAdapterFactory.deploy();
     await priceAdapterDeployed.waitForDeployment();
 
+    // Deploy Mock Swap Executor
+    const MockExecutionAdapterFactory = await ethers.getContractFactory("MockExecutionAdapter");
+    const MockExecutionAdapter = await MockExecutionAdapterFactory.deploy();
+    await MockExecutionAdapter.waitForDeployment();
+
     // Deploy Execution Adapter
-    const AdapterFactory = await ethers.getContractFactory("OrionAssetERC4626ExecutionAdapter");
+    const AdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
     const adapterDeployed = await AdapterFactory.deploy(await config.getAddress());
     await adapterDeployed.waitForDeployment();
-    adapter = adapterDeployed as unknown as OrionAssetERC4626ExecutionAdapter;
+    adapter = adapterDeployed as unknown as ERC4626ExecutionAdapter;
 
     // NOW we can configure protocol parameters (these check isSystemIdle())
     await config.setMinDepositAmount(MIN_DEPOSIT);
