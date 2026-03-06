@@ -101,4 +101,7 @@ library ErrorsLib {
     /// @param proofCommitment The commitment from the zk proof.
     /// @param onchainCommitment The commitment from the onchain.
     error CommitmentMismatch(bytes32 proofCommitment, bytes32 onchainCommitment);
+
+    /// @notice Strategist is already linked to a different vault and cannot be re-linked.
+    error StrategistVaultAlreadyLinked();
 }
