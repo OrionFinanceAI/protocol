@@ -84,7 +84,7 @@ describe("Strategist Linking", function () {
 
   beforeEach(async function () {
     this.timeout(90_000);
-    [owner, manager, user, stranger] = await ethers.getSigners();
+    [owner, , user, stranger] = await ethers.getSigners();
 
     // 12-decimal underlying (matches PassiveStrategist test)
     const UnderlyingFactory = await ethers.getContractFactory("MockUnderlyingAsset");
