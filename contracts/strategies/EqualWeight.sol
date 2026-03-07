@@ -20,6 +20,7 @@ contract EqualWeight is IOrionStrategist, ERC165 {
 
     address private _vault;
 
+    /// @notice Deploys the strategy.
     /// @param config_ The Orion configuration contract address.
     constructor(address config_) {
         if (config_ == address(0)) revert ErrorsLib.ZeroAddress();
