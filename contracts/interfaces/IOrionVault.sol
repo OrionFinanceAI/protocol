@@ -207,6 +207,16 @@ interface IOrionVault is IERC4626 {
     /// @dev This returns share amounts, not underlying asset amounts
     function pendingRedeem(uint256 fulfillBatchSize) external view returns (uint256);
 
+    /// @notice Get the list of pending redeem entries (users and shares) for the next fulfill batch
+    /// @param fulfillBatchSize The maximum number of requests to consider
+    /// @return users Addresses with pending redeem requests in batch order
+    /// @return shares Share amounts per user (same index as users)
+    /// @dev This function enables per-request convertToAssetsWithPITTotalAssets calculations,
+    ///      ensuring exact rounding behaviour for state transition.
+    function pendingRedeemBatch(
+        uint256 fulfillBatchSize
+    ) external view returns (address[] memory users, uint256[] memory shares);
+
     /// @notice Calculate the vault's fee based on total assets using a specific fee model
     /// @param totalAssets The total assets under management
     /// @param snapshotFeeModel The fee model to use for calculation (typically from epoch snapshot)
