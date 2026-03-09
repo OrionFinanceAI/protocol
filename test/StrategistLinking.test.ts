@@ -193,6 +193,32 @@ describe("Strategist Linking", function () {
       expect(tokens.length).to.equal(2);
     });
 
+    it("IOrionStrategist passed to createVault() directly: initialize-time linking works", async function () {
+      // Fresh strategy, no vault linked yet
+      const StrategyFactory = await ethers.getContractFactory("KBestTvlWeightedAverage");
+      const strategy = (await StrategyFactory.deploy(
+        owner.address,
+        await orionConfig.getAddress(),
+        2,
+      )) as unknown as KBestTvlWeightedAverage;
+      await strategy.waitForDeployment();
+
+      // Deposit TVL so submitIntent produces a valid non-empty intent
+      await mintAndDeposit(underlyingAsset, assetA, user, 1000, underlyingDecimals);
+      await mintAndDeposit(underlyingAsset, assetB, user, 500, underlyingDecimals);
+
+      // Pass strategy as initial strategist — no updateStrategist() call
+      const vault = await createVault(transparentVaultFactory, owner, await strategy.getAddress());
+
+      expect(await vault.strategist()).to.equal(await strategy.getAddress());
+
+      // setVault was called during initialize — submitIntent should not revert
+      await expect(strategy.connect(user).submitIntent()).to.not.be.reverted;
+
+      const [tokens] = await vault.getIntent();
+      expect(tokens.length).to.equal(2);
+    });
+
     it("IOrionStrategist already linked to a different vault: updateStrategist reverts", async function () {
       const StrategyFactory = await ethers.getContractFactory("KBestTvlWeightedAverage");
       const strategy = (await StrategyFactory.deploy(
