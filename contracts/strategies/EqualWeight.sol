@@ -36,7 +36,7 @@ contract EqualWeight is IOrionStrategist, ERC165 {
     }
 
     /// @inheritdoc IOrionStrategist
-    function submitIntent() external {
+    function submitIntent() external override {
         address vault_ = _vault;
         if (vault_ == address(0)) revert ErrorsLib.ZeroAddress();
 

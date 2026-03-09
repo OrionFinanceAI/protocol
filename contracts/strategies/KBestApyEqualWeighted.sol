@@ -25,7 +25,7 @@ contract KBestApyEqualWeighted is ApyStrategistBase {
     }
 
     /// @inheritdoc IOrionStrategist
-    function submitIntent() external {
+    function submitIntent() external override {
         _submitIntentInternal(k);
     }
 
