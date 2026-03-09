@@ -54,6 +54,7 @@ contract KBestApyWeightedAverage is ApyStrategistBase {
 
         uint32 sumWeights = 0;
 
+        // slither-disable-next-line incorrect-equality
         if (totalApy == 0) {
             uint32 equalWeight = uint32(intentScale / kActual);
             for (uint16 i = 0; i < kActual; ++i) {
