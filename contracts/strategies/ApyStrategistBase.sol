@@ -97,7 +97,7 @@ abstract contract ApyStrategistBase is IOrionStrategist, ERC165, Ownable2Step {
     /// @dev Returns convertToAssets(1 share) or 0 on any failure.
     ///      dec > 76 guard prevents 10**dec from overflowing uint256.
     function _getSharePrice(address asset) private view returns (uint256) {
-        uint8 dec;
+        uint8 dec = 0;
         try IERC4626(asset).decimals() returns (uint8 d) {
             dec = d;
         } catch {
@@ -115,6 +115,7 @@ abstract contract ApyStrategistBase is IOrionStrategist, ERC165, Ownable2Step {
     ///      or return is non-positive.
     function _getAssetApy(address asset) internal view returns (uint256) {
         Checkpoint memory cp = _checkpoints[asset];
+        // slither-disable-next-line incorrect-equality
         if (cp.sharePrice == 0 || cp.timestamp == 0) return 0;
 
         uint256 elapsed = block.timestamp - cp.timestamp;
