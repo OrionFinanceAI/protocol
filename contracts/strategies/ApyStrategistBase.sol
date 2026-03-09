@@ -111,8 +111,9 @@ abstract contract ApyStrategistBase is IOrionStrategist, ERC165, Ownable2Step {
         }
     }
 
-    /// @dev Returns APY in WAD (1e18 = 100%). Returns 0 if no checkpoint, window too short,
-    ///      or return is non-positive.
+    /// @dev Returns a simple annualized return (non-compounded) in WAD (1e18 = 100%), used as
+    ///      an APY proxy for ranking only — compounding is not applied.
+    ///      Returns 0 if no checkpoint, window too short, or return is non-positive.
     function _getAssetApy(address asset) internal view returns (uint256) {
         Checkpoint memory cp = _checkpoints[asset];
         // slither-disable-next-line incorrect-equality
@@ -125,7 +126,7 @@ abstract contract ApyStrategistBase is IOrionStrategist, ERC165, Ownable2Step {
         if (currentPrice == 0 || currentPrice > type(uint128).max) return 0;
         if (currentPrice < cp.sharePrice) return 0;
 
-        // APY = (currentPrice − storedPrice) × WAD × SECONDS_PER_YEAR / (storedPrice × elapsed)
+        // Simple annualized return = (currentPrice − storedPrice) × WAD × SECONDS_PER_YEAR / (storedPrice × elapsed)
         return Math.mulDiv((currentPrice - cp.sharePrice) * WAD, SECONDS_PER_YEAR, uint256(cp.sharePrice) * elapsed);
     }
 
