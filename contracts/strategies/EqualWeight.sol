@@ -41,7 +41,7 @@ contract EqualWeight is IOrionStrategist, ERC165 {
         if (vault_ == address(0)) revert ErrorsLib.ZeroAddress();
 
         address[] memory assets = config.getAllWhitelistedAssets();
-        uint16 n = uint16(assets.length);
+        uint256 n = assets.length;
         if (n == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
 
         uint32 intentScale = uint32(10 ** config.strategistIntentDecimals());
@@ -49,7 +49,7 @@ contract EqualWeight is IOrionStrategist, ERC165 {
 
         IOrionTransparentVault.IntentPosition[] memory intent = new IOrionTransparentVault.IntentPosition[](n);
         uint32 sumWeights = 0;
-        for (uint16 i = 0; i < n; ++i) {
+        for (uint256 i = 0; i < n; ++i) {
             intent[i] = IOrionTransparentVault.IntentPosition({ token: assets[i], weight: equalWeight });
             sumWeights += equalWeight;
         }
