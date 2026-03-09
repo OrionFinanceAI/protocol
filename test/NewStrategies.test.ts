@@ -8,6 +8,7 @@ import { resetNetwork } from "./helpers/resetNetwork";
 import {
   MockUnderlyingAsset,
   MockERC4626Asset,
+  MockNoDecimalsAsset,
   OrionConfig,
   TransparentVaultFactory,
   OrionTransparentVault,
@@ -488,6 +489,18 @@ describe("New Strategies", function () {
       // underlyingAsset is ERC20 only — no convertToAssets().
       await strategy.updateCheckpoints([await underlyingAsset.getAddress()]);
       const [sharePrice, timestamp] = await strategy.getCheckpoint(await underlyingAsset.getAddress());
+      expect(sharePrice).to.equal(0n);
+      expect(timestamp).to.equal(0n);
+    });
+
+    it("updateCheckpoints silently skips assets whose decimals() reverts", async function () {
+      const F = await ethers.getContractFactory("MockNoDecimalsAsset");
+      const noDecimals = (await F.deploy()) as unknown as MockNoDecimalsAsset;
+      await noDecimals.waitForDeployment();
+
+      // decimals() reverts → _getSharePrice returns 0 → no checkpoint written
+      await expect(strategy.updateCheckpoints([await noDecimals.getAddress()])).to.not.be.reverted;
+      const [sharePrice, timestamp] = await strategy.getCheckpoint(await noDecimals.getAddress());
       expect(sharePrice).to.equal(0n);
       expect(timestamp).to.equal(0n);
     });
