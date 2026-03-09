@@ -817,12 +817,15 @@ describe("New Strategies", function () {
         [2, true],
         [3, true],
       ] as [number, boolean][]) {
-        if (hasApy && k === 1) {
+        if (hasApy) {
+          // Expire the rate gate from any prior checkpoint before recording a fresh baseline.
+          await advancePastMinWindow();
           await strategy.updateCheckpoints([
             await assetA.getAddress(),
             await assetB.getAddress(),
             await assetC.getAddress(),
           ]);
+          // Let elapsed >= MIN_WINDOW so _getAssetApy returns a non-zero value.
           await advancePastMinWindow();
           await simulateGains(underlyingAsset, assetA, user, 100, underlyingDecimals);
           await simulateGains(underlyingAsset, assetB, user, 50, underlyingDecimals);
