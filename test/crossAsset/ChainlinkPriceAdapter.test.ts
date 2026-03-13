@@ -16,7 +16,12 @@ const MAINNET = {
   WETH: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
   CHAINLINK_ETH_USD: "0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419",
   CHAINLINK_USDC_ETH: "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4", // USDC/ETH (inverse)
+  CHAINLINK_USDC_USD: "0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6", // USDC/USD
 };
+
+// Maximum tolerated deviation between ETH/USD direct price and ETH/USDC cross-rate, in basis points.
+// USDC is not perfectly pegged; at the pinned fork block (24490214) the deviation is well under 50 bps.
+const SLIPPAGE_TOLERANCE_BPS = 50n; // 0.5 %
 
 describe("ChainlinkPriceAdapter - Coverage Tests", function () {
   let owner: SignerWithAddress;
@@ -270,6 +275,74 @@ describe("ChainlinkPriceAdapter - Coverage Tests", function () {
         chainlinkAdapter,
         "PriceOutOfBounds",
       );
+    });
+  });
+
+  describe("cross-rate: ETH/USDC via ETH/USD ÷ USDC/USD", function () {
+    // Use a throwaway asset slot so we don't disturb the WETH config used by other tests.
+    const CROSS_RATE_SLOT = "0x000000000000000000000000000000000000dEaD";
+
+    before(async function () {
+      // Configure WETH with ETH/USD base + USDC/USD quote.
+      // Both Chainlink feeds return 8-decimal answers.
+      // scaleFactor = 10^(quoteDecimals + PRICE_DECIMALS) / 10^baseDecimals
+      //             = 10^(8 + 18) / 10^8 = 10^18
+      // USDC/USD heartbeat is 86400 s (24 h), so maxStaleness must accommodate it.
+      // ETH/USD heartbeat is 3600 s but sharing one maxStaleness means we use the looser bound.
+      await chainlinkAdapter.configureFeed(
+        CROSS_RATE_SLOT,
+        MAINNET.CHAINLINK_ETH_USD,
+        false, // not inverse
+        86400, // 24 h — covers the USDC/USD heartbeat
+        ethers.parseUnits("100", 8), // min $100
+        ethers.parseUnits("100000", 8), // max $100,000
+        MAINNET.CHAINLINK_USDC_USD, // quote feed
+      );
+    });
+
+    it("scaleFactor stored correctly (10^18 for 8-decimal base and quote)", async function () {
+      const cfg = await chainlinkAdapter.feedConfigOf(CROSS_RATE_SLOT);
+      expect(cfg.scaleFactor).to.equal(ethers.parseUnits("1", 18));
+    });
+
+    it("cross-rate output uses PRICE_DECIMALS (18)", async function () {
+      const [, decimals] = await chainlinkAdapter.getPriceData(CROSS_RATE_SLOT);
+      expect(decimals).to.equal(18);
+    });
+
+    it("cross-rate ETH/USDC is within slippage tolerance of raw ETH/USD price", async function () {
+      // --- raw ETH/USD from Chainlink (8 decimals) ---
+      const ethUsdFeed = await ethers.getContractAt("AggregatorV3Interface", MAINNET.CHAINLINK_ETH_USD);
+      const [, ethUsdRaw] = await ethUsdFeed.latestRoundData();
+      const ethUsdDirect18 = BigInt(ethUsdRaw.toString()) * 10n ** 10n; // normalise 8 → 18 decimals
+
+      // --- raw USDC/USD from Chainlink (8 decimals) ---
+      const usdcUsdFeed = await ethers.getContractAt("AggregatorV3Interface", MAINNET.CHAINLINK_USDC_USD);
+      const [, usdcUsdRaw] = await usdcUsdFeed.latestRoundData();
+
+      // --- cross-rate from adapter (18 decimals) ---
+      const [crossRate] = await chainlinkAdapter.getPriceData(CROSS_RATE_SLOT);
+      const crossRate18 = BigInt(crossRate.toString());
+
+      // Log for visibility
+      console.log(`  ETH/USD  (direct, 18-dec normalised): ${ethers.formatUnits(ethUsdDirect18, 18)}`);
+      console.log(`  USDC/USD (raw 8-dec):                 ${ethers.formatUnits(usdcUsdRaw.toString(), 8)}`);
+      console.log(`  ETH/USDC (cross-rate, 18-dec):        ${ethers.formatUnits(crossRate18, 18)}`);
+
+      // Sanity: cross-rate should be > 0
+      expect(crossRate18).to.be.gt(0n);
+
+      // Slippage = |crossRate - direct| / direct, expressed in basis points.
+      // USDC/USD ≈ 1.000 so deviation should be negligible (<< 50 bps).
+      const diff = crossRate18 > ethUsdDirect18 ? crossRate18 - ethUsdDirect18 : ethUsdDirect18 - crossRate18;
+      const slippageBps = (diff * 10_000n) / ethUsdDirect18;
+
+      console.log(`  Slippage vs direct ETH/USD: ${slippageBps} bps`);
+      expect(slippageBps).to.be.lte(SLIPPAGE_TOLERANCE_BPS);
+    });
+
+    it("validatePriceAdapter passes for cross-rate config", async function () {
+      await expect(chainlinkAdapter.validatePriceAdapter(CROSS_RATE_SLOT)).to.not.be.reverted;
     });
   });
 
