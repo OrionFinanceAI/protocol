@@ -57,6 +57,7 @@ describe("ERC4626PriceAdapter - Coverage Tests", function () {
       3600,
       ethers.parseUnits("1000", 8),
       ethers.parseUnits("10000", 8),
+      ethers.ZeroAddress,
     );
 
     await chainlinkAdapter.configureFeed(
@@ -66,6 +67,7 @@ describe("ERC4626PriceAdapter - Coverage Tests", function () {
       3600,
       ethers.parseUnits("20000", 8),
       ethers.parseUnits("100000", 8),
+      ethers.ZeroAddress,
     );
 
     // Deploy price registry

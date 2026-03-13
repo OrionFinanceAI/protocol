@@ -57,6 +57,7 @@ describe("ChainlinkPriceAdapter - Coverage Tests", function () {
           3600, // 1 hour staleness
           ethers.parseUnits("1000", 8), // min $1,000
           ethers.parseUnits("10000", 8), // max $10,000
+          ethers.ZeroAddress, // no quote feed
         ),
       )
         .to.emit(chainlinkAdapter, "FeedConfigured")
@@ -67,6 +68,7 @@ describe("ChainlinkPriceAdapter - Coverage Tests", function () {
           3600,
           ethers.parseUnits("1000", 8),
           ethers.parseUnits("10000", 8),
+          ethers.ZeroAddress,
         );
 
       const feedConfig = await chainlinkAdapter.feedConfigOf(MAINNET.WETH);
@@ -82,6 +84,7 @@ describe("ChainlinkPriceAdapter - Coverage Tests", function () {
         3600,
         ethers.parseUnits("0.0001", 18), // min (USDC/ETH is small)
         ethers.parseUnits("0.001", 18), // max
+        ethers.ZeroAddress,
       );
 
       const feedConfig = await chainlinkAdapter.feedConfigOf(MAINNET.USDC);
@@ -97,6 +100,7 @@ describe("ChainlinkPriceAdapter - Coverage Tests", function () {
           3600,
           ethers.parseUnits("1000", 8),
           ethers.parseUnits("10000", 8),
+          ethers.ZeroAddress,
         ),
       ).to.be.revertedWithCustomError(chainlinkAdapter, "ZeroAddress");
     });
@@ -110,6 +114,7 @@ describe("ChainlinkPriceAdapter - Coverage Tests", function () {
           3600,
           ethers.parseUnits("1000", 8),
           ethers.parseUnits("10000", 8),
+          ethers.ZeroAddress,
         ),
       ).to.be.revertedWithCustomError(chainlinkAdapter, "ZeroAddress");
     });
@@ -123,6 +128,7 @@ describe("ChainlinkPriceAdapter - Coverage Tests", function () {
           0, // zero staleness
           ethers.parseUnits("1000", 8),
           ethers.parseUnits("10000", 8),
+          ethers.ZeroAddress,
         ),
       ).to.be.revertedWithCustomError(chainlinkAdapter, "InvalidArguments");
     });
@@ -136,6 +142,7 @@ describe("ChainlinkPriceAdapter - Coverage Tests", function () {
           3600,
           ethers.parseUnits("10000", 8), // min > max
           ethers.parseUnits("1000", 8),
+          ethers.ZeroAddress,
         ),
       ).to.be.revertedWithCustomError(chainlinkAdapter, "InvalidArguments");
     });
@@ -152,6 +159,7 @@ describe("ChainlinkPriceAdapter - Coverage Tests", function () {
           3600,
           ethers.parseUnits("1000", 8),
           ethers.parseUnits("10000", 8),
+          ethers.ZeroAddress,
         ),
       ).to.be.reverted; // Just check it reverts (the catch block triggers)
     });
@@ -167,6 +175,7 @@ describe("ChainlinkPriceAdapter - Coverage Tests", function () {
             3600,
             ethers.parseUnits("1000", 8),
             ethers.parseUnits("10000", 8),
+            ethers.ZeroAddress,
           ),
       ).to.be.revertedWithCustomError(chainlinkAdapter, "OwnableUnauthorizedAccount");
     });
@@ -203,6 +212,7 @@ describe("ChainlinkPriceAdapter - Coverage Tests", function () {
         3600,
         ethers.parseUnits("100", 8), // min $100 (very safe)
         ethers.parseUnits("100000", 8), // max $100,000 (very safe)
+        ethers.ZeroAddress,
       );
 
       const [price, decimals] = await chainlinkAdapter.getPriceData(MAINNET.WETH);
@@ -232,6 +242,7 @@ describe("ChainlinkPriceAdapter - Coverage Tests", function () {
         86400, // 24 hours staleness tolerance
         ethers.parseUnits("0.0001", 18), // min
         ethers.parseUnits("0.001", 18), // max
+        ethers.ZeroAddress,
       );
 
       // USDC/ETH feed returns inverse, adapter should flip it
@@ -252,6 +263,7 @@ describe("ChainlinkPriceAdapter - Coverage Tests", function () {
         3600,
         1, // min $0.00000001 (will pass)
         2, // max $0.00000002 (will fail - current price is much higher)
+        ethers.ZeroAddress,
       );
 
       await expect(chainlinkAdapter.getPriceData(owner.address)).to.be.revertedWithCustomError(
