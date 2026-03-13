@@ -136,6 +136,7 @@ contract ChainlinkPriceAdapter is IPriceAdapter, Ownable2Step {
         FeedConfig memory feedConfig = feedConfigOf[asset];
         if (feedConfig.feed == address(0)) revert ErrorsLib.InvalidAdapter(asset);
 
+        // slither-disable-next-line unused-return
         try AggregatorV3Interface(feedConfig.feed).latestRoundData() returns (
             uint80,
             int256 baseAnswer,
@@ -149,6 +150,7 @@ contract ChainlinkPriceAdapter is IPriceAdapter, Ownable2Step {
         }
 
         if (feedConfig.quoteFeed != address(0)) {
+            // slither-disable-next-line unused-return
             try AggregatorV3Interface(feedConfig.quoteFeed).latestRoundData() returns (
                 uint80,
                 int256 quoteAnswer,
