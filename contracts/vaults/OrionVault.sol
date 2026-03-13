@@ -12,6 +12,8 @@ import "../interfaces/IOrionConfig.sol";
 import "../interfaces/IOrionVault.sol";
 import "../interfaces/ILiquidityOrchestrator.sol";
 import "../interfaces/IOrionAccessControl.sol";
+import "../interfaces/IOrionStrategist.sol";
+import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -419,6 +421,21 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     function updateStrategist(address newStrategist) external onlyManager {
         strategist = newStrategist;
         emit StrategistUpdated(newStrategist);
+        _linkStrategistVault(newStrategist);
+    }
+
+    /// @dev If strategist_ is a smart contract that implements IOrionStrategist (detected via
+    ///      ERC-165), call setVault so the strategy knows which vault it serves.
+    ///      Uses try/catch on the supportsInterface probe so non-ERC-165 contracts (e.g. SAFE
+    ///      multisigs) are silently ignored. Propagates any revert from setVault itself so
+    ///      misconfigured strategies fail loudly during assignment.
+    function _linkStrategistVault(address strategist_) internal {
+        if (strategist_.code.length == 0) return;
+        try IERC165(strategist_).supportsInterface(type(IOrionStrategist).interfaceId) returns (bool supported) {
+            if (supported) {
+                IOrionStrategist(strategist_).setVault(address(this));
+            }
+        } catch {} // non-ERC-165 contract — not an OrionStrategist, nothing to link
     }
 
     /// @inheritdoc IOrionVault

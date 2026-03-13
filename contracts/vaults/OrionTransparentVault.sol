@@ -70,6 +70,11 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
         // slither-disable-next-line unused-return
         _portfolioIntent.set(address(config.underlyingAsset()), uint32(10 ** config.strategistIntentDecimals()));
+
+        // Link IOrionStrategist contracts after _portfolioIntent is initialised so that any
+        // reentrant vault.submitIntent call during setVault operates on valid state and does
+        // not race with the default 100%-underlying entry set above.
+        _linkStrategistVault(strategist_);
     }
 
     /// --------- STRATEGIST FUNCTIONS ---------

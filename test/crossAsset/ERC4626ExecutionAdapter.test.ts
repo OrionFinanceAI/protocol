@@ -129,6 +129,7 @@ describe("ERC4626ExecutionAdapter", function () {
         3600, // 1 hour staleness
         ethers.parseUnits("1000", 8), // min $1,000
         ethers.parseUnits("10000", 8), // max $10,000
+        ethers.ZeroAddress,
       );
 
       // Deploy MockPriceAdapterRegistry and configure it
