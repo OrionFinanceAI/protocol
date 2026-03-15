@@ -122,6 +122,10 @@ interface ILiquidityOrchestrator {
     /// @return List of token addresses that failed
     function getFailedEpochTokens() external view returns (address[] memory);
 
+    /// @notice Returns the buffer amount after each execution minibatch for market impact tracking.
+    /// @return Buffer amount after each minibatch
+    function getEpochBufferHistory() external view returns (uint256[] memory);
+
     /// @notice Gets asset prices for the epoch
     /// @param assets Array of asset addresses
     /// @return assetPrices Array of asset prices
