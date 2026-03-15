@@ -469,7 +469,6 @@ contract LiquidityOrchestrator is
             if (currentMinibatchIndex == 0) {
                 // Update buffer amount
                 bufferAmount = states.bufferAmount;
-                _epochBufferHistory.push(bufferAmount);
                 _pendingEpochProtocolFees = states.epochProtocolFees;
             }
 
