@@ -467,10 +467,10 @@ contract LiquidityOrchestrator is
             StatesStruct memory states = _verifyPerformData(_publicValues, proofBytes, statesBytes);
 
             if (currentMinibatchIndex == 0) {
-                // Update buffer amount
                 bufferAmount = states.bufferAmount;
                 _pendingEpochProtocolFees = states.epochProtocolFees;
             }
+            _recordBufferCheckpoint();
 
             _processMinibatchSell(states.sellLeg);
         } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
@@ -507,7 +507,7 @@ contract LiquidityOrchestrator is
             return;
         }
 
-        _epochBufferHistory.push(bufferAmount);
+        _recordBufferCheckpoint();
 
         currentPhase = LiquidityUpkeepPhase.StateCommitment;
 
@@ -579,7 +579,8 @@ contract LiquidityOrchestrator is
                 config.riskFreeRate(),
                 config.decommissioningAssets(),
                 _failedEpochTokens,
-                _epochBufferHistory
+                _epochBufferHistory,
+                bufferAmount
             )
         );
         return protocolStateHash;
@@ -720,7 +721,7 @@ contract LiquidityOrchestrator is
                 // successful execution, continue.
             } catch {
                 _failedEpochTokens.push(token);
-                // Refresh commitment from current state so next zkVM run matches on-chain input.
+                _recordBufferCheckpoint();
                 _currentEpoch.epochStateCommitment = keccak256(
                     abi.encode(_buildProtocolStateHash(), _cachedAssetsHash, _cachedVaultsHash)
                 );
@@ -729,7 +730,7 @@ contract LiquidityOrchestrator is
             }
         }
 
-        _epochBufferHistory.push(bufferAmount);
+        _recordBufferCheckpoint();
         ++currentMinibatchIndex;
         if (i1 == sellLeg.sellingTokens.length) {
             currentMinibatchIndex = 0;
@@ -756,7 +757,7 @@ contract LiquidityOrchestrator is
                 // successful execution, continue.
             } catch {
                 _failedEpochTokens.push(token);
-                // Refresh commitment from current state so next zkVM run matches on-chain input.
+                _recordBufferCheckpoint();
                 _currentEpoch.epochStateCommitment = keccak256(
                     abi.encode(_buildProtocolStateHash(), _cachedAssetsHash, _cachedVaultsHash)
                 );
@@ -765,7 +766,7 @@ contract LiquidityOrchestrator is
             }
         }
 
-        _epochBufferHistory.push(bufferAmount);
+        _recordBufferCheckpoint();
         ++currentMinibatchIndex;
         if (i1 == buyLeg.buyingTokens.length) {
             pendingProtocolFees += _pendingEpochProtocolFees;
@@ -783,6 +784,14 @@ contract LiquidityOrchestrator is
             bufferAmount += uint256(deltaAmount);
         } else if (deltaAmount < 0) {
             bufferAmount -= uint256(-deltaAmount);
+        }
+    }
+
+    /// @notice Records the current buffer amount as a checkpoint only if it differs from the last entry.
+    function _recordBufferCheckpoint() internal {
+        uint256 n = _epochBufferHistory.length;
+        if (n == 0 || _epochBufferHistory[n - 1] != bufferAmount) {
+            _epochBufferHistory.push(bufferAmount);
         }
     }
 
