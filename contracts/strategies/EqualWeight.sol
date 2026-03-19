@@ -28,7 +28,7 @@ contract EqualWeight is IOrionStrategist, ERC165 {
     }
 
     /// @inheritdoc IOrionStrategist
-    function setVault(address vault_) external {
+    function setVault(address vault_) external override {
         if (vault_ == address(0)) revert ErrorsLib.ZeroAddress();
         if (_vault == vault_) return;
         if (_vault != address(0)) revert ErrorsLib.StrategistVaultAlreadyLinked();
