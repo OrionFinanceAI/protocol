@@ -92,9 +92,6 @@ contract LiquidityOrchestrator is
     /// @notice Current minibatch index
     uint8 public currentMinibatchIndex;
 
-    /// @notice Whether epoch protocol fees have been accrued this epoch
-    bool private epochFeesAccrued;
-
     /// @notice Target buffer ratio
     uint256 public targetBufferRatio;
 
@@ -122,6 +119,17 @@ contract LiquidityOrchestrator is
 
     /// @notice Tokens that failed during the current epoch's sell/buy execution (cleared at epoch end)
     address[] private _failedEpochTokens;
+
+    /// @notice Cached assets hash from last full commitment build
+    bytes32 private _cachedAssetsHash;
+    /// @notice Cached vaults hash from last full commitment build
+    bytes32 private _cachedVaultsHash;
+
+    /// @notice Buffer amount after each execution minibatch for market impact tracking.
+    uint256[] private _epochBufferHistory;
+
+    /// @notice Epoch protocol fees to accrue when transitioning to ProcessVaultOperations.
+    uint256 private _pendingEpochProtocolFees;
 
     /// @notice Struct to hold epoch state data
     struct EpochState {
@@ -355,6 +363,11 @@ contract LiquidityOrchestrator is
         return _failedEpochTokens;
     }
 
+    /// @inheritdoc ILiquidityOrchestrator
+    function getEpochBufferHistory() external view returns (uint256[] memory) {
+        return _epochBufferHistory;
+    }
+
     /* -------------------------------------------------------------------------- */
     /*                                CONFIG FUNCTIONS                            */
     /* -------------------------------------------------------------------------- */
@@ -444,20 +457,20 @@ contract LiquidityOrchestrator is
         if (currentPhase == LiquidityUpkeepPhase.Idle && _shouldTriggerUpkeep()) {
             _handleStart();
         } else if (currentPhase == LiquidityUpkeepPhase.StateCommitment) {
-            _currentEpoch.epochStateCommitment = _buildEpochStateCommitment();
+            (bytes32 commitment, bytes32 assetsHash, bytes32 vaultsHash) = _buildEpochStateCommitmentAndComponents();
+            _currentEpoch.epochStateCommitment = commitment;
+            _cachedAssetsHash = assetsHash;
+            _cachedVaultsHash = vaultsHash;
             currentPhase = LiquidityUpkeepPhase.SellingLeg;
             emit EventsLib.EpochStateCommitted(epochCounter, _currentEpoch.epochStateCommitment);
         } else if (currentPhase == LiquidityUpkeepPhase.SellingLeg) {
             StatesStruct memory states = _verifyPerformData(_publicValues, proofBytes, statesBytes);
 
-            if (currentMinibatchIndex == 0 && !epochFeesAccrued) {
-                // Update buffer amount
+            if (currentMinibatchIndex == 0) {
                 bufferAmount = states.bufferAmount;
-                // Accrue protocol fees once per epoch
-                pendingProtocolFees += states.epochProtocolFees;
-                emit EventsLib.ProtocolFeesAccrued(states.epochProtocolFees);
-                epochFeesAccrued = true;
+                _pendingEpochProtocolFees = states.epochProtocolFees;
             }
+            _recordBufferCheckpoint();
 
             _processMinibatchSell(states.sellLeg);
         } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
@@ -494,6 +507,8 @@ contract LiquidityOrchestrator is
             return;
         }
 
+        _recordBufferCheckpoint();
+
         currentPhase = LiquidityUpkeepPhase.StateCommitment;
 
         // Snapshot protocol fees at epoch start to ensure consistency throughout the epoch
@@ -528,23 +543,23 @@ contract LiquidityOrchestrator is
         }
     }
 
-    /// @notice Builds an epoch state commitment from the full epoch state
-    /// @dev Uses domain separation for cryptographic robustness.
-    /// @return The epoch state commitment
-    function _buildEpochStateCommitment() internal view returns (bytes32) {
+    /// @notice Builds the epoch state commitment and returns assets/vaults hashes for incremental refresh on failure
+    /// @return commitment The full epoch state commitment
+    /// @return assetsHash Cached so on sell/buy failure we can recompute only protocolStateHash
+    /// @return vaultsHash Cached so on sell/buy failure we can recompute only protocolStateHash
+    function _buildEpochStateCommitmentAndComponents()
+        internal
+        view
+        returns (bytes32 commitment, bytes32 assetsHash, bytes32 vaultsHash)
+    {
         address[] memory assets = config.getAllWhitelistedAssets();
         uint256[] memory assetPrices = getAssetPrices(assets);
         VaultStateData memory vaultData = _getVaultStateData();
 
         bytes32 protocolStateHash = _buildProtocolStateHash();
-
-        bytes32 assetsHash = _aggregateAssetLeaves(assets, assetPrices);
-
-        bytes32 vaultsHash = _aggregateVaultLeaves(vaultData);
-
-        bytes32 epochStateCommitment = keccak256(abi.encode(protocolStateHash, assetsHash, vaultsHash));
-
-        return epochStateCommitment;
+        assetsHash = _aggregateAssetLeaves(assets, assetPrices);
+        vaultsHash = _aggregateVaultLeaves(vaultData);
+        commitment = keccak256(abi.encode(protocolStateHash, assetsHash, vaultsHash));
     }
 
     /// @notice Builds the protocol state hash from static epoch parameters
@@ -556,14 +571,16 @@ contract LiquidityOrchestrator is
                 _currentEpoch.activeRsFeeCoefficient,
                 config.maxFulfillBatchSize(),
                 targetBufferRatio,
-                bufferAmount,
                 config.priceAdapterDecimals(),
                 config.strategistIntentDecimals(),
                 epochDuration,
                 config.getAllWhitelistedAssets(),
                 config.getAllTokenDecimals(),
                 config.riskFreeRate(),
-                config.decommissioningAssets()
+                config.decommissioningAssets(),
+                _failedEpochTokens,
+                _epochBufferHistory,
+                bufferAmount
             )
         );
         return protocolStateHash;
@@ -704,13 +721,16 @@ contract LiquidityOrchestrator is
                 // successful execution, continue.
             } catch {
                 _failedEpochTokens.push(token);
-                // Incremental update of the epoch state commitment to avoid re-running the entire epoch execution.
-                _currentEpoch.epochStateCommitment = keccak256(abi.encode(_currentEpoch.epochStateCommitment, token));
+                _recordBufferCheckpoint();
+                _currentEpoch.epochStateCommitment = keccak256(
+                    abi.encode(_buildProtocolStateHash(), _cachedAssetsHash, _cachedVaultsHash)
+                );
                 emit EventsLib.EpochStateCommitted(epochCounter, _currentEpoch.epochStateCommitment);
                 return;
             }
         }
 
+        _recordBufferCheckpoint();
         ++currentMinibatchIndex;
         if (i1 == sellLeg.sellingTokens.length) {
             currentMinibatchIndex = 0;
@@ -737,15 +757,21 @@ contract LiquidityOrchestrator is
                 // successful execution, continue.
             } catch {
                 _failedEpochTokens.push(token);
-                // Incremental update of the epoch state commitment to avoid re-running the entire epoch execution.
-                _currentEpoch.epochStateCommitment = keccak256(abi.encode(_currentEpoch.epochStateCommitment, token));
+                _recordBufferCheckpoint();
+                _currentEpoch.epochStateCommitment = keccak256(
+                    abi.encode(_buildProtocolStateHash(), _cachedAssetsHash, _cachedVaultsHash)
+                );
                 emit EventsLib.EpochStateCommitted(epochCounter, _currentEpoch.epochStateCommitment);
                 return;
             }
         }
 
+        _recordBufferCheckpoint();
         ++currentMinibatchIndex;
         if (i1 == buyLeg.buyingTokens.length) {
+            pendingProtocolFees += _pendingEpochProtocolFees;
+            emit EventsLib.ProtocolFeesAccrued(_pendingEpochProtocolFees);
+            _pendingEpochProtocolFees = 0;
             currentMinibatchIndex = 0;
             currentPhase = LiquidityUpkeepPhase.ProcessVaultOperations;
         }
@@ -758,6 +784,14 @@ contract LiquidityOrchestrator is
             bufferAmount += uint256(deltaAmount);
         } else if (deltaAmount < 0) {
             bufferAmount -= uint256(-deltaAmount);
+        }
+    }
+
+    /// @notice Records the current buffer amount as a checkpoint only if it differs from the last entry.
+    function _recordBufferCheckpoint() internal {
+        uint256 n = _epochBufferHistory.length;
+        if (n == 0 || _epochBufferHistory[n - 1] != bufferAmount) {
+            _epochBufferHistory.push(bufferAmount);
         }
     }
 
@@ -837,12 +871,12 @@ contract LiquidityOrchestrator is
             i1 = uint16(vaultsEpoch.length);
             currentPhase = LiquidityUpkeepPhase.Idle;
             currentMinibatchIndex = 0;
-            epochFeesAccrued = false;
             _nextUpdateTime = block.timestamp + epochDuration;
             emit EventsLib.EpochEnd(epochCounter);
             ++epochCounter;
 
             delete _failedEpochTokens;
+            delete _epochBufferHistory;
         }
 
         for (uint16 i = i0; i < i1; ++i) {
