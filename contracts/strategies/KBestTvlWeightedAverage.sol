@@ -22,7 +22,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
  */
 contract KBestTvlWeightedAverage is IOrionStrategist, ERC165, Ownable2Step {
     /// @notice The Orion configuration contract.
-    IOrionConfig public immutable config;
+    IOrionConfig public immutable CONFIG;
 
     /// @notice The number of top assets to select.
     uint16 public k;
@@ -30,12 +30,13 @@ contract KBestTvlWeightedAverage is IOrionStrategist, ERC165, Ownable2Step {
     /// @notice The vault this strategist is linked to. Set once via setVault; never changes.
     address private _vault;
 
+    /// @notice Constructor to initialize the strategist with owner, config address, and number of top assets.
     /// @param owner_ Owner of this contract (can update k).
     /// @param config_ The Orion configuration contract address.
     /// @param k_ Number of top assets to select.
     constructor(address owner_, address config_, uint16 k_) Ownable(owner_) {
         if (config_ == address(0)) revert ErrorsLib.ZeroAddress();
-        config = IOrionConfig(config_);
+        CONFIG = IOrionConfig(config_);
         k = k_;
     }
 
@@ -53,7 +54,7 @@ contract KBestTvlWeightedAverage is IOrionStrategist, ERC165, Ownable2Step {
         address vault_ = _vault;
         if (vault_ == address(0)) revert ErrorsLib.ZeroAddress();
 
-        address[] memory assets = config.getAllWhitelistedAssets();
+        address[] memory assets = CONFIG.getAllWhitelistedAssets();
         uint16 n = uint16(assets.length);
         uint256[] memory tvls = _getAssetTVLs(assets, n);
 
@@ -125,7 +126,7 @@ contract KBestTvlWeightedAverage is IOrionStrategist, ERC165, Ownable2Step {
             totalTVL += topTvls[i];
         }
 
-        uint32 intentScale = uint32(10 ** config.strategistIntentDecimals());
+        uint32 intentScale = uint32(10 ** CONFIG.strategistIntentDecimals());
         intent = new IOrionTransparentVault.IntentPosition[](kActual);
 
         uint32 sumWeights = 0;
