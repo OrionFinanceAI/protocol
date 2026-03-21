@@ -11,7 +11,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
  * @title ChainlinkPriceAdapter
  * @notice Price adapter for assets using Chainlink oracle feeds.
  *         Supports an optional quote feed for cross-rate normalisation (e.g. ETH/USD / USDC/USD
- *         to obtain ETH/USDC), which eliminates the implicit USD = USDC assumption.
+ *         to obtain ETH/USDC).
  * @author Orion Finance
  *
  * @custom:security-contact security@orionfinance.ai
@@ -19,12 +19,12 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 contract ChainlinkPriceAdapter is IPriceAdapter, Ownable2Step {
     /**
      * @notice Per-asset feed configuration.
-     * @param feed Chainlink base aggregator (e.g. ETH/USD).
-     * @param quoteFeed Optional quote aggregator (e.g. USDC/USD); address(0) = single-feed path.
-     * @param isInverse True when the base feed returns the reciprocal rate (e.g. USDC/ETH).
+     * @param feed Chainlink base aggregator.
+     * @param quoteFeed Optional quote aggregator; address(0) = single-feed path.
+     * @param isInverse True when the base feed returns the reciprocal rate.
      * @param maxStaleness Maximum acceptable age in seconds for both feed answers.
-     * @param minPrice Minimum acceptable base feed answer (circuit-breaker lower bound).
-     * @param maxPrice Maximum acceptable base feed answer (circuit-breaker upper bound).
+     * @param minPrice Minimum acceptable base feed answer.
+     * @param maxPrice Maximum acceptable base feed answer.
      * @param scaleFactor Pre-computed at configure time as 10^(quoteDecimals + PRICE_DECIMALS) / 10^baseDecimals.
      *        Used only when quoteFeed != address(0) to produce a PRICE_DECIMALS-precision cross-rate.
      */
@@ -45,8 +45,6 @@ contract ChainlinkPriceAdapter is IPriceAdapter, Ownable2Step {
     uint8 public constant INVERSE_DECIMALS = 18;
 
     /// @notice Precision of the cross-rate output when a quoteFeed is configured.
-    ///         Kept separate from INVERSE_DECIMALS because each represents a distinct semantic concept
-    ///         (inversion precision vs. cross-rate output precision) that could evolve independently.
     uint8 public constant PRICE_DECIMALS = 18;
 
     /// @notice Emitted when a Chainlink feed is configured for an asset
@@ -72,16 +70,15 @@ contract ChainlinkPriceAdapter is IPriceAdapter, Ownable2Step {
     /**
      * @notice Configure Chainlink feed for an asset.
      * @param asset The asset address.
-     * @param feed The Chainlink base aggregator address (e.g. ETH/USD).
+     * @param feed The Chainlink base aggregator address.
      * @param inverse Whether this feed returns inverse pricing. Cannot be combined with quoteFeed.
      * @param _maxStaleness Maximum acceptable staleness in seconds for both feeds.
      * @param _minPrice Minimum acceptable base feed answer (in base feed decimals).
      * @param _maxPrice Maximum acceptable base feed answer (in base feed decimals).
-     * @param quoteFeed Optional second Chainlink aggregator used as the quote denominator (e.g. USDC/USD).
-     *        Pass address(0) for single-feed behaviour (existing 6-arg call sites must add this arg).
+     * @param quoteFeed Optional second Chainlink aggregator used as the quote denominator.
+     *        Pass address(0) for single-feed behaviour.
      *        When set, getPriceData returns baseFeedPrice * scaleFactor / quoteFeedPrice
      *        with output decimals equal to PRICE_DECIMALS (18).
-     * @dev scaleFactor is computed once at configure time to keep runtime cost minimal.
      */
     function configureFeed(
         address asset,

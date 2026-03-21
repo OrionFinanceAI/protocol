@@ -208,8 +208,6 @@ describe("ChainlinkPriceAdapter — unit tests (no fork)", function () {
 
       const [price, decimals] = await adapter.getPriceData(asset);
 
-      // adjustedPrice = BASE_ANSWER * scaleFactor / QUOTE_ANSWER
-      //               = 3_000_00000000 * 10^18 / 1_00010000
       const expected = (BASE_ANSWER * 10n ** 18n) / QUOTE_ANSWER;
       expect(decimals).to.equal(18);
       expect(price).to.equal(expected);

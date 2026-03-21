@@ -1,6 +1,7 @@
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
 import "@openzeppelin/hardhat-upgrades";
+import type { ContractTransactionReceipt } from "ethers";
 import { ethers } from "hardhat";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 import { resetNetwork } from "./helpers/resetNetwork";
@@ -8,13 +9,11 @@ import { resetNetwork } from "./helpers/resetNetwork";
 import {
   MockUnderlyingAsset,
   MockERC4626Asset,
-  MockNoDecimalsAsset,
   OrionConfig,
   TransparentVaultFactory,
   OrionTransparentVault,
   EqualWeight,
-  KBestApyWeightedAverage,
-  KBestApyEqualWeighted,
+  KBestApyStrategist,
 } from "../typechain-types";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -22,8 +21,12 @@ import {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const INTENT_SCALE = 1_000_000_000n;
-// Must exceed ApyStrategistBase.MIN_WINDOW (1 hour = 3600 s); add buffer for block mining.
+// Must exceed KBestApyStrategist.MIN_WINDOW (1 hour = 3600 s); add buffer for block mining.
 const PAST_MIN_WINDOW = 3_700;
+
+/** KBestApyStrategist.WeightingMode */
+const WEIGHTING_EQUAL = 0;
+const WEIGHTING_APY = 1;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -82,6 +85,33 @@ async function simulateGains(
 async function advancePastMinWindow(): Promise<void> {
   await ethers.provider.send("evm_increaseTime", [PAST_MIN_WINDOW]);
   await ethers.provider.send("evm_mine", []);
+}
+
+/** Parse CheckpointRecorded from a strategist tx receipt (ignores other contracts' logs). */
+async function checkpointRecordedForAsset(
+  strategy: KBestApyStrategist,
+  receipt: ContractTransactionReceipt,
+  assetAddress: string,
+): Promise<{ sharePrice: bigint; timestamp: bigint } | undefined> {
+  const iface = strategy.interface;
+  const strategyAddr = (await strategy.getAddress()).toLowerCase();
+  const want = assetAddress.toLowerCase();
+  for (const log of receipt.logs) {
+    if (log.address.toLowerCase() !== strategyAddr) continue;
+    try {
+      const parsed = iface.parseLog({ topics: log.topics as string[], data: log.data });
+      if (parsed?.name !== "CheckpointRecorded") continue;
+      const asset = (parsed.args[0] as string).toLowerCase();
+      if (asset !== want) continue;
+      return {
+        sharePrice: BigInt(parsed.args[1].toString()),
+        timestamp: BigInt(parsed.args[2].toString()),
+      };
+    } catch {
+      /* not a strategist event */
+    }
+  }
+  return undefined;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -432,77 +462,58 @@ describe("New Strategies", function () {
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // APY checkpoint mechanics (shared by both APY strategies)
-  // Tested via KBestApyWeightedAverage as the concrete vehicle.
-  // ═══════════════════════════════════════════════════════════════════════════
 
-  describe("APY checkpoint mechanics (ApyStrategistBase)", function () {
-    let strategy: KBestApyWeightedAverage;
+  describe("APY checkpoint mechanics (KBestApyStrategist)", function () {
+    let strategy: KBestApyStrategist;
     let vault: OrionTransparentVault;
 
     beforeEach(async function () {
-      const F = await ethers.getContractFactory("KBestApyWeightedAverage");
+      const F = await ethers.getContractFactory("KBestApyStrategist");
       strategy = (await F.deploy(
         owner.address,
         await orionConfig.getAddress(),
         3,
-      )) as unknown as KBestApyWeightedAverage;
+        WEIGHTING_APY,
+      )) as unknown as KBestApyStrategist;
       await strategy.waitForDeployment();
       vault = await createVault(transparentVaultFactory, owner, await strategy.getAddress());
     });
 
-    it("getCheckpoint returns (0, 0) before any updateCheckpoints call", async function () {
-      const [sharePrice, timestamp] = await strategy.getCheckpoint(await assetA.getAddress());
-      expect(sharePrice).to.equal(0n);
-      expect(timestamp).to.equal(0n);
-    });
-
-    it("updateCheckpoints records the current share price and timestamp", async function () {
+    it("first submitIntent emits CheckpointRecorded for funded ERC4626 vaults", async function () {
       await mintAndDeposit(underlyingAsset, assetA, user, 1000, underlyingDecimals);
-      await strategy.updateCheckpoints([await assetA.getAddress()]);
-
-      const [sharePrice, timestamp] = await strategy.getCheckpoint(await assetA.getAddress());
+      const tx = await strategy.submitIntent();
+      const receipt = await tx.wait();
+      expect(receipt).to.not.equal(null);
+      const cp = await checkpointRecordedForAsset(strategy, receipt!, await assetA.getAddress());
+      expect(cp).to.not.equal(undefined);
       // ERC4626 initial share price: convertToAssets(1e12) = 1e12 (1:1 with 12-dec underlying).
-      expect(sharePrice).to.equal(10n ** BigInt(underlyingDecimals));
-      expect(timestamp).to.be.gt(0n);
+      expect(cp!.sharePrice).to.equal(10n ** BigInt(underlyingDecimals));
+      expect(cp!.timestamp).to.be.gt(0n);
     });
 
-    it("updateCheckpoints emits CheckpointRecorded with correct asset and share price", async function () {
+    it("submitIntent emits CheckpointRecorded with correct asset and share price", async function () {
       await mintAndDeposit(underlyingAsset, assetA, user, 1000, underlyingDecimals);
-      const tx = await strategy.updateCheckpoints([await assetA.getAddress()]);
-      await tx.wait();
-      // Verify the checkpoint was recorded with the correct price (don't assert the exact timestamp).
-      const [sharePrice, timestamp] = await strategy.getCheckpoint(await assetA.getAddress());
-      expect(sharePrice).to.equal(10n ** BigInt(underlyingDecimals));
-      expect(timestamp).to.be.gt(0n);
+      const tx = await strategy.submitIntent();
+      const receipt = await tx.wait();
+      expect(receipt).to.not.equal(null);
+      const cp = await checkpointRecordedForAsset(strategy, receipt!, await assetA.getAddress());
+      expect(cp).to.not.equal(undefined);
       await expect(tx)
         .to.emit(strategy, "CheckpointRecorded")
-        .withArgs(await assetA.getAddress(), 10n ** BigInt(underlyingDecimals), timestamp);
+        .withArgs(await assetA.getAddress(), 10n ** BigInt(underlyingDecimals), cp!.timestamp);
     });
 
-    it("updateCheckpoints is permissionless — stranger can call it", async function () {
+    it("submitIntent is permissionless — stranger can call it", async function () {
       await mintAndDeposit(underlyingAsset, assetA, user, 1000, underlyingDecimals);
-      await expect(strategy.connect(stranger).updateCheckpoints([await assetA.getAddress()])).to.not.be.reverted;
+      await expect(strategy.connect(stranger).submitIntent()).to.not.be.reverted;
     });
 
-    it("updateCheckpoints silently skips non-ERC4626 assets", async function () {
-      // underlyingAsset is ERC20 only — no convertToAssets().
-      await strategy.updateCheckpoints([await underlyingAsset.getAddress()]);
-      const [sharePrice, timestamp] = await strategy.getCheckpoint(await underlyingAsset.getAddress());
-      expect(sharePrice).to.equal(0n);
-      expect(timestamp).to.equal(0n);
-    });
-
-    it("updateCheckpoints silently skips assets whose decimals() reverts", async function () {
-      const F = await ethers.getContractFactory("MockNoDecimalsAsset");
-      const noDecimals = (await F.deploy()) as unknown as MockNoDecimalsAsset;
-      await noDecimals.waitForDeployment();
-
-      // decimals() reverts → _getSharePrice returns 0 → no checkpoint written
-      await expect(strategy.updateCheckpoints([await noDecimals.getAddress()])).to.not.be.reverted;
-      const [sharePrice, timestamp] = await strategy.getCheckpoint(await noDecimals.getAddress());
-      expect(sharePrice).to.equal(0n);
-      expect(timestamp).to.equal(0n);
+    it("underlying (non-ERC4626) whitelisted asset gets no CheckpointRecorded from strategist", async function () {
+      const tx = await strategy.submitIntent();
+      const receipt = await tx.wait();
+      expect(receipt).to.not.equal(null);
+      const cp = await checkpointRecordedForAsset(strategy, receipt!, await underlyingAsset.getAddress());
+      expect(cp).to.equal(undefined);
     });
 
     it("APY = 0 within MIN_WINDOW even if gains occurred → equal-weight fallback", async function () {
@@ -510,13 +521,8 @@ describe("New Strategies", function () {
       await mintAndDeposit(underlyingAsset, assetB, user, 1000, underlyingDecimals);
       await mintAndDeposit(underlyingAsset, assetC, user, 1000, underlyingDecimals);
 
-      // Record checkpoints at T=0 then immediately simulate gains (elapsed < MIN_WINDOW).
-      await strategy.updateCheckpoints([
-        await assetA.getAddress(),
-        await assetB.getAddress(),
-        await assetC.getAddress(),
-      ]);
-      // Large gains but window hasn't passed → APY = 0 for all → equal-weight fallback.
+      // Baseline recorded at end of first submitIntent; gains before MIN_WINDOW elapses.
+      await strategy.submitIntent();
       await simulateGains(underlyingAsset, assetA, user, 500, underlyingDecimals);
 
       await strategy.submitIntent();
@@ -535,12 +541,7 @@ describe("New Strategies", function () {
       await mintAndDeposit(underlyingAsset, assetB, user, 1000, underlyingDecimals);
       await mintAndDeposit(underlyingAsset, assetC, user, 1000, underlyingDecimals);
 
-      await strategy.updateCheckpoints([
-        await assetA.getAddress(),
-        await assetB.getAddress(),
-        await assetC.getAddress(),
-      ]);
-
+      await strategy.submitIntent();
       await advancePastMinWindow();
 
       // assetA: 20% gain, assetB: 10% gain, assetC: no gain → APY_A = 2× APY_B > APY_C=0.
@@ -563,12 +564,7 @@ describe("New Strategies", function () {
       await mintAndDeposit(underlyingAsset, assetB, user, 1000, underlyingDecimals);
       await mintAndDeposit(underlyingAsset, assetC, user, 1000, underlyingDecimals);
 
-      await strategy.updateCheckpoints([
-        await assetA.getAddress(),
-        await assetB.getAddress(),
-        await assetC.getAddress(),
-      ]);
-
+      await strategy.submitIntent();
       await advancePastMinWindow();
 
       // assetA loses 10% of its underlying — share price falls below checkpoint.
@@ -590,12 +586,7 @@ describe("New Strategies", function () {
       await mintAndDeposit(underlyingAsset, assetB, user, 1000, underlyingDecimals);
       await mintAndDeposit(underlyingAsset, assetC, user, 1000, underlyingDecimals);
 
-      await strategy.updateCheckpoints([
-        await assetA.getAddress(),
-        await assetB.getAddress(),
-        await assetC.getAddress(),
-      ]);
-
+      await strategy.submitIntent();
       await advancePastMinWindow();
       // No gains → all prices flat → APY = 0 → equal weight.
 
@@ -614,17 +605,18 @@ describe("New Strategies", function () {
   // KBestApyWeightedAverage
   // ═══════════════════════════════════════════════════════════════════════════
 
-  describe("KBestApyWeightedAverage", function () {
-    let strategy: KBestApyWeightedAverage;
+  describe("KBestApyStrategist (ApyWeighted)", function () {
+    let strategy: KBestApyStrategist;
     let vault: OrionTransparentVault;
 
     beforeEach(async function () {
-      const F = await ethers.getContractFactory("KBestApyWeightedAverage");
+      const F = await ethers.getContractFactory("KBestApyStrategist");
       strategy = (await F.deploy(
         owner.address,
         await orionConfig.getAddress(),
         2,
-      )) as unknown as KBestApyWeightedAverage;
+        WEIGHTING_APY,
+      )) as unknown as KBestApyStrategist;
       await strategy.waitForDeployment();
       vault = await createVault(transparentVaultFactory, owner, await strategy.getAddress());
     });
@@ -632,34 +624,37 @@ describe("New Strategies", function () {
     // ── setVault / vault errors ───────────────────────────────────────────────
 
     it("setVault: reverts ZeroAddress for address(0)", async function () {
-      const F = await ethers.getContractFactory("KBestApyWeightedAverage");
+      const F = await ethers.getContractFactory("KBestApyStrategist");
       const fresh = (await F.deploy(
         owner.address,
         await orionConfig.getAddress(),
         1,
-      )) as unknown as KBestApyWeightedAverage;
+        WEIGHTING_APY,
+      )) as unknown as KBestApyStrategist;
       await fresh.waitForDeployment();
       await expect(fresh.setVault(ethers.ZeroAddress)).to.be.revertedWithCustomError(fresh, "ZeroAddress");
     });
 
     it("submitIntent: reverts ZeroAddress when no vault is linked", async function () {
-      const F = await ethers.getContractFactory("KBestApyWeightedAverage");
+      const F = await ethers.getContractFactory("KBestApyStrategist");
       const fresh = (await F.deploy(
         owner.address,
         await orionConfig.getAddress(),
         1,
-      )) as unknown as KBestApyWeightedAverage;
+        WEIGHTING_APY,
+      )) as unknown as KBestApyStrategist;
       await fresh.waitForDeployment();
       await expect(fresh.connect(user).submitIntent()).to.be.revertedWithCustomError(fresh, "ZeroAddress");
     });
 
     it("submitIntent: reverts OrderIntentCannotBeEmpty when k=0", async function () {
-      const F = await ethers.getContractFactory("KBestApyWeightedAverage");
+      const F = await ethers.getContractFactory("KBestApyStrategist");
       const fresh = (await F.deploy(
         owner.address,
         await orionConfig.getAddress(),
         0,
-      )) as unknown as KBestApyWeightedAverage;
+        WEIGHTING_APY,
+      )) as unknown as KBestApyStrategist;
       await fresh.waitForDeployment();
       const v = await createVault(transparentVaultFactory, owner, await fresh.getAddress());
       void v; // vault linked — k=0 should still revert
@@ -671,7 +666,6 @@ describe("New Strategies", function () {
     it("zero APY fallback (k=2, no checkpoints): equal weight 5×10^8 each", async function () {
       await mintAndDeposit(underlyingAsset, assetA, user, 1000, underlyingDecimals);
       await mintAndDeposit(underlyingAsset, assetB, user, 1000, underlyingDecimals);
-      // No updateCheckpoints called → all APYs = 0 → equal-weight fallback.
 
       await strategy.submitIntent();
       const [, weights] = await vault.getIntent();
@@ -690,11 +684,7 @@ describe("New Strategies", function () {
       await mintAndDeposit(underlyingAsset, assetB, user, 1000, underlyingDecimals);
       await mintAndDeposit(underlyingAsset, assetC, user, 1000, underlyingDecimals);
 
-      await strategy.updateCheckpoints([
-        await assetA.getAddress(),
-        await assetB.getAddress(),
-        await assetC.getAddress(),
-      ]);
+      await strategy.submitIntent();
       await advancePastMinWindow();
 
       // assetA: +20%, assetB: +10%, assetC: no gain.
@@ -724,7 +714,7 @@ describe("New Strategies", function () {
       await mintAndDeposit(underlyingAsset, assetA, user, 1000, underlyingDecimals);
       await mintAndDeposit(underlyingAsset, assetB, user, 1000, underlyingDecimals);
 
-      await strategy.updateCheckpoints([await assetA.getAddress(), await assetB.getAddress()]);
+      await strategy.submitIntent();
       await advancePastMinWindow();
 
       // Equal gains → equal APY.
@@ -746,7 +736,7 @@ describe("New Strategies", function () {
       await mintAndDeposit(underlyingAsset, assetA, user, 1000, underlyingDecimals);
       await mintAndDeposit(underlyingAsset, assetB, user, 1000, underlyingDecimals);
 
-      await strategy.updateCheckpoints([await assetA.getAddress(), await assetB.getAddress()]);
+      await strategy.submitIntent();
       await advancePastMinWindow();
 
       await simulateGains(underlyingAsset, assetA, user, 200, underlyingDecimals);
@@ -831,15 +821,9 @@ describe("New Strategies", function () {
         [3, true],
       ] as [number, boolean][]) {
         if (hasApy) {
-          // Expire the rate gate from any prior checkpoint before recording a fresh baseline.
           await advancePastMinWindow();
-          await strategy.updateCheckpoints([
-            await assetA.getAddress(),
-            await assetB.getAddress(),
-            await assetC.getAddress(),
-          ]);
-          // Let elapsed >= MIN_WINDOW so _getAssetApy returns a non-zero value.
-          await advancePastMinWindow();
+          await strategy.submitIntent(); // baseline recorded at end of tx
+          await advancePastMinWindow(); // elapsed >= MIN_WINDOW for APY vs that baseline
           await simulateGains(underlyingAsset, assetA, user, 100, underlyingDecimals);
           await simulateGains(underlyingAsset, assetB, user, 50, underlyingDecimals);
         }
@@ -854,16 +838,21 @@ describe("New Strategies", function () {
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // KBestApyEqualWeighted
+  // KBestApyStrategist — EqualWeighted mode
   // ═══════════════════════════════════════════════════════════════════════════
 
-  describe("KBestApyEqualWeighted", function () {
-    let strategy: KBestApyEqualWeighted;
+  describe("KBestApyStrategist (EqualWeighted)", function () {
+    let strategy: KBestApyStrategist;
     let vault: OrionTransparentVault;
 
     beforeEach(async function () {
-      const F = await ethers.getContractFactory("KBestApyEqualWeighted");
-      strategy = (await F.deploy(owner.address, await orionConfig.getAddress(), 2)) as unknown as KBestApyEqualWeighted;
+      const F = await ethers.getContractFactory("KBestApyStrategist");
+      strategy = (await F.deploy(
+        owner.address,
+        await orionConfig.getAddress(),
+        2,
+        WEIGHTING_EQUAL,
+      )) as unknown as KBestApyStrategist;
       await strategy.waitForDeployment();
       vault = await createVault(transparentVaultFactory, owner, await strategy.getAddress());
     });
@@ -875,11 +864,7 @@ describe("New Strategies", function () {
       await mintAndDeposit(underlyingAsset, assetB, user, 1000, underlyingDecimals);
       await mintAndDeposit(underlyingAsset, assetC, user, 1000, underlyingDecimals);
 
-      await strategy.updateCheckpoints([
-        await assetA.getAddress(),
-        await assetB.getAddress(),
-        await assetC.getAddress(),
-      ]);
+      await strategy.submitIntent();
       await advancePastMinWindow();
 
       // assetA: 20% gain (higher APY), assetB: 10% gain — manager gives both equal weight.
@@ -903,11 +888,7 @@ describe("New Strategies", function () {
       await mintAndDeposit(underlyingAsset, assetB, user, 1000, underlyingDecimals);
       await mintAndDeposit(underlyingAsset, assetC, user, 1000, underlyingDecimals);
 
-      await strategy.updateCheckpoints([
-        await assetA.getAddress(),
-        await assetB.getAddress(),
-        await assetC.getAddress(),
-      ]);
+      await strategy.submitIntent();
       await advancePastMinWindow();
 
       // Wildly different gains — weights should still be equal.
@@ -935,11 +916,7 @@ describe("New Strategies", function () {
       await mintAndDeposit(underlyingAsset, assetB, user, 1000, underlyingDecimals);
       await mintAndDeposit(underlyingAsset, assetC, user, 1000, underlyingDecimals);
 
-      await strategy.updateCheckpoints([
-        await assetA.getAddress(),
-        await assetB.getAddress(),
-        await assetC.getAddress(),
-      ]);
+      await strategy.submitIntent();
       await advancePastMinWindow();
 
       // assetA and assetB have positive APY; assetC has none.

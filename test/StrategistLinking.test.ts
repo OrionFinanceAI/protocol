@@ -538,11 +538,6 @@ describe("Strategist Linking", function () {
 
     it("Non-ERC4626 assets (underlying USDC) get dust TVL and lose to ERC4626 vaults", async function () {
       await mintAndDeposit(underlyingAsset, assetA, user, 1000, underlyingDecimals);
-      // assetB and assetC have TVL=0 → try/catch gives them TVL=0 (IERC4626 call succeeds but returns 0)
-      // Actually MockERC4626Asset.totalAssets() returns 0 when no deposits → ERC4626 default
-      // USDC (non-ERC4626) → reverts on totalAssets() → caught, gets TVL=1
-      // So ranking: assetA(1000) > USDC(1) > assetB(0) = assetC(0)
-      // k=1 → selects assetA
 
       const { strategy, vault } = await deployAndLink(1, owner);
       await strategy.submitIntent();
