@@ -12,7 +12,6 @@ import {
   OrionConfig,
   TransparentVaultFactory,
   OrionTransparentVault,
-  EqualWeight,
   KBestApyStrategist,
 } from "../typechain-types";
 
@@ -188,280 +187,6 @@ describe("New Strategies", function () {
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // EqualWeight
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  describe("EqualWeight", function () {
-    let equalWeight: EqualWeight;
-    let vault: OrionTransparentVault;
-
-    beforeEach(async function () {
-      const EqualWeightFactory = await ethers.getContractFactory("EqualWeight");
-      equalWeight = (await EqualWeightFactory.deploy(await orionConfig.getAddress())) as unknown as EqualWeight;
-      await equalWeight.waitForDeployment();
-
-      // Auto-linking: createVault with EqualWeight calls setVault automatically.
-      vault = await createVault(transparentVaultFactory, owner, await equalWeight.getAddress());
-    });
-
-    // ── setVault ──────────────────────────────────────────────────────────────
-
-    describe("setVault", function () {
-      it("reverts ZeroAddress for address(0)", async function () {
-        const EqualWeightFactory = await ethers.getContractFactory("EqualWeight");
-        const fresh = (await EqualWeightFactory.deploy(await orionConfig.getAddress())) as unknown as EqualWeight;
-        await fresh.waitForDeployment();
-        await expect(fresh.setVault(ethers.ZeroAddress)).to.be.revertedWithCustomError(fresh, "ZeroAddress");
-      });
-
-      it("first call to a non-zero address succeeds", async function () {
-        const EqualWeightFactory = await ethers.getContractFactory("EqualWeight");
-        const fresh = (await EqualWeightFactory.deploy(await orionConfig.getAddress())) as unknown as EqualWeight;
-        await fresh.waitForDeployment();
-        await expect(fresh.setVault(user.address)).to.not.be.reverted;
-      });
-
-      it("second call with the same address is idempotent", async function () {
-        const EqualWeightFactory = await ethers.getContractFactory("EqualWeight");
-        const fresh = (await EqualWeightFactory.deploy(await orionConfig.getAddress())) as unknown as EqualWeight;
-        await fresh.waitForDeployment();
-        await fresh.setVault(user.address);
-        await expect(fresh.setVault(user.address)).to.not.be.reverted;
-      });
-
-      it("second call with a different address reverts StrategistVaultAlreadyLinked", async function () {
-        const EqualWeightFactory = await ethers.getContractFactory("EqualWeight");
-        const fresh = (await EqualWeightFactory.deploy(await orionConfig.getAddress())) as unknown as EqualWeight;
-        await fresh.waitForDeployment();
-        await fresh.setVault(user.address);
-        await expect(fresh.setVault(stranger.address)).to.be.revertedWithCustomError(
-          fresh,
-          "StrategistVaultAlreadyLinked",
-        );
-      });
-
-      it("submitIntent reverts ZeroAddress when no vault is linked", async function () {
-        const EqualWeightFactory = await ethers.getContractFactory("EqualWeight");
-        const fresh = (await EqualWeightFactory.deploy(await orionConfig.getAddress())) as unknown as EqualWeight;
-        await fresh.waitForDeployment();
-        await expect(fresh.connect(user).submitIntent()).to.be.revertedWithCustomError(fresh, "ZeroAddress");
-      });
-    });
-
-    // ── ERC-165 & auto-linking ────────────────────────────────────────────────
-
-    describe("ERC-165 and auto-linking", function () {
-      it("supportsInterface: IOrionStrategist → true", async function () {
-        const iface = await ethers.getContractAt("IOrionStrategist", await equalWeight.getAddress());
-        const id = iface.interface.getFunction("setVault")!.selector;
-        const id2 = iface.interface.getFunction("submitIntent")!.selector;
-        // IOrionStrategist interfaceId = setVault.selector XOR submitIntent.selector
-        const interfaceId = (BigInt(id) ^ BigInt(id2)).toString(16).padStart(8, "0");
-        expect(await equalWeight.supportsInterface("0x" + interfaceId)).to.equal(true);
-      });
-
-      it("supportsInterface: IERC165 (0x01ffc9a7) → true", async function () {
-        expect(await equalWeight.supportsInterface("0x01ffc9a7")).to.equal(true);
-      });
-
-      it("supportsInterface: random bytes4 → false", async function () {
-        expect(await equalWeight.supportsInterface("0xdeadbeef")).to.equal(false);
-      });
-
-      it("createVault auto-links: submitIntent succeeds without manual setVault", async function () {
-        // vault was created with equalWeight as strategist → setVault called automatically
-        await expect(equalWeight.connect(stranger).submitIntent()).to.not.be.reverted;
-      });
-    });
-
-    // ── Distribution math ─────────────────────────────────────────────────────
-
-    describe("distribution math", function () {
-      it("n=4 (default): underlying + assetA + assetB + assetC each get 25%", async function () {
-        // OrionConfig.initialize always whitelists the underlying asset, so n=4.
-        await equalWeight.submitIntent();
-        const [, weights] = await vault.getIntent();
-        expect(weights.length).to.equal(4);
-
-        const total = weights.reduce((acc, w) => acc + BigInt(w), 0n);
-        expect(total).to.equal(INTENT_SCALE);
-
-        // 1_000_000_000 / 4 = 250_000_000 exactly — no rounding residual.
-        for (const w of weights) {
-          expect(BigInt(w)).to.equal(250_000_000n);
-        }
-      });
-
-      it("n=2: underlying + one ERC4626 asset each receive exactly 5 × 10^8", async function () {
-        // Fresh config with 1 ERC4626 asset so that n = underlying + 1 = 2.
-        const freshDeployed = await deployUpgradeableProtocol(owner, underlyingAsset, owner);
-        const freshConfig = freshDeployed.orionConfig;
-        const freshFactory = freshDeployed.transparentVaultFactory;
-        const freshExec = await (
-          await ethers.getContractFactory("ERC4626ExecutionAdapter")
-        ).deploy(await freshConfig.getAddress());
-        const extra = await (
-          await ethers.getContractFactory("MockERC4626Asset")
-        ).deploy(await underlyingAsset.getAddress(), "X", "X");
-        await extra.waitForDeployment();
-        await freshConfig.addWhitelistedAsset(
-          await extra.getAddress(),
-          await mockPriceAdapter.getAddress(),
-          await freshExec.getAddress(),
-        );
-
-        const ew = (await (
-          await ethers.getContractFactory("EqualWeight")
-        ).deploy(await freshConfig.getAddress())) as unknown as EqualWeight;
-        await ew.waitForDeployment();
-        const v = await createVault(freshFactory, owner, await ew.getAddress());
-        await ew.submitIntent();
-
-        const [, weights] = await v.getIntent();
-        expect(weights.length).to.equal(2);
-        for (const w of weights) {
-          expect(BigInt(w)).to.equal(500_000_000n);
-        }
-        const total = weights.reduce((acc, w) => acc + BigInt(w), 0n);
-        expect(total).to.equal(INTENT_SCALE);
-      });
-
-      it("n=3: residual of 1 is added to first asset (floor(10^9 / 3) = 333_333_333)", async function () {
-        // Fresh config with 2 ERC4626 assets so that n = underlying + 2 = 3.
-        const freshDeployed = await deployUpgradeableProtocol(owner, underlyingAsset, owner);
-        const freshConfig = freshDeployed.orionConfig;
-        const freshFactory = freshDeployed.transparentVaultFactory;
-        const freshExec = await (
-          await ethers.getContractFactory("ERC4626ExecutionAdapter")
-        ).deploy(await freshConfig.getAddress());
-        const ERC4626Factory = await ethers.getContractFactory("MockERC4626Asset");
-        for (const sym of ["X1", "X2"]) {
-          const extra = await ERC4626Factory.deploy(await underlyingAsset.getAddress(), sym, sym);
-          await extra.waitForDeployment();
-          await freshConfig.addWhitelistedAsset(
-            await extra.getAddress(),
-            await mockPriceAdapter.getAddress(),
-            await freshExec.getAddress(),
-          );
-        }
-
-        const ew = (await (
-          await ethers.getContractFactory("EqualWeight")
-        ).deploy(await freshConfig.getAddress())) as unknown as EqualWeight;
-        await ew.waitForDeployment();
-        const v = await createVault(freshFactory, owner, await ew.getAddress());
-        await ew.submitIntent();
-
-        const [, weights] = await v.getIntent();
-        expect(weights.length).to.equal(3);
-
-        const total = weights.reduce((acc, w) => acc + BigInt(w), 0n);
-        expect(total).to.equal(INTENT_SCALE);
-
-        // floor(1e9 / 3) = 333_333_333; residual = 1 goes to first asset.
-        expect(BigInt(weights[0])).to.equal(333_333_334n);
-        expect(BigInt(weights[1])).to.equal(333_333_333n);
-        expect(BigInt(weights[2])).to.equal(333_333_333n);
-      });
-
-      it("n=7: residual of 6 is added to the first asset (floor(10^9 / 7) = 142_857_142)", async function () {
-        // Whitelist starts with 4 (underlying + assetA + assetB + assetC); add 3 more to reach n=7.
-        const ERC4626Factory = await ethers.getContractFactory("MockERC4626Asset");
-        for (let i = 4; i <= 6; i++) {
-          const extra = await ERC4626Factory.deploy(await underlyingAsset.getAddress(), `Asset${i}`, `A${i}`);
-          await extra.waitForDeployment();
-          await orionConfig.addWhitelistedAsset(
-            await extra.getAddress(),
-            await mockPriceAdapter.getAddress(),
-            await mockExecutionAdapter.getAddress(),
-          );
-        }
-
-        await equalWeight.submitIntent();
-        const [, weights] = await vault.getIntent();
-        expect(weights.length).to.equal(7);
-
-        const total = weights.reduce((acc, w) => acc + BigInt(w), 0n);
-        expect(total).to.equal(INTENT_SCALE);
-
-        // floor(1e9 / 7) = 142_857_142; 7 × 142_857_142 = 999_999_994; residual = 6.
-        expect(BigInt(weights[0])).to.equal(142_857_148n); // 142_857_142 + 6 residual
-        for (let i = 1; i < 7; i++) {
-          expect(BigInt(weights[i])).to.equal(142_857_142n);
-        }
-      });
-
-      it("sum invariant: always equals 10^9 for any n", async function () {
-        const ERC4626Factory = await ethers.getContractFactory("MockERC4626Asset");
-
-        for (const count of [1, 2, 3, 5, 9]) {
-          // Fresh deployment per iteration to isolate whitelist state.
-          const freshDeployed = await deployUpgradeableProtocol(owner, underlyingAsset, owner);
-          const freshConfig = freshDeployed.orionConfig;
-          const freshFactory = freshDeployed.transparentVaultFactory;
-
-          const freshExec = await (
-            await ethers.getContractFactory("ERC4626ExecutionAdapter")
-          ).deploy(await freshConfig.getAddress());
-
-          for (let i = 0; i < count; i++) {
-            const asset = await ERC4626Factory.deploy(await underlyingAsset.getAddress(), `T${i}`, `T${i}`);
-            await asset.waitForDeployment();
-            await freshConfig.addWhitelistedAsset(
-              await asset.getAddress(),
-              await mockPriceAdapter.getAddress(),
-              await freshExec.getAddress(),
-            );
-          }
-
-          const EWFactory = await ethers.getContractFactory("EqualWeight");
-          const ew = (await EWFactory.deploy(await freshConfig.getAddress())) as unknown as EqualWeight;
-          await ew.waitForDeployment();
-
-          const v = await createVault(freshFactory, owner, await ew.getAddress());
-          await ew.submitIntent();
-
-          const [, weights] = await v.getIntent();
-          const total = weights.reduce((acc, w) => acc + BigInt(w), 0n);
-          expect(total).to.equal(INTENT_SCALE, `sum must be 10^9 for n=${count}`);
-        }
-      });
-
-      it("only whitelisted assets are included in the intent", async function () {
-        await equalWeight.submitIntent();
-        const [tokens] = await vault.getIntent();
-
-        // OrionConfig always whitelists the underlying asset — it appears in intents.
-        expect(tokens).to.include(await underlyingAsset.getAddress());
-        expect(tokens).to.include(await assetA.getAddress());
-        expect(tokens).to.include(await assetB.getAddress());
-        expect(tokens).to.include(await assetC.getAddress());
-      });
-    });
-
-    // ── Permissionlessness ────────────────────────────────────────────────────
-
-    describe("permissionlessness", function () {
-      it("any caller can invoke submitIntent", async function () {
-        await expect(equalWeight.connect(owner).submitIntent()).to.not.be.reverted;
-        await expect(equalWeight.connect(user).submitIntent()).to.not.be.reverted;
-        await expect(equalWeight.connect(stranger).submitIntent()).to.not.be.reverted;
-      });
-
-      it("all callers produce identical, deterministic intent", async function () {
-        await equalWeight.connect(owner).submitIntent();
-        const [tokens1, weights1] = await vault.getIntent();
-
-        await equalWeight.connect(stranger).submitIntent();
-        const [tokens2, weights2] = await vault.getIntent();
-
-        expect(tokens1).to.deep.equal(tokens2);
-        expect(weights1).to.deep.equal(weights2);
-      });
-    });
-  });
-
-  // ═══════════════════════════════════════════════════════════════════════════
 
   describe("APY checkpoint mechanics (KBestApyStrategist)", function () {
     let strategy: KBestApyStrategist;
@@ -481,6 +206,8 @@ describe("New Strategies", function () {
 
     it("first submitIntent emits CheckpointRecorded for funded ERC4626 vaults", async function () {
       await mintAndDeposit(underlyingAsset, assetA, user, 1000, underlyingDecimals);
+      // Constructor already bootstrapped checkpoints; advance so post-submit refresh is not rate-gated.
+      await advancePastMinWindow();
       const tx = await strategy.submitIntent();
       const receipt = await tx.wait();
       expect(receipt).to.not.equal(null);
@@ -493,6 +220,7 @@ describe("New Strategies", function () {
 
     it("submitIntent emits CheckpointRecorded with correct asset and share price", async function () {
       await mintAndDeposit(underlyingAsset, assetA, user, 1000, underlyingDecimals);
+      await advancePastMinWindow();
       const tx = await strategy.submitIntent();
       const receipt = await tx.wait();
       expect(receipt).to.not.equal(null);
@@ -652,12 +380,13 @@ describe("New Strategies", function () {
       const fresh = (await F.deploy(
         owner.address,
         await orionConfig.getAddress(),
-        0,
+        1,
         WEIGHTING_APY,
       )) as unknown as KBestApyStrategist;
       await fresh.waitForDeployment();
       const v = await createVault(transparentVaultFactory, owner, await fresh.getAddress());
-      void v; // vault linked — k=0 should still revert
+      void v;
+      await fresh.connect(owner).updateParameters(0);
       await expect(fresh.connect(user).submitIntent()).to.be.revertedWithCustomError(fresh, "OrderIntentCannotBeEmpty");
     });
 

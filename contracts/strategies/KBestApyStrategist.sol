@@ -15,9 +15,6 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
  * @title KBestApyStrategist
  * @notice Top-K asset selection by estimated APY with configurable weighting: equal weights or APY-proportional.
  * @author Orion Finance
- * @dev Checkpoints are updated at the end of each successful `submitIntent` (not exposed separately).
- *      APY uses the checkpoint from the previous cycle; recording only after submit avoids resetting the baseline
- *      in the same transaction as the measurement.
  * @custom:security-contact security@orionfinance.ai
  */
 contract KBestApyStrategist is IOrionStrategist, ERC165, Ownable2Step, ReentrancyGuard {
@@ -70,9 +67,15 @@ contract KBestApyStrategist is IOrionStrategist, ERC165, Ownable2Step, Reentranc
     /// @param mode_    EqualWeighted: equal split among top-K; ApyWeighted: weights ∝ APY (equal if all APY zero).
     constructor(address owner_, address config_, uint16 k_, WeightingMode mode_) Ownable(owner_) {
         if (config_ == address(0)) revert ErrorsLib.ZeroAddress();
+        if (k_ == 0) revert ErrorsLib.InvalidArguments();
+
         CONFIG = IOrionConfig(config_);
         k = k_;
         WEIGHTING_MODE = mode_;
+
+        address[] memory assets = CONFIG.getAllWhitelistedAssets();
+        uint16 n = uint16(assets.length);
+        _recordCheckpointsForAssets(assets, n);
     }
 
     /// @inheritdoc IOrionStrategist
@@ -95,23 +98,17 @@ contract KBestApyStrategist is IOrionStrategist, ERC165, Ownable2Step, Reentranc
 
         address[] memory assets = CONFIG.getAllWhitelistedAssets();
         uint16 n = uint16(assets.length);
-        if (n == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
-
-        uint256 kU = k;
-        if (kU == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
 
         uint256[] memory apys = _getAssetApys(assets, n);
-        uint16 kActual = uint16(Math.min(kU, n));
+        uint16 kActual = uint16(Math.min(k, n));
 
         (address[] memory tokens, uint256[] memory topApys) = _selectTopKByApy(assets, apys, n, kActual);
         IOrionTransparentVault.IntentPosition[] memory intent = _buildIntent(tokens, topApys, kActual);
 
+        // slither-disable-start reentrancy-no-eth
         IOrionTransparentVault(vault_).submitIntent(intent);
-
-        uint256 len = assets.length;
-        for (uint256 i = 0; i < len; ++i) {
-            _recordCheckpoint(assets[i]);
-        }
+        _recordCheckpointsForAssets(assets, n);
+        // slither-disable-end reentrancy-no-eth
     }
 
     /// @notice Update the number of top assets to select.
@@ -120,6 +117,13 @@ contract KBestApyStrategist is IOrionStrategist, ERC165, Ownable2Step, Reentranc
         uint16 oldK = k;
         k = kNew;
         emit KUpdated(oldK, kNew);
+    }
+
+    /// @dev Records checkpoints for a fixed asset list.
+    function _recordCheckpointsForAssets(address[] memory assets, uint16 n) internal {
+        for (uint16 i = 0; i < n; ++i) {
+            _recordCheckpoint(assets[i]);
+        }
     }
 
     /// @dev Skips if the existing checkpoint is less than MIN_WINDOW old.
@@ -141,7 +145,6 @@ contract KBestApyStrategist is IOrionStrategist, ERC165, Ownable2Step, Reentranc
         } catch {
             return 0;
         }
-        if (dec > 76) return 0;
         try IERC4626(asset).convertToAssets(10 ** dec) returns (uint256 price) {
             return price;
         } catch {
