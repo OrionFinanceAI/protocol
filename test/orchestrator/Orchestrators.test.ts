@@ -15,13 +15,11 @@ import {
   KBestTvlWeightedAverage,
 } from "../../typechain-types";
 import { deployUpgradeableProtocol } from "../helpers/deployUpgradeable";
-import { processFullEpoch } from "../helpers/orchestratorHelpers";
 import { resetNetwork } from "../helpers/resetNetwork";
 
 /**
- * Deterministic environment for zkVM fixtures:
- * - Single deployment in before() so orionConfig and all contract addresses are fixed.
- * - resetNetwork() gives a clean chain; deployment order fixes addresses for fixture generation.
+ * Orchestrator and vault behaviour without zkVM fixtures.
+ * Full `performUpkeep` cycles with proof/state commitments are covered in the integration test repo.
  */
 describe("Orchestrators", function () {
   let initialSnapshotId: string;
@@ -635,126 +633,7 @@ describe("Orchestrators", function () {
     });
   });
 
-  /**
-   * performUpkeep tests drive the LiquidityOrchestrator with zkVM fixtures.
-   */
   describe("performUpkeep", function () {
-    it("should complete full upkeep cycles without intent decryption", async function () {
-      expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
-      void expect(await orionConfig.isSystemIdle()).to.be.true;
-
-      const upkeepNeededBefore = await liquidityOrchestrator.checkUpkeep();
-      void expect(upkeepNeededBefore).to.be.false;
-
-      await time.increase((await orionConfig.feeChangeCooldownDuration()) + 1n);
-
-      await processFullEpoch(liquidityOrchestrator, automationRegistry, "Orchestrator1");
-
-      const transparentVaults = await orionConfig.getAllOrionVaults(0);
-      expect(transparentVaults.length).to.equal(6);
-
-      // After processFullEpoch, LO is back to Idle and state is applied from the zkVM fixture
-      expect(await liquidityOrchestrator.currentPhase()).to.equal(0);
-
-      const targetBufferRatio = await liquidityOrchestrator.targetBufferRatio();
-      const BASIS_POINTS_FACTOR = 10_000n;
-      const sumAllVaultAssets =
-        BigInt(
-          ABSOLUTE_VAULT_DEPOSIT +
-            SOFT_HURDLE_VAULT_DEPOSIT +
-            HARD_HURDLE_VAULT_DEPOSIT +
-            HIGH_WATER_MARK_VAULT_DEPOSIT +
-            HURDLE_HWM_VAULT_DEPOSIT +
-            PASSIVE_VAULT_DEPOSIT,
-        ) *
-        10n ** BigInt(underlyingDecimals);
-      const expectedBufferAmount = (sumAllVaultAssets * BigInt(targetBufferRatio)) / BASIS_POINTS_FACTOR;
-      const actualBufferAmount = await liquidityOrchestrator.bufferAmount();
-      const delta =
-        actualBufferAmount >= expectedBufferAmount
-          ? actualBufferAmount - expectedBufferAmount
-          : expectedBufferAmount - actualBufferAmount;
-      // Allow relative error < 1e-10 (zkVM floating point precision error)
-      if (expectedBufferAmount > 0n) {
-        void expect(
-          delta * 10n ** 10n <= expectedBufferAmount,
-          `buffer amount relative error should be < 1e-10 (actual=${actualBufferAmount}, expected=${expectedBufferAmount})`,
-        ).to.be.true;
-      } else {
-        expect(actualBufferAmount).to.equal(0n);
-      }
-
-      for (const v of [
-        absoluteVault,
-        highWaterMarkVault,
-        softHurdleVault,
-        hardHurdleVault,
-        hurdleHwmVault,
-        passiveVault,
-      ]) {
-        const totalAssets = await v.totalAssets();
-        expect(totalAssets).to.be.gte(0);
-        const [tokens] = await v.getPortfolio();
-        expect(tokens.length).to.be.gte(0);
-      }
-    });
-
-    it("should not update buffer after beneficial slippage epoch and no LP interactions", async function () {
-      expect(await liquidityOrchestrator.currentPhase()).to.equal(0); // Idle
-      void expect(await orionConfig.isSystemIdle()).to.be.true;
-
-      const upkeepNeededBefore = await liquidityOrchestrator.checkUpkeep();
-      void expect(upkeepNeededBefore).to.be.false;
-
-      await time.increase((await orionConfig.feeChangeCooldownDuration()) + 1n);
-
-      // First epoch: zkVM fixture drives state; LO runs sell/buy/process
-      await processFullEpoch(liquidityOrchestrator, automationRegistry, "Orchestrator2");
-
-      const transparentVaults = await orionConfig.getAllOrionVaults(0);
-      expect(transparentVaults.length).to.equal(6);
-
-      const bufferAmountBefore = await liquidityOrchestrator.bufferAmount();
-      expect(bufferAmountBefore).to.be.gte(0);
-
-      // Simulate beneficial slippage (losses in assets -> execution gets better prices)
-      const lossAmount1 = ethers.parseUnits("500", underlyingDecimals);
-      await underlyingAsset.connect(user).approve(await mockAsset1.getAddress(), lossAmount1);
-      await mockAsset1.connect(user).simulateLosses(lossAmount1, user.address);
-      const lossAmount2 = ethers.parseUnits("530", underlyingDecimals);
-      await underlyingAsset.connect(user).approve(await mockAsset2.getAddress(), lossAmount2);
-      await mockAsset2.connect(user).simulateLosses(lossAmount2, user.address);
-      const lossAmount3 = ethers.parseUnits("50", underlyingDecimals);
-      await underlyingAsset.connect(user).approve(await mockAsset3.getAddress(), lossAmount3);
-      await mockAsset3.connect(user).simulateLosses(lossAmount3, user.address);
-
-      // Second epoch: no LP interactions; buffer should not change
-      const epochDuration = await liquidityOrchestrator.epochDuration();
-      await time.increase(epochDuration + 1n);
-      await processFullEpoch(liquidityOrchestrator, automationRegistry, "Orchestrator3");
-
-      const bufferAmountEpoch21 = await liquidityOrchestrator.bufferAmount();
-      const bufferAmountEpoch22 = await liquidityOrchestrator.bufferAmount();
-      expect(bufferAmountEpoch22).to.equal(bufferAmountEpoch21);
-
-      // User balances unchanged
-      expect(await absoluteVault.balanceOf(user.address)).to.equal(
-        ethers.parseUnits(ABSOLUTE_VAULT_DEPOSIT.toString(), await absoluteVault.decimals()),
-      );
-      expect(await softHurdleVault.balanceOf(user.address)).to.equal(
-        ethers.parseUnits(SOFT_HURDLE_VAULT_DEPOSIT.toString(), await softHurdleVault.decimals()),
-      );
-      expect(await hardHurdleVault.balanceOf(user.address)).to.equal(
-        ethers.parseUnits(HARD_HURDLE_VAULT_DEPOSIT.toString(), await hardHurdleVault.decimals()),
-      );
-      expect(await highWaterMarkVault.balanceOf(user.address)).to.equal(
-        ethers.parseUnits(HIGH_WATER_MARK_VAULT_DEPOSIT.toString(), await highWaterMarkVault.decimals()),
-      );
-      expect(await hurdleHwmVault.balanceOf(user.address)).to.equal(
-        ethers.parseUnits(HURDLE_HWM_VAULT_DEPOSIT.toString(), await hurdleHwmVault.decimals()),
-      );
-    });
-
     it("should not trigger upkeep when system is idle and time hasn't passed", async function () {
       const upkeepNeeded = await liquidityOrchestrator.checkUpkeep();
       void expect(upkeepNeeded).to.be.false;
@@ -833,39 +712,6 @@ describe("Orchestrators", function () {
 
       // Verify target buffer ratio is set correctly
       expect(await liquidityOrchestrator.targetBufferRatio()).to.equal(100);
-    });
-
-    it("should handle buffer and deposit/withdraw liquidity after full epoch", async function () {
-      await time.increase((await orionConfig.feeChangeCooldownDuration()) + 1n);
-      await processFullEpoch(liquidityOrchestrator, automationRegistry, "Orchestrator4");
-
-      const initialBufferAmount = await liquidityOrchestrator.bufferAmount();
-      expect(await liquidityOrchestrator.currentPhase()).to.equal(0);
-
-      // Second epoch: run again (fixture may reflect market impact)
-      const epochDuration = await liquidityOrchestrator.epochDuration();
-      await time.increase(epochDuration + 1n);
-      await processFullEpoch(liquidityOrchestrator, automationRegistry, "Orchestrator5");
-
-      const finalBufferAmount = await liquidityOrchestrator.bufferAmount();
-      expect(finalBufferAmount).to.be.gte(initialBufferAmount);
-
-      // Deposit/withdraw liquidity when idle
-      const depositAmount = ethers.parseUnits("1000", underlyingDecimals);
-      const bufferAmountBeforeDeposit = await liquidityOrchestrator.bufferAmount();
-
-      await underlyingAsset.mint(owner.address, depositAmount);
-      await underlyingAsset.connect(owner).approve(await liquidityOrchestrator.getAddress(), depositAmount);
-      await liquidityOrchestrator.connect(owner).depositLiquidity(depositAmount);
-
-      const bufferAmountAfterDeposit = await liquidityOrchestrator.bufferAmount();
-      expect(bufferAmountAfterDeposit).to.equal(bufferAmountBeforeDeposit + depositAmount);
-
-      const withdrawAmount = ethers.parseUnits("500", underlyingDecimals);
-      await liquidityOrchestrator.connect(owner).withdrawLiquidity(withdrawAmount);
-
-      const bufferAmountAfterWithdraw = await liquidityOrchestrator.bufferAmount();
-      expect(bufferAmountAfterWithdraw).to.equal(bufferAmountAfterDeposit - withdrawAmount);
     });
 
     it("should revert depositLiquidity when system is not idle", async function () {
@@ -1032,32 +878,6 @@ describe("Orchestrators", function () {
       await expect(absoluteVault.connect(user).requestDeposit(MIN_DEPOSIT)).to.not.be.reverted;
     });
 
-    it("should prevent redemptions below minimum", async function () {
-      await orionConfig.connect(owner).setMinRedeemAmount(MIN_REDEEM);
-
-      // User needs shares first - do a legitimate deposit
-      const depositAmount = ethers.parseUnits("500", underlyingDecimals);
-      await underlyingAsset.mint(user.address, depositAmount);
-      await underlyingAsset.connect(user).approve(await absoluteVault.getAddress(), depositAmount);
-      await absoluteVault.connect(user).requestDeposit(depositAmount);
-
-      // Process epoch to get shares (zkVM fixture drives state; LO runs full cycle)
-      await time.increase((await liquidityOrchestrator.epochDuration()) + 1n);
-      await time.increase((await orionConfig.feeChangeCooldownDuration()) + 1n);
-      await processFullEpoch(liquidityOrchestrator, automationRegistry, "Orchestrator6");
-
-      // Now try to redeem below minimum
-      const smallRedeemAmount = MIN_REDEEM - 1n;
-      const userShares = await absoluteVault.balanceOf(user.address);
-
-      expect(userShares).to.be.gte(smallRedeemAmount, "test setup should grant enough shares to redeem");
-
-      await expect(absoluteVault.connect(user).requestRedeem(smallRedeemAmount)).to.be.revertedWithCustomError(
-        absoluteVault,
-        "BelowMinimumRedeem",
-      );
-    });
-
     it("should demonstrate economic infeasibility of queue flooding", async function () {
       await orionConfig.connect(owner).setMinDepositAmount(MIN_DEPOSIT);
 
@@ -1094,30 +914,6 @@ describe("Orchestrators", function () {
       // Verify deposit is in pending queue
       const pendingDeposit = await absoluteVault.pendingDeposit(await orionConfig.maxFulfillBatchSize());
       expect(pendingDeposit).to.be.gt(0);
-    });
-
-    it("should maintain protection during full epoch cycle", async function () {
-      await orionConfig.connect(owner).setMinDepositAmount(MIN_DEPOSIT);
-
-      // Try attack before epoch
-      await underlyingAsset.mint(user.address, 1n);
-      await underlyingAsset.connect(user).approve(await absoluteVault.getAddress(), 1n);
-      await expect(absoluteVault.connect(user).requestDeposit(1n)).to.be.revertedWithCustomError(
-        absoluteVault,
-        "BelowMinimumDeposit",
-      );
-
-      await time.increase((await liquidityOrchestrator.epochDuration()) + 1n);
-      await time.increase((await orionConfig.feeChangeCooldownDuration()) + 1n);
-      await processFullEpoch(liquidityOrchestrator, automationRegistry, "Orchestrator1");
-
-      // Try attack after epoch - should still be blocked
-      await underlyingAsset.mint(user.address, 1n);
-      await underlyingAsset.connect(user).approve(await absoluteVault.getAddress(), 1n);
-      await expect(absoluteVault.connect(user).requestDeposit(1n)).to.be.revertedWithCustomError(
-        absoluteVault,
-        "BelowMinimumDeposit",
-      );
     });
   });
 });

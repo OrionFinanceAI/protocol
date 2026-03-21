@@ -6,87 +6,72 @@ import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
 import { IOrionStrategist } from "../interfaces/IOrionStrategist.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
  * @title KBestTvlWeightedAverageInvalid
- * @notice Test contract similar to KBestTvlWeightedAverage but without weight adjustment logic.
- *         This contract is designed to fail when submitting intent because weights may not sum to intentScale.
+ * @notice Test contract — identical to KBestTvlWeightedAverage but intentionally omits the
+ *         rounding-residual adjustment, causing weights to not sum to intentScale.
+ *         Used to verify that OrionTransparentVault.submitIntent rejects invalid weights.
  * @author Orion Finance
  */
-contract KBestTvlWeightedAverageInvalid is IOrionStrategist, Ownable {
-    /// @notice The Orion configuration contract
-    IOrionConfig public config;
-
-    /// @notice The number of assets to pick
+contract KBestTvlWeightedAverageInvalid is IOrionStrategist, ERC165, Ownable {
+    IOrionConfig public immutable config;
     uint16 public k;
+    address private _vault;
 
-    /// @notice Contract-specific investment universe (ERC4626-compatible assets only)
-    address[] private _investmentUniverse;
-
-    /// @notice Constructor for KBestTvlWeightedAverageInvalid strategist
-    /// @param owner The owner of the contract
-    /// @param _config The Orion configuration contract address
-    /// @param _k The number of assets to pick
-    /// @param assets Contract-specific investment universe (must be ERC4626-compatible)
-    constructor(address owner, address _config, uint16 _k, address[] memory assets) Ownable(owner) {
-        if (_config == address(0)) revert ErrorsLib.ZeroAddress();
-
-        config = IOrionConfig(_config);
-        k = _k;
-        _investmentUniverse = assets;
-    }
-
-    /// @notice Returns this strategist's investment universe (ERC4626-compatible assets)
-    function investmentUniverse() external view returns (address[] memory) {
-        return _investmentUniverse;
+    constructor(address owner_, address config_, uint16 k_) Ownable(owner_) {
+        if (config_ == address(0)) revert ErrorsLib.ZeroAddress();
+        config = IOrionConfig(config_);
+        k = k_;
     }
 
     /// @inheritdoc IOrionStrategist
-    function submitIntent(IOrionTransparentVault vault) external {
-        address[] memory assets = _investmentUniverse;
+    function setVault(address vault_) external {
+        if (vault_ == address(0)) revert ErrorsLib.ZeroAddress();
+        if (_vault == vault_) return;
+        if (_vault != address(0)) revert ErrorsLib.StrategistVaultAlreadyLinked();
+        _vault = vault_;
+    }
+
+    /// @inheritdoc IOrionStrategist
+    function submitIntent() external {
+        address vault_ = _vault;
+        if (vault_ == address(0)) revert ErrorsLib.ZeroAddress();
+
+        address[] memory assets = config.getAllWhitelistedAssets();
         uint16 n = uint16(assets.length);
         uint256[] memory tvls = _getAssetTVLs(assets, n);
 
         uint16 kActual = uint16(Math.min(k, n));
-        (address[] memory tokens, uint256[] memory topTvls) = _selectTopKAssets(
-            assets,
-            tvls,
-            n,
-            kActual
-        );
+        (address[] memory tokens, uint256[] memory topTvls) = _selectTopKAssets(assets, tvls, n, kActual);
 
         IOrionTransparentVault.IntentPosition[] memory intent = _calculatePositions(tokens, topTvls, kActual);
-        vault.submitIntent(intent);
+        IOrionTransparentVault(vault_).submitIntent(intent);
     }
 
-    /// @notice Gets TVL for all assets in investment universe (ERC4626.totalAssets)
-    /// @param assets Array of asset addresses
-    /// @param n Number of assets
-    /// @return tvls Array of TVL values
+    /// @inheritdoc IERC165
+    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165, IERC165) returns (bool) {
+        return interfaceId == type(IOrionStrategist).interfaceId || super.supportsInterface(interfaceId);
+    }
+
+    function updateParameters(uint16 kNew) external onlyOwner {
+        k = kNew;
+    }
+
     function _getAssetTVLs(address[] memory assets, uint16 n) internal view returns (uint256[] memory tvls) {
         tvls = new uint256[](n);
-
         for (uint16 i = 0; i < n; ++i) {
             try IERC4626(assets[i]).totalAssets() returns (uint256 tvl) {
                 tvls[i] = tvl;
             } catch {
                 tvls[i] = 1;
-                // Set to dust amount to avoid bad filtering.
-                // Dust-tolerant orchestration can handle this,
-                // in case intent is not rounded at the vault level.
             }
         }
     }
 
-    /// @notice Selects the top K assets based on TVL
-    /// @param assets Array of asset addresses
-    /// @param tvls Array of TVL values
-    /// @param n Total number of assets
-    /// @param kActual Actual number of assets to select
-    /// @return tokens Array of selected token addresses
-    /// @return topTvls Array of TVL values for selected tokens
     function _selectTopKAssets(
         address[] memory assets,
         uint256[] memory tvls,
@@ -95,7 +80,6 @@ contract KBestTvlWeightedAverageInvalid is IOrionStrategist, Ownable {
     ) internal pure returns (address[] memory tokens, uint256[] memory topTvls) {
         tokens = new address[](kActual);
         topTvls = new uint256[](kActual);
-
         bool[] memory used = new bool[](n);
         for (uint16 idx = 0; idx < kActual; ++idx) {
             uint256 maxTVL = 0;
@@ -112,12 +96,8 @@ contract KBestTvlWeightedAverageInvalid is IOrionStrategist, Ownable {
         }
     }
 
-    /// @notice Calculates position allocations based on TVL weights
-    /// @notice NOTE: This function intentionally does NOT adjust weights to sum to intentScale
-    /// @param tokens Array of selected token addresses
-    /// @param topTvls Array of TVL values for selected tokens
-    /// @param kActual Actual number of assets to allocate
-    /// @return intent Array of positions with calculated allocations
+    /// @notice Intentionally omits the rounding-residual adjustment so weights may not sum
+    ///         to intentScale, causing OrionTransparentVault.submitIntent to revert.
     function _calculatePositions(
         address[] memory tokens,
         uint256[] memory topTvls,
@@ -131,22 +111,10 @@ contract KBestTvlWeightedAverageInvalid is IOrionStrategist, Ownable {
         uint32 intentScale = uint32(10 ** config.strategistIntentDecimals());
         intent = new IOrionTransparentVault.IntentPosition[](kActual);
 
-        // Calculate weights without adjustment - this may result in sumWeights < intentScale
         for (uint16 i = 0; i < kActual; ++i) {
             uint32 weight = uint32((topTvls[i] * intentScale) / totalTVL);
             intent[i] = IOrionTransparentVault.IntentPosition({ token: tokens[i], weight: weight });
         }
-
-        // Intentionally removed: weight adjustment logic that ensures sumWeights == intentScale
-        // if (sumWeights < intentScale) {
-        //     intent[0].weight += intentScale - sumWeights;
-        // }
-    }
-
-    /// @notice Owner can update k
-    /// @param kNew The new number of assets to pick
-    function updateParameters(uint16 kNew) external onlyOwner {
-        k = kNew;
+        // Rounding residual intentionally NOT added — weights will not sum to intentScale.
     }
 }
-

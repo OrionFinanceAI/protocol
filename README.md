@@ -2,8 +2,7 @@
 
 <img src="./assets/Orion_Logo_white_horizontal.png" alt="orion" width="75%">
 
-
-[![codecov][codecov-badge]][codecov] [![Sourcery][sourcery-badge]][sourcery] [![Github Actions][gha-badge]][gha] [![Hardhat][hardhat-badge]][hardhat] 
+ [![Github Actions][gha-badge]][gha] [![Hardhat][hardhat-badge]][hardhat] [![CodeRabbit][cr-badge]][cr]
 
 [![LinkedIn][linkedin-badge]][linkedin] [![X][x-badge]][x] [![Telegram][telegram-badge]][telegram] [![Discord][discord-badge]][discord]
 
@@ -14,11 +13,8 @@
 [hardhat]: https://hardhat.org/
 [hardhat-badge]: https://img.shields.io/badge/Built%20with-Hardhat-FFDB1C.svg
 
-[codecov]: https://codecov.io/gh/OrionFinanceAI/protocol
-[codecov-badge]: https://codecov.io/gh/OrionFinanceAI/protocol/branch/main/graph/badge.svg
-
-[sourcery]: https://sourcery.ai
-[sourcery-badge]: https://img.shields.io/badge/Sourcery-enabled-brightgreen
+[cr]: https://www.coderabbit.ai/
+[cr-badge]: https://img.shields.io/badge/CodeRabbit-Enabled-FF570A?logo=data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyIDJMMiAyMkgyMkwxMiAyWiIgZmlsbD0id2hpdGUiLz4KPC9zdmc+
 
 [linkedin]: https://www.linkedin.com/company/orionfinance/
 [linkedin-badge]: https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white

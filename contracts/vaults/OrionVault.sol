@@ -12,6 +12,8 @@ import "../interfaces/IOrionConfig.sol";
 import "../interfaces/IOrionVault.sol";
 import "../interfaces/ILiquidityOrchestrator.sol";
 import "../interfaces/IOrionAccessControl.sol";
+import "../interfaces/IOrionStrategist.sol";
+import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -418,7 +420,18 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     /// @inheritdoc IOrionVault
     function updateStrategist(address newStrategist) external onlyManager {
         strategist = newStrategist;
+        _linkStrategistVault(newStrategist);
         emit StrategistUpdated(newStrategist);
+    }
+
+    /// @dev Tells on-chain strategists which vault they manage; skips EOAs and wallets that are not Orion strategists.
+    function _linkStrategistVault(address strategist_) internal {
+        if (strategist_.code.length == 0) return;
+        try IERC165(strategist_).supportsInterface(type(IOrionStrategist).interfaceId) returns (bool supported) {
+            if (supported) {
+                IOrionStrategist(strategist_).setVault(address(this));
+            }
+        } catch {}
     }
 
     /// @inheritdoc IOrionVault
@@ -616,6 +629,21 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     }
 
     /// @inheritdoc IOrionVault
+    function pendingRedeemBatch(uint256 fulfillBatchSize) external view returns (address[] memory, uint256[] memory) {
+        uint256 length = _redeemRequests.length();
+        if (length == 0) {
+            return (new address[](0), new uint256[](0));
+        }
+        uint256 batchSize = Math.min(length, fulfillBatchSize);
+        address[] memory users = new address[](batchSize);
+        uint256[] memory shares = new uint256[](batchSize);
+        for (uint256 i = 0; i < batchSize; ++i) {
+            (users[i], shares[i]) = _redeemRequests.at(i);
+        }
+        return (users, shares);
+    }
+
+    /// @inheritdoc IOrionVault
     function accrueVaultFees(uint256 managementFee, uint256 performanceFee) external onlyLiquidityOrchestrator {
         if (managementFee == 0 && performanceFee == 0) return;
 
@@ -699,14 +727,13 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
                 snapshotTotalSupply,
                 Math.Rounding.Floor
             );
-            _burn(address(this), userShares);
             processedShares += userShares;
 
-            // Transfer underlying assets from liquidity orchestrator to the user
             liquidityOrchestrator.transferRedemptionFunds(user, underlyingAmount);
 
             emit Redeem(user, underlyingAmount, userShares);
         }
+        _burn(address(this), processedShares);
     }
 
     /// @dev Storage gap to allow for future upgrades

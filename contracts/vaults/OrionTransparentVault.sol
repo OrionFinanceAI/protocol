@@ -70,6 +70,8 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
         // slither-disable-next-line unused-return
         _portfolioIntent.set(address(config.underlyingAsset()), uint32(10 ** config.strategistIntentDecimals()));
+
+        _linkStrategistVault(strategist_);
     }
 
     /// --------- STRATEGIST FUNCTIONS ---------

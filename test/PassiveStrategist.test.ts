@@ -152,12 +152,10 @@ describe("Passive Strategist", function () {
     );
 
     const KBestTvlWeightedAverageFactory = await ethers.getContractFactory("KBestTvlWeightedAverage");
-    const investmentUniverse = [...(await orionConfig.getAllWhitelistedAssets())];
     const passiveStrategistDeployed = await KBestTvlWeightedAverageFactory.deploy(
       strategist.address,
       await orionConfig.getAddress(),
       3, // k = 3, select top 3 assets
-      investmentUniverse,
     );
     await passiveStrategistDeployed.waitForDeployment();
     passiveStrategist = passiveStrategistDeployed as unknown as KBestTvlWeightedAverage;
@@ -194,7 +192,7 @@ describe("Passive Strategist", function () {
     // Step 2: Set strategist to passive strategist contract (vault uses protocol assets)
     await transparentVault.connect(owner).updateStrategist(await passiveStrategist.getAddress());
 
-    await passiveStrategist.connect(strategist).submitIntent(transparentVault);
+    await passiveStrategist.connect(strategist).submitIntent();
 
     await underlyingAsset.connect(user).approve(await transparentVault.getAddress(), ethers.parseUnits("10000", 12));
     const depositAmount = ethers.parseUnits("100", 12);
@@ -204,7 +202,7 @@ describe("Passive Strategist", function () {
   describe("Passive Strategist Configuration", function () {
     it("should have correct initial configuration", async function () {
       expect(await passiveStrategist.k()).to.equal(3);
-      expect(await passiveStrategist.config()).to.equal(await orionConfig.getAddress());
+      expect(await passiveStrategist.CONFIG()).to.equal(await orionConfig.getAddress());
       expect(await passiveStrategist.owner()).to.equal(strategist.address);
     });
 
@@ -223,9 +221,8 @@ describe("Passive Strategist", function () {
 
   describe("Passive Strategist Intent Computation", function () {
     it("should compute intent with correct asset selection", async function () {
-      // Strategist's contract-specific investment universe
-      const investmentUniverse = await passiveStrategist.investmentUniverse();
-      expect(investmentUniverse.length).to.equal(5);
+      // Investment universe is read at runtime from config — verify via config directly
+      expect((await orionConfig.getAllWhitelistedAssets()).length).to.equal(5);
 
       // Get intent through the vault
       const [tokens, weights] = await transparentVault.getIntent();
@@ -262,7 +259,7 @@ describe("Passive Strategist", function () {
     it("should handle case when k > number of available assets", async function () {
       // Update passive strategist to select 6 assets, but only 5 are available
       await passiveStrategist.connect(strategist).updateParameters(6);
-      await passiveStrategist.connect(strategist).submitIntent(transparentVault);
+      await passiveStrategist.connect(strategist).submitIntent();
 
       const [tokens, weights] = await transparentVault.getIntent();
 
@@ -281,7 +278,7 @@ describe("Passive Strategist", function () {
     it("should handle case when k = 1", async function () {
       // Update passive strategist to select only 1 asset
       await passiveStrategist.connect(strategist).updateParameters(1);
-      await passiveStrategist.connect(strategist).submitIntent(transparentVault);
+      await passiveStrategist.connect(strategist).submitIntent();
 
       const [tokens, weights] = await transparentVault.getIntent();
 
@@ -311,21 +308,21 @@ describe("Passive Strategist", function () {
     it("should reflect parameter changes in intent computation", async function () {
       // Test with k=2
       await passiveStrategist.connect(strategist).updateParameters(2);
-      await passiveStrategist.connect(strategist).submitIntent(transparentVault);
+      await passiveStrategist.connect(strategist).submitIntent();
 
       let [tokens, _weights] = await transparentVault.getIntent();
       expect(tokens.length).to.equal(2);
 
       // Test with k=4 (all assets)
       await passiveStrategist.connect(strategist).updateParameters(4);
-      await passiveStrategist.connect(strategist).submitIntent(transparentVault);
+      await passiveStrategist.connect(strategist).submitIntent();
 
       [tokens, _weights] = await transparentVault.getIntent();
       expect(tokens.length).to.equal(4);
 
       // Test with k=1
       await passiveStrategist.connect(strategist).updateParameters(1);
-      await passiveStrategist.connect(strategist).submitIntent(transparentVault);
+      await passiveStrategist.connect(strategist).submitIntent();
 
       [tokens, _weights] = await transparentVault.getIntent();
       expect(tokens.length).to.equal(1);
@@ -353,13 +350,11 @@ describe("Passive Strategist", function () {
 
     it("should fail when passive strategist does not adjust weights to sum to intentScale", async function () {
       // Deploy the invalid passive strategist contract (without weight adjustment logic)
-      const investmentUniverse = [...(await orionConfig.getAllWhitelistedAssets())];
       const KBestTvlWeightedAverageInvalidFactory = await ethers.getContractFactory("KBestTvlWeightedAverageInvalid");
       const invalidStrategistDeployed = await KBestTvlWeightedAverageInvalidFactory.deploy(
         strategist.address,
         await orionConfig.getAddress(),
         3, // k = 3, select top 3 assets
-        investmentUniverse,
       );
       await invalidStrategistDeployed.waitForDeployment();
       const invalidStrategist = invalidStrategistDeployed as unknown as KBestTvlWeightedAverageInvalid;
@@ -397,7 +392,7 @@ describe("Passive Strategist", function () {
       await invalidVault.connect(owner).updateStrategist(await invalidStrategist.getAddress());
 
       // Attempt to submit intent - this should fail because weights don't sum to intentScale
-      await expect(invalidStrategist.connect(strategist).submitIntent(invalidVault)).to.be.revertedWithCustomError(
+      await expect(invalidStrategist.connect(strategist).submitIntent()).to.be.revertedWithCustomError(
         invalidVault,
         "InvalidTotalWeight",
       );

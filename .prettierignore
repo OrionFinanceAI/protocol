@@ -12,7 +12,6 @@ types
 .venv
 protocol-costs
 contracts/test
-test/fixtures
 
 # files
 *.env

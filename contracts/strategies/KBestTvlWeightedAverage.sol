@@ -6,50 +6,51 @@ import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
 import { IOrionStrategist } from "../interfaces/IOrionStrategist.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import "@openzeppelin/contracts/access/Ownable2Step.sol";
+import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
  * @title KBestTvlWeightedAverage
- * @notice This strategist selects the top K ERC4626 assets based on their TVL and allocates them proportionally.
+ * @notice Selects the top-K assets by TVL from the protocol whitelist and allocates proportionally.
  * @author Orion Finance
  * @custom:security-contact security@orionfinance.ai
  */
-contract KBestTvlWeightedAverage is IOrionStrategist, Ownable2Step {
-    /// @notice The Orion configuration contract
-    IOrionConfig public config;
+contract KBestTvlWeightedAverage is IOrionStrategist, ERC165, Ownable2Step {
+    /// @notice The Orion configuration contract.
+    IOrionConfig public immutable CONFIG;
 
-    /// @notice The number of assets to pick
+    /// @notice The number of top assets to select.
     uint16 public k;
 
-    /// @notice Contract-specific investment universe (ERC4626-compatible assets only)
-    address[] private _investmentUniverse;
+    /// @notice The vault this strategist is linked to. Set once via setVault; never changes.
+    address private _vault;
 
-    /// @notice Constructor for KBestTvlWeightedAverage strategist
-    /// @param owner The owner of the contract
-    /// @param _config The Orion configuration contract address
-    /// @param _k The number of assets to pick
-    /// @param assets Contract-specific investment universe (must be ERC4626-compatible)
-    constructor(address owner, address _config, uint16 _k, address[] memory assets) Ownable(owner) {
-        if (_config == address(0)) revert ErrorsLib.ZeroAddress();
-        if (assets.length == 0) revert ErrorsLib.InvalidArguments();
-
-        config = IOrionConfig(_config);
-        k = _k;
-        _investmentUniverse = assets;
-    }
-
-    /// @notice Returns this strategist's investment universe (ERC4626-compatible assets)
-    /// @return Array of asset addresses in the investment universe
-    function investmentUniverse() external view returns (address[] memory) {
-        return _investmentUniverse;
+    /// @notice Constructor to initialize the strategist with owner, config address, and number of top assets.
+    /// @param owner_ Owner of this contract (can update k).
+    /// @param config_ The Orion configuration contract address.
+    /// @param k_ Number of top assets to select.
+    constructor(address owner_, address config_, uint16 k_) Ownable(owner_) {
+        if (config_ == address(0)) revert ErrorsLib.ZeroAddress();
+        CONFIG = IOrionConfig(config_);
+        k = k_;
     }
 
     /// @inheritdoc IOrionStrategist
-    function submitIntent(IOrionTransparentVault vault) external onlyOwner {
-        if (k == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
+    function setVault(address vault_) external {
+        if (vault_ == address(0)) revert ErrorsLib.ZeroAddress();
+        if (_vault == vault_) return; // idempotent for same address
+        if (_vault != address(0)) revert ErrorsLib.StrategistVaultAlreadyLinked();
+        _vault = vault_;
+    }
 
-        address[] memory assets = _investmentUniverse;
+    /// @inheritdoc IOrionStrategist
+    function submitIntent() external {
+        if (k == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
+        address vault_ = _vault;
+        if (vault_ == address(0)) revert ErrorsLib.ZeroAddress();
+
+        address[] memory assets = CONFIG.getAllWhitelistedAssets();
         uint16 n = uint16(assets.length);
         uint256[] memory tvls = _getAssetTVLs(assets, n);
 
@@ -57,35 +58,33 @@ contract KBestTvlWeightedAverage is IOrionStrategist, Ownable2Step {
         (address[] memory tokens, uint256[] memory topTvls) = _selectTopKAssets(assets, tvls, n, kActual);
 
         IOrionTransparentVault.IntentPosition[] memory intent = _calculatePositions(tokens, topTvls, kActual);
-        vault.submitIntent(intent);
+        IOrionTransparentVault(vault_).submitIntent(intent);
     }
 
-    /// @notice Gets TVL for all protocol assets
-    /// @param assets Array of protocol asset addresses
-    /// @param n Number of assets
-    /// @return tvls Array of TVL values
+    /// @inheritdoc IERC165
+    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165, IERC165) returns (bool) {
+        return interfaceId == type(IOrionStrategist).interfaceId || super.supportsInterface(interfaceId);
+    }
+
+    /// @notice Update the number of top assets to select.
+    /// @param kNew The new k value.
+    function updateParameters(uint16 kNew) external onlyOwner {
+        k = kNew;
+    }
+
+    /// @dev Fetches TVL for each asset via ERC4626.totalAssets(). Falls back to 1 on revert
+    ///      so that non-ERC4626 tokens are ranked last rather than causing a revert.
     function _getAssetTVLs(address[] memory assets, uint16 n) internal view returns (uint256[] memory tvls) {
         tvls = new uint256[](n);
-
         for (uint16 i = 0; i < n; ++i) {
             try IERC4626(assets[i]).totalAssets() returns (uint256 tvl) {
                 tvls[i] = tvl;
             } catch {
                 tvls[i] = 1;
-                // Set to dust amount to avoid bad filtering.
-                // Dust-tolerant orchestration can handle this,
-                // in case intent is not rounded at the vault level.
             }
         }
     }
 
-    /// @notice Selects the top K assets based on TVL
-    /// @param assets Array of protocol asset addresses
-    /// @param tvls Array of TVL values
-    /// @param n Total number of assets
-    /// @param kActual Actual number of assets to select
-    /// @return tokens Array of selected token addresses
-    /// @return topTvls Array of TVL values for selected tokens
     function _selectTopKAssets(
         address[] memory assets,
         uint256[] memory tvls,
@@ -94,7 +93,6 @@ contract KBestTvlWeightedAverage is IOrionStrategist, Ownable2Step {
     ) internal pure returns (address[] memory tokens, uint256[] memory topTvls) {
         tokens = new address[](kActual);
         topTvls = new uint256[](kActual);
-
         bool[] memory used = new bool[](n);
         for (uint16 idx = 0; idx < kActual; ++idx) {
             uint256 maxTVL = 0;
@@ -111,11 +109,8 @@ contract KBestTvlWeightedAverage is IOrionStrategist, Ownable2Step {
         }
     }
 
-    /// @notice Calculates position allocations based on TVL weights
-    /// @param tokens Array of selected token addresses
-    /// @param topTvls Array of TVL values for selected tokens
-    /// @param kActual Actual number of assets to allocate
-    /// @return intent Array of positions with calculated allocations
+    /// @dev Converts TVL values to proportional weights summing exactly to 10^intentDecimals.
+    ///      Any rounding residual is added to the first position.
     function _calculatePositions(
         address[] memory tokens,
         uint256[] memory topTvls,
@@ -126,7 +121,7 @@ contract KBestTvlWeightedAverage is IOrionStrategist, Ownable2Step {
             totalTVL += topTvls[i];
         }
 
-        uint32 intentScale = uint32(10 ** config.strategistIntentDecimals());
+        uint32 intentScale = uint32(10 ** CONFIG.strategistIntentDecimals());
         intent = new IOrionTransparentVault.IntentPosition[](kActual);
 
         uint32 sumWeights = 0;
@@ -136,14 +131,9 @@ contract KBestTvlWeightedAverage is IOrionStrategist, Ownable2Step {
             sumWeights += weight;
         }
 
+        // Assign rounding residual to first position to guarantee exact sum.
         if (sumWeights < intentScale) {
             intent[0].weight += intentScale - sumWeights;
         }
-    }
-
-    /// @notice Owner can update k
-    /// @param kNew The new number of assets to pick
-    function updateParameters(uint16 kNew) external onlyOwner {
-        k = kNew;
     }
 }
