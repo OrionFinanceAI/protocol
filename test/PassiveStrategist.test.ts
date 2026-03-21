@@ -202,7 +202,7 @@ describe("Passive Strategist", function () {
   describe("Passive Strategist Configuration", function () {
     it("should have correct initial configuration", async function () {
       expect(await passiveStrategist.k()).to.equal(3);
-      expect(await passiveStrategist.config()).to.equal(await orionConfig.getAddress());
+      expect(await passiveStrategist.CONFIG()).to.equal(await orionConfig.getAddress());
       expect(await passiveStrategist.owner()).to.equal(strategist.address);
     });
 

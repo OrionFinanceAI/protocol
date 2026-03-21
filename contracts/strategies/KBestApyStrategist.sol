@@ -93,6 +93,7 @@ contract KBestApyStrategist is IOrionStrategist, ERC165, Ownable2Step, Reentranc
 
     /// @inheritdoc IOrionStrategist
     function submitIntent() external override nonReentrant {
+        if (k == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
         address vault_ = _vault;
         if (vault_ == address(0)) revert ErrorsLib.ZeroAddress();
 
@@ -176,7 +177,6 @@ contract KBestApyStrategist is IOrionStrategist, ERC165, Ownable2Step, Reentranc
         }
     }
 
-    /// @dev O(n × kActual) top-K selection.
     function _selectTopKByApy(
         address[] memory assets,
         uint256[] memory apys,

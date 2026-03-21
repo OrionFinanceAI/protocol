@@ -420,22 +420,18 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     /// @inheritdoc IOrionVault
     function updateStrategist(address newStrategist) external onlyManager {
         strategist = newStrategist;
-        emit StrategistUpdated(newStrategist);
         _linkStrategistVault(newStrategist);
+        emit StrategistUpdated(newStrategist);
     }
 
-    /// @dev If strategist_ is a smart contract that implements IOrionStrategist (detected via
-    ///      ERC-165), call setVault so the strategy knows which vault it serves.
-    ///      Uses try/catch on the supportsInterface probe so non-ERC-165 contracts (e.g. SAFE
-    ///      multisigs) are silently ignored. Propagates any revert from setVault itself so
-    ///      misconfigured strategies fail loudly during assignment.
+    /// @dev Tells on-chain strategists which vault they manage; skips EOAs and wallets that are not Orion strategists.
     function _linkStrategistVault(address strategist_) internal {
         if (strategist_.code.length == 0) return;
         try IERC165(strategist_).supportsInterface(type(IOrionStrategist).interfaceId) returns (bool supported) {
             if (supported) {
                 IOrionStrategist(strategist_).setVault(address(this));
             }
-        } catch {} // non-ERC-165 contract — not an OrionStrategist, nothing to link
+        } catch {}
     }
 
     /// @inheritdoc IOrionVault

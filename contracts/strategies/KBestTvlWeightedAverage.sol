@@ -14,10 +14,6 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
  * @title KBestTvlWeightedAverage
  * @notice Selects the top-K assets by TVL from the protocol whitelist and allocates proportionally.
  * @author Orion Finance
- * @dev The investment universe is read from config at runtime via getAllWhitelistedAssets().
- *      Non-ERC4626 assets (e.g. the underlying stablecoin) receive a dust TVL of 1 via the
- *      try/catch and are effectively ranked last unless fewer than k real vaults exist.
- *      submitIntent is permissionless — the output is fully determined by on-chain state.
  * @custom:security-contact security@orionfinance.ai
  */
 contract KBestTvlWeightedAverage is IOrionStrategist, ERC165, Ownable2Step {
@@ -89,7 +85,6 @@ contract KBestTvlWeightedAverage is IOrionStrategist, ERC165, Ownable2Step {
         }
     }
 
-    /// @dev O(n*k) selection to find the kActual highest-TVL assets without sorting the full array.
     function _selectTopKAssets(
         address[] memory assets,
         uint256[] memory tvls,
