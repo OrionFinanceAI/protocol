@@ -42,3 +42,4 @@ package-lock.json
 gasReporterOutput.json
 docker-compose/docker-compose-full.yml
 diagram.mmd
+.mcp.json
