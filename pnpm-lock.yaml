@@ -21,11 +21,11 @@ importers:
         specifier: ^0.11.1
         version: 0.11.1
       '@openzeppelin/contracts':
-        specifier: ^5.5.0
-        version: 5.5.0
+        specifier: ^5.6.0
+        version: 5.6.0
       '@openzeppelin/contracts-upgradeable':
         specifier: ^5.4.0
-        version: 5.4.0(@openzeppelin/contracts@5.5.0)
+        version: 5.4.0(@openzeppelin/contracts@5.6.0)
       '@uniswap/v3-core':
         specifier: ^1.0.1
         version: 1.0.1
@@ -747,8 +747,8 @@ packages:
   '@openzeppelin/contracts@5.1.0':
     resolution: {integrity: sha512-p1ULhl7BXzjjbha5aqst+QMLY+4/LCWADXOCsmLHRM77AqiPjnd9vvUN9sosUfhL9JGKpZ0TjEGxgvnizmWGSA==}
 
-  '@openzeppelin/contracts@5.5.0':
-    resolution: {integrity: sha512-R8hq4zmKKWP2c7OxeRgAcjZwvF5W0Qq2OIX7degrtdM52Q9xYr4MLJdUAVPKGUewNJ1qo+M6YiZLLnNUnjP/gg==}
+  '@openzeppelin/contracts@5.6.0':
+    resolution: {integrity: sha512-eZJSS8+RbWzX/7oDJPi+lYzfeuWwHXSsw336Yff35pTkmLEwRWKde2PQMW2objjMi1C1hNn9QiHjGktEJPSSWQ==}
 
   '@openzeppelin/defender-deploy-client-cli@0.0.1-alpha.10':
     resolution: {integrity: sha512-piZnEbGZle6I4L0XsnD4Is73pps16Zx1wakXrZeDH7vPyVzIr/1Gb0hKflj+ffVHlNR8MrAs1BSw4Z99wGkzfg==}
@@ -1991,8 +1991,8 @@ packages:
     resolution: {integrity: sha512-b6suED+5/3rTpUBdG1gupIl8MPFCAMA0QXwmljLhvCUKcUvdE4gWky9zpuGCcXHOsz4J9wPGNWq6OKpmIzz3hQ==}
     hasBin: true
 
-  flatted@3.3.3:
-    resolution: {integrity: sha512-GX+ysw4PBCz0PzosHDepZGANEuFCMLrnRTiEy9McGjmkCQYwRq4A/X786G/fjM/+OjsWSU1ZrY5qyARZmO/uwg==}
+  flatted@3.4.2:
+    resolution: {integrity: sha512-PjDse7RzhcPkIJwy5t7KPWQSZ9cAbzQXcafsetQoD7sOJRQlGikNbx7yZp2OotDnJyrDcbyRq3Ttb18iYOqkxA==}
 
   fmix@0.1.0:
     resolution: {integrity: sha512-Y6hyofImk9JdzU8k5INtTXX1cu8LDlePWDFU5sftm9H+zKCr5SGrVjdhkvsim646cw5zD0nADj8oHyXMZmCZ9w==}
@@ -4609,15 +4609,15 @@ snapshots:
     dependencies:
       '@openzeppelin/contracts': 5.1.0
 
-  '@openzeppelin/contracts-upgradeable@5.4.0(@openzeppelin/contracts@5.5.0)':
+  '@openzeppelin/contracts-upgradeable@5.4.0(@openzeppelin/contracts@5.6.0)':
     dependencies:
-      '@openzeppelin/contracts': 5.5.0
+      '@openzeppelin/contracts': 5.6.0
 
   '@openzeppelin/contracts@3.4.2-solc-0.7': {}
 
   '@openzeppelin/contracts@5.1.0': {}
 
-  '@openzeppelin/contracts@5.5.0': {}
+  '@openzeppelin/contracts@5.6.0': {}
 
   '@openzeppelin/defender-deploy-client-cli@0.0.1-alpha.10':
     dependencies:
@@ -6215,12 +6215,12 @@ snapshots:
 
   flat-cache@4.0.1:
     dependencies:
-      flatted: 3.3.3
+      flatted: 3.4.2
       keyv: 4.5.4
 
   flat@5.0.2: {}
 
-  flatted@3.3.3: {}
+  flatted@3.4.2: {}
 
   fmix@0.1.0:
     dependencies:
