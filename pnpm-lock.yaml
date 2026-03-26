@@ -21,11 +21,11 @@ importers:
         specifier: ^0.11.1
         version: 0.11.1
       '@openzeppelin/contracts':
-        specifier: ^5.6.0
-        version: 5.6.0
+        specifier: ^5.6.1
+        version: 5.6.1
       '@openzeppelin/contracts-upgradeable':
-        specifier: ^5.4.0
-        version: 5.4.0(@openzeppelin/contracts@5.6.0)
+        specifier: ^5.6.1
+        version: 5.6.1(@openzeppelin/contracts@5.6.1)
       '@uniswap/v3-core':
         specifier: ^1.0.1
         version: 1.0.1
@@ -141,9 +141,6 @@ importers:
       solhint-plugin-prettier:
         specifier: ^0.1.0
         version: 0.1.0(prettier-plugin-solidity@1.4.3(prettier@3.8.1))(prettier@3.8.1)
-      solidity-coverage:
-        specifier: ^0.8.16
-        version: 0.8.17(hardhat@2.28.4(ts-node@10.9.2(@types/node@25.2.2)(typescript@5.9.3))(typescript@5.9.3))
       solidity-docgen:
         specifier: 0.6.0-beta.36
         version: 0.6.0-beta.36(hardhat@2.28.4(ts-node@10.9.2(@types/node@25.2.2)(typescript@5.9.3))(typescript@5.9.3))
@@ -736,10 +733,10 @@ packages:
     peerDependencies:
       '@openzeppelin/contracts': 5.1.0
 
-  '@openzeppelin/contracts-upgradeable@5.4.0':
-    resolution: {integrity: sha512-STJKyDzUcYuB35Zub1JpWW58JxvrFFVgQ+Ykdr8A9PGXgtq/obF5uoh07k2XmFyPxfnZdPdBdhkJ/n2YxJ87HQ==}
+  '@openzeppelin/contracts-upgradeable@5.6.1':
+    resolution: {integrity: sha512-n4a/vfRs114lXyUdYg7pyY8LvFKWvCDF5lEcRRAVxap8g6ZEdLqm+9tmt2zTtRHcNMxTYp9y5t6KBof4tHp7Og==}
     peerDependencies:
-      '@openzeppelin/contracts': 5.4.0
+      '@openzeppelin/contracts': 5.6.1
 
   '@openzeppelin/contracts@3.4.2-solc-0.7':
     resolution: {integrity: sha512-W6QmqgkADuFcTLzHL8vVoNBtkwjvQRpYIAom7KiUNoLKghyx3FgH0GBjt8NRvigV1ZmMOBllvE1By1C+bi8WpA==}
@@ -747,8 +744,8 @@ packages:
   '@openzeppelin/contracts@5.1.0':
     resolution: {integrity: sha512-p1ULhl7BXzjjbha5aqst+QMLY+4/LCWADXOCsmLHRM77AqiPjnd9vvUN9sosUfhL9JGKpZ0TjEGxgvnizmWGSA==}
 
-  '@openzeppelin/contracts@5.6.0':
-    resolution: {integrity: sha512-eZJSS8+RbWzX/7oDJPi+lYzfeuWwHXSsw336Yff35pTkmLEwRWKde2PQMW2objjMi1C1hNn9QiHjGktEJPSSWQ==}
+  '@openzeppelin/contracts@5.6.1':
+    resolution: {integrity: sha512-Ly6SlsVJ3mj+b18W3R8gNufB7dTICT105fJhodGAGgyC2oqnBAhqSiNDJ8V8DLY05cCz81GLI0CU5vNYA1EC/w==}
 
   '@openzeppelin/defender-deploy-client-cli@0.0.1-alpha.10':
     resolution: {integrity: sha512-piZnEbGZle6I4L0XsnD4Is73pps16Zx1wakXrZeDH7vPyVzIr/1Gb0hKflj+ffVHlNR8MrAs1BSw4Z99wGkzfg==}
@@ -1150,6 +1147,9 @@ packages:
   '@types/node@25.2.2':
     resolution: {integrity: sha512-BkmoP5/FhRYek5izySdkOneRyXYN35I860MFAGupTdebyE66uZaR+bXLHq8k4DirE5DwQi3NuhvRU1jqTVwUrQ==}
 
+  '@types/node@25.5.0':
+    resolution: {integrity: sha512-jp2P3tQMSxWugkCUKLRPVUpGaL5MVFwF8RDuSRztfwgN1wmqJeMSbKlnEtQqU8UrhTmzEmZdu2I6v2dpp7XIxw==}
+
   '@types/pbkdf2@3.1.2':
     resolution: {integrity: sha512-uRwJqmiXmh9++aSu1VNEn3iIxWOhd8AHXNSdlaLfdAAdSTY9jYVeGWnzejM3dvrkbqE3/hyQkQQ29IFATEGlew==}
 
@@ -1442,6 +1442,9 @@ packages:
 
   bn.js@5.2.2:
     resolution: {integrity: sha512-v2YAxEmKaBLahNwE1mjp4WON6huMNeuDvagFZW+ASCuA/ku0bXR9hSMw0XpiqMoA3+rmnyck/tPRSFQkoC9Cuw==}
+
+  bn.js@5.2.3:
+    resolution: {integrity: sha512-EAcmnPkxpntVL+DS7bO1zhcZNvCkxqtkd0ZY53h06GNQ3DEkkGZ/gKgmDv6DdZQGj9BgfSPKtJJ7Dp1GPP8f7w==}
 
   bowser@2.13.1:
     resolution: {integrity: sha512-OHawaAbjwx6rqICCKgSG0SAnT05bzd7ppyKLVUITZpANBaaMFBAsaNkto3LoQ31tyFP5kNujE8Cdx85G9VzOkw==}
@@ -2760,6 +2763,10 @@ packages:
     resolution: {integrity: sha512-JU3teHTNjmE2VCGFzuY8EXzCDVwEqB2a8fsIvwaStHhAWJEeVd1o1QD80CU6+ZdEXXSLbSsuLwJjkCBWqRQUVA==}
     engines: {node: '>=8.6'}
 
+  picomatch@2.3.2:
+    resolution: {integrity: sha512-V7+vQEJ06Z+c5tSye8S+nHUfI51xoXIXjHQ99cQtKUkQqqO1kO/KCJUfZXuB47h/YBlDhah2H3hdUGXn8ie0oA==}
+    engines: {node: '>=8.6'}
+
   picomatch@4.0.3:
     resolution: {integrity: sha512-5gTmgEY/sqK6gFXLIsQNH19lWb4ebPDLA4SdLP7dsWkIXHWlG66oPuVvXSGFPppYZz8ZDZq0dYYrbHfBCVUb1Q==}
     engines: {node: '>=12'}
@@ -3385,6 +3392,9 @@ packages:
 
   undici-types@7.16.0:
     resolution: {integrity: sha512-Zz+aZWSj8LE6zoxD+xrjh4VfkIG8Ya6LvYkZqtUQGJPZjYl53ypCaUwWqo7eI0x66KBGeRo+mlBEkMSeSZ38Nw==}
+
+  undici-types@7.18.2:
+    resolution: {integrity: sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w==}
 
   undici@5.29.0:
     resolution: {integrity: sha512-raqeBD6NQK4SkWhQzeYKd1KmIG6dllBOTt55Rmkt4HtI9mwdWtJljnrXjAFUBLTSN67HWrOIZ3EPF4kjUw80Bg==}
@@ -4609,15 +4619,15 @@ snapshots:
     dependencies:
       '@openzeppelin/contracts': 5.1.0
 
-  '@openzeppelin/contracts-upgradeable@5.4.0(@openzeppelin/contracts@5.6.0)':
+  '@openzeppelin/contracts-upgradeable@5.6.1(@openzeppelin/contracts@5.6.1)':
     dependencies:
-      '@openzeppelin/contracts': 5.6.0
+      '@openzeppelin/contracts': 5.6.1
 
   '@openzeppelin/contracts@3.4.2-solc-0.7': {}
 
   '@openzeppelin/contracts@5.1.0': {}
 
-  '@openzeppelin/contracts@5.6.0': {}
+  '@openzeppelin/contracts@5.6.1': {}
 
   '@openzeppelin/defender-deploy-client-cli@0.0.1-alpha.10':
     dependencies:
@@ -5211,7 +5221,7 @@ snapshots:
   '@types/glob@7.2.0':
     dependencies:
       '@types/minimatch': 6.0.0
-      '@types/node': 25.2.2
+      '@types/node': 25.5.0
 
   '@types/http-cache-semantics@4.2.0': {}
 
@@ -5234,6 +5244,10 @@ snapshots:
   '@types/node@25.2.2':
     dependencies:
       undici-types: 7.16.0
+
+  '@types/node@25.5.0':
+    dependencies:
+      undici-types: 7.18.2
 
   '@types/pbkdf2@3.1.2':
     dependencies:
@@ -5567,6 +5581,8 @@ snapshots:
   bn.js@4.12.2: {}
 
   bn.js@5.2.2: {}
+
+  bn.js@5.2.3: {}
 
   bowser@2.13.1: {}
 
@@ -6836,7 +6852,7 @@ snapshots:
   micromatch@4.0.8:
     dependencies:
       braces: 3.0.3
-      picomatch: 2.3.1
+      picomatch: 2.3.2
 
   mime-db@1.52.0: {}
 
@@ -7097,6 +7113,8 @@ snapshots:
   picocolors@1.1.1: {}
 
   picomatch@2.3.1: {}
+
+  picomatch@2.3.2: {}
 
   picomatch@4.0.3: {}
 
@@ -7740,6 +7758,8 @@ snapshots:
 
   undici-types@7.16.0: {}
 
+  undici-types@7.18.2: {}
+
   undici@5.29.0:
     dependencies:
       '@fastify/busboy': 2.1.1
@@ -7788,7 +7808,7 @@ snapshots:
   web3-utils@1.10.4:
     dependencies:
       '@ethereumjs/util': 8.1.0
-      bn.js: 5.2.2
+      bn.js: 5.2.3
       ethereum-bloom-filters: 1.2.0
       ethereum-cryptography: 2.2.1
       ethjs-unit: 0.1.6
