@@ -19,7 +19,7 @@ const config = defineConfig({
     ],
     compilers: [
       {
-        version: "0.8.28",
+        version: "0.8.34",
         settings: {
           optimizer: {
             enabled: true,
