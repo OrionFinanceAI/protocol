@@ -1,7 +1,6 @@
-import { ethers, upgrades } from "hardhat";
-import "@openzeppelin/hardhat-upgrades";
-import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
-import {
+import { ethers } from "./hh";
+import type { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
+import type {
   OrionConfig,
   PriceAdapterRegistry,
   LiquidityOrchestrator,
@@ -9,7 +8,7 @@ import {
   OrionTransparentVault,
   MockUnderlyingAsset,
   UpgradeableBeacon,
-} from "../../typechain-types";
+} from "../typechain-types";
 
 /**
  * Deployment result containing all upgradeable protocol contracts
@@ -21,6 +20,19 @@ export interface UpgradeableProtocolContracts {
   transparentVaultFactory: TransparentVaultFactory;
   vaultBeacon: UpgradeableBeacon;
   underlyingAsset: MockUnderlyingAsset;
+}
+
+export async function deployUUPSProxy<TContract>(contractName: string, initializeArgs: unknown[]): Promise<TContract> {
+  const implFactory = await ethers.getContractFactory(contractName);
+  const implementation = await implFactory.deploy();
+  await implementation.waitForDeployment();
+
+  const initData = implFactory.interface.encodeFunctionData("initialize", initializeArgs);
+  const proxyFactory = await ethers.getContractFactory("OrionERC1967Proxy");
+  const proxy = await proxyFactory.deploy(await implementation.getAddress(), initData);
+  await proxy.waitForDeployment();
+
+  return implFactory.attach(await proxy.getAddress()) as unknown as TContract;
 }
 
 /**
@@ -54,26 +66,18 @@ export async function deployUpgradeableProtocol(
     await underlying.waitForDeployment();
   }
 
-  // 1. Deploy OrionConfig (UUPS)
-  const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
-  const orionConfig = (await upgrades.deployProxy(OrionConfigFactory, [owner.address, await underlying.getAddress()], {
-    initializer: "initialize",
-    kind: "uups",
-  })) as unknown as OrionConfig;
-  await orionConfig.waitForDeployment();
+  // 1. Deploy OrionConfig proxy
+  const orionConfig = await deployUUPSProxy<OrionConfig>("OrionConfig", [owner.address, await underlying.getAddress()]);
 
-  // 2. Deploy PriceAdapterRegistry (UUPS) and set in config
-  const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistry");
-  const priceAdapterRegistry = (await upgrades.deployProxy(
-    PriceAdapterRegistryFactory,
-    [owner.address, await orionConfig.getAddress()],
-    { initializer: "initialize", kind: "uups" },
-  )) as unknown as PriceAdapterRegistry;
-  await priceAdapterRegistry.waitForDeployment();
+  // 2. Deploy PriceAdapterRegistry proxy and set in config
+  const priceAdapterRegistry = await deployUUPSProxy<PriceAdapterRegistry>("PriceAdapterRegistry", [
+    owner.address,
+    await orionConfig.getAddress(),
+  ]);
 
   await orionConfig.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
 
-  // 3. Deploy SP1 verifier stack (gateway routes to Groth16 verifier), then LiquidityOrchestrator (UUPS)
+  // 3. Deploy SP1 verifier stack (gateway routes to Groth16 verifier), then LiquidityOrchestrator proxy
   const SP1VerifierGatewayFactory = await ethers.getContractFactory("SP1VerifierGateway");
   const sp1VerifierGateway = await SP1VerifierGatewayFactory.deploy(owner.address);
   await sp1VerifierGateway.waitForDeployment();
@@ -87,13 +91,13 @@ export async function deployUpgradeableProtocol(
   // cargo run --release --bin vkey
   const vKey = "0x007ccff4696ddd1d62fec2a106aa50309ba0fdee8fc2bcbc9c0b5ea68fe200f3";
 
-  const LiquidityOrchestratorFactory = await ethers.getContractFactory("LiquidityOrchestrator");
-  const liquidityOrchestrator = (await upgrades.deployProxy(
-    LiquidityOrchestratorFactory,
-    [owner.address, await orionConfig.getAddress(), automationReg.address, await sp1VerifierGateway.getAddress(), vKey],
-    { initializer: "initialize", kind: "uups" },
-  )) as unknown as LiquidityOrchestrator;
-  await liquidityOrchestrator.waitForDeployment();
+  const liquidityOrchestrator = await deployUUPSProxy<LiquidityOrchestrator>("LiquidityOrchestrator", [
+    owner.address,
+    await orionConfig.getAddress(),
+    automationReg.address,
+    await sp1VerifierGateway.getAddress(),
+    vKey,
+  ]);
 
   // 4. Set LiquidityOrchestrator in config
   await orionConfig.setLiquidityOrchestrator(await liquidityOrchestrator.getAddress());
@@ -103,23 +107,19 @@ export async function deployUpgradeableProtocol(
   const vaultImpl = await VaultImplFactory.deploy();
   await vaultImpl.waitForDeployment();
 
-  const BeaconFactory = await ethers.getContractFactory(
-    "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol:UpgradeableBeacon",
-  );
+  const BeaconFactory = await ethers.getContractFactory("OrionUpgradeableBeacon");
   const vaultBeacon = (await BeaconFactory.deploy(
     await vaultImpl.getAddress(),
     owner.address,
   )) as unknown as UpgradeableBeacon;
   await vaultBeacon.waitForDeployment();
 
-  // 6. Deploy TransparentVaultFactory (UUPS)
-  const TransparentVaultFactoryFactory = await ethers.getContractFactory("TransparentVaultFactory");
-  const transparentVaultFactory = (await upgrades.deployProxy(
-    TransparentVaultFactoryFactory,
-    [owner.address, await orionConfig.getAddress(), await vaultBeacon.getAddress()],
-    { initializer: "initialize", kind: "uups" },
-  )) as unknown as TransparentVaultFactory;
-  await transparentVaultFactory.waitForDeployment();
+  // 6. Deploy TransparentVaultFactory proxy
+  const transparentVaultFactory = await deployUUPSProxy<TransparentVaultFactory>("TransparentVaultFactory", [
+    owner.address,
+    await orionConfig.getAddress(),
+    await vaultBeacon.getAddress(),
+  ]);
 
   // 7. Configure OrionConfig with remaining deployed contracts
   await orionConfig.setVaultFactory(await transparentVaultFactory.getAddress());
