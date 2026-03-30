@@ -1,9 +1,8 @@
-import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
+import type { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
-import "@openzeppelin/hardhat-upgrades";
-import { ethers } from "hardhat";
+import { ethers } from "./helpers/hh";
 
-import {
+import type {
   MockERC4626Asset,
   MockExecutionAdapter,
   MockUnderlyingAsset,

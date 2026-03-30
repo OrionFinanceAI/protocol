@@ -6,9 +6,9 @@
  */
 
 import { expect } from "chai";
-import { ethers, network } from "hardhat";
+import { ethers } from "../helpers/hh";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
-import { ChainlinkPriceAdapter } from "../../typechain-types";
+import type { ChainlinkPriceAdapter } from "../typechain-types";
 
 // Mainnet addresses
 const MAINNET = {
@@ -22,6 +22,7 @@ const MAINNET = {
 // Maximum tolerated deviation between ETH/USD direct price and ETH/USDC cross-rate, in basis points.
 // USDC is not perfectly pegged; at the pinned fork block (24490214) the deviation is well under 50 bps.
 const SLIPPAGE_TOLERANCE_BPS = 50n; // 0.5 %
+const AGGREGATOR_V3_ABI = ["function latestRoundData() view returns (uint80, int256, uint256, uint256, uint80)"];
 
 describe("ChainlinkPriceAdapter - Coverage Tests", function () {
   let owner: SignerWithAddress;
@@ -32,8 +33,7 @@ describe("ChainlinkPriceAdapter - Coverage Tests", function () {
     this.timeout(60000);
 
     // Skip if not forking mainnet
-    const networkConfig = network.config;
-    if (!("forking" in networkConfig) || !networkConfig.forking || !networkConfig.forking.url) {
+    if (!(process.env.FORK_MAINNET === "true" && process.env.MAINNET_RPC_URL)) {
       this.skip();
     }
 
@@ -166,7 +166,7 @@ describe("ChainlinkPriceAdapter - Coverage Tests", function () {
           ethers.parseUnits("10000", 8),
           ethers.ZeroAddress,
         ),
-      ).to.be.reverted; // Just check it reverts (the catch block triggers)
+      ).to.be.rejected; // Just check it reverts (the catch block triggers)
     });
 
     it("Should reject non-owner", async function () {
@@ -188,7 +188,7 @@ describe("ChainlinkPriceAdapter - Coverage Tests", function () {
 
   describe("validatePriceAdapter", function () {
     it("Should validate configured feed", async function () {
-      await expect(chainlinkAdapter.validatePriceAdapter(MAINNET.WETH)).to.not.be.reverted;
+      await expect(chainlinkAdapter.validatePriceAdapter(MAINNET.WETH)).to.not.be.rejected;
     });
 
     it("Should reject unconfigured asset", async function () {
@@ -203,7 +203,7 @@ describe("ChainlinkPriceAdapter - Coverage Tests", function () {
   describe("getPriceData", function () {
     it("Should return valid price for ETH/USD", async function () {
       // First get the raw Chainlink price to check if it's within our test bounds
-      const chainlinkFeed = await ethers.getContractAt("AggregatorV3Interface", MAINNET.CHAINLINK_ETH_USD);
+      const chainlinkFeed = new ethers.Contract(MAINNET.CHAINLINK_ETH_USD, AGGREGATOR_V3_ABI, owner);
       const [, answer] = await chainlinkFeed.latestRoundData();
       const currentPrice = BigInt(answer.toString());
 
@@ -312,12 +312,12 @@ describe("ChainlinkPriceAdapter - Coverage Tests", function () {
 
     it("cross-rate ETH/USDC is within slippage tolerance of raw ETH/USD price", async function () {
       // --- raw ETH/USD from Chainlink (8 decimals) ---
-      const ethUsdFeed = await ethers.getContractAt("AggregatorV3Interface", MAINNET.CHAINLINK_ETH_USD);
+      const ethUsdFeed = new ethers.Contract(MAINNET.CHAINLINK_ETH_USD, AGGREGATOR_V3_ABI, owner);
       const [, ethUsdRaw] = await ethUsdFeed.latestRoundData();
       const ethUsdDirect18 = BigInt(ethUsdRaw.toString()) * 10n ** 10n; // normalise 8 → 18 decimals
 
       // --- raw USDC/USD from Chainlink (8 decimals) ---
-      const usdcUsdFeed = await ethers.getContractAt("AggregatorV3Interface", MAINNET.CHAINLINK_USDC_USD);
+      const usdcUsdFeed = new ethers.Contract(MAINNET.CHAINLINK_USDC_USD, AGGREGATOR_V3_ABI, owner);
       const [, usdcUsdRaw] = await usdcUsdFeed.latestRoundData();
 
       // --- cross-rate from adapter (18 decimals) ---
@@ -342,7 +342,7 @@ describe("ChainlinkPriceAdapter - Coverage Tests", function () {
     });
 
     it("validatePriceAdapter passes for cross-rate config", async function () {
-      await expect(chainlinkAdapter.validatePriceAdapter(CROSS_RATE_SLOT)).to.not.be.reverted;
+      await expect(chainlinkAdapter.validatePriceAdapter(CROSS_RATE_SLOT)).to.not.be.rejected;
     });
   });
 

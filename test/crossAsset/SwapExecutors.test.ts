@@ -7,16 +7,16 @@
  */
 
 import { expect } from "chai";
-import { ethers } from "hardhat";
+import { ethers } from "../helpers/hh";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
-import {
+import type {
   UniswapV3ExecutionAdapter,
   MockUniswapV3Router,
   MockUniswapV3Factory,
   MockUniswapV3Quoter,
   MockOrionConfig,
   MockUnderlyingAsset,
-} from "../../typechain-types";
+} from "../typechain-types";
 
 describe("UniswapV3ExecutionAdapter - Unit Tests", function () {
   let owner: SignerWithAddress;
@@ -95,7 +95,7 @@ describe("UniswapV3ExecutionAdapter - Unit Tests", function () {
           await mockQuoter.getAddress(),
           await config.getAddress(),
         ),
-      ).to.be.reverted;
+      ).to.be.rejected;
     });
   });
 
@@ -115,27 +115,27 @@ describe("UniswapV3ExecutionAdapter - Unit Tests", function () {
     });
 
     it("Should revert when called by non-owner/non-guardian", async function () {
-      await expect(adapter.connect(user).setAssetFee(await weth.getAddress(), FEE_TIER)).to.be.reverted;
+      await expect(adapter.connect(user).setAssetFee(await weth.getAddress(), FEE_TIER)).to.be.rejected;
     });
 
     it("Should revert for zero address asset", async function () {
-      await expect(adapter.setAssetFee(ethers.ZeroAddress, FEE_TIER)).to.be.reverted;
+      await expect(adapter.setAssetFee(ethers.ZeroAddress, FEE_TIER)).to.be.rejected;
     });
 
     it("Should revert when no pool exists for the fee tier", async function () {
-      await expect(adapter.setAssetFee(await weth.getAddress(), 10000)).to.be.reverted;
+      await expect(adapter.setAssetFee(await weth.getAddress(), 10000)).to.be.rejected;
     });
   });
 
   describe("validateExecutionAdapter", function () {
     it("Should pass for asset with registered fee", async function () {
-      await expect(adapter.validateExecutionAdapter(await weth.getAddress())).to.not.be.reverted;
+      await expect(adapter.validateExecutionAdapter(await weth.getAddress())).to.not.be.rejected;
     });
 
     it("Should revert for asset without registered fee", async function () {
       const MockERC20 = await ethers.getContractFactory("MockUnderlyingAsset");
       const unknownToken = await MockERC20.deploy(18);
-      await expect(adapter.validateExecutionAdapter(await unknownToken.getAddress())).to.be.reverted;
+      await expect(adapter.validateExecutionAdapter(await unknownToken.getAddress())).to.be.rejected;
     });
   });
 

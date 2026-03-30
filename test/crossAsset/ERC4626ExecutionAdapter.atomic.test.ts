@@ -11,16 +11,16 @@
  */
 
 import { expect } from "chai";
-import { ethers } from "hardhat";
+import { ethers } from "../helpers/hh";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
-import {
+import type {
   ERC4626ExecutionAdapter,
   MockUnderlyingAsset,
   MockERC4626Asset,
   MockOrionConfig,
   MockLiquidityOrchestrator,
   SpyExecutionAdapter,
-} from "../../typechain-types";
+} from "../typechain-types";
 
 describe("ERC4626ExecutionAdapter - Atomic Guarantees (Unit)", function () {
   let owner: SignerWithAddress;
@@ -345,7 +345,7 @@ describe("ERC4626ExecutionAdapter - Atomic Guarantees (Unit)", function () {
       await usdc.connect(loSigner).approve(await highPriceAdapter.getAddress(), lowApproval);
 
       await expect(highPriceAdapter.connect(loSigner).buy(await highPriceUsdcVault.getAddress(), oneShare)).to.be
-        .reverted; // ERC20: insufficient allowance when adapter pulls actualCost
+        .rejected; // ERC20: insufficient allowance when adapter pulls actualCost
     });
 
     /**
@@ -361,7 +361,7 @@ describe("ERC4626ExecutionAdapter - Atomic Guarantees (Unit)", function () {
       await usdc.mint(loSigner.address, badRateUsdcNeeded);
       await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), smallApproval);
 
-      await expect(vaultAdapter.connect(loSigner).buy(await vault.getAddress(), sharesAmount)).to.be.reverted; // insufficient allowance
+      await expect(vaultAdapter.connect(loSigner).buy(await vault.getAddress(), sharesAmount)).to.be.rejected; // insufficient allowance
     });
 
     /**
@@ -401,7 +401,7 @@ describe("ERC4626ExecutionAdapter - Atomic Guarantees (Unit)", function () {
       await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), approvalWithSlippage);
       await weth.mint(await spySwapExecutor.getAddress(), wethNeeded * 2n);
 
-      await expect(vaultAdapter.connect(loSigner).buy(await lowPriceVault.getAddress(), oneShare)).to.not.be.reverted;
+      await expect(vaultAdapter.connect(loSigner).buy(await lowPriceVault.getAddress(), oneShare)).to.not.be.rejected;
 
       const sharesReceived = await lowPriceVault.balanceOf(loSigner.address);
       expect(sharesReceived).to.be.gte(oneShare);

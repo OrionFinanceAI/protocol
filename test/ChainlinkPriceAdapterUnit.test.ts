@@ -5,9 +5,9 @@
  */
 
 import { expect } from "chai";
-import { ethers } from "hardhat";
+import { ethers } from "./helpers/hh";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
-import { ChainlinkPriceAdapter, MockChainlinkFeed } from "../typechain-types";
+import type { ChainlinkPriceAdapter, MockChainlinkFeed } from "../typechain-types";
 
 const STALENESS = 3_600; // 1 hour
 const MAX_PRICE = ethers.MaxUint256;
@@ -116,7 +116,7 @@ describe("ChainlinkPriceAdapter — unit tests (no fork)", function () {
     it("rejects non-contract quoteFeed address", async function () {
       await expect(
         adapter.configureFeed(asset, await baseFeed.getAddress(), false, STALENESS, 1, MAX_PRICE, owner.address),
-      ).to.be.reverted;
+      ).to.be.rejected;
     });
   });
 
@@ -133,7 +133,7 @@ describe("ChainlinkPriceAdapter — unit tests (no fork)", function () {
         MAX_PRICE,
         await quoteFeed.getAddress(),
       );
-      await expect(adapter.validatePriceAdapter(asset)).to.not.be.reverted;
+      await expect(adapter.validatePriceAdapter(asset)).to.not.be.rejected;
     });
 
     it("passes single-feed path when base feed is live", async function () {
@@ -146,7 +146,7 @@ describe("ChainlinkPriceAdapter — unit tests (no fork)", function () {
         MAX_PRICE,
         ethers.ZeroAddress,
       );
-      await expect(adapter.validatePriceAdapter(asset)).to.not.be.reverted;
+      await expect(adapter.validatePriceAdapter(asset)).to.not.be.rejected;
     });
 
     it("reverts InvalidAdapter when baseFeed.latestRoundData answer is zero", async function () {
