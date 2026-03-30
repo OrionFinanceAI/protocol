@@ -29,6 +29,7 @@ export default defineConfig([
     "**/types",
     "**/typechain-types",
     "**/.venv",
+    "**/.venv-py",
     "**/fhevmTemp",
     "**/scripts",
     // files

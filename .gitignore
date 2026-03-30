@@ -1,10 +1,6 @@
 # directories
-.coverage_artifacts
-.coverage_cache
-.coverage_contracts
 build
 cache
-coverage
 dist
 node_modules
 types
@@ -15,6 +11,7 @@ fhevmTemp/
 abi/
 .vscode/
 .venv/
+.venv-py/
 *.egg-info/
 __pycache__/
 typechain-types/
@@ -36,9 +33,9 @@ scripts/*.ts
 .env.docker
 .DS_Store
 .pnp.*
-coverage.json
 package-lock.json
 *.lock
 gasReporterOutput.json
 docker-compose/docker-compose-full.yml
 diagram.mmd
+.mcp.json
