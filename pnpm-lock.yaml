@@ -7,6 +7,7 @@ settings:
 overrides:
   '@openzeppelin/contracts-upgradeable@>=4.3.0 <4.8.3': ^4.9.6
   '@openzeppelin/contracts@>=4.3.0 <4.8.3': ^4.9.6
+  lodash: ^4.18.0
 
 pnpmfileChecksum: sha256-Acg9pmrpa8s4ldQnxHL/MoBQiDX/xDc9XJUr79MLhfQ=
 
@@ -20,6 +21,9 @@ importers:
       '@fhevm/solidity':
         specifier: ^0.11.1
         version: 0.11.1
+      '@morpho-org/morpho-blue':
+        specifier: ^1.0.0
+        version: 1.0.0
       '@openzeppelin/contracts':
         specifier: ^5.6.0
         version: 5.6.0
@@ -541,6 +545,9 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.9':
     resolution: {integrity: sha512-3Belt6tdc8bPgAtbcmdtNJlirVoTmEb5e2gC94PnkwEW9jI6CAHUeoG85tjWP5WquqfavoMtMwiG4P926ZKKuQ==}
+
+  '@morpho-org/morpho-blue@1.0.0':
+    resolution: {integrity: sha512-MKtzYMRE65B1hVJYAPtml3ecHPY2e/SL3JRvM7XWjtbnWQX6U/C3beSdxr7v+rHaVJ0ri/dUPxvNfWtr0NZdGw==}
 
   '@noble/ciphers@1.3.0':
     resolution: {integrity: sha512-2I0gnIVPtfnMw9ee9h1dJG7tp81+8Ob3OJb3Mv37rx5L40/b0i7djjCVvGOVqc9AEIQyvyu1i6ypKdFw8R8gQw==}
@@ -1902,6 +1909,12 @@ packages:
     resolution: {integrity: sha512-SDl5kKrQAudFBUe5OJM9Ac6WmMyYmXX/6sTmLZ3ffG2eY6ZIGBes3pEDxNN6V72WyOw4CPD5RomKdsa8DAAwLg==}
     engines: {node: '>=10.0.0'}
 
+  ethers-maths@4.3.0:
+    resolution: {integrity: sha512-Eod2zfJ6w1KWRhBGvB9PqB0VtCh9hWUwhjjsn7nqbfdV8Px98nVZ56Cyxcr2nEzwRcO/YzI7X05c8uOlsEZn1Q==}
+    engines: {node: '>=12.0'}
+    peerDependencies:
+      ethers: ^6.0.0
+
   ethers@5.8.0:
     resolution: {integrity: sha512-DUq+7fHrCg1aPDFCHx6UIPb3nmt2XMpM7Y/g2gLhsl3lIBqeAfOJIl1qEvRf2uq3BiKxmh6Fh5pfp2ieyek7Kg==}
 
@@ -2459,11 +2472,8 @@ packages:
   lodash.truncate@4.4.2:
     resolution: {integrity: sha512-jttmRe7bRse52OsWIMDLaXxWqRAmtIUccAQ3garviCqJjafXOfNMO0yMfNpdD6zbGaTU0P5Nz7e7gAT6cKmJRw==}
 
-  lodash@4.17.21:
-    resolution: {integrity: sha512-v2kDEe57lecTulaDIuNTPy3Ry4gLGJ6Z1O3vE1krgXZNrsQ+LFTGHVxVjcXPs17LhbZVGedAJv8XZ1tvj5FvSg==}
-
-  lodash@4.17.23:
-    resolution: {integrity: sha512-LgVTMpQtIopCi79SJeDiP0TfWi5CNEc/L/aRdTh3yIvmZXTnheWpKjSZhnvMl8iXbC1tFg9gdHHDMLoV7CnG+w==}
+  lodash@4.18.1:
+    resolution: {integrity: sha512-dMInicTPVE8d1e5otfwmmjlxkZoUpiVLwyeTdUsi/Caj/gfzzblBcCE5sRHV/AsjuCmxWrte2TNGSYuCeCq+0Q==}
 
   log-symbols@4.1.0:
     resolution: {integrity: sha512-8XPvpAA8uyhfteu8pIvQxpJZ7SYYdpUivZpGy6sFsBuKRY/7rQGavedeB8aK+Zkyq6upMFVL/9AW6vOYzfRyLg==}
@@ -4403,6 +4413,15 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
+  '@morpho-org/morpho-blue@1.0.0':
+    dependencies:
+      ethers: 6.16.0
+      ethers-maths: 4.3.0(ethers@6.16.0)
+      lodash: 4.18.1
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+
   '@noble/ciphers@1.3.0': {}
 
   '@noble/curves@1.2.0':
@@ -4563,7 +4582,7 @@ snapshots:
       ethers: 6.16.0
       fs-extra: 10.1.0
       immer: 10.0.2
-      lodash: 4.17.21
+      lodash: 4.18.1
       ndjson: 2.0.0
     transitivePeerDependencies:
       - bufferutil
@@ -4655,7 +4674,7 @@ snapshots:
     dependencies:
       '@openzeppelin/defender-sdk-base-client': 1.15.2
       axios: 1.13.5(debug@4.4.3)
-      lodash: 4.17.23
+      lodash: 4.18.1
     transitivePeerDependencies:
       - debug
       - encoding
@@ -4664,7 +4683,7 @@ snapshots:
     dependencies:
       '@openzeppelin/defender-sdk-base-client': 2.7.1(debug@4.4.3)
       axios: 1.13.5(debug@4.4.3)
-      lodash: 4.17.23
+      lodash: 4.18.1
     transitivePeerDependencies:
       - aws-crt
       - debug
@@ -4674,7 +4693,7 @@ snapshots:
     dependencies:
       '@openzeppelin/defender-sdk-base-client': 1.15.2
       axios: 1.13.5(debug@4.4.3)
-      lodash: 4.17.23
+      lodash: 4.18.1
     transitivePeerDependencies:
       - debug
       - encoding
@@ -4683,7 +4702,7 @@ snapshots:
     dependencies:
       '@openzeppelin/defender-sdk-base-client': 2.7.1(debug@4.4.3)
       axios: 1.13.5(debug@4.4.3)
-      lodash: 4.17.23
+      lodash: 4.18.1
     transitivePeerDependencies:
       - aws-crt
       - debug
@@ -5185,7 +5204,7 @@ snapshots:
   '@typechain/ethers-v6@0.5.1(ethers@6.16.0)(typechain@8.3.2(typescript@5.9.3))(typescript@5.9.3)':
     dependencies:
       ethers: 6.16.0
-      lodash: 4.17.23
+      lodash: 4.18.1
       ts-essentials: 7.0.3(typescript@5.9.3)
       typechain: 8.3.2(typescript@5.9.3)
       typescript: 5.9.3
@@ -6090,6 +6109,10 @@ snapshots:
       ethereum-cryptography: 0.1.3
       rlp: 2.2.7
 
+  ethers-maths@4.3.0(ethers@6.16.0):
+    dependencies:
+      ethers: 6.16.0
+
   ethers@5.8.0:
     dependencies:
       '@ethersproject/abi': 5.8.0
@@ -6468,7 +6491,7 @@ snapshots:
       glob: 10.5.0
       hardhat: 2.28.4(ts-node@10.9.2(@types/node@25.2.2)(typescript@5.9.3))(typescript@5.9.3)
       jsonschema: 1.5.0
-      lodash: 4.17.23
+      lodash: 4.18.1
       markdown-table: 2.0.0
       sha1: 1.1.1
       viem: 2.45.1(typescript@5.9.3)
@@ -6509,7 +6532,7 @@ snapshots:
       io-ts: 1.10.4
       json-stream-stringify: 3.1.6
       keccak: 3.0.4
-      lodash: 4.17.23
+      lodash: 4.18.1
       micro-eth-signer: 0.14.0
       mnemonist: 0.38.5
       mocha: 10.8.2
@@ -6786,9 +6809,7 @@ snapshots:
 
   lodash.truncate@4.4.2: {}
 
-  lodash@4.17.21: {}
-
-  lodash@4.17.23: {}
+  lodash@4.18.1: {}
 
   log-symbols@4.1.0:
     dependencies:
@@ -6957,7 +6978,7 @@ snapshots:
 
   node-emoji@1.11.0:
     dependencies:
-      lodash: 4.17.23
+      lodash: 4.18.1
 
   node-fetch@2.7.0:
     dependencies:
@@ -7416,7 +7437,7 @@ snapshots:
       ignore: 5.3.2
       js-yaml: 4.1.1
       latest-version: 7.0.0
-      lodash: 4.17.23
+      lodash: 4.18.1
       pluralize: 8.0.0
       semver: 7.7.4
       table: 6.9.0
@@ -7490,7 +7511,7 @@ snapshots:
       globby: 10.0.2
       hardhat: 2.28.4(ts-node@10.9.2(@types/node@25.2.2)(typescript@5.9.3))(typescript@5.9.3)
       jsonschema: 1.5.0
-      lodash: 4.17.23
+      lodash: 4.18.1
       mocha: 10.8.2
       node-emoji: 1.11.0
       pify: 4.0.1
@@ -7714,7 +7735,7 @@ snapshots:
       fs-extra: 7.0.1
       glob: 7.1.7
       js-sha3: 0.8.0
-      lodash: 4.17.23
+      lodash: 4.18.1
       mkdirp: 1.0.4
       prettier: 2.8.8
       ts-command-line-args: 2.5.1
