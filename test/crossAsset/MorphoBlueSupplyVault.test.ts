@@ -23,7 +23,7 @@
 
 import { expect } from "chai";
 import type { Contract } from "ethers";
-import { ethers, network } from "hardhat";
+import { ethers, networkHelpers, provider } from "../helpers/hh";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import {
   ERC4626ExecutionAdapter,
@@ -157,9 +157,8 @@ describe("MorphoBlueSupplyVault", function () {
   before(async function () {
     this.timeout(120_000);
 
-    // Skip entire suite if not forking mainnet
-    const networkConfig = network.config;
-    if (!("forking" in networkConfig) || !networkConfig.forking?.url) {
+    // Skip entire suite if not forking mainnet (matches other crossAsset fork tests)
+    if (!(process.env.FORK_MAINNET === "true" && process.env.MAINNET_RPC_URL)) {
       this.skip();
     }
 
@@ -711,7 +710,7 @@ describe("MorphoBlueSupplyVault", function () {
 
       // Impersonate LO as caller for adapter interactions
       const loAddress = await liquidityOrchestrator.getAddress();
-      await network.provider.request({ method: "hardhat_impersonateAccount", params: [loAddress] });
+      await networkHelpers.impersonateAccount(loAddress);
       loSigner = await ethers.getSigner(loAddress);
       await owner.sendTransaction({ to: loAddress, value: ethers.parseEther("10") });
 
@@ -1131,8 +1130,8 @@ describe("MorphoBlueSupplyVault", function () {
 
       // Advance EVM clock by 30 days — Morpho's AdaptiveCurve IRM accrues interest
       // continuously, so expectedSupplyAssets will project a higher number
-      await network.provider.send("evm_increaseTime", [30 * 24 * 3600]);
-      await network.provider.send("evm_mine", []);
+      await provider.send("evm_increaseTime", [30 * 24 * 3600]);
+      await provider.send("evm_mine", []);
 
       const assetsAfter = await wethVault.totalAssets();
 
@@ -1170,11 +1169,11 @@ describe("MorphoBlueSupplyVault", function () {
     let snapId: string;
 
     beforeEach(async function () {
-      snapId = await network.provider.send("evm_snapshot", []);
+      snapId = await provider.send("evm_snapshot", []);
     });
 
     afterEach(async function () {
-      await network.provider.send("evm_revert", [snapId]);
+      await provider.send("evm_revert", [snapId]);
     });
 
     it("deposit increments totalSupply by exactly shares and totalAssets by assets (within 1 share)", async function () {
@@ -1265,8 +1264,8 @@ describe("MorphoBlueSupplyVault", function () {
       const ts = await usdcVault.totalSupply();
       const priceBeforeBps = ((await usdcVault.totalAssets()) * 10000n) / ts;
 
-      await network.provider.send("evm_increaseTime", [30 * 24 * 3600]);
-      await network.provider.send("evm_mine", []);
+      await provider.send("evm_increaseTime", [30 * 24 * 3600]);
+      await provider.send("evm_mine", []);
 
       const priceAfterBps = ((await usdcVault.totalAssets()) * 10000n) / ts;
 
