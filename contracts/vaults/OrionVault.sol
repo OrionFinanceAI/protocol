@@ -4,7 +4,7 @@ pragma solidity ^0.8.34;
 import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import { ReentrancyGuardTransient } from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/proxy/beacon/IBeacon.sol";
 import "@openzeppelin/contracts/utils/StorageSlot.sol";
@@ -41,7 +41,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
  * 4. Portfolio Weights (w_0) [shares] – current allocation in share units for stateless TVL estimation
  * 5. Strategist Intent (w_1) [%] – target allocation in percentage of total supply
  */
-abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGuardUpgradeable, IOrionVault {
+abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGuardTransient, IOrionVault {
     using Math for uint256;
     using SafeERC20 for IERC20;
     using EnumerableMap for EnumerableMap.AddressToUintMap;
@@ -153,7 +153,6 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         // Initialize parent contracts
         __ERC20_init(name_, symbol_);
         __ERC4626_init(config_.underlyingAsset());
-        __ReentrancyGuard_init();
 
         manager = manager_;
         strategist = strategist_;

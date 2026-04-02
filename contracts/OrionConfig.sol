@@ -119,7 +119,6 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
 
         __Ownable_init(initialOwner);
         __Ownable2Step_init();
-        __UUPSUpgradeable_init();
 
         underlyingAsset = IERC20(underlyingAsset_);
 

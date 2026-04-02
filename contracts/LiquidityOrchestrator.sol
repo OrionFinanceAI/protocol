@@ -2,7 +2,7 @@
 pragma solidity ^0.8.34;
 
 import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import { ReentrancyGuardTransient } from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
@@ -34,7 +34,7 @@ import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 contract LiquidityOrchestrator is
     Initializable,
     Ownable2StepUpgradeable,
-    ReentrancyGuardUpgradeable,
+    ReentrancyGuardTransient,
     PausableUpgradeable,
     UUPSUpgradeable,
     ILiquidityOrchestrator
@@ -211,9 +211,7 @@ contract LiquidityOrchestrator is
 
         __Ownable_init(initialOwner);
         __Ownable2Step_init();
-        __ReentrancyGuard_init();
         __Pausable_init();
-        __UUPSUpgradeable_init();
 
         config = IOrionConfig(config_);
         underlyingAsset = address(config.underlyingAsset());

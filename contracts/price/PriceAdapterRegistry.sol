@@ -51,7 +51,6 @@ contract PriceAdapterRegistry is Initializable, IPriceAdapterRegistry, Ownable2S
 
         __Ownable_init(initialOwner_);
         __Ownable2Step_init();
-        __UUPSUpgradeable_init();
 
         configAddress = configAddress_;
         underlyingAsset = address(IOrionConfig(configAddress).underlyingAsset());

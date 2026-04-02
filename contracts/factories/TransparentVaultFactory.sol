@@ -41,7 +41,6 @@ contract TransparentVaultFactory is Initializable, Ownable2StepUpgradeable, UUPS
 
         __Ownable_init(initialOwner);
         __Ownable2Step_init();
-        __UUPSUpgradeable_init();
 
         config = IOrionConfig(configAddress);
         vaultBeacon = UpgradeableBeacon(vaultBeaconAddress);
