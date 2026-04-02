@@ -11,6 +11,8 @@
  * 5. ERC4626ExecutionAdapter – cross-asset path (WETH vault, Uniswap USDC→WETH)
  * 6. Token balance invariants (vault always holds zero tokens)
  * 7. Interest accrual: totalAssets() via MorphoBalancesLib.expectedSupplyAssets
+ * 8. Extended: invalid Morpho market constructor, LO-only adapter ACL, mint/withdraw paths,
+ *    deposit-to-other, allowance redeem, preview consistency, revert paths, multi-step deposits
  *
  * Market IDs (verified on mainnet block 24490214 via idToMarketParams):
  *   USDC/wstETH 86% LLTV  → 0xb323495f...86cc  (70M USDC supply)
@@ -20,6 +22,7 @@
  */
 
 import { expect } from "chai";
+import type { Contract } from "ethers";
 import { ethers, network } from "hardhat";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import {
@@ -142,7 +145,7 @@ describe("MorphoBlueSupplyVault", function () {
   let wethVault: MorphoBlueSupplyVault; // loanToken = WETH (cross-asset path)
 
   // Read-only Morpho Blue interface for position/market assertions
-  let morpho: ethers.Contract;
+  let morpho: Contract;
 
   // Decimals
   const USDC_DECIMALS = 6;
@@ -1273,7 +1276,224 @@ describe("MorphoBlueSupplyVault", function () {
   });
 
   // ─────────────────────────────────────────────────────────────────────────
-  // 11. Token balance invariants (comprehensive sweep)
+  // 11. Extended coverage — constructor, ACL, ERC-4626 edges (USDC vault)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  describe("Extended coverage — constructor & adapter ACL", function () {
+    it("Should reject deployment when Morpho market does not exist (lastUpdate == 0)", async function () {
+      const VaultFactory = await ethers.getContractFactory("MorphoBlueSupplyVault");
+      const fakeOracle = ethers.Wallet.createRandom().address;
+      const fakeIrm = ethers.Wallet.createRandom().address;
+      const fakeParams: MarketParams = {
+        ...usdcMarketParams,
+        oracle: fakeOracle,
+        irm: fakeIrm,
+      };
+      await expect(VaultFactory.deploy(MAINNET.MORPHO_BLUE, fakeParams, "bad", "bad")).to.be.revertedWithCustomError(
+        VaultFactory,
+        "InvalidArguments",
+      );
+    });
+
+    it("ERC4626ExecutionAdapter buy/sell reject callers that are not the liquidity orchestrator", async function () {
+      const shares = ethers.parseUnits("1", USDC_DECIMALS);
+      await fundUsdc(owner.address, ethers.parseUnits("5000", USDC_DECIMALS), owner);
+      await usdc.connect(owner).approve(await vaultAdapter.getAddress(), ethers.parseUnits("5000", USDC_DECIMALS));
+      await expect(vaultAdapter.connect(owner).buy(await usdcVault.getAddress(), shares)).to.be.revertedWithCustomError(
+        vaultAdapter,
+        "NotAuthorized",
+      );
+      await expect(vaultAdapter.connect(owner).sell(await usdcVault.getAddress(), 1n)).to.be.revertedWithCustomError(
+        vaultAdapter,
+        "NotAuthorized",
+      );
+    });
+  });
+
+  describe("Extended coverage — ERC-4626 alternate flows (USDC vault)", function () {
+    let alice: SignerWithAddress;
+    let bob: SignerWithAddress;
+
+    before(async function () {
+      const signers = await ethers.getSigners();
+      alice = signers[14];
+      bob = signers[15];
+    });
+
+    it("deposit pulls from caller and mints shares to a different receiver", async function () {
+      this.timeout(30_000);
+      const amount = ethers.parseUnits("250", USDC_DECIMALS);
+      await fundUsdc(alice.address, amount * 2n, owner);
+      await usdc.connect(alice).approve(await usdcVault.getAddress(), amount);
+
+      const preview = await usdcVault.previewDeposit(amount);
+      await usdcVault.connect(alice).deposit(amount, bob.address);
+
+      expect(await usdcVault.balanceOf(bob.address)).to.equal(preview);
+      expect(await usdcVault.balanceOf(alice.address)).to.equal(0n);
+      expect(await usdc.balanceOf(await usdcVault.getAddress())).to.equal(0n);
+
+      await usdcVault.connect(bob).redeem(preview, bob.address, bob.address);
+    });
+
+    it("redeem with allowance: approved spender can redeem on behalf of owner", async function () {
+      this.timeout(30_000);
+      const amount = ethers.parseUnits("180", USDC_DECIMALS);
+      await fundUsdc(alice.address, amount * 2n, owner);
+      await usdc.connect(alice).approve(await usdcVault.getAddress(), amount);
+      await usdcVault.connect(alice).deposit(amount, alice.address);
+
+      const shares = await usdcVault.balanceOf(alice.address);
+      const usdcBefore = await usdc.balanceOf(alice.address);
+
+      await usdcVault.connect(alice).approve(bob.address, shares);
+      await usdcVault.connect(bob).redeem(shares, alice.address, alice.address);
+
+      expect(await usdc.balanceOf(alice.address)).to.be.gt(usdcBefore);
+      expect(await usdcVault.balanceOf(alice.address)).to.equal(0n);
+    });
+
+    it("mint() mints exact shares; assets pulled match previewMint", async function () {
+      this.timeout(30_000);
+      const targetShares = ethers.parseUnits("75", USDC_DECIMALS);
+      const previewAssets = await usdcVault.previewMint(targetShares);
+      await fundUsdc(alice.address, previewAssets * 2n, owner);
+      await usdc.connect(alice).approve(await usdcVault.getAddress(), previewAssets * 2n);
+
+      const spent = await usdcVault.connect(alice).mint.staticCall(targetShares, alice.address);
+      await usdcVault.connect(alice).mint(targetShares, alice.address);
+
+      expect(await usdcVault.balanceOf(alice.address)).to.equal(targetShares);
+      expect(spent).to.be.closeTo(previewAssets, previewAssets / 200n);
+      expect(await usdc.balanceOf(await usdcVault.getAddress())).to.equal(0n);
+
+      await usdcVault.connect(alice).redeem(targetShares, alice.address, alice.address);
+    });
+
+    it("withdraw() exact assets matches previewWithdraw and burns expected shares", async function () {
+      this.timeout(30_000);
+      const depositAmt = ethers.parseUnits("400", USDC_DECIMALS);
+      await fundUsdc(alice.address, depositAmt * 2n, owner);
+      await usdc.connect(alice).approve(await usdcVault.getAddress(), depositAmt);
+      await usdcVault.connect(alice).deposit(depositAmt, alice.address);
+
+      const halfAssets = depositAmt / 2n;
+      const previewShares = await usdcVault.previewWithdraw(halfAssets);
+      const burned = await usdcVault.connect(alice).withdraw.staticCall(halfAssets, alice.address, alice.address);
+      await usdcVault.connect(alice).withdraw(halfAssets, alice.address, alice.address);
+
+      expect(burned).to.be.closeTo(previewShares, previewShares / 100n);
+      expect(await usdcVault.balanceOf(alice.address)).to.be.gt(0n);
+
+      const rest = await usdcVault.balanceOf(alice.address);
+      await usdcVault.connect(alice).redeem(rest, alice.address, alice.address);
+    });
+
+    it("previewDeposit matches deposit.staticCall on fresh vaults (no stale Morpho dust)", async function () {
+      this.timeout(120_000);
+      const VaultFactory = await ethers.getContractFactory("MorphoBlueSupplyVault");
+      const amounts = [
+        ethers.parseUnits("11", USDC_DECIMALS),
+        ethers.parseUnits("111", USDC_DECIMALS),
+        ethers.parseUnits("1111", USDC_DECIMALS),
+      ];
+      for (const amt of amounts) {
+        const isolated = (await VaultFactory.deploy(
+          MAINNET.MORPHO_BLUE,
+          usdcMarketParams,
+          "isoUSDC",
+          "iso",
+        )) as unknown as MorphoBlueSupplyVault;
+        await isolated.waitForDeployment();
+        await fundUsdc(alice.address, amt * 2n, owner);
+        await usdc.connect(alice).approve(await isolated.getAddress(), amt);
+        const prev = await isolated.previewDeposit(amt);
+        const viaStatic = await isolated.connect(alice).deposit.staticCall(amt, alice.address);
+        expect(prev).to.equal(viaStatic);
+        await isolated.connect(alice).deposit(amt, alice.address);
+        const sh = await isolated.balanceOf(alice.address);
+        await isolated.connect(alice).redeem(sh, alice.address, alice.address);
+      }
+    });
+
+    it("reverts: deposit without token approval", async function () {
+      const amount = ethers.parseUnits("50", USDC_DECIMALS);
+      await fundUsdc(alice.address, amount * 2n, owner);
+      await expect(usdcVault.connect(alice).deposit(amount, alice.address)).to.be.reverted;
+    });
+
+    it("reverts: redeem more shares than balance", async function () {
+      const amount = ethers.parseUnits("20", USDC_DECIMALS);
+      await fundUsdc(alice.address, amount * 2n, owner);
+      await usdc.connect(alice).approve(await usdcVault.getAddress(), amount);
+      await usdcVault.connect(alice).deposit(amount, alice.address);
+
+      const bal = await usdcVault.balanceOf(alice.address);
+      await expect(
+        usdcVault.connect(alice).redeem(bal + 1n, alice.address, alice.address),
+      ).to.be.revertedWithCustomError(usdcVault, "ERC4626ExceededMaxRedeem");
+    });
+
+    it("cumulative deposits from one user preserve share/asset relationship (isolated vault)", async function () {
+      this.timeout(90_000);
+      const VaultFactory = await ethers.getContractFactory("MorphoBlueSupplyVault");
+      const v = (await VaultFactory.deploy(
+        MAINNET.MORPHO_BLUE,
+        usdcMarketParams,
+        "cumUSDC",
+        "cum",
+      )) as unknown as MorphoBlueSupplyVault;
+      await v.waitForDeployment();
+
+      const chunks = [
+        ethers.parseUnits("50", USDC_DECIMALS),
+        ethers.parseUnits("120", USDC_DECIMALS),
+        ethers.parseUnits("333", USDC_DECIMALS),
+      ];
+      let totalAssetsIn = 0n;
+      for (const c of chunks) {
+        totalAssetsIn += c;
+        await fundUsdc(alice.address, c * 2n, owner);
+        await usdc.connect(alice).approve(await v.getAddress(), c);
+        await v.connect(alice).deposit(c, alice.address);
+      }
+      const shares = await v.balanceOf(alice.address);
+      const back = await v.convertToAssets(shares);
+      expect(back).to.be.closeTo(totalAssetsIn, totalAssetsIn / 100n);
+
+      await v.connect(alice).redeem(shares, alice.address, alice.address);
+    });
+  });
+
+  describe("Extended coverage — WETH vault mint/withdraw smoke", function () {
+    let carol: SignerWithAddress;
+
+    before(async function () {
+      carol = (await ethers.getSigners())[16];
+    });
+
+    it("mint and withdraw round-trip on WETH vault", async function () {
+      this.timeout(60_000);
+      const targetShares = ethers.parseUnits("0.03", WETH_DECIMALS);
+      const previewAssets = await wethVault.previewMint(targetShares);
+      await fundWeth(carol.address, previewAssets * 3n, owner);
+      await weth.connect(carol).approve(await wethVault.getAddress(), previewAssets * 3n);
+
+      await wethVault.connect(carol).mint(targetShares, carol.address);
+      expect(await wethVault.balanceOf(carol.address)).to.equal(targetShares);
+
+      const assetsOut = previewAssets / 3n;
+      const prevSh = await wethVault.previewWithdraw(assetsOut);
+      await wethVault.connect(carol).withdraw(assetsOut, carol.address, carol.address);
+      const afterPartial = await wethVault.balanceOf(carol.address);
+      expect(afterPartial).to.be.closeTo(targetShares - prevSh, ethers.parseUnits("0.0000005", WETH_DECIMALS));
+
+      await wethVault.connect(carol).redeem(afterPartial, carol.address, carol.address);
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 12. Token balance invariants (comprehensive sweep)
   // ─────────────────────────────────────────────────────────────────────────
 
   describe("Token balance invariants", function () {
