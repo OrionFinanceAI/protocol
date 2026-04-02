@@ -10,12 +10,20 @@ const useMainnetFork = process.env.FORK_MAINNET === "true" && Boolean(process.en
 
 const config = defineConfig({
   plugins: [hardhatToolboxMochaEthers, hardhatTypechain, hardhatVerify],
+  paths: {
+    tests: {
+      solidity: "test/solidity",
+    },
+  },
   defaultNetwork: "hardhat",
   solidity: {
     npmFilesToBuild: [
       "@openzeppelin/contracts/token/ERC20/IERC20.sol",
       "@openzeppelin/contracts/interfaces/IERC4626.sol",
       "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol",
+      "@morpho-org/morpho-blue/src/interfaces/IMorpho.sol",
+      "@morpho-org/morpho-blue/src/libraries/MarketParamsLib.sol",
+      "@morpho-org/morpho-blue/src/libraries/SharesMathLib.sol",
     ],
     compilers: [
       {

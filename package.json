@@ -21,6 +21,7 @@
     "lint:sol": "solhint --max-warnings 20 \"contracts/**/*.sol\"",
     "lint:ts": "eslint --ext .js,.ts .",
     "typechain": "cross-env TS_NODE_TRANSPILE_ONLY=true hardhat build",
+    "test:fuzz": "hardhat test solidity",
     "test:no-fork": "cross-env FORK_MAINNET=false hardhat test",
     "test:fork": "sh -c 'set -a; [ -f .env ] && source .env; set +a; if [ -z \"$MAINNET_RPC_URL\" ]; then echo \"Skipping fork tests: MAINNET_RPC_URL is not set\"; exit 0; fi; FORK_MAINNET=true hardhat test --network hardhat test/crossAsset/ChainlinkPriceAdapter.test.ts test/crossAsset/ERC4626PriceAdapter.test.ts test/crossAsset/ERC4626ExecutionAdapter.test.ts test/crossAsset/MorphoBlueSupplyVault.test.ts'",
     "test": "pnpm test:no-fork && pnpm test:fork",
