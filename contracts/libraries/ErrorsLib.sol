@@ -104,4 +104,14 @@ library ErrorsLib {
 
     /// @notice Strategist is already linked to a vault and cannot be re-linked.
     error StrategistVaultAlreadyLinked();
+
+    /// @notice LP wrapper minted fewer shares than the execution adapter required (rounding / price move).
+    /// @param asset The LP wrapper address.
+    /// @param minted Shares actually minted.
+    /// @param minimum Minimum shares required (typically the LO order size).
+    error LPShareMintBelowMinimum(address asset, uint256 minted, uint256 minimum);
+
+    /// @notice LP share price precision liquidity exceeds uint128 (position too large for this pricing path).
+    /// @param asset The LP wrapper address.
+    error LiquidityPrecisionOverflow(address asset);
 }
