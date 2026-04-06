@@ -79,7 +79,10 @@ contract PriceAdapterRegistry is Initializable, IPriceAdapterRegistry, Ownable2S
         (uint256 rawPrice, uint8 priceDecimals) = adapter.getPriceData(asset);
         if (rawPrice == 0) revert ErrorsLib.PriceMustBeGreaterThanZero(asset);
 
-        return UtilitiesLib.convertDecimals(rawPrice, priceDecimals, priceAdapterDecimals);
+        uint256 normalizedPrice = UtilitiesLib.convertDecimals(rawPrice, priceDecimals, priceAdapterDecimals);
+        if (normalizedPrice == 0) revert ErrorsLib.PriceMustBeGreaterThanZero(asset);
+
+        return normalizedPrice;
     }
 
     /// @notice Authorizes an upgrade to a new implementation
