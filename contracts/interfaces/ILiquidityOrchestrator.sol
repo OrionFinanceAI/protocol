@@ -139,6 +139,10 @@ interface ILiquidityOrchestrator {
     /// @param _minibatchSize The new minibatch size
     function updateMinibatchSize(uint8 _minibatchSize) external;
 
+    /// @notice Updates the number of vault leaves folded per StateCommitment upkeep step
+    /// @param _commitmentMinibatchSize The new commitment minibatch size
+    function updateCommitmentMinibatchSize(uint8 _commitmentMinibatchSize) external;
+
     /// @notice Updates the Chainlink Automation Registry address
     /// @param newAutomationRegistry The new automation registry address
     function updateAutomationRegistry(address newAutomationRegistry) external;

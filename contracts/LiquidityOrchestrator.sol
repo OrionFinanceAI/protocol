@@ -86,6 +86,9 @@ contract LiquidityOrchestrator is
     /// @notice Minibatch size for fulfill deposit and redeem processing
     uint8 public minibatchSize;
 
+    /// @notice Number of vault leaves folded into the commitment per StateCommitment upkeep step
+    uint8 public commitmentMinibatchSize;
+
     /// @notice Upkeep phase
     LiquidityUpkeepPhase public currentPhase;
 
@@ -124,6 +127,11 @@ contract LiquidityOrchestrator is
     bytes32 private _cachedAssetsHash;
     /// @notice Cached vaults hash from last full commitment build
     bytes32 private _cachedVaultsHash;
+
+    /// @notice Running vault leaf fold accumulator during StateCommitment phase
+    bytes32 private _partialVaultsHash;
+    /// @notice Number of vault leaves already folded this epoch
+    uint16 private _commitmentBatchIndex;
 
     /// @notice Buffer amount after each execution minibatch for market impact tracking.
     uint256[] private _epochBufferHistory;
@@ -226,6 +234,7 @@ contract LiquidityOrchestrator is
 
         executionMinibatchSize = 1;
         minibatchSize = 1;
+        commitmentMinibatchSize = 1;
 
         slippageTolerance = 0;
 
@@ -260,6 +269,13 @@ contract LiquidityOrchestrator is
         if (_minibatchSize > MAX_MINIBATCH_SIZE) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         minibatchSize = _minibatchSize;
+    }
+
+    /// @inheritdoc ILiquidityOrchestrator
+    function updateCommitmentMinibatchSize(uint8 _commitmentMinibatchSize) external onlyOwnerOrGuardian {
+        if (_commitmentMinibatchSize == 0) revert ErrorsLib.InvalidArguments();
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+        commitmentMinibatchSize = _commitmentMinibatchSize;
     }
 
     /// @inheritdoc ILiquidityOrchestrator
@@ -457,12 +473,7 @@ contract LiquidityOrchestrator is
         if (currentPhase == LiquidityUpkeepPhase.Idle && _shouldTriggerUpkeep()) {
             _handleStart();
         } else if (currentPhase == LiquidityUpkeepPhase.StateCommitment) {
-            (bytes32 commitment, bytes32 assetsHash, bytes32 vaultsHash) = _buildEpochStateCommitmentAndComponents();
-            _currentEpoch.epochStateCommitment = commitment;
-            _cachedAssetsHash = assetsHash;
-            _cachedVaultsHash = vaultsHash;
-            currentPhase = LiquidityUpkeepPhase.SellingLeg;
-            emit EventsLib.EpochStateCommitted(epochCounter, _currentEpoch.epochStateCommitment);
+            _processCommitmentMinibatch();
         } else if (currentPhase == LiquidityUpkeepPhase.SellingLeg) {
             StatesStruct memory states = _verifyPerformData(_publicValues, proofBytes, statesBytes);
 
@@ -509,6 +520,10 @@ contract LiquidityOrchestrator is
 
         _recordBufferCheckpoint();
 
+        // Reset incremental commitment state for the new epoch
+        _partialVaultsHash = bytes32(0);
+        _commitmentBatchIndex = 0;
+
         currentPhase = LiquidityUpkeepPhase.StateCommitment;
 
         // Snapshot protocol fees at epoch start to ensure consistency throughout the epoch
@@ -543,23 +558,68 @@ contract LiquidityOrchestrator is
         }
     }
 
-    /// @notice Builds the epoch state commitment and returns assets/vaults hashes for incremental refresh on failure
-    /// @return commitment The full epoch state commitment
-    /// @return assetsHash Cached so on sell/buy failure we can recompute only protocolStateHash
-    /// @return vaultsHash Cached so on sell/buy failure we can recompute only protocolStateHash
-    function _buildEpochStateCommitmentAndComponents()
-        internal
-        view
-        returns (bytes32 commitment, bytes32 assetsHash, bytes32 vaultsHash)
-    {
-        address[] memory assets = config.getAllWhitelistedAssets();
-        uint256[] memory assetPrices = getAssetPrices(assets);
-        VaultStateData memory vaultData = _getVaultStateData();
+    /// @notice Folds the next batch of vault leaves into the running accumulator.
+    /// @dev Uses the same sequential fold as the old single-shot build so the final
+    ///      epochStateCommitment is byte-for-byte identical — no circuit or vKey changes needed.
+    ///      Resets are handled in _handleStart at the start of each epoch.
+    function _processCommitmentMinibatch() internal {
+        uint16 vaultCount = uint16(_currentEpoch.vaultsEpoch.length);
+        uint256 maxFulfillBatchSize = config.maxFulfillBatchSize();
 
-        bytes32 protocolStateHash = _buildProtocolStateHash();
-        assetsHash = _aggregateAssetLeaves(assets, assetPrices);
-        vaultsHash = _aggregateVaultLeaves(vaultData);
-        commitment = keccak256(abi.encode(protocolStateHash, assetsHash, vaultsHash));
+        uint16 i0 = _commitmentBatchIndex;
+        uint16 i1 = i0 + uint16(commitmentMinibatchSize);
+        if (i1 > vaultCount) {
+            i1 = vaultCount;
+        }
+
+        for (uint16 i = i0; i < i1; ++i) {
+            IOrionTransparentVault vault = IOrionTransparentVault(_currentEpoch.vaultsEpoch[i]);
+            IOrionVault.FeeModel memory feeModel = _currentEpoch.feeModel[_currentEpoch.vaultsEpoch[i]];
+
+            (address[] memory portfolioTokens, uint256[] memory portfolioShares) = vault.getPortfolio();
+            (address[] memory intentTokens, uint32[] memory intentWeights) = vault.getIntent();
+
+            bytes32 portfolioHash = keccak256(abi.encode(portfolioTokens, portfolioShares));
+            bytes32 intentHash = keccak256(abi.encode(intentTokens, intentWeights));
+
+            bytes32 vaultLeaf = keccak256(
+                abi.encode(
+                    _currentEpoch.vaultsEpoch[i],
+                    uint8(feeModel.feeType),
+                    feeModel.performanceFee,
+                    feeModel.managementFee,
+                    feeModel.highWaterMark,
+                    vault.pendingRedeem(maxFulfillBatchSize),
+                    vault.pendingDeposit(maxFulfillBatchSize),
+                    vault.totalSupply(),
+                    portfolioHash,
+                    intentHash
+                )
+            );
+
+            _partialVaultsHash = keccak256(abi.encode(_partialVaultsHash, vaultLeaf));
+        }
+
+        _commitmentBatchIndex = i1;
+
+        // All vault leaves processed — seal the commitment and advance phase
+        if (i1 == vaultCount) {
+            address[] memory assets = config.getAllWhitelistedAssets();
+            uint256[] memory assetPrices = getAssetPrices(assets);
+
+            bytes32 protocolStateHash = _buildProtocolStateHash();
+            bytes32 assetsHash = _aggregateAssetLeaves(assets, assetPrices);
+
+            _cachedAssetsHash = assetsHash;
+            _cachedVaultsHash = _partialVaultsHash;
+
+            _currentEpoch.epochStateCommitment = keccak256(
+                abi.encode(protocolStateHash, assetsHash, _partialVaultsHash)
+            );
+
+            currentPhase = LiquidityUpkeepPhase.SellingLeg;
+            emit EventsLib.EpochStateCommitted(epochCounter, _currentEpoch.epochStateCommitment);
+        }
     }
 
     /// @notice Builds the protocol state hash from static epoch parameters
@@ -602,76 +662,11 @@ contract LiquidityOrchestrator is
         return assetsHash;
     }
 
-    /// @notice Aggregates vault leaves using sequential folding
-    /// @param vaultData Struct containing all vault state data
-    /// @return The aggregated vaults hash
-    function _aggregateVaultLeaves(VaultStateData memory vaultData) internal view returns (bytes32) {
-        bytes32 vaultsHash = bytes32(0);
-        uint16 vaultCount = uint16(_currentEpoch.vaultsEpoch.length);
-        for (uint16 i = 0; i < vaultCount; ++i) {
-            bytes32 portfolioHash = keccak256(abi.encode(vaultData.portfolioTokens[i], vaultData.portfolioShares[i]));
-            bytes32 intentHash = keccak256(abi.encode(vaultData.intentTokens[i], vaultData.intentWeights[i]));
-
-            bytes32 vaultLeaf = keccak256(
-                abi.encode(
-                    _currentEpoch.vaultsEpoch[i],
-                    vaultData.feeTypes[i],
-                    vaultData.performanceFees[i],
-                    vaultData.managementFees[i],
-                    vaultData.highWaterMarks[i],
-                    vaultData.pendingRedeems[i],
-                    vaultData.pendingDeposits[i],
-                    vaultData.totalSupplies[i],
-                    portfolioHash,
-                    intentHash
-                )
-            );
-
-            // Fold into aggregate
-            vaultsHash = keccak256(abi.encode(vaultsHash, vaultLeaf));
-        }
-        return vaultsHash;
-    }
-
     /// @inheritdoc ILiquidityOrchestrator
     function getAssetPrices(address[] memory assets) public view returns (uint256[] memory assetPrices) {
         assetPrices = new uint256[](assets.length);
         for (uint16 i = 0; i < assets.length; ++i) {
             assetPrices[i] = _currentEpoch.pricesEpoch[assets[i]];
-        }
-    }
-
-    /// @notice Gets vault state data for all vaults in the epoch
-    /// @return vaultData Struct containing all vault state data
-    function _getVaultStateData() internal view returns (VaultStateData memory vaultData) {
-        uint256 maxFulfillBatchSize = config.maxFulfillBatchSize();
-        uint16 vaultCount = uint16(_currentEpoch.vaultsEpoch.length);
-
-        vaultData.feeTypes = new uint8[](vaultCount);
-        vaultData.performanceFees = new uint16[](vaultCount);
-        vaultData.managementFees = new uint16[](vaultCount);
-        vaultData.highWaterMarks = new uint256[](vaultCount);
-        vaultData.pendingRedeems = new uint256[](vaultCount);
-        vaultData.pendingDeposits = new uint256[](vaultCount);
-        vaultData.totalSupplies = new uint256[](vaultCount);
-        vaultData.portfolioTokens = new address[][](vaultCount);
-        vaultData.portfolioShares = new uint256[][](vaultCount);
-        vaultData.intentTokens = new address[][](vaultCount);
-        vaultData.intentWeights = new uint32[][](vaultCount);
-
-        for (uint16 i = 0; i < vaultCount; ++i) {
-            IOrionTransparentVault vault = IOrionTransparentVault(_currentEpoch.vaultsEpoch[i]);
-            IOrionVault.FeeModel memory feeModel = _currentEpoch.feeModel[_currentEpoch.vaultsEpoch[i]];
-
-            vaultData.feeTypes[i] = uint8(feeModel.feeType);
-            vaultData.performanceFees[i] = feeModel.performanceFee;
-            vaultData.managementFees[i] = feeModel.managementFee;
-            vaultData.highWaterMarks[i] = feeModel.highWaterMark;
-            vaultData.pendingRedeems[i] = vault.pendingRedeem(maxFulfillBatchSize);
-            vaultData.pendingDeposits[i] = vault.pendingDeposit(maxFulfillBatchSize);
-            vaultData.totalSupplies[i] = vault.totalSupply();
-            (vaultData.portfolioTokens[i], vaultData.portfolioShares[i]) = vault.getPortfolio();
-            (vaultData.intentTokens[i], vaultData.intentWeights[i]) = vault.getIntent();
         }
     }
 
