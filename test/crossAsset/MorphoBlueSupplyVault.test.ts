@@ -1085,7 +1085,7 @@ describe("MorphoBlueSupplyVault", function () {
       // Accept up to 2% Uniswap slippage on the round-trip (buy + sell)
       const cost = await vaultAdapter.previewBuy.staticCall(await wethVault.getAddress(), BUY_SHARES);
       const minReceivable = (cost * (10000n - SLIPPAGE * 2n)) / 10000n;
-      expect(totalReceived + (usdcBefore - initialUSDC), "total round-trip USDC recovery").to.be.gte(minReceivable);
+      expect(totalReceived, "total round-trip USDC recovery").to.be.gte(minReceivable);
 
       console.log(`  60% sell → ${ethers.formatUnits(usdcAfter - usdcBefore, USDC_DECIMALS)} USDC`);
       console.log(`  Morpho supplyShares dust: ${posFinal.supplyShares}`);
