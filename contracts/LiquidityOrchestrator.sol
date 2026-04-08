@@ -242,6 +242,14 @@ contract LiquidityOrchestrator is
         _nextUpdateTime = block.timestamp + epochDuration;
     }
 
+    /// @dev Must be called via upgradeToAndCall so migration is atomic with the implementation swap.
+    // solhint-disable-next-line use-natspec
+    function initializeV2() external reinitializer(2) onlyOwner {
+        if (commitmentMinibatchSize == 0) {
+            commitmentMinibatchSize = 1;
+        }
+    }
+
     /* -------------------------------------------------------------------------- */
     /*                                OWNER FUNCTIONS                             */
     /* -------------------------------------------------------------------------- */
