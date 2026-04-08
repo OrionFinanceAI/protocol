@@ -105,7 +105,7 @@ describe("Upgrade Tests", function () {
       const OrionConfigV2Factory = await ethers.getContractFactory("OrionConfigV2");
       await expect(
         upgrades.upgradeProxy(proxyAddress, OrionConfigV2Factory.connect(user)),
-      ).to.be.revertedWithCustomError(orionConfig, "OwnableUnauthorizedAccount");
+      ).to.be.revertedWithCustomError(orionConfig, "NotAuthorized");
     });
 
     it("Should consume storage gap slots correctly", async function () {
@@ -561,7 +561,7 @@ describe("Upgrade Tests", function () {
       // Non-owner should fail
       await expect(
         orionConfig.connect(user).upgradeToAndCall(await newImpl.getAddress(), "0x"),
-      ).to.be.revertedWithCustomError(orionConfig, "OwnableUnauthorizedAccount");
+      ).to.be.revertedWithCustomError(orionConfig, "NotAuthorized");
     });
 
     it("Should cover PriceAdapterRegistry._authorizeUpgrade via direct upgradeToAndCall", async function () {
@@ -582,7 +582,7 @@ describe("Upgrade Tests", function () {
 
       await expect(
         priceAdapterRegistry.connect(user).upgradeToAndCall(await newImpl.getAddress(), "0x"),
-      ).to.be.revertedWithCustomError(priceAdapterRegistry, "OwnableUnauthorizedAccount");
+      ).to.be.revertedWithCustomError(priceAdapterRegistry, "NotAuthorized");
     });
 
     it("Should cover LiquidityOrchestrator._authorizeUpgrade via direct upgradeToAndCall", async function () {
@@ -603,7 +603,7 @@ describe("Upgrade Tests", function () {
 
       await expect(
         liquidityOrchestrator.connect(user).upgradeToAndCall(await newImpl.getAddress(), "0x"),
-      ).to.be.revertedWithCustomError(liquidityOrchestrator, "OwnableUnauthorizedAccount");
+      ).to.be.revertedWithCustomError(liquidityOrchestrator, "NotAuthorized");
     });
 
     it("Should cover TransparentVaultFactory._authorizeUpgrade via direct upgradeToAndCall", async function () {
@@ -624,7 +624,7 @@ describe("Upgrade Tests", function () {
 
       await expect(
         transparentVaultFactory.connect(user).upgradeToAndCall(await newImpl.getAddress(), "0x"),
-      ).to.be.revertedWithCustomError(transparentVaultFactory, "OwnableUnauthorizedAccount");
+      ).to.be.revertedWithCustomError(transparentVaultFactory, "NotAuthorized");
     });
   });
 });
