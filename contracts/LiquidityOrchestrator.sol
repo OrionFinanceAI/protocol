@@ -282,7 +282,10 @@ contract LiquidityOrchestrator is
     /// @inheritdoc ILiquidityOrchestrator
     function updateCommitmentMinibatchSize(uint8 _commitmentMinibatchSize) external onlyOwnerOrGuardian {
         if (_commitmentMinibatchSize == 0) revert ErrorsLib.InvalidArguments();
-        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+        if (_commitmentMinibatchSize > MAX_MINIBATCH_SIZE) revert ErrorsLib.InvalidArguments();
+        if (_commitmentMinibatchSize > commitmentMinibatchSize && !config.isSystemIdle()) {
+            revert ErrorsLib.SystemNotIdle();
+        }
         commitmentMinibatchSize = _commitmentMinibatchSize;
     }
 

@@ -139,7 +139,8 @@ interface ILiquidityOrchestrator {
     /// @param _minibatchSize The new minibatch size
     function updateMinibatchSize(uint8 _minibatchSize) external;
 
-    /// @notice Updates the number of vault leaves folded per StateCommitment upkeep step
+    /// @notice Updates the number of vault leaves folded per StateCommitment upkeep step.
+    /// @dev Increasing above the current value requires the system to be idle.
     /// @param _commitmentMinibatchSize The new commitment minibatch size
     function updateCommitmentMinibatchSize(uint8 _commitmentMinibatchSize) external;
 
