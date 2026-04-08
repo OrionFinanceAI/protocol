@@ -62,6 +62,27 @@ contract MorphoBlueSupplyVault is ERC4626 {
         return MORPHO.expectedSupplyAssets(marketParams, address(this));
     }
 
+    /// @inheritdoc IERC4626
+    /// @dev Caps the owner's withdrawable assets by Morpho market liquidity so this function never
+    ///      returns a value that would cause withdraw() to revert, as required by ERC-4626.
+    function maxWithdraw(address owner) public view override returns (uint256) {
+        uint256 ownerAssets = convertToAssets(balanceOf(owner));
+        (uint256 totalSupplyAssets, , uint256 totalBorrowAssets, ) = MORPHO.expectedMarketBalances(marketParams);
+        uint256 availableLiquidity = totalSupplyAssets > totalBorrowAssets ? totalSupplyAssets - totalBorrowAssets : 0;
+        return ownerAssets < availableLiquidity ? ownerAssets : availableLiquidity;
+    }
+
+    /// @inheritdoc IERC4626
+    /// @dev Computed directly in shares to avoid the double floor rounding that would occur if derived
+    ///      from maxWithdraw: convertToShares(convertToAssets(shares)) can return shares - 1.
+    function maxRedeem(address owner) public view override returns (uint256) {
+        uint256 ownerShares = balanceOf(owner);
+        (uint256 totalSupplyAssets, , uint256 totalBorrowAssets, ) = MORPHO.expectedMarketBalances(marketParams);
+        uint256 availableLiquidity = totalSupplyAssets > totalBorrowAssets ? totalSupplyAssets - totalBorrowAssets : 0;
+        uint256 availableShares = convertToShares(availableLiquidity);
+        return ownerShares < availableShares ? ownerShares : availableShares;
+    }
+
     /// @notice Supplies `assets` to Morpho and mints `shares` to `receiver`.
     /// @param caller Address that initiated the deposit
     /// @param receiver Address that receives the vault shares
