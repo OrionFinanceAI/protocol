@@ -67,6 +67,7 @@ contract MorphoBlueSupplyVault is ERC4626 {
     ///      returns a value that would cause withdraw() to revert, as required by ERC-4626.
     function maxWithdraw(address owner) public view override returns (uint256) {
         uint256 ownerAssets = convertToAssets(balanceOf(owner));
+        // slither-disable-next-line unused-return
         (uint256 totalSupplyAssets, , uint256 totalBorrowAssets, ) = MORPHO.expectedMarketBalances(marketParams);
         uint256 availableLiquidity = totalSupplyAssets > totalBorrowAssets ? totalSupplyAssets - totalBorrowAssets : 0;
         return ownerAssets < availableLiquidity ? ownerAssets : availableLiquidity;
@@ -77,6 +78,7 @@ contract MorphoBlueSupplyVault is ERC4626 {
     ///      from maxWithdraw: convertToShares(convertToAssets(shares)) can return shares - 1.
     function maxRedeem(address owner) public view override returns (uint256) {
         uint256 ownerShares = balanceOf(owner);
+        // slither-disable-next-line unused-return
         (uint256 totalSupplyAssets, , uint256 totalBorrowAssets, ) = MORPHO.expectedMarketBalances(marketParams);
         uint256 availableLiquidity = totalSupplyAssets > totalBorrowAssets ? totalSupplyAssets - totalBorrowAssets : 0;
         uint256 availableShares = convertToShares(availableLiquidity);
