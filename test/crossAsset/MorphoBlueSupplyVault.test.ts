@@ -992,6 +992,9 @@ describe("MorphoBlueSupplyVault", function () {
   describe("Partial sell via WETH adapter stack (cross-asset 40% / 60%)", function () {
     const BUY_SHARES = ethers.parseUnits("1", WETH_DECIMALS); // 1.0 omWETH
     let initialUSDC: bigint;
+    /** Pre-buy quote for BUY_SHARES — used as the round-trip benchmark so the
+     *  minReceivable check reflects actual entry cost, not post-trade prices. */
+    let entryCost: bigint;
     /** Vault's Morpho position BEFORE our buy — used as exit baseline. */
     let morphoSharesAtEntry: bigint;
     /** Vault's Morpho position AFTER our buy — used as 40%-sell upper bound. */
@@ -1006,9 +1009,10 @@ describe("MorphoBlueSupplyVault", function () {
       const posBefore = await morpho.position(MAINNET.WETH_WSTETH_945_MARKET_ID, await wethVault.getAddress());
       morphoSharesAtEntry = posBefore.supplyShares;
 
-      // Buy a clean 1.0 omWETH so this describe has a known starting position
-      const cost = await vaultAdapter.previewBuy.staticCall(await wethVault.getAddress(), BUY_SHARES);
-      const maxUSDC = (cost * (10000n + SLIPPAGE)) / 10000n;
+      // Capture entry cost BEFORE the buy so the round-trip benchmark is not
+      // skewed by post-trade pool/vault price changes.
+      entryCost = await vaultAdapter.previewBuy.staticCall(await wethVault.getAddress(), BUY_SHARES);
+      const maxUSDC = (entryCost * (10000n + SLIPPAGE)) / 10000n;
       await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), maxUSDC);
       await vaultAdapter.connect(loSigner).buy(await wethVault.getAddress(), BUY_SHARES);
 
@@ -1080,11 +1084,11 @@ describe("MorphoBlueSupplyVault", function () {
       expect(await weth.balanceOf(await vaultAdapter.getAddress())).to.be.lt(MAX_TOKEN_DUST);
       expect(await usdc.balanceOf(await vaultAdapter.getAddress())).to.be.lt(MAX_TOKEN_DUST);
 
-      // Total USDC recovered across both sells should be within swap slippage of original cost
+      // Total USDC recovered across both sells should be within swap slippage of original cost.
+      // Use entryCost (captured before the buy in `before`) so the benchmark reflects actual
+      // entry price rather than the post-trade pool state.
       const totalReceived = usdcAfter - initialUSDC;
-      // Accept up to 2% Uniswap slippage on the round-trip (buy + sell)
-      const cost = await vaultAdapter.previewBuy.staticCall(await wethVault.getAddress(), BUY_SHARES);
-      const minReceivable = (cost * (10000n - SLIPPAGE * 2n)) / 10000n;
+      const minReceivable = (entryCost * (10000n - SLIPPAGE * 2n)) / 10000n;
       expect(totalReceived, "total round-trip USDC recovery").to.be.gte(minReceivable);
 
       console.log(`  60% sell → ${ethers.formatUnits(usdcAfter - usdcBefore, USDC_DECIMALS)} USDC`);
