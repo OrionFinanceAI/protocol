@@ -306,6 +306,7 @@ contract LiquidityOrchestrator is
 
     /// @inheritdoc ILiquidityOrchestrator
     function updateVKey(bytes32 newvKey) external onlyOwner {
+        if (newvKey == bytes32(0)) revert ErrorsLib.InvalidArguments();
         vKey = newvKey;
         emit EventsLib.VKeyUpdated(newvKey);
     }

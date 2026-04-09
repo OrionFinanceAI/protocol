@@ -153,6 +153,7 @@ interface ILiquidityOrchestrator {
     function updateVerifier(address newVerifier) external;
 
     /// @notice Updates the internal state orchestrator verification key
+    /// @dev Reverts with InvalidArguments if newvKey is bytes32(0).
     /// @param newvKey The new verification key
     function updateVKey(bytes32 newvKey) external;
 
