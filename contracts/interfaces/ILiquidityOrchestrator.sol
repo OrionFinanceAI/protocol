@@ -149,6 +149,8 @@ interface ILiquidityOrchestrator {
     function updateAutomationRegistry(address newAutomationRegistry) external;
 
     /// @notice Updates the verifier contract address
+    /// @dev Only the owner may call this. Reverts with SystemNotIdle if an epoch is in progress,
+    ///      ensuring no mid-epoch proof verification uses a mismatched verifier.
     /// @param newVerifier The address of the new verifier contract
     function updateVerifier(address newVerifier) external;
 
