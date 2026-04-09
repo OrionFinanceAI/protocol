@@ -17,6 +17,10 @@ import { ErrorsLib } from "../libraries/ErrorsLib.sol";
  * @author Orion Finance
  * @dev One deployment per market. Deposits are supplied to Morpho; withdrawals pull directly to the
  *      receiver. Supply-only — no borrow or collateral positions.
+ *
+ *      Market parameters are stored as individual immutables rather than a storage struct so that
+ *      every Morpho call avoids five SLOADs when copying them into memory.
+ *
  * @custom:security-contact security@orionfinance.ai
  */
 contract MorphoBlueSupplyVault is ERC4626 {
@@ -27,11 +31,25 @@ contract MorphoBlueSupplyVault is ERC4626 {
     /// @notice Morpho Blue singleton
     IMorpho public immutable MORPHO;
 
-    /// @notice Market id derived from `marketParams` at construction
+    /// @notice Market id derived from the market parameters at construction
     Id public immutable MARKET_ID;
 
-    /// @notice Morpho Blue market parameters
-    MarketParams public marketParams;
+    // ── Market parameters (immutable to avoid per-call SLOADs) ────────────────
+
+    /// @notice Loan token of the Morpho market (= ERC-4626 underlying asset)
+    address public immutable LOAN_TOKEN;
+
+    /// @notice Collateral token of the Morpho market
+    address public immutable COLLATERAL_TOKEN;
+
+    /// @notice Price oracle of the Morpho market
+    address public immutable ORACLE;
+
+    /// @notice Interest rate model of the Morpho market
+    address public immutable IRM;
+
+    /// @notice Liquidation loan-to-value ratio of the Morpho market (scaled by 1e18)
+    uint256 public immutable LLTV;
 
     /**
      * @notice Constructor
@@ -50,8 +68,13 @@ contract MorphoBlueSupplyVault is ERC4626 {
         if (marketParams_.loanToken == address(0)) revert ErrorsLib.ZeroAddress();
 
         MORPHO = IMorpho(morpho_);
-        marketParams = marketParams_;
         MARKET_ID = marketParams_.id();
+
+        LOAN_TOKEN = marketParams_.loanToken;
+        COLLATERAL_TOKEN = marketParams_.collateralToken;
+        ORACLE = marketParams_.oracle;
+        IRM = marketParams_.irm;
+        LLTV = marketParams_.lltv;
 
         Market memory mkt = IMorpho(morpho_).market(MARKET_ID);
         if (mkt.lastUpdate == 0) revert ErrorsLib.InvalidArguments();
@@ -59,7 +82,7 @@ contract MorphoBlueSupplyVault is ERC4626 {
 
     /// @inheritdoc IERC4626
     function totalAssets() public view override returns (uint256) {
-        return MORPHO.expectedSupplyAssets(marketParams, address(this));
+        return MORPHO.expectedSupplyAssets(_mp(), address(this));
     }
 
     /// @inheritdoc IERC4626
@@ -68,7 +91,7 @@ contract MorphoBlueSupplyVault is ERC4626 {
     function maxWithdraw(address owner) public view override returns (uint256) {
         uint256 ownerAssets = convertToAssets(balanceOf(owner));
         // slither-disable-next-line unused-return
-        (uint256 totalSupplyAssets, , uint256 totalBorrowAssets, ) = MORPHO.expectedMarketBalances(marketParams);
+        (uint256 totalSupplyAssets, , uint256 totalBorrowAssets, ) = MORPHO.expectedMarketBalances(_mp());
         uint256 availableLiquidity = totalSupplyAssets > totalBorrowAssets ? totalSupplyAssets - totalBorrowAssets : 0;
         return ownerAssets < availableLiquidity ? ownerAssets : availableLiquidity;
     }
@@ -79,7 +102,7 @@ contract MorphoBlueSupplyVault is ERC4626 {
     function maxRedeem(address owner) public view override returns (uint256) {
         uint256 ownerShares = balanceOf(owner);
         // slither-disable-next-line unused-return
-        (uint256 totalSupplyAssets, , uint256 totalBorrowAssets, ) = MORPHO.expectedMarketBalances(marketParams);
+        (uint256 totalSupplyAssets, , uint256 totalBorrowAssets, ) = MORPHO.expectedMarketBalances(_mp());
         uint256 availableLiquidity = totalSupplyAssets > totalBorrowAssets ? totalSupplyAssets - totalBorrowAssets : 0;
         uint256 availableShares = convertToShares(availableLiquidity);
         return ownerShares < availableShares ? ownerShares : availableShares;
@@ -96,7 +119,7 @@ contract MorphoBlueSupplyVault is ERC4626 {
 
         IERC20(asset()).forceApprove(address(MORPHO), assets);
         // slither-disable-next-line unused-return
-        MORPHO.supply(marketParams, assets, 0, address(this), "");
+        MORPHO.supply(_mp(), assets, 0, address(this), "");
         IERC20(asset()).forceApprove(address(MORPHO), 0);
 
         _mint(receiver, shares);
@@ -124,8 +147,25 @@ contract MorphoBlueSupplyVault is ERC4626 {
         _burn(owner, shares);
 
         // slither-disable-next-line unused-return
-        MORPHO.withdraw(marketParams, assets, 0, address(this), receiver);
+        MORPHO.withdraw(_mp(), assets, 0, address(this), receiver);
 
         emit Withdraw(caller, receiver, owner, assets, shares);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Internal helpers
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// @dev Reconstructs the MarketParams struct from immutables for each Morpho call.
+    ///      Using immutables avoids 5 SLOADs per call compared to a storage struct.
+    function _mp() private view returns (MarketParams memory) {
+        return
+            MarketParams({
+                loanToken: LOAN_TOKEN,
+                collateralToken: COLLATERAL_TOKEN,
+                oracle: ORACLE,
+                irm: IRM,
+                lltv: LLTV
+            });
     }
 }
