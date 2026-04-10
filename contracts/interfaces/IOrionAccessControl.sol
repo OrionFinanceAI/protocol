@@ -10,9 +10,10 @@ pragma solidity 0.8.28;
  */
 interface IOrionAccessControl {
     /**
-     * @notice Check if an address is allowed to request deposits to the vault
-     * @param sender Address attempting to deposit
-     * @return True if sender is allowed to deposit, false otherwise
+     * @notice Check if a deposit request is allowed
+     * @param sender The address of the sender of the deposit request
+     * @param data The data of the deposit request
+     * @return True if the deposit request is allowed, false otherwise
      */
-    function canRequestDeposit(address sender) external view returns (bool);
+    function canRequestDeposit(address sender, bytes calldata data) external view returns (bool);
 }
