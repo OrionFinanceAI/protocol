@@ -164,6 +164,11 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
             feeModel.highWaterMark = currentSharePrice;
         }
 
+        // Advance oldFeeModel HWM to prevent double-charging during fee cooldown
+        if (currentSharePrice > oldFeeModel.highWaterMark) {
+            oldFeeModel.highWaterMark = currentSharePrice;
+        }
+
         emit EventsLib.VaultStateUpdated(
             newTotalAssets,
             totalSupply(),
