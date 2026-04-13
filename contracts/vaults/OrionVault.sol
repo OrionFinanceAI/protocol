@@ -92,7 +92,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     uint256 public newFeeRatesTimestamp;
 
     /// @notice Previous fee model (used during cooldown period)
-    FeeModel internal oldFeeModel;
+    FeeModel private oldFeeModel;
 
     /// @notice Flag indicating if the vault is in decommissioning mode
     /// @dev When true, intent is overridden to 100% underlying asset
