@@ -18,7 +18,7 @@ jobs:
           submodules: recursive
 
       - name: "Install Pnpm"
-        uses: pnpm/action-setup@v5
+        uses: pnpm/action-setup@v6
         with:
           version: "10"
 
@@ -75,7 +75,7 @@ jobs:
           submodules: recursive
 
       - name: "Install Pnpm"
-        uses: pnpm/action-setup@v5
+        uses: pnpm/action-setup@v6
         with:
           version: "10"
 
@@ -117,7 +117,7 @@ jobs:
           submodules: recursive
 
       - name: "Install Pnpm"
-        uses: pnpm/action-setup@v5
+        uses: pnpm/action-setup@v6
         with:
           version: "10"
 
@@ -166,7 +166,7 @@ jobs:
         run: echo "version=$(jq -r '.version' package.json)" >> $GITHUB_OUTPUT
 
       - name: "Create or update ABI release"
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: abis-v${{ steps.package_version.outputs.version }}
           name: Contract ABIs v${{ steps.package_version.outputs.version }}

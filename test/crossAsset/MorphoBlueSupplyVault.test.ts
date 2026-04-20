@@ -23,7 +23,7 @@
 
 import { expect } from "chai";
 import type { Contract } from "ethers";
-import { ethers, networkHelpers, provider } from "../helpers/hh";
+import { ethers, network } from "hardhat";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import {
   ERC4626ExecutionAdapter,
@@ -157,8 +157,9 @@ describe("MorphoBlueSupplyVault", function () {
   before(async function () {
     this.timeout(120_000);
 
-    // Skip entire suite if not forking mainnet (matches other crossAsset fork tests)
-    if (!(process.env.FORK_MAINNET === "true" && process.env.MAINNET_RPC_URL)) {
+    // Skip entire suite if not forking mainnet
+    const networkConfig = network.config;
+    if (!("forking" in networkConfig) || !networkConfig.forking?.url) {
       this.skip();
     }
 
@@ -710,7 +711,7 @@ describe("MorphoBlueSupplyVault", function () {
 
       // Impersonate LO as caller for adapter interactions
       const loAddress = await liquidityOrchestrator.getAddress();
-      await networkHelpers.impersonateAccount(loAddress);
+      await network.provider.request({ method: "hardhat_impersonateAccount", params: [loAddress] });
       loSigner = await ethers.getSigner(loAddress);
       await owner.sendTransaction({ to: loAddress, value: ethers.parseEther("10") });
 
@@ -991,6 +992,9 @@ describe("MorphoBlueSupplyVault", function () {
   describe("Partial sell via WETH adapter stack (cross-asset 40% / 60%)", function () {
     const BUY_SHARES = ethers.parseUnits("1", WETH_DECIMALS); // 1.0 omWETH
     let initialUSDC: bigint;
+    /** Pre-buy quote for BUY_SHARES — used as the round-trip benchmark so the
+     *  minReceivable check reflects actual entry cost, not post-trade prices. */
+    let entryCost: bigint;
     /** Vault's Morpho position BEFORE our buy — used as exit baseline. */
     let morphoSharesAtEntry: bigint;
     /** Vault's Morpho position AFTER our buy — used as 40%-sell upper bound. */
@@ -1005,9 +1009,10 @@ describe("MorphoBlueSupplyVault", function () {
       const posBefore = await morpho.position(MAINNET.WETH_WSTETH_945_MARKET_ID, await wethVault.getAddress());
       morphoSharesAtEntry = posBefore.supplyShares;
 
-      // Buy a clean 1.0 omWETH so this describe has a known starting position
-      const cost = await vaultAdapter.previewBuy.staticCall(await wethVault.getAddress(), BUY_SHARES);
-      const maxUSDC = (cost * (10000n + SLIPPAGE)) / 10000n;
+      // Capture entry cost BEFORE the buy so the round-trip benchmark is not
+      // skewed by post-trade pool/vault price changes.
+      entryCost = await vaultAdapter.previewBuy.staticCall(await wethVault.getAddress(), BUY_SHARES);
+      const maxUSDC = (entryCost * (10000n + SLIPPAGE)) / 10000n;
       await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), maxUSDC);
       await vaultAdapter.connect(loSigner).buy(await wethVault.getAddress(), BUY_SHARES);
 
@@ -1079,12 +1084,12 @@ describe("MorphoBlueSupplyVault", function () {
       expect(await weth.balanceOf(await vaultAdapter.getAddress())).to.be.lt(MAX_TOKEN_DUST);
       expect(await usdc.balanceOf(await vaultAdapter.getAddress())).to.be.lt(MAX_TOKEN_DUST);
 
-      // Total USDC recovered across both sells should be within swap slippage of original cost
+      // Total USDC recovered across both sells should be within swap slippage of original cost.
+      // Use entryCost (captured before the buy in `before`) so the benchmark reflects actual
+      // entry price rather than the post-trade pool state.
       const totalReceived = usdcAfter - initialUSDC;
-      // Accept up to 2% Uniswap slippage on the round-trip (buy + sell)
-      const cost = await vaultAdapter.previewBuy.staticCall(await wethVault.getAddress(), BUY_SHARES);
-      const minReceivable = (cost * (10000n - SLIPPAGE * 2n)) / 10000n;
-      expect(totalReceived + (usdcBefore - initialUSDC), "total round-trip USDC recovery").to.be.gte(minReceivable);
+      const minReceivable = (entryCost * (10000n - SLIPPAGE * 2n)) / 10000n;
+      expect(totalReceived, "total round-trip USDC recovery").to.be.gte(minReceivable);
 
       console.log(`  60% sell → ${ethers.formatUnits(usdcAfter - usdcBefore, USDC_DECIMALS)} USDC`);
       console.log(`  Morpho supplyShares dust: ${posFinal.supplyShares}`);
@@ -1130,8 +1135,8 @@ describe("MorphoBlueSupplyVault", function () {
 
       // Advance EVM clock by 30 days — Morpho's AdaptiveCurve IRM accrues interest
       // continuously, so expectedSupplyAssets will project a higher number
-      await provider.send("evm_increaseTime", [30 * 24 * 3600]);
-      await provider.send("evm_mine", []);
+      await network.provider.send("evm_increaseTime", [30 * 24 * 3600]);
+      await network.provider.send("evm_mine", []);
 
       const assetsAfter = await wethVault.totalAssets();
 
@@ -1169,11 +1174,11 @@ describe("MorphoBlueSupplyVault", function () {
     let snapId: string;
 
     beforeEach(async function () {
-      snapId = await provider.send("evm_snapshot", []);
+      snapId = await network.provider.send("evm_snapshot", []);
     });
 
     afterEach(async function () {
-      await provider.send("evm_revert", [snapId]);
+      await network.provider.send("evm_revert", [snapId]);
     });
 
     it("deposit increments totalSupply by exactly shares and totalAssets by assets (within 1 share)", async function () {
@@ -1264,8 +1269,8 @@ describe("MorphoBlueSupplyVault", function () {
       const ts = await usdcVault.totalSupply();
       const priceBeforeBps = ((await usdcVault.totalAssets()) * 10000n) / ts;
 
-      await provider.send("evm_increaseTime", [30 * 24 * 3600]);
-      await provider.send("evm_mine", []);
+      await network.provider.send("evm_increaseTime", [30 * 24 * 3600]);
+      await network.provider.send("evm_mine", []);
 
       const priceAfterBps = ((await usdcVault.totalAssets()) * 10000n) / ts;
 
