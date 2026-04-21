@@ -101,7 +101,7 @@ describe("Upgrade Tests", function () {
       const orionConfigV2Impl = await OrionConfigV2Factory.deploy();
       await orionConfigV2Impl.waitForDeployment();
       await expect(
-        upgrades.upgradeProxy(proxyAddress, OrionConfigV2Factory.connect(user)),
+        orionConfig.connect(user).upgradeToAndCall(await orionConfigV2Impl.getAddress(), "0x"),
       ).to.be.revertedWithCustomError(orionConfig, "NotAuthorized");
     });
 
