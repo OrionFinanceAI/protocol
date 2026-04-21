@@ -505,7 +505,7 @@ contract LiquidityOrchestrator is
         } else if (currentPhase == LiquidityUpkeepPhase.ProcessVaultOperations) {
             StatesStruct memory states = _verifyPerformData(_publicValues, proofBytes, statesBytes);
             _processMinibatchVaultsOperations(states.vaults);
-            config.completeAssetsRemoval();
+            config.completeAssetsRemoval(_failedEpochTokens);
         }
     }
 
