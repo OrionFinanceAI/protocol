@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.34;
 
 import { Id, MarketParams } from "@morpho-org/morpho-blue/src/interfaces/IMorpho.sol";
 import { MarketParamsLib } from "@morpho-org/morpho-blue/src/libraries/MarketParamsLib.sol";
