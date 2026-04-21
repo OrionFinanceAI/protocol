@@ -306,6 +306,7 @@ contract LiquidityOrchestrator is
     /// @inheritdoc ILiquidityOrchestrator
     function updateVKey(bytes32 newvKey) external onlyOwner {
         if (newvKey == bytes32(0)) revert ErrorsLib.InvalidArguments();
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         vKey = newvKey;
         emit EventsLib.VKeyUpdated(newvKey);
     }
@@ -315,6 +316,7 @@ contract LiquidityOrchestrator is
         if (_targetBufferRatio == 0) revert ErrorsLib.InvalidArguments();
         // 5%
         if (_targetBufferRatio > 500) revert ErrorsLib.InvalidArguments();
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         targetBufferRatio = _targetBufferRatio;
     }
 
