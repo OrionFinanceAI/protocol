@@ -936,7 +936,13 @@ contract LiquidityOrchestrator is
         vaultContract.updateVaultState(tokens, shares, finalTotalAssets);
 
         if (config.isDecommissioningVault(vaultAddress)) {
-            config.completeVaultDecommissioning(vaultAddress);
+            // Finalize only when all queued exits are drained and no non-underlying positions remain.
+            // Guards against premature finalization if the ZK circuit misbehaves or batches overflow.
+            bool queuesEmpty = vaultContract.pendingRedeem(1) == 0 && vaultContract.pendingDeposit(1) == 0;
+            bool portfolioLiquidated = tokens.length == 0;
+            if (queuesEmpty && portfolioLiquidated) {
+                config.completeVaultDecommissioning(vaultAddress);
+            }
         }
     }
 
