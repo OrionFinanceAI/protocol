@@ -113,10 +113,14 @@ describe("ChainlinkPriceAdapter — unit tests (no fork)", function () {
       ).to.be.revertedWithCustomError(adapter, "InvalidArguments");
     });
 
-    it("rejects non-contract quoteFeed address", async function () {
+    it("rejects non-feed quoteFeed address", async function () {
+      // Use a contract that is not an Aggregator (adapter has no decimals()). An EOA makes
+      // decimals() succeed with empty returndata on some nodes; decoding then fails outside
+      // the try/catch pattern the matcher expects, so we assert against a bad contract instead.
+      const badQuote = await adapter.getAddress();
       await expect(
-        adapter.configureFeed(asset, await baseFeed.getAddress(), false, STALENESS, 1, MAX_PRICE, owner.address),
-      ).to.be.rejected;
+        adapter.configureFeed(asset, await baseFeed.getAddress(), false, STALENESS, 1, MAX_PRICE, badQuote),
+      ).to.be.revertedWithCustomError(adapter, "InvalidAdapter");
     });
   });
 

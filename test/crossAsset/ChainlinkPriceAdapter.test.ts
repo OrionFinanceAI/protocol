@@ -153,9 +153,7 @@ describe("ChainlinkPriceAdapter - Coverage Tests", function () {
     });
 
     it("Should reject invalid feed address", async function () {
-      // Use owner address which is not a Chainlink feed
-      // Note: The try-catch in Solidity catches the error and reverts with InvalidAdapter
-      // However, ethers may not decode the custom error properly from a catch block
+      // Owner EOA is not a feed; base feed decimals() fails and configureFeed reverts InvalidAdapter(asset).
       await expect(
         chainlinkAdapter.configureFeed(
           MAINNET.WETH,
@@ -166,7 +164,7 @@ describe("ChainlinkPriceAdapter - Coverage Tests", function () {
           ethers.parseUnits("10000", 8),
           ethers.ZeroAddress,
         ),
-      ).to.be.rejected; // Just check it reverts (the catch block triggers)
+      ).to.be.revertedWithCustomError(chainlinkAdapter, "InvalidAdapter");
     });
 
     it("Should reject non-owner", async function () {

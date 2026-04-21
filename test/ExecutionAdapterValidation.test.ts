@@ -126,7 +126,7 @@ describe("Execution Adapter Validation - Comprehensive Tests", function () {
             await priceAdapter.getAddress(),
             await erc4626ExecutionAdapter.getAddress(),
           ),
-        ).to.be.rejected;
+        ).to.be.revertedWithCustomError(erc4626ExecutionAdapter, "InvalidAdapter");
       });
     });
 
