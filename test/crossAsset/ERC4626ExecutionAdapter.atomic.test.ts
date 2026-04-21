@@ -20,7 +20,7 @@ import type {
   MockOrionConfig,
   MockLiquidityOrchestrator,
   SpyExecutionAdapter,
-} from "../typechain-types";
+} from "../../typechain-types";
 
 describe("ERC4626ExecutionAdapter - Atomic Guarantees (Unit)", function () {
   let owner: SignerWithAddress;

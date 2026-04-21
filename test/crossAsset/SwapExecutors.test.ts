@@ -16,7 +16,7 @@ import type {
   MockUniswapV3Quoter,
   MockOrionConfig,
   MockUnderlyingAsset,
-} from "../typechain-types";
+} from "../../typechain-types";
 
 describe("UniswapV3ExecutionAdapter - Unit Tests", function () {
   let owner: SignerWithAddress;
