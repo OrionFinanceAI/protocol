@@ -160,11 +160,10 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
         uint256 currentSharePrice = convertToAssets(10 ** decimals());
 
+        // Advance both HWMs to prevent double-charging during fee cooldown
         if (currentSharePrice > feeModel.highWaterMark) {
             feeModel.highWaterMark = currentSharePrice;
         }
-
-        // Advance oldFeeModel HWM to prevent double-charging during fee cooldown
         if (currentSharePrice > oldFeeModel.highWaterMark) {
             oldFeeModel.highWaterMark = currentSharePrice;
         }

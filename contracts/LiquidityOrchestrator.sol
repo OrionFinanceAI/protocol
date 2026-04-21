@@ -570,9 +570,6 @@ contract LiquidityOrchestrator is
     }
 
     /// @notice Folds the next batch of vault leaves into the running accumulator.
-    /// @dev Uses the same sequential fold as the old single-shot build so the final
-    ///      epochStateCommitment is byte-for-byte identical — no circuit or vKey changes needed.
-    ///      Resets are handled in _handleStart at the start of each epoch.
     function _processCommitmentMinibatch() internal {
         uint16 vaultCount = uint16(_currentEpoch.vaultsEpoch.length);
         uint256 maxFulfillBatchSize = config.maxFulfillBatchSize();
@@ -613,7 +610,7 @@ contract LiquidityOrchestrator is
 
         _commitmentBatchIndex = i1;
 
-        // All vault leaves processed — seal the commitment and advance phase
+        // All vault leaves processed, seal the commitment and advance phase
         if (i1 == vaultCount) {
             address[] memory assets = config.getAllWhitelistedAssets();
             uint256[] memory assetPrices = getAssetPrices(assets);

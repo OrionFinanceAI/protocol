@@ -62,6 +62,9 @@ describe("UniswapV3ExecutionAdapter - Unit Tests", function () {
     // Register pool in mock factory
     await mockFactory.setPool(await weth.getAddress(), await usdc.getAddress(), FEE_TIER, MOCK_POOL);
 
+    // buy/sell are onlyLiquidityOrchestrator; adapter reads LO from config at deploy time
+    await config.setLiquidityOrchestrator(user.address);
+
     // Deploy adapter under test
     const AdapterFactory = await ethers.getContractFactory("UniswapV3ExecutionAdapter");
     adapter = (await AdapterFactory.deploy(
