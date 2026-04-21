@@ -1,27 +1,34 @@
-import "@nomicfoundation/hardhat-ethers";
-import "@nomicfoundation/hardhat-toolbox";
-import "@openzeppelin/hardhat-upgrades";
-import "solidity-docgen";
 import * as dotenv from "dotenv";
-import { HardhatUserConfig } from "hardhat/config";
+import { defineConfig } from "hardhat/config";
+import hardhatToolboxMochaEthers from "@nomicfoundation/hardhat-toolbox-mocha-ethers";
+import hardhatTypechain from "@nomicfoundation/hardhat-typechain";
+import hardhatVerify from "@nomicfoundation/hardhat-verify";
 
 dotenv.config({ quiet: true });
 
-const isCoverage = process.env.SOLIDITY_COVERAGE === "true";
+const useMainnetFork = process.env.FORK_MAINNET === "true" && Boolean(process.env.MAINNET_RPC_URL);
 
-const config: HardhatUserConfig = {
-  defaultNetwork: "hardhat",
-
-  docgen: {
-    outputDir: "./docs/",
-    pages: "files",
-    exclude: ["test"],
+const config = defineConfig({
+  plugins: [hardhatToolboxMochaEthers, hardhatTypechain, hardhatVerify],
+  paths: {
+    tests: {
+      solidity: "test/solidity",
+    },
   },
-
+  defaultNetwork: "hardhat",
   solidity: {
+    npmFilesToBuild: [
+      "@openzeppelin/contracts/token/ERC20/IERC20.sol",
+      "@openzeppelin/contracts/interfaces/IERC4626.sol",
+      "@openzeppelin/contracts/governance/TimelockController.sol",
+      "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol",
+      "@morpho-org/morpho-blue/src/interfaces/IMorpho.sol",
+      "@morpho-org/morpho-blue/src/libraries/MarketParamsLib.sol",
+      "@morpho-org/morpho-blue/src/libraries/SharesMathLib.sol",
+    ],
     compilers: [
       {
-        version: "0.8.28",
+        version: "0.8.34",
         settings: {
           optimizer: {
             enabled: true,
@@ -36,27 +43,29 @@ const config: HardhatUserConfig = {
 
   networks: {
     hardhat: {
+      type: "edr-simulated",
+      chainType: "l1",
       chainId: 31337,
       initialBaseFeePerGas: 0,
-      // Fork mainnet when:
-      ...(process.env.FORK_MAINNET === "true" && process.env.MAINNET_RPC_URL
+      ...(useMainnetFork
         ? {
             forking: {
-              url: process.env.MAINNET_RPC_URL,
+              url: process.env.MAINNET_RPC_URL!,
               blockNumber: 24490214,
             },
           }
         : {}),
     },
     localhost: {
+      type: "http",
+      chainType: "l1",
       url: "http://127.0.0.1:8545",
-      gas: "auto",
-      gasPrice: 2_000_000_000,
     },
-
-    ...(!isCoverage && (process.env.SEPOLIA_RPC_URL ?? process.env.RPC_URL)
+    ...((process.env.SEPOLIA_RPC_URL ?? process.env.RPC_URL)
       ? {
           sepolia: {
+            type: "http",
+            chainType: "l1",
             url: process.env.SEPOLIA_RPC_URL ?? process.env.RPC_URL!,
             accounts: [process.env.DEPLOYER_PRIVATE_KEY!, process.env.LP_PRIVATE_KEY!],
             chainId: 11155111,
@@ -68,18 +77,6 @@ const config: HardhatUserConfig = {
   etherscan: {
     apiKey: process.env.ETHERSCAN_API_KEY ?? "",
   },
-
-  gasReporter: {
-    currency: "USD",
-    gasPrice: 3,
-    token: "ETH",
-    tokenPrice: "4700",
-    enabled: Boolean(process.env.REPORT_GAS),
-    excludeContracts: [],
-    outputFile: "reports/gas-report.txt",
-    noColors: true,
-    showMethodSig: true,
-  },
-};
+});
 
 export default config;

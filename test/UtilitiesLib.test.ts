@@ -1,7 +1,7 @@
 import { expect } from "chai";
-import { ethers } from "hardhat";
+import { ethers } from "./helpers/hh";
 
-import { UtilitiesLibTest } from "../typechain-types/contracts/test";
+import type { UtilitiesLibTest } from "../typechain-types/contracts/test";
 import { resetNetwork } from "./helpers/resetNetwork";
 
 describe("UtilitiesLib", function () {

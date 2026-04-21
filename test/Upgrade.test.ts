@@ -1,7 +1,7 @@
 import { expect } from "chai";
-import { ethers, upgrades } from "hardhat";
+import { ethers } from "./helpers/hh";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
-import {
+import type {
   OrionConfig,
   OrionConfigV2,
   OrionTransparentVault,
@@ -12,7 +12,7 @@ import {
   PriceAdapterRegistry,
   LiquidityOrchestrator,
 } from "../typechain-types";
-import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
+import { deployUUPSProxy, deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 import { resetNetwork } from "./helpers/resetNetwork";
 
 describe("Upgrade Tests", function () {
@@ -38,14 +38,12 @@ describe("Upgrade Tests", function () {
       underlyingAsset = (await MockUnderlyingAssetFactory.deploy(6)) as unknown as MockUnderlyingAsset;
       await underlyingAsset.waitForDeployment();
 
-      // Deploy OrionConfig using UUPS proxy
-      const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
-      orionConfig = (await upgrades.deployProxy(
-        OrionConfigFactory,
+      // Deploy OrionConfig proxy
+      orionConfig = await deployUUPSProxy<OrionConfig>(
+        "OrionConfig",
         [owner.address, await underlyingAsset.getAddress()],
-        { initializer: "initialize", kind: "uups" },
-      )) as unknown as OrionConfig;
-      await orionConfig.waitForDeployment();
+        owner,
+      );
     });
 
     it("Should deploy OrionConfig V1 successfully", async function () {
@@ -63,10 +61,10 @@ describe("Upgrade Tests", function () {
 
       // Upgrade to V2
       const OrionConfigV2Factory = await ethers.getContractFactory("OrionConfigV2");
-      const orionConfigV2 = (await upgrades.upgradeProxy(
-        proxyAddress,
-        OrionConfigV2Factory,
-      )) as unknown as OrionConfigV2;
+      const orionConfigV2Impl = await OrionConfigV2Factory.deploy();
+      await orionConfigV2Impl.waitForDeployment();
+      await orionConfig.connect(owner).upgradeToAndCall(await orionConfigV2Impl.getAddress(), "0x");
+      const orionConfigV2 = OrionConfigV2Factory.attach(proxyAddress) as unknown as OrionConfigV2;
 
       // Verify V1 state is preserved
       expect(await orionConfigV2.owner()).to.equal(owner.address);
@@ -86,10 +84,10 @@ describe("Upgrade Tests", function () {
 
       // Upgrade to V2
       const OrionConfigV2Factory = await ethers.getContractFactory("OrionConfigV2");
-      const orionConfigV2 = (await upgrades.upgradeProxy(
-        proxyAddress,
-        OrionConfigV2Factory,
-      )) as unknown as OrionConfigV2;
+      const orionConfigV2Impl = await OrionConfigV2Factory.deploy();
+      await orionConfigV2Impl.waitForDeployment();
+      await orionConfig.connect(owner).upgradeToAndCall(await orionConfigV2Impl.getAddress(), "0x");
+      const orionConfigV2 = OrionConfigV2Factory.attach(proxyAddress) as unknown as OrionConfigV2;
 
       // Test V2 event
       const testValue = 100;
@@ -99,13 +97,13 @@ describe("Upgrade Tests", function () {
     });
 
     it("Should only allow owner to upgrade", async function () {
-      const proxyAddress = await orionConfig.getAddress();
-
       // Attempt upgrade as non-owner (should fail)
       const OrionConfigV2Factory = await ethers.getContractFactory("OrionConfigV2");
+      const orionConfigV2Impl = await OrionConfigV2Factory.deploy();
+      await orionConfigV2Impl.waitForDeployment();
       await expect(
-        upgrades.upgradeProxy(proxyAddress, OrionConfigV2Factory.connect(user)),
-      ).to.be.revertedWithCustomError(orionConfig, "OwnableUnauthorizedAccount");
+        orionConfig.connect(user).upgradeToAndCall(await orionConfigV2Impl.getAddress(), "0x"),
+      ).to.be.revertedWithCustomError(orionConfig, "NotAuthorized");
     });
 
     it("Should consume storage gap slots correctly", async function () {
@@ -113,10 +111,10 @@ describe("Upgrade Tests", function () {
 
       // Upgrade to V2
       const OrionConfigV2Factory = await ethers.getContractFactory("OrionConfigV2");
-      const orionConfigV2 = (await upgrades.upgradeProxy(
-        proxyAddress,
-        OrionConfigV2Factory,
-      )) as unknown as OrionConfigV2;
+      const orionConfigV2Impl = await OrionConfigV2Factory.deploy();
+      await orionConfigV2Impl.waitForDeployment();
+      await orionConfig.connect(owner).upgradeToAndCall(await orionConfigV2Impl.getAddress(), "0x");
+      const orionConfigV2 = OrionConfigV2Factory.attach(proxyAddress) as unknown as OrionConfigV2;
 
       // V2 adds one state variable (newV2Variable), which should use one slot from __gap
       // This should not cause any storage collision
@@ -320,7 +318,10 @@ describe("Upgrade Tests", function () {
 
       // Re-deploy same implementation (in production would be V2)
       const FactoryFactory = await ethers.getContractFactory("TransparentVaultFactory");
-      const upgradedFactory = await upgrades.upgradeProxy(factoryAddress, FactoryFactory);
+      const factoryImpl = await FactoryFactory.deploy();
+      await factoryImpl.waitForDeployment();
+      await vaultFactory.connect(owner).upgradeToAndCall(await factoryImpl.getAddress(), "0x");
+      const upgradedFactory = FactoryFactory.attach(factoryAddress);
 
       // Verify upgrade worked
       expect(await upgradedFactory.getAddress()).to.equal(factoryAddress);
@@ -365,9 +366,7 @@ describe("Upgrade Tests", function () {
       await vaultV2Impl.waitForDeployment();
 
       // Create new beacon pointing to V2
-      const BeaconFactory = await ethers.getContractFactory(
-        "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol:UpgradeableBeacon",
-      );
+      const BeaconFactory = await ethers.getContractFactory("OrionUpgradeableBeacon");
       const newBeacon = (await BeaconFactory.deploy(
         await vaultV2Impl.getAddress(),
         owner.address,
@@ -471,10 +470,12 @@ describe("Upgrade Tests", function () {
 
       // Upgrade factory via UUPS
       const FactoryFactory = await ethers.getContractFactory("TransparentVaultFactory");
-      const upgradedFactory = (await upgrades.upgradeProxy(
+      const factoryImpl = await FactoryFactory.deploy();
+      await factoryImpl.waitForDeployment();
+      await vaultFactory.connect(owner).upgradeToAndCall(await factoryImpl.getAddress(), "0x");
+      const upgradedFactory = FactoryFactory.attach(
         await vaultFactory.getAddress(),
-        FactoryFactory,
-      )) as unknown as TransparentVaultFactory;
+      ) as unknown as TransparentVaultFactory;
 
       // Deploy V2 implementation
       const VaultV2Factory = await ethers.getContractFactory("OrionTransparentVaultV2");
@@ -482,9 +483,7 @@ describe("Upgrade Tests", function () {
       await vaultV2Impl.waitForDeployment();
 
       // Create new beacon pointing to V2
-      const BeaconFactory = await ethers.getContractFactory(
-        "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol:UpgradeableBeacon",
-      );
+      const BeaconFactory = await ethers.getContractFactory("OrionUpgradeableBeacon");
       const newBeacon = (await BeaconFactory.deploy(
         await vaultV2Impl.getAddress(),
         owner.address,
@@ -561,7 +560,7 @@ describe("Upgrade Tests", function () {
       // Non-owner should fail
       await expect(
         orionConfig.connect(user).upgradeToAndCall(await newImpl.getAddress(), "0x"),
-      ).to.be.revertedWithCustomError(orionConfig, "OwnableUnauthorizedAccount");
+      ).to.be.revertedWithCustomError(orionConfig, "NotAuthorized");
     });
 
     it("Should cover PriceAdapterRegistry._authorizeUpgrade via direct upgradeToAndCall", async function () {
@@ -582,7 +581,7 @@ describe("Upgrade Tests", function () {
 
       await expect(
         priceAdapterRegistry.connect(user).upgradeToAndCall(await newImpl.getAddress(), "0x"),
-      ).to.be.revertedWithCustomError(priceAdapterRegistry, "OwnableUnauthorizedAccount");
+      ).to.be.revertedWithCustomError(priceAdapterRegistry, "NotAuthorized");
     });
 
     it("Should cover LiquidityOrchestrator._authorizeUpgrade via direct upgradeToAndCall", async function () {
@@ -603,7 +602,7 @@ describe("Upgrade Tests", function () {
 
       await expect(
         liquidityOrchestrator.connect(user).upgradeToAndCall(await newImpl.getAddress(), "0x"),
-      ).to.be.revertedWithCustomError(liquidityOrchestrator, "OwnableUnauthorizedAccount");
+      ).to.be.revertedWithCustomError(liquidityOrchestrator, "NotAuthorized");
     });
 
     it("Should cover TransparentVaultFactory._authorizeUpgrade via direct upgradeToAndCall", async function () {
@@ -624,7 +623,7 @@ describe("Upgrade Tests", function () {
 
       await expect(
         transparentVaultFactory.connect(user).upgradeToAndCall(await newImpl.getAddress(), "0x"),
-      ).to.be.revertedWithCustomError(transparentVaultFactory, "OwnableUnauthorizedAccount");
+      ).to.be.revertedWithCustomError(transparentVaultFactory, "NotAuthorized");
     });
   });
 });

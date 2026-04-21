@@ -1,9 +1,8 @@
-import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
+import type { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
-import "@openzeppelin/hardhat-upgrades";
-import { ethers, upgrades } from "hardhat";
+import { ethers } from "./helpers/hh";
 
-import {
+import type {
   LiquidityOrchestratorHarness,
   MockERC4626Asset,
   MockUnderlyingAsset,
@@ -12,6 +11,7 @@ import {
   OrionConfig,
   PriceAdapterRegistry,
 } from "../typechain-types";
+import { deployUUPSProxy } from "./helpers/deployUpgradeable";
 import { resetNetwork } from "./helpers/resetNetwork";
 
 /**
@@ -47,22 +47,19 @@ describe("LiquidityOrchestrator - Centralized Slippage Management", function () 
     underlyingAsset = (await MockUnderlyingAssetFactory.deploy(6)) as unknown as MockUnderlyingAsset;
     await underlyingAsset.waitForDeployment();
 
-    // --- Deploy OrionConfig (UUPS) ---
-    const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
-    orionConfig = (await upgrades.deployProxy(OrionConfigFactory, [owner.address, await underlyingAsset.getAddress()], {
-      initializer: "initialize",
-      kind: "uups",
-    })) as unknown as OrionConfig;
-    await orionConfig.waitForDeployment();
+    // --- Deploy OrionConfig proxy ---
+    orionConfig = await deployUUPSProxy<OrionConfig>(
+      "OrionConfig",
+      [owner.address, await underlyingAsset.getAddress()],
+      owner,
+    );
 
-    // --- Deploy PriceAdapterRegistry (UUPS) ---
-    const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistry");
-    const priceAdapterRegistry = (await upgrades.deployProxy(
-      PriceAdapterRegistryFactory,
+    // --- Deploy PriceAdapterRegistry proxy ---
+    const priceAdapterRegistry = await deployUUPSProxy<PriceAdapterRegistry>(
+      "PriceAdapterRegistry",
       [owner.address, await orionConfig.getAddress()],
-      { initializer: "initialize", kind: "uups" },
-    )) as unknown as PriceAdapterRegistry;
-    await priceAdapterRegistry.waitForDeployment();
+      owner,
+    );
     await orionConfig.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
 
     // --- Deploy SP1 verifier stack ---
@@ -77,14 +74,12 @@ describe("LiquidityOrchestrator - Centralized Slippage Management", function () 
 
     const vKey = "0x00dcc994ce74ee9842a9224176ea2aa5115883598b92686e0d764d3908352bb7";
 
-    // --- Deploy LiquidityOrchestratorHarness as UUPS proxy ---
-    const HarnessFactory = await ethers.getContractFactory("LiquidityOrchestratorHarness");
-    harness = (await upgrades.deployProxy(
-      HarnessFactory,
+    // --- Deploy LiquidityOrchestratorHarness proxy ---
+    harness = await deployUUPSProxy<LiquidityOrchestratorHarness>(
+      "LiquidityOrchestratorHarness",
       [owner.address, await orionConfig.getAddress(), owner.address, await sp1VerifierGateway.getAddress(), vKey],
-      { initializer: "initialize", kind: "uups" },
-    )) as unknown as LiquidityOrchestratorHarness;
-    await harness.waitForDeployment();
+      owner,
+    );
 
     // --- Wire config ---
     await orionConfig.setLiquidityOrchestrator(await harness.getAddress());
@@ -131,19 +126,15 @@ describe("LiquidityOrchestrator - Centralized Slippage Management", function () 
     const vaultImpl = await VaultImplFactory.deploy();
     await vaultImpl.waitForDeployment();
 
-    const BeaconFactory = await ethers.getContractFactory(
-      "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol:UpgradeableBeacon",
-    );
+    const BeaconFactory = await ethers.getContractFactory("OrionUpgradeableBeacon");
     const vaultBeacon = await BeaconFactory.deploy(await vaultImpl.getAddress(), owner.address);
     await vaultBeacon.waitForDeployment();
 
-    const TransparentVaultFactoryFactory = await ethers.getContractFactory("TransparentVaultFactory");
-    const transparentVaultFactory = await upgrades.deployProxy(
-      TransparentVaultFactoryFactory,
+    const transparentVaultFactory = await deployUUPSProxy(
+      "TransparentVaultFactory",
       [owner.address, await orionConfig.getAddress(), await vaultBeacon.getAddress()],
-      { initializer: "initialize", kind: "uups" },
+      owner,
     );
-    await transparentVaultFactory.waitForDeployment();
     await orionConfig.setVaultFactory(await transparentVaultFactory.getAddress());
 
     // Whitelist both vaults
@@ -410,7 +401,7 @@ describe("LiquidityOrchestrator - Centralized Slippage Management", function () 
     });
 
     it("should reject slippage tolerance exceeding BASIS_POINTS_FACTOR", async function () {
-      await expect(harness.setSlippageTolerance(10001)).to.be.reverted;
+      await expect(harness.setSlippageTolerance(10001)).to.be.rejected;
     });
   });
 

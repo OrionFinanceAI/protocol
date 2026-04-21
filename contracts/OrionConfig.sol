@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.34;
 
 import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
@@ -119,7 +119,6 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
 
         __Ownable_init(initialOwner);
         __Ownable2Step_init();
-        __UUPSUpgradeable_init();
 
         underlyingAsset = IERC20(underlyingAsset_);
 
@@ -522,11 +521,35 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         return tokenDecimals[token];
     }
 
+    /// @notice Address of the upgrade timelock that must authorise all implementation upgrades
+    address public upgradeTimelock;
+
+    /// @notice Sets the upgrade timelock address.
+    /// @dev If no timelock is set yet, only the owner may call this. Once a timelock is active,
+    ///      only the timelock itself may replace it, preventing the owner from bypassing the delay.
+    /// @param newTimelock The new timelock address (e.g. OpenZeppelin TimelockController); address(0) not permitted
+    function setUpgradeTimelock(address newTimelock) external {
+        if (upgradeTimelock == address(0)) {
+            if (msg.sender != owner()) revert ErrorsLib.NotAuthorized();
+        } else {
+            if (msg.sender != upgradeTimelock) revert ErrorsLib.NotAuthorized();
+        }
+        if (newTimelock == address(0)) revert ErrorsLib.ZeroAddress();
+        upgradeTimelock = newTimelock;
+        emit EventsLib.UpgradeTimelockSet(address(this), newTimelock);
+    }
+
     /// @notice Authorizes an upgrade to a new implementation
-    /// @dev This function is required by UUPS and can only be called by the owner
-    /// @param newImplementation The address of the new implementation contract
-    // solhint-disable-next-line no-empty-blocks, use-natspec
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+    /// @dev Requires the caller to be the upgrade timelock (if set) or the owner (during initial
+    ///      bootstrapping before a timelock has been configured).
+    // solhint-disable-next-line use-natspec
+    function _authorizeUpgrade(address) internal override {
+        if (upgradeTimelock != address(0)) {
+            if (msg.sender != upgradeTimelock) revert ErrorsLib.NotAuthorized();
+        } else {
+            if (msg.sender != owner()) revert ErrorsLib.NotAuthorized();
+        }
+    }
 
     /// @dev Storage gap to allow for future upgrades
     uint256[50] private __gap;

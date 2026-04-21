@@ -1,4 +1,5 @@
 # directories
+test/bug-bounty-tests/
 build
 cache
 dist
@@ -39,3 +40,4 @@ gasReporterOutput.json
 docker-compose/docker-compose-full.yml
 diagram.mmd
 .mcp.json
+.pnpm-store/

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.34;
 
 import "./IExecutionAdapter.sol";
 import "./IOrionVault.sol";
@@ -139,15 +139,22 @@ interface ILiquidityOrchestrator {
     /// @param _minibatchSize The new minibatch size
     function updateMinibatchSize(uint8 _minibatchSize) external;
 
+    /// @notice Updates the number of vault leaves folded per StateCommitment upkeep step.
+    /// @param _commitmentMinibatchSize The new commitment minibatch size
+    function updateCommitmentMinibatchSize(uint8 _commitmentMinibatchSize) external;
+
     /// @notice Updates the Chainlink Automation Registry address
     /// @param newAutomationRegistry The new automation registry address
     function updateAutomationRegistry(address newAutomationRegistry) external;
 
     /// @notice Updates the verifier contract address
+    /// @dev Only the owner may call this. Reverts with SystemNotIdle if an epoch is in progress,
+    ///      ensuring no mid-epoch proof verification uses a mismatched verifier.
     /// @param newVerifier The address of the new verifier contract
     function updateVerifier(address newVerifier) external;
 
     /// @notice Updates the internal state orchestrator verification key
+    /// @dev Reverts with InvalidArguments if newvKey is bytes32(0).
     /// @param newvKey The new verification key
     function updateVKey(bytes32 newvKey) external;
 

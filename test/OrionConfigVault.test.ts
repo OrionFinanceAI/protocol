@@ -1,9 +1,8 @@
-import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
+import type { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
-import "@openzeppelin/hardhat-upgrades";
-import { ethers } from "hardhat";
+import { ethers, networkHelpers } from "./helpers/hh";
 
-import {
+import type {
   MockUnderlyingAsset,
   MockERC4626Asset,
   MockPriceAdapter,
@@ -15,7 +14,6 @@ import {
 } from "../typechain-types";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 import { resetNetwork } from "./helpers/resetNetwork";
-import { impersonateAccount, setBalance } from "@nomicfoundation/hardhat-network-helpers";
 
 before(async function () {
   await resetNetwork();
@@ -130,7 +128,7 @@ describe("Config", function () {
       const assetAddress = await mockAsset1.getAddress();
 
       expect(await orionConfig.isWhitelisted(assetAddress)).to.equal(true);
-      await expect(orionConfig.connect(owner).removeWhitelistedAsset(assetAddress)).to.not.be.reverted;
+      await expect(orionConfig.connect(owner).removeWhitelistedAsset(assetAddress)).to.not.be.rejected;
       // Asset remains whitelisted until completeAssetsRemoval
       expect(await orionConfig.isWhitelisted(assetAddress)).to.equal(true);
       const decomm = await orionConfig.decommissioningAssets();
@@ -236,7 +234,7 @@ describe("Config", function () {
       const newManager = other.address;
 
       expect(await orionConfig.isWhitelistedManager(newManager)).to.equal(false);
-      await expect(orionConfig.addWhitelistedManager(newManager)).to.not.be.reverted;
+      await expect(orionConfig.addWhitelistedManager(newManager)).to.not.be.rejected;
       expect(await orionConfig.isWhitelistedManager(newManager)).to.equal(true);
     });
 
@@ -273,7 +271,7 @@ describe("Config", function () {
       expect(allManagersBefore.map((a: string) => a.toLowerCase())).to.include(ManagerToRemove.toLowerCase());
 
       // Remove the manager
-      await expect(orionConfig.removeWhitelistedManager(ManagerToRemove)).to.not.be.reverted;
+      await expect(orionConfig.removeWhitelistedManager(ManagerToRemove)).to.not.be.rejected;
       expect(await orionConfig.isWhitelistedManager(ManagerToRemove)).to.equal(false);
 
       // Ensure the manager is _not_ present in getAllOrionManagers after removal
@@ -360,7 +358,7 @@ describe("OrionVault - Base Functionality", function () {
       expect(pendingDeposits).to.equal(depositAmount);
 
       // Cancel the deposit request
-      await expect(vault.connect(user).cancelDepositRequest(depositAmount)).to.not.be.reverted;
+      await expect(vault.connect(user).cancelDepositRequest(depositAmount)).to.not.be.rejected;
 
       // Verify deposit request was cancelled
       const pendingDepositsAfter = await vault.pendingDeposit(await orionConfig.maxFulfillBatchSize());
@@ -397,7 +395,7 @@ describe("OrionVault - Base Functionality", function () {
       await vault.connect(user).requestDeposit(depositAmount);
 
       // Cancel partial amount
-      await expect(vault.connect(user).cancelDepositRequest(cancelAmount)).to.not.be.reverted;
+      await expect(vault.connect(user).cancelDepositRequest(cancelAmount)).to.not.be.rejected;
 
       // Verify remaining amount
       const pendingDeposits = await vault.pendingDeposit(await orionConfig.maxFulfillBatchSize());
@@ -443,8 +441,8 @@ describe("OrionVault - Base Functionality", function () {
 
       // Impersonate LiquidityOrchestrator to fulfill deposit (gives user shares)
       const loAddress = await liquidityOrchestrator.getAddress();
-      await impersonateAccount(loAddress);
-      await setBalance(loAddress, ethers.parseEther("1"));
+      await networkHelpers.impersonateAccount(loAddress);
+      await networkHelpers.setBalance(loAddress, ethers.parseEther("1"));
       const loSigner = await ethers.getSigner(loAddress);
 
       await vault.connect(loSigner).fulfillDeposit(depositAmount);
@@ -499,7 +497,7 @@ describe("OrionVault - Base Functionality", function () {
       expect(sharesAfterRequest).to.equal(userSharesBefore - redeemAmount);
 
       // Cancel the redeem request
-      await expect(vault.connect(user).cancelRedeemRequest(redeemAmount)).to.not.be.reverted;
+      await expect(vault.connect(user).cancelRedeemRequest(redeemAmount)).to.not.be.rejected;
 
       // Verify shares were returned to user
       const sharesAfterCancel = await vault.balanceOf(user.address);
@@ -522,7 +520,7 @@ describe("OrionVault - Base Functionality", function () {
       await vault.connect(user).requestRedeem(redeemAmount);
 
       // Cancel partial amount
-      await expect(vault.connect(user).cancelRedeemRequest(cancelAmount)).to.not.be.reverted;
+      await expect(vault.connect(user).cancelRedeemRequest(cancelAmount)).to.not.be.rejected;
 
       // Verify partial shares were returned
       const sharesAfterPartialCancel = await vault.balanceOf(user.address);
@@ -574,7 +572,7 @@ describe("OrionVault - Base Functionality", function () {
     it("Should allow manager to update strategist", async function () {
       const newStrategist = other.address;
 
-      await expect(vault.connect(owner).updateStrategist(newStrategist)).to.not.be.reverted;
+      await expect(vault.connect(owner).updateStrategist(newStrategist)).to.not.be.rejected;
 
       // Verify strategist was updated
       const updatedStrategist = await vault.strategist();
@@ -635,7 +633,7 @@ describe("OrionVault - Base Functionality", function () {
       );
 
       // Only owner should be able to call
-      await expect(vault.connect(owner).updateStrategist(other.address)).to.not.be.reverted;
+      await expect(vault.connect(owner).updateStrategist(other.address)).to.not.be.rejected;
     });
   });
 
@@ -644,10 +642,10 @@ describe("OrionVault - Base Functionality", function () {
       const depositAmount = ethers.parseUnits("100", 6);
 
       // Test deposit request should succeed
-      await expect(vault.connect(user).requestDeposit(depositAmount)).to.not.be.reverted;
+      await expect(vault.connect(user).requestDeposit(depositAmount)).to.not.be.rejected;
 
       // Test deposit cancellation should succeed
-      await expect(vault.connect(user).cancelDepositRequest(depositAmount)).to.not.be.reverted;
+      await expect(vault.connect(user).cancelDepositRequest(depositAmount)).to.not.be.rejected;
     });
   });
 

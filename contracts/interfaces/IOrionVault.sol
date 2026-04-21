@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.34;
 
 import "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import "./IOrionConfig.sol";

@@ -18,7 +18,7 @@ jobs:
           submodules: recursive
 
       - name: "Install Pnpm"
-        uses: pnpm/action-setup@v5
+        uses: pnpm/action-setup@v6
         with:
           version: "10"
 
@@ -26,7 +26,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           cache: pnpm
-          node-version: lts/*
+          node-version: "22.10.0"
 
       - name: "Install dependencies"
         run: pnpm install --frozen-lockfile
@@ -34,8 +34,8 @@ jobs:
       - name: "Audit dependencies"
         run: pnpm audit --prod --audit-level high
 
-      - name: "Build and typechain"
-        run: pnpm typechain
+      - name: "Build"
+        run: pnpm build
         env:
           RPC_URL: ${{ secrets.RPC_URL }}
           DEPLOYER_PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
@@ -75,7 +75,7 @@ jobs:
           submodules: recursive
 
       - name: "Install Pnpm"
-        uses: pnpm/action-setup@v5
+        uses: pnpm/action-setup@v6
         with:
           version: "10"
 
@@ -83,7 +83,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           cache: pnpm
-          node-version: lts/*
+          node-version: "22.10.0"
 
       - name: "Install dependencies"
         run: pnpm install --frozen-lockfile
@@ -117,7 +117,7 @@ jobs:
           submodules: recursive
 
       - name: "Install Pnpm"
-        uses: pnpm/action-setup@v5
+        uses: pnpm/action-setup@v6
         with:
           version: "10"
 
@@ -125,7 +125,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           cache: pnpm
-          node-version: lts/*
+          node-version: "22.10.0"
 
       - name: "Install dependencies"
         run: pnpm install --frozen-lockfile
@@ -166,7 +166,7 @@ jobs:
         run: echo "version=$(jq -r '.version' package.json)" >> $GITHUB_OUTPUT
 
       - name: "Create or update ABI release"
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: abis-v${{ steps.package_version.outputs.version }}
           name: Contract ABIs v${{ steps.package_version.outputs.version }}

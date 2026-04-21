@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.34;
 
 /// @title EventsLib
 /// @notice Centralized library of events emitted throughout the Orion protocol.
@@ -214,4 +214,13 @@ library EventsLib {
     /// @notice The vault beacon has been updated.
     /// @param newBeacon The address of the new vault beacon.
     event VaultBeaconUpdated(address indexed newBeacon);
+
+    // ==============================
+    // === Upgrade Timelock ===
+    // ==============================
+
+    /// @notice The upgrade timelock address has been set on an upgradeable contract.
+    /// @param proxy The proxy whose timelock was updated.
+    /// @param timelock The new upgrade timelock address (an OZ TimelockController).
+    event UpgradeTimelockSet(address indexed proxy, address indexed timelock);
 }
