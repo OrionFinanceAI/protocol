@@ -1,10 +1,13 @@
 import { networkHelpers } from "./hh";
 
-/**
- * Reset the Hardhat network to a clean state.
- * Call in a root-level before() hook so each test file starts with a fresh chain.
- * Preserves fork configuration if the network was started with forking enabled.
- */
+type SnapshotHandle = Awaited<ReturnType<typeof networkHelpers.takeSnapshot>>;
+
+let fileBaseline: SnapshotHandle | undefined;
+
+/** Restore prior snapshot (if any), then snapshot — isolates chain state between test files. For per-test isolation use `networkHelpers.loadFixture`. */
 export async function resetNetwork(): Promise<void> {
-  await networkHelpers.clearSnapshots();
+  if (fileBaseline !== undefined) {
+    await fileBaseline.restore();
+  }
+  fileBaseline = await networkHelpers.takeSnapshot();
 }
