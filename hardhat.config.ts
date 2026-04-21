@@ -20,6 +20,7 @@ const config = defineConfig({
     npmFilesToBuild: [
       "@openzeppelin/contracts/token/ERC20/IERC20.sol",
       "@openzeppelin/contracts/interfaces/IERC4626.sol",
+      "@openzeppelin/contracts/governance/TimelockController.sol",
       "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol",
       "@morpho-org/morpho-blue/src/interfaces/IMorpho.sol",
       "@morpho-org/morpho-blue/src/libraries/MarketParamsLib.sol",
