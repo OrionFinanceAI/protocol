@@ -1,11 +1,10 @@
-import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
+import type { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
-import "@openzeppelin/hardhat-upgrades";
-import { ethers } from "hardhat";
+import { ethers } from "./helpers/hh";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 import { resetNetwork } from "./helpers/resetNetwork";
 
-import {
+import type {
   MockUnderlyingAsset,
   MockERC4626Asset,
   MockPriceAdapter,
@@ -257,7 +256,7 @@ describe("TransparentVault - Strategist Pipeline", function () {
       const managementFee = 100; // 1% in basis points
 
       await expect(transparentVault.connect(owner).updateFeeModel(feeType, performanceFee, managementFee)).to.not.be
-        .reverted;
+        .rejected;
     });
 
     it("Should allow strategist to claim vault fees", async function () {
@@ -282,7 +281,7 @@ describe("TransparentVault - Strategist Pipeline", function () {
         },
       ];
 
-      await expect(transparentVault.connect(strategist).submitIntent(intent)).to.not.be.reverted;
+      await expect(transparentVault.connect(strategist).submitIntent(intent)).to.not.be.rejected;
 
       // Verify the intent was stored correctly
       const [tokens, weights] = await transparentVault.getIntent();

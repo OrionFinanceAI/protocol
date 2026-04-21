@@ -1,8 +1,6 @@
 import { expect } from "chai";
-import { ethers } from "hardhat";
-import "@openzeppelin/hardhat-upgrades";
-import { loadFixture, time } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import { OrionTransparentVault } from "../typechain-types";
+import { ethers, networkHelpers } from "./helpers/hh";
+import type { OrionTransparentVault } from "../typechain-types";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 import { resetNetwork } from "./helpers/resetNetwork";
 
@@ -79,14 +77,14 @@ describe("Fee Cooldown Mechanism", function () {
 
   describe("OrionConfig: Cooldown Duration Management", function () {
     it("should initialize with 7-day default cooldown", async function () {
-      const { config } = await loadFixture(deployFixture);
+      const { config } = await networkHelpers.loadFixture(deployFixture);
 
       const cooldown = await config.feeChangeCooldownDuration();
       expect(cooldown).to.equal(DEFAULT_COOLDOWN);
     });
 
     it("should allow owner to update cooldown duration", async function () {
-      const { config, owner } = await loadFixture(deployFixture);
+      const { config, owner } = await networkHelpers.loadFixture(deployFixture);
 
       const newCooldown = 14n * 24n * 60n * 60n; // 14 days
       await expect(config.connect(owner).setFeeChangeCooldownDuration(newCooldown))
@@ -97,14 +95,14 @@ describe("Fee Cooldown Mechanism", function () {
     });
 
     it("should allow zero cooldown (instant fee changes)", async function () {
-      const { config, owner } = await loadFixture(deployFixture);
+      const { config, owner } = await networkHelpers.loadFixture(deployFixture);
 
       await config.connect(owner).setFeeChangeCooldownDuration(0);
       expect(await config.feeChangeCooldownDuration()).to.equal(0);
     });
 
     it("should reject non-owner attempting to update cooldown", async function () {
-      const { config, user1 } = await loadFixture(deployFixture);
+      const { config, user1 } = await networkHelpers.loadFixture(deployFixture);
 
       const newCooldown = 14n * 24n * 60n * 60n;
       await expect(config.connect(user1).setFeeChangeCooldownDuration(newCooldown)).to.be.revertedWithCustomError(
@@ -114,7 +112,7 @@ describe("Fee Cooldown Mechanism", function () {
     });
 
     it("should allow any cooldown duration (no maximum limit)", async function () {
-      const { config, owner } = await loadFixture(deployFixture);
+      const { config, owner } = await networkHelpers.loadFixture(deployFixture);
 
       // Test with 30 days
       const thirtyDays = 30n * 24n * 60n * 60n;
@@ -130,7 +128,7 @@ describe("Fee Cooldown Mechanism", function () {
 
   describe("Vault Fee Cooldown: Storage and Timing", function () {
     it("should store new fee rates immediately in storage", async function () {
-      const fixture = await loadFixture(deployFixture);
+      const fixture = await networkHelpers.loadFixture(deployFixture);
       const vault = await createVault(fixture, FEE_TYPE.ABSOLUTE, 1000, 100);
 
       await vault.connect(fixture.owner).updateFeeModel(FEE_TYPE.ABSOLUTE, 2000, 200);
@@ -143,7 +141,7 @@ describe("Fee Cooldown Mechanism", function () {
     });
 
     it("should set correct effective timestamp for fee changes", async function () {
-      const fixture = await loadFixture(deployFixture);
+      const fixture = await networkHelpers.loadFixture(deployFixture);
       const vault = await createVault(fixture, FEE_TYPE.ABSOLUTE, 1000, 100);
 
       const tx = await vault.connect(fixture.owner).updateFeeModel(FEE_TYPE.ABSOLUTE, 2000, 200);
@@ -156,7 +154,7 @@ describe("Fee Cooldown Mechanism", function () {
     });
 
     it("should emit VaultFeeChangeScheduled event with correct parameters", async function () {
-      const fixture = await loadFixture(deployFixture);
+      const fixture = await networkHelpers.loadFixture(deployFixture);
       const vault = await createVault(fixture, FEE_TYPE.ABSOLUTE, 1000, 100);
 
       const tx = vault.connect(fixture.owner).updateFeeModel(FEE_TYPE.SOFT_HURDLE, 2500, 250);
@@ -165,7 +163,7 @@ describe("Fee Cooldown Mechanism", function () {
     });
 
     it("should update effective timestamp when fees are changed multiple times", async function () {
-      const fixture = await loadFixture(deployFixture);
+      const fixture = await networkHelpers.loadFixture(deployFixture);
       const vault = await createVault(fixture, FEE_TYPE.ABSOLUTE, 1000, 100);
 
       // First update
@@ -173,7 +171,7 @@ describe("Fee Cooldown Mechanism", function () {
       const firstTimestamp = await vault.newFeeRatesTimestamp();
 
       // Wait a bit
-      await time.increase(3600); // 1 hour
+      await networkHelpers.time.increase(3600); // 1 hour
 
       // Second update
       await vault.connect(fixture.owner).updateFeeModel(FEE_TYPE.ABSOLUTE, 2000, 200);
@@ -184,7 +182,7 @@ describe("Fee Cooldown Mechanism", function () {
     });
 
     it("should store old fee model during cooldown", async function () {
-      const fixture = await loadFixture(deployFixture);
+      const fixture = await networkHelpers.loadFixture(deployFixture);
       const vault = await createVault(fixture, FEE_TYPE.ABSOLUTE, 1000, 100);
 
       // Change fees
@@ -201,7 +199,7 @@ describe("Fee Cooldown Mechanism", function () {
 
   describe("Protocol Fee Cooldown: Storage and Timing", function () {
     it("should store new protocol fee rates immediately in storage", async function () {
-      const { config, owner } = await loadFixture(deployFixture);
+      const { config, owner } = await networkHelpers.loadFixture(deployFixture);
 
       await config.connect(owner).updateProtocolFees(25, 1000);
 
@@ -213,7 +211,7 @@ describe("Fee Cooldown Mechanism", function () {
     });
 
     it("should set correct effective timestamp for protocol fee changes", async function () {
-      const { config, owner } = await loadFixture(deployFixture);
+      const { config, owner } = await networkHelpers.loadFixture(deployFixture);
 
       const tx = await config.connect(owner).updateProtocolFees(25, 1000);
       const receipt = await tx.wait();
@@ -225,13 +223,13 @@ describe("Fee Cooldown Mechanism", function () {
     });
 
     it("should emit ProtocolFeeChangeScheduled event", async function () {
-      const { config, owner } = await loadFixture(deployFixture);
+      const { config, owner } = await networkHelpers.loadFixture(deployFixture);
 
       await expect(config.connect(owner).updateProtocolFees(25, 1000)).to.emit(config, "ProtocolFeeChangeScheduled");
     });
 
     it("should reject protocol fees exceeding maximums", async function () {
-      const { config, owner } = await loadFixture(deployFixture);
+      const { config, owner } = await networkHelpers.loadFixture(deployFixture);
 
       // Exceeding volume fee max (0.5%)
       await expect(
@@ -245,7 +243,7 @@ describe("Fee Cooldown Mechanism", function () {
     });
 
     it("should allow setting protocol fees to zero", async function () {
-      const { config, owner } = await loadFixture(deployFixture);
+      const { config, owner } = await networkHelpers.loadFixture(deployFixture);
 
       await expect(config.connect(owner).updateProtocolFees(0, 0)).to.emit(config, "ProtocolFeeChangeScheduled");
 
@@ -256,7 +254,7 @@ describe("Fee Cooldown Mechanism", function () {
 
   describe("Cooldown Behavior: Timing Transitions", function () {
     it("should respect cooldown duration from config", async function () {
-      const fixture = await loadFixture(deployFixture);
+      const fixture = await networkHelpers.loadFixture(deployFixture);
       const vault = await createVault(fixture, FEE_TYPE.ABSOLUTE, 1000, 100);
 
       // Change config cooldown to 3 days
@@ -273,7 +271,7 @@ describe("Fee Cooldown Mechanism", function () {
     });
 
     it("should allow immediate fee changes with zero cooldown", async function () {
-      const fixture = await loadFixture(deployFixture);
+      const fixture = await networkHelpers.loadFixture(deployFixture);
 
       // Set cooldown to zero
       await fixture.config.connect(fixture.owner).setFeeChangeCooldownDuration(0);
@@ -290,7 +288,7 @@ describe("Fee Cooldown Mechanism", function () {
     });
 
     it("should handle long cooldown duration correctly", async function () {
-      const fixture = await loadFixture(deployFixture);
+      const fixture = await networkHelpers.loadFixture(deployFixture);
 
       // Set to 90-day cooldown (no maximum limit)
       const longCooldown = 90n * 24n * 60n * 60n;
@@ -310,7 +308,7 @@ describe("Fee Cooldown Mechanism", function () {
 
   describe("Security: Authorization and Access Control", function () {
     it("should only allow manager to update vault fees", async function () {
-      const fixture = await loadFixture(deployFixture);
+      const fixture = await networkHelpers.loadFixture(deployFixture);
       const vault = await createVault(fixture, FEE_TYPE.ABSOLUTE, 1000, 100);
 
       await expect(
@@ -323,7 +321,7 @@ describe("Fee Cooldown Mechanism", function () {
     });
 
     it("should only allow owner to update protocol fees", async function () {
-      const { config, user1, strategist } = await loadFixture(deployFixture);
+      const { config, user1, strategist } = await networkHelpers.loadFixture(deployFixture);
 
       await expect(config.connect(user1).updateProtocolFees(25, 1000)).to.be.revertedWithCustomError(
         config,
@@ -337,7 +335,7 @@ describe("Fee Cooldown Mechanism", function () {
     });
 
     it("should only allow config owner to modify cooldown duration", async function () {
-      const { config, user1 } = await loadFixture(deployFixture);
+      const { config, user1 } = await networkHelpers.loadFixture(deployFixture);
 
       await expect(
         config.connect(user1).setFeeChangeCooldownDuration(14n * 24n * 60n * 60n),
@@ -345,7 +343,7 @@ describe("Fee Cooldown Mechanism", function () {
     });
 
     it("should reject vault fee updates exceeding maximums", async function () {
-      const fixture = await loadFixture(deployFixture);
+      const fixture = await networkHelpers.loadFixture(deployFixture);
       const vault = await createVault(fixture, FEE_TYPE.ABSOLUTE, 1000, 100);
 
       // Performance fee too high
@@ -367,7 +365,7 @@ describe("Fee Cooldown Mechanism", function () {
 
   describe("Edge Cases: Fee Model Changes", function () {
     it("should handle changing fee type during cooldown", async function () {
-      const fixture = await loadFixture(deployFixture);
+      const fixture = await networkHelpers.loadFixture(deployFixture);
       const vault = await createVault(fixture, FEE_TYPE.ABSOLUTE, 1000, 100);
 
       // Change from ABSOLUTE to HIGH_WATER_MARK
@@ -381,7 +379,7 @@ describe("Fee Cooldown Mechanism", function () {
     });
 
     it("should handle reducing fees (user-friendly change)", async function () {
-      const fixture = await loadFixture(deployFixture);
+      const fixture = await networkHelpers.loadFixture(deployFixture);
       const vault = await createVault(fixture, FEE_TYPE.ABSOLUTE, 2000, 200);
 
       // Reduce fees
@@ -389,12 +387,12 @@ describe("Fee Cooldown Mechanism", function () {
 
       // Even when reducing, cooldown applies (for consistency)
       const effectiveTime = await vault.newFeeRatesTimestamp();
-      const currentTime = await time.latest();
+      const currentTime = await networkHelpers.time.latest();
       expect(effectiveTime).to.be.gt(currentTime);
     });
 
     it("should handle setting fees to zero", async function () {
-      const fixture = await loadFixture(deployFixture);
+      const fixture = await networkHelpers.loadFixture(deployFixture);
       const vault = await createVault(fixture, FEE_TYPE.ABSOLUTE, 1000, 100);
 
       await vault.connect(fixture.owner).updateFeeModel(FEE_TYPE.ABSOLUTE, 0, 0);
@@ -405,7 +403,7 @@ describe("Fee Cooldown Mechanism", function () {
     });
 
     it("should handle setting fees to maximum allowed values", async function () {
-      const fixture = await loadFixture(deployFixture);
+      const fixture = await networkHelpers.loadFixture(deployFixture);
       const vault = await createVault(fixture, FEE_TYPE.ABSOLUTE, 0, 0);
 
       await vault.connect(fixture.owner).updateFeeModel(FEE_TYPE.ABSOLUTE, MAX_PERFORMANCE_FEE, MAX_MANAGEMENT_FEE);
@@ -416,7 +414,7 @@ describe("Fee Cooldown Mechanism", function () {
     });
 
     it("should handle all fee type transitions", async function () {
-      const fixture = await loadFixture(deployFixture);
+      const fixture = await networkHelpers.loadFixture(deployFixture);
       const vault = await createVault(fixture, FEE_TYPE.ABSOLUTE, 1000, 100);
 
       const feeTypes = [
@@ -437,7 +435,7 @@ describe("Fee Cooldown Mechanism", function () {
 
   describe("Integration: Attack Prevention Scenarios", function () {
     it("should prevent last-minute fee changes before epoch end (main attack vector)", async function () {
-      const fixture = await loadFixture(deployFixture);
+      const fixture = await networkHelpers.loadFixture(deployFixture);
       const vault = await createVault(fixture, FEE_TYPE.ABSOLUTE, 500, 50);
 
       // Manager tries to change fees just before epoch ends
@@ -446,7 +444,7 @@ describe("Fee Cooldown Mechanism", function () {
 
       // Verify cooldown is active
       const effectiveTime = await vault.newFeeRatesTimestamp();
-      const currentTime = await time.latest();
+      const currentTime = await networkHelpers.time.latest();
       const cooldownDuration = effectiveTime - BigInt(currentTime);
 
       expect(cooldownDuration).to.be.closeTo(DEFAULT_COOLDOWN, 10n);
@@ -455,7 +453,7 @@ describe("Fee Cooldown Mechanism", function () {
     });
 
     it("should prevent multiple rapid fee updates to bypass cooldown", async function () {
-      const fixture = await loadFixture(deployFixture);
+      const fixture = await networkHelpers.loadFixture(deployFixture);
       const vault = await createVault(fixture, FEE_TYPE.ABSOLUTE, 1000, 100);
 
       // First update
@@ -470,20 +468,20 @@ describe("Fee Cooldown Mechanism", function () {
       expect(secondEffectiveTime).to.be.gt(firstEffectiveTime);
 
       // Verify second update starts fresh cooldown
-      const currentTime = await time.latest();
+      const currentTime = await networkHelpers.time.latest();
       const cooldownRemaining = secondEffectiveTime - BigInt(currentTime);
       expect(cooldownRemaining).to.be.closeTo(DEFAULT_COOLDOWN, 10n);
     });
 
     it("should demonstrate user protection window", async function () {
-      const fixture = await loadFixture(deployFixture);
+      const fixture = await networkHelpers.loadFixture(deployFixture);
       const vault = await createVault(fixture, FEE_TYPE.ABSOLUTE, 1000, 100);
 
       // Manager schedules fee increase
       await vault.connect(fixture.owner).updateFeeModel(FEE_TYPE.ABSOLUTE, MAX_PERFORMANCE_FEE, MAX_MANAGEMENT_FEE);
 
       const effectiveTime = await vault.newFeeRatesTimestamp();
-      const currentTime = await time.latest();
+      const currentTime = await networkHelpers.time.latest();
 
       // Users have 7 days to react
       const userProtectionWindow = effectiveTime - BigInt(currentTime);
@@ -498,7 +496,7 @@ describe("Fee Cooldown Mechanism", function () {
 
   describe("Integration: Normal Operations", function () {
     it("should allow normal fee adjustments with proper notice", async function () {
-      const fixture = await loadFixture(deployFixture);
+      const fixture = await networkHelpers.loadFixture(deployFixture);
       const vault = await createVault(fixture, FEE_TYPE.ABSOLUTE, 1500, 150);
 
       // Owner adjusts fees based on performance/market
@@ -508,24 +506,24 @@ describe("Fee Cooldown Mechanism", function () {
 
       // Fees will be effective after cooldown
       const effectiveTime = await vault.newFeeRatesTimestamp();
-      const currentTime = await time.latest();
+      const currentTime = await networkHelpers.time.latest();
       expect(effectiveTime - BigInt(currentTime)).to.be.closeTo(DEFAULT_COOLDOWN, 10n);
     });
 
     it("should allow protocol fee adjustments with proper notice", async function () {
-      const { config, owner } = await loadFixture(deployFixture);
+      const { config, owner } = await networkHelpers.loadFixture(deployFixture);
 
       const tx = await config.connect(owner).updateProtocolFees(30, 1500);
 
       await expect(tx).to.emit(config, "ProtocolFeeChangeScheduled");
 
       const effectiveTime = await config.newProtocolFeeRatesTimestamp();
-      const currentTime = await time.latest();
+      const currentTime = await networkHelpers.time.latest();
       expect(effectiveTime - BigInt(currentTime)).to.be.closeTo(DEFAULT_COOLDOWN, 10n);
     });
 
     it("should support competitive fee reductions", async function () {
-      const fixture = await loadFixture(deployFixture);
+      const fixture = await networkHelpers.loadFixture(deployFixture);
       const vault = await createVault(fixture, FEE_TYPE.ABSOLUTE, 2500, 250);
 
       // Owner reduces fees to attract deposits
@@ -540,7 +538,7 @@ describe("Fee Cooldown Mechanism", function () {
 
   describe("Precision and Edge Cases", function () {
     it("should handle very small fees with cooldown", async function () {
-      const fixture = await loadFixture(deployFixture);
+      const fixture = await networkHelpers.loadFixture(deployFixture);
       const vault = await createVault(fixture, FEE_TYPE.ABSOLUTE, 1, 1); // 0.01% each
 
       await vault.connect(fixture.owner).updateFeeModel(FEE_TYPE.ABSOLUTE, 2, 2);
@@ -551,32 +549,32 @@ describe("Fee Cooldown Mechanism", function () {
     });
 
     it("should handle timestamp edge cases around cooldown expiry", async function () {
-      const fixture = await loadFixture(deployFixture);
+      const fixture = await networkHelpers.loadFixture(deployFixture);
       const vault = await createVault(fixture, FEE_TYPE.ABSOLUTE, 1000, 100);
 
       await vault.connect(fixture.owner).updateFeeModel(FEE_TYPE.ABSOLUTE, 2000, 200);
       const effectiveTime = await vault.newFeeRatesTimestamp();
 
       // Fast forward to just before effective time
-      await time.increaseTo(effectiveTime - 1n);
-      let currentTime = await time.latest();
+      await networkHelpers.time.increaseTo(effectiveTime - 1n);
+      let currentTime = await networkHelpers.time.latest();
       expect(currentTime).to.be.lt(effectiveTime);
 
       // Fast forward to exact effective time
-      await time.increaseTo(effectiveTime);
-      currentTime = await time.latest();
+      await networkHelpers.time.increaseTo(effectiveTime);
+      currentTime = await networkHelpers.time.latest();
       expect(currentTime).to.equal(effectiveTime);
 
       // Fast forward past effective time
-      await time.increaseTo(effectiveTime + 1n);
-      currentTime = await time.latest();
+      await networkHelpers.time.increaseTo(effectiveTime + 1n);
+      currentTime = await networkHelpers.time.latest();
       expect(currentTime).to.be.gt(effectiveTime);
     });
   });
 
   describe("Documentation: Cooldown Behavior", function () {
     it("should document that storage is updated immediately", async function () {
-      const fixture = await loadFixture(deployFixture);
+      const fixture = await networkHelpers.loadFixture(deployFixture);
       const vault = await createVault(fixture, FEE_TYPE.ABSOLUTE, 1000, 100);
 
       await vault.connect(fixture.owner).updateFeeModel(FEE_TYPE.ABSOLUTE, 2000, 200);
@@ -591,7 +589,7 @@ describe("Fee Cooldown Mechanism", function () {
     });
 
     it("should document that cooldown protects against malicious fee changes", async function () {
-      const fixture = await loadFixture(deployFixture);
+      const fixture = await networkHelpers.loadFixture(deployFixture);
       const vault = await createVault(fixture, FEE_TYPE.ABSOLUTE, 500, 50);
 
       // Malicious scenario: owner tries to maximize fees before users can exit
@@ -599,7 +597,7 @@ describe("Fee Cooldown Mechanism", function () {
 
       // Protection: 7-day window for users to exit
       const effectiveTime = await vault.newFeeRatesTimestamp();
-      const currentTime = await time.latest();
+      const currentTime = await networkHelpers.time.latest();
       const protectionWindow = effectiveTime - BigInt(currentTime);
 
       expect(protectionWindow).to.equal(DEFAULT_COOLDOWN);

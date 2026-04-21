@@ -23,7 +23,7 @@
 
 import { expect } from "chai";
 import type { Contract } from "ethers";
-import { ethers, network } from "hardhat";
+import { ethers, provider } from "../helpers/hh";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import {
   ERC4626ExecutionAdapter,
@@ -157,9 +157,8 @@ describe("MorphoBlueSupplyVault", function () {
   before(async function () {
     this.timeout(120_000);
 
-    // Skip entire suite if not forking mainnet
-    const networkConfig = network.config;
-    if (!("forking" in networkConfig) || !networkConfig.forking?.url) {
+    // Skip when this isn't a fork run or the RPC endpoint isn't configured.
+    if (!(process.env.FORK_MAINNET === "true" && process.env.MAINNET_RPC_URL)) {
       this.skip();
     }
 
@@ -711,8 +710,7 @@ describe("MorphoBlueSupplyVault", function () {
 
       // Impersonate LO as caller for adapter interactions
       const loAddress = await liquidityOrchestrator.getAddress();
-      await network.provider.request({ method: "hardhat_impersonateAccount", params: [loAddress] });
-      loSigner = await ethers.getSigner(loAddress);
+      loSigner = await ethers.getImpersonatedSigner(loAddress);
       await owner.sendTransaction({ to: loAddress, value: ethers.parseEther("10") });
 
       // Fund LO with tokens for tests
@@ -727,7 +725,7 @@ describe("MorphoBlueSupplyVault", function () {
 
   describe("ERC4626PriceAdapter — WETH supply vault", function () {
     it("validatePriceAdapter passes for WETH vault (loanToken is whitelisted)", async function () {
-      await expect(erc4626PriceAdapter.validatePriceAdapter(await wethVault.getAddress())).to.not.be.reverted;
+      await erc4626PriceAdapter.validatePriceAdapter(await wethVault.getAddress());
     });
 
     it("validatePriceAdapter rejects USDC vault (loanToken == underlying, not whitelisted)", async function () {
@@ -766,7 +764,7 @@ describe("MorphoBlueSupplyVault", function () {
     const SHARES_TO_BUY = ethers.parseUnits("500", USDC_DECIMALS); // 500 omUSDC shares
 
     it("validateExecutionAdapter passes with correct decimals configured", async function () {
-      await expect(vaultAdapter.validateExecutionAdapter(await usdcVault.getAddress())).to.not.be.reverted;
+      await vaultAdapter.validateExecutionAdapter(await usdcVault.getAddress());
     });
 
     it("buy(): USDC → omUSDC shares (no swap, direct vault.mint)", async function () {
@@ -856,7 +854,7 @@ describe("MorphoBlueSupplyVault", function () {
     const SHARES_TO_BUY = ethers.parseUnits("0.5", WETH_DECIMALS); // 0.5 omWETH shares
 
     it("validateExecutionAdapter passes for WETH vault", async function () {
-      await expect(vaultAdapter.validateExecutionAdapter(await wethVault.getAddress())).to.not.be.reverted;
+      await vaultAdapter.validateExecutionAdapter(await wethVault.getAddress());
     });
 
     it("previewBuy returns sensible USDC cost for 0.5 omWETH shares", async function () {
@@ -935,7 +933,7 @@ describe("MorphoBlueSupplyVault", function () {
       const sharesBefore = await wethVault.balanceOf(loSigner.address);
       await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), tooLow);
 
-      await expect(vaultAdapter.connect(loSigner).buy(await wethVault.getAddress(), SHARES_TO_BUY)).to.be.reverted;
+      await expect(vaultAdapter.connect(loSigner).buy(await wethVault.getAddress(), SHARES_TO_BUY)).to.be.rejected;
 
       // Transaction rolled back — no shares leaked
       expect(await wethVault.balanceOf(loSigner.address)).to.equal(sharesBefore);
@@ -1135,8 +1133,8 @@ describe("MorphoBlueSupplyVault", function () {
 
       // Advance EVM clock by 30 days — Morpho's AdaptiveCurve IRM accrues interest
       // continuously, so expectedSupplyAssets will project a higher number
-      await network.provider.send("evm_increaseTime", [30 * 24 * 3600]);
-      await network.provider.send("evm_mine", []);
+      await provider.send("evm_increaseTime", [30 * 24 * 3600]);
+      await provider.send("evm_mine", []);
 
       const assetsAfter = await wethVault.totalAssets();
 
@@ -1174,11 +1172,11 @@ describe("MorphoBlueSupplyVault", function () {
     let snapId: string;
 
     beforeEach(async function () {
-      snapId = await network.provider.send("evm_snapshot", []);
+      snapId = await provider.send("evm_snapshot", []);
     });
 
     afterEach(async function () {
-      await network.provider.send("evm_revert", [snapId]);
+      await provider.send("evm_revert", [snapId]);
     });
 
     it("deposit increments totalSupply by exactly shares and totalAssets by assets (within 1 share)", async function () {
@@ -1269,8 +1267,8 @@ describe("MorphoBlueSupplyVault", function () {
       const ts = await usdcVault.totalSupply();
       const priceBeforeBps = ((await usdcVault.totalAssets()) * 10000n) / ts;
 
-      await network.provider.send("evm_increaseTime", [30 * 24 * 3600]);
-      await network.provider.send("evm_mine", []);
+      await provider.send("evm_increaseTime", [30 * 24 * 3600]);
+      await provider.send("evm_mine", []);
 
       const priceAfterBps = ((await usdcVault.totalAssets()) * 10000n) / ts;
 
@@ -1423,7 +1421,7 @@ describe("MorphoBlueSupplyVault", function () {
     it("reverts: deposit without token approval", async function () {
       const amount = ethers.parseUnits("50", USDC_DECIMALS);
       await fundUsdc(alice.address, amount * 2n, owner);
-      await expect(usdcVault.connect(alice).deposit(amount, alice.address)).to.be.reverted;
+      await expect(usdcVault.connect(alice).deposit(amount, alice.address)).to.be.rejected;
     });
 
     it("reverts: redeem more shares than balance", async function () {

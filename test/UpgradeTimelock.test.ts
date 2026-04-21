@@ -1,5 +1,5 @@
 import { expect } from "chai";
-import { ethers, upgrades } from "hardhat";
+import { ethers } from "./helpers/hh";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { OrionConfig, PriceAdapterRegistry, LiquidityOrchestrator, TransparentVaultFactory } from "../typechain-types";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
@@ -187,7 +187,7 @@ describe("Upgrade Timelock Tests", function () {
       const newImpl = await OrionConfigFactory.deploy();
       await newImpl.waitForDeployment();
 
-      await expect(orionConfig.connect(owner).upgradeToAndCall(await newImpl.getAddress(), "0x")).to.not.be.reverted;
+      await orionConfig.connect(owner).upgradeToAndCall(await newImpl.getAddress(), "0x");
     });
 
     it("OrionConfig: attacker cannot upgrade even before timelock is configured", async function () {
@@ -226,8 +226,7 @@ describe("Upgrade Timelock Tests", function () {
         // Fund fakeTimelock so it can send transactions
         await owner.sendTransaction({ to: fakeTimelock.address, value: ethers.parseEther("1") });
 
-        await expect(contract.connect(fakeTimelock).upgradeToAndCall(await newImpl.getAddress(), "0x")).to.not.be
-          .reverted;
+        await contract.connect(fakeTimelock).upgradeToAndCall(await newImpl.getAddress(), "0x");
       });
 
       it(`${name}: owner is blocked from upgradeToAndCall once timelock is set`, async function () {
@@ -315,7 +314,7 @@ describe("Upgrade Timelock Tests", function () {
       await timelock.schedule(await orionConfig.getAddress(), 0, upgradeData, ZERO_BYTES32, SALT, MIN_DELAY);
 
       // Try to execute immediately — should fail because delay has not elapsed
-      await expect(timelock.execute(await orionConfig.getAddress(), 0, upgradeData, ZERO_BYTES32, SALT)).to.be.reverted;
+      await expect(timelock.execute(await orionConfig.getAddress(), 0, upgradeData, ZERO_BYTES32, SALT)).to.be.rejected;
     });
 
     it("Should execute the upgrade after the timelock delay has elapsed", async function () {
@@ -390,7 +389,7 @@ describe("Upgrade Timelock Tests", function () {
       await timelock.execute(await orionConfig.getAddress(), 0, upgradeData, ZERO_BYTES32, SALT);
 
       // Re-executing the same operation should revert
-      await expect(timelock.execute(await orionConfig.getAddress(), 0, upgradeData, ZERO_BYTES32, SALT)).to.be.reverted;
+      await expect(timelock.execute(await orionConfig.getAddress(), 0, upgradeData, ZERO_BYTES32, SALT)).to.be.rejected;
     });
 
     it("Should allow a second upgrade using a different salt after the first succeeds", async function () {
@@ -420,8 +419,7 @@ describe("Upgrade Timelock Tests", function () {
       await timelock.schedule(await orionConfig.getAddress(), 0, upgradeData2, ZERO_BYTES32, SALT_2, MIN_DELAY);
       await ethers.provider.send("evm_increaseTime", [MIN_DELAY + 1]);
       await ethers.provider.send("evm_mine", []);
-      await expect(timelock.execute(await orionConfig.getAddress(), 0, upgradeData2, ZERO_BYTES32, SALT_2)).to.not.be
-        .reverted;
+      await timelock.execute(await orionConfig.getAddress(), 0, upgradeData2, ZERO_BYTES32, SALT_2);
 
       expect(await orionConfig.owner()).to.equal(owner.address);
     });
@@ -454,36 +452,6 @@ describe("Upgrade Timelock Tests", function () {
       await timelock1.execute(await orionConfig.getAddress(), 0, rotateData, ZERO_BYTES32, SALT);
 
       expect(await orionConfig.upgradeTimelock()).to.equal(await timelock2.getAddress());
-    });
-  });
-
-  // ─────────────────────────────────────────────────────────────────────────────
-  // upgradeProxy helper path — hardhat-upgrades integration sanity
-  // ─────────────────────────────────────────────────────────────────────────────
-
-  describe("upgrades.upgradeProxy – still works before timelock is set", function () {
-    it("Should upgrade OrionConfig via hardhat-upgrades before timelock is configured", async function () {
-      const OrionConfigFactory = await ethers.getContractFactory("OrionConfig");
-      await expect(upgrades.upgradeProxy(await orionConfig.getAddress(), OrionConfigFactory)).to.not.be.rejected;
-      expect(await orionConfig.owner()).to.equal(owner.address);
-    });
-
-    it("Should upgrade PriceAdapterRegistry via hardhat-upgrades before timelock is configured", async function () {
-      const PriceAdapterRegistryFactory = await ethers.getContractFactory("PriceAdapterRegistry");
-      await expect(upgrades.upgradeProxy(await priceAdapterRegistry.getAddress(), PriceAdapterRegistryFactory)).to.not
-        .be.rejected;
-    });
-
-    it("Should upgrade LiquidityOrchestrator via hardhat-upgrades before timelock is configured", async function () {
-      const LiquidityOrchestratorFactory = await ethers.getContractFactory("LiquidityOrchestrator");
-      await expect(upgrades.upgradeProxy(await liquidityOrchestrator.getAddress(), LiquidityOrchestratorFactory)).to.not
-        .be.rejected;
-    });
-
-    it("Should upgrade TransparentVaultFactory via hardhat-upgrades before timelock is configured", async function () {
-      const TransparentVaultFactoryFactory = await ethers.getContractFactory("TransparentVaultFactory");
-      await expect(upgrades.upgradeProxy(await transparentVaultFactory.getAddress(), TransparentVaultFactoryFactory)).to
-        .not.be.rejected;
     });
   });
 });

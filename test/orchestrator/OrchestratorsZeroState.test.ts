@@ -1,18 +1,16 @@
-import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
+import type { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
-import "@openzeppelin/hardhat-upgrades";
-import { ethers } from "hardhat";
-import { time } from "@nomicfoundation/hardhat-toolbox/network-helpers";
+import { ethers, networkHelpers } from "../helpers/hh";
 import { deployUpgradeableProtocol } from "../helpers/deployUpgradeable";
 import { resetNetwork } from "../helpers/resetNetwork";
 
-import {
+import type {
   OrionConfig,
   LiquidityOrchestrator,
   TransparentVaultFactory,
   OrionTransparentVault,
   MockUnderlyingAsset,
-} from "../../typechain-types";
+} from "../typechain-types";
 
 describe("Orchestrators - zero deposits and zero intents", function () {
   let orionConfig: OrionConfig;
@@ -75,7 +73,7 @@ describe("Orchestrators - zero deposits and zero intents", function () {
   it("completes upkeep with zero TVL and zero intents without errors", async function () {
     // Fast forward time to trigger upkeep
     const epochDuration = await liquidityOrchestrator.epochDuration();
-    await time.increase(epochDuration + 1n);
+    await networkHelpers.time.increase(epochDuration + 1n);
 
     // Start
     const upkeepNeeded = await liquidityOrchestrator.checkUpkeep();
@@ -104,7 +102,7 @@ describe("Orchestrators - zero deposits and zero intents", function () {
 
     // Fast forward time to trigger upkeep
     const epochDuration = await liquidityOrchestrator.epochDuration();
-    await time.increase(epochDuration + 1n);
+    await networkHelpers.time.increase(epochDuration + 1n);
 
     // Check that upkeep is needed
     const upkeepNeeded = await liquidityOrchestrator.checkUpkeep();

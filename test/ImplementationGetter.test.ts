@@ -1,7 +1,12 @@
 import { expect } from "chai";
-import { ethers } from "hardhat";
+import { ethers } from "./helpers/hh";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
-import { OrionConfig, OrionTransparentVault, TransparentVaultFactory, UpgradeableBeacon } from "../typechain-types";
+import type {
+  OrionConfig,
+  OrionTransparentVault,
+  TransparentVaultFactory,
+  UpgradeableBeacon,
+} from "../typechain-types";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 import { resetNetwork } from "./helpers/resetNetwork";
 
