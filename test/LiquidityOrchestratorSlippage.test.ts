@@ -77,13 +77,7 @@ describe("LiquidityOrchestrator - Centralized Slippage Management", function () 
     // --- Deploy LiquidityOrchestratorHarness proxy ---
     harness = await deployUUPSProxy<LiquidityOrchestratorHarness>(
       "LiquidityOrchestratorHarness",
-      [
-        owner.address,
-        await orionConfig.getAddress(),
-        owner.address,
-        await sp1VerifierGateway.getAddress(),
-        vKey,
-      ],
+      [owner.address, await orionConfig.getAddress(), owner.address, await sp1VerifierGateway.getAddress(), vKey],
       owner,
     );
 

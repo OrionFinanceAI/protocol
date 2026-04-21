@@ -73,7 +73,11 @@ export async function deployUpgradeableProtocol(
   }
 
   // 1. Deploy OrionConfig proxy
-  const orionConfig = await deployUUPSProxy<OrionConfig>("OrionConfig", [owner.address, await underlying.getAddress()], owner);
+  const orionConfig = await deployUUPSProxy<OrionConfig>(
+    "OrionConfig",
+    [owner.address, await underlying.getAddress()],
+    owner,
+  );
 
   // 2. Deploy PriceAdapterRegistry proxy and set in config
   const priceAdapterRegistry = await deployUUPSProxy<PriceAdapterRegistry>(
@@ -100,13 +104,7 @@ export async function deployUpgradeableProtocol(
 
   const liquidityOrchestrator = await deployUUPSProxy<LiquidityOrchestrator>(
     "LiquidityOrchestrator",
-    [
-      owner.address,
-      await orionConfig.getAddress(),
-      automationReg.address,
-      await sp1VerifierGateway.getAddress(),
-      vKey,
-    ],
+    [owner.address, await orionConfig.getAddress(), automationReg.address, await sp1VerifierGateway.getAddress(), vKey],
     owner,
   );
 

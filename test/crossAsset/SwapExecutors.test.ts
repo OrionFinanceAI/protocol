@@ -124,7 +124,10 @@ describe("UniswapV3ExecutionAdapter - Unit Tests", function () {
     });
 
     it("Should revert for zero address asset", async function () {
-      await expect(adapter.setAssetFee(ethers.ZeroAddress, FEE_TIER)).to.be.revertedWithCustomError(adapter, "ZeroAddress");
+      await expect(adapter.setAssetFee(ethers.ZeroAddress, FEE_TIER)).to.be.revertedWithCustomError(
+        adapter,
+        "ZeroAddress",
+      );
     });
 
     it("Should revert when no pool exists for the fee tier", async function () {
