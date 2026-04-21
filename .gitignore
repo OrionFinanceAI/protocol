@@ -1,4 +1,5 @@
 # directories
+test/bug-bounty-tests/
 build
 cache
 dist
