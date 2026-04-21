@@ -87,15 +87,17 @@ describe("UniswapV3ExecutionAdapter - Unit Tests", function () {
 
     it("Should revert constructor with zero addresses", async function () {
       const AdapterFactory = await ethers.getContractFactory("UniswapV3ExecutionAdapter");
+      // Zero owner is rejected by OpenZeppelin Ownable first (OwnableInvalidOwner), before
+      // ErrorsLib.ZeroAddress. Use a zero factory to assert our custom error.
       await expect(
         AdapterFactory.deploy(
+          owner.address,
           ethers.ZeroAddress,
-          await mockFactory.getAddress(),
           await mockRouter.getAddress(),
           await mockQuoter.getAddress(),
           await config.getAddress(),
         ),
-      ).to.be.rejected;
+      ).to.be.revertedWithCustomError(adapter, "ZeroAddress");
     });
   });
 
@@ -115,15 +117,21 @@ describe("UniswapV3ExecutionAdapter - Unit Tests", function () {
     });
 
     it("Should revert when called by non-owner/non-guardian", async function () {
-      await expect(adapter.connect(user).setAssetFee(await weth.getAddress(), FEE_TIER)).to.be.rejected;
+      await expect(adapter.connect(user).setAssetFee(await weth.getAddress(), FEE_TIER)).to.be.revertedWithCustomError(
+        adapter,
+        "NotAuthorized",
+      );
     });
 
     it("Should revert for zero address asset", async function () {
-      await expect(adapter.setAssetFee(ethers.ZeroAddress, FEE_TIER)).to.be.rejected;
+      await expect(adapter.setAssetFee(ethers.ZeroAddress, FEE_TIER)).to.be.revertedWithCustomError(adapter, "ZeroAddress");
     });
 
     it("Should revert when no pool exists for the fee tier", async function () {
-      await expect(adapter.setAssetFee(await weth.getAddress(), 10000)).to.be.rejected;
+      await expect(adapter.setAssetFee(await weth.getAddress(), 10000)).to.be.revertedWithCustomError(
+        adapter,
+        "InvalidAdapter",
+      );
     });
   });
 
@@ -135,7 +143,10 @@ describe("UniswapV3ExecutionAdapter - Unit Tests", function () {
     it("Should revert for asset without registered fee", async function () {
       const MockERC20 = await ethers.getContractFactory("MockUnderlyingAsset");
       const unknownToken = await MockERC20.deploy(18);
-      await expect(adapter.validateExecutionAdapter(await unknownToken.getAddress())).to.be.rejected;
+      await expect(adapter.validateExecutionAdapter(await unknownToken.getAddress())).to.be.revertedWithCustomError(
+        adapter,
+        "InvalidAdapter",
+      );
     });
   });
 
