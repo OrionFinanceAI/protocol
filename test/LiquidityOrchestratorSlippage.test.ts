@@ -48,16 +48,18 @@ describe("LiquidityOrchestrator - Centralized Slippage Management", function () 
     await underlyingAsset.waitForDeployment();
 
     // --- Deploy OrionConfig proxy ---
-    orionConfig = await deployUUPSProxy<OrionConfig>("OrionConfig", [
-      owner.address,
-      await underlyingAsset.getAddress(),
-    ]);
+    orionConfig = await deployUUPSProxy<OrionConfig>(
+      "OrionConfig",
+      [owner.address, await underlyingAsset.getAddress()],
+      owner,
+    );
 
     // --- Deploy PriceAdapterRegistry proxy ---
-    const priceAdapterRegistry = await deployUUPSProxy<PriceAdapterRegistry>("PriceAdapterRegistry", [
-      owner.address,
-      await orionConfig.getAddress(),
-    ]);
+    const priceAdapterRegistry = await deployUUPSProxy<PriceAdapterRegistry>(
+      "PriceAdapterRegistry",
+      [owner.address, await orionConfig.getAddress()],
+      owner,
+    );
     await orionConfig.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
 
     // --- Deploy SP1 verifier stack ---
@@ -73,13 +75,17 @@ describe("LiquidityOrchestrator - Centralized Slippage Management", function () 
     const vKey = "0x00dcc994ce74ee9842a9224176ea2aa5115883598b92686e0d764d3908352bb7";
 
     // --- Deploy LiquidityOrchestratorHarness proxy ---
-    harness = await deployUUPSProxy<LiquidityOrchestratorHarness>("LiquidityOrchestratorHarness", [
-      owner.address,
-      await orionConfig.getAddress(),
-      owner.address,
-      await sp1VerifierGateway.getAddress(),
-      vKey,
-    ]);
+    harness = await deployUUPSProxy<LiquidityOrchestratorHarness>(
+      "LiquidityOrchestratorHarness",
+      [
+        owner.address,
+        await orionConfig.getAddress(),
+        owner.address,
+        await sp1VerifierGateway.getAddress(),
+        vKey,
+      ],
+      owner,
+    );
 
     // --- Wire config ---
     await orionConfig.setLiquidityOrchestrator(await harness.getAddress());
@@ -130,11 +136,11 @@ describe("LiquidityOrchestrator - Centralized Slippage Management", function () 
     const vaultBeacon = await BeaconFactory.deploy(await vaultImpl.getAddress(), owner.address);
     await vaultBeacon.waitForDeployment();
 
-    const transparentVaultFactory = await deployUUPSProxy("TransparentVaultFactory", [
-      owner.address,
-      await orionConfig.getAddress(),
-      await vaultBeacon.getAddress(),
-    ]);
+    const transparentVaultFactory = await deployUUPSProxy(
+      "TransparentVaultFactory",
+      [owner.address, await orionConfig.getAddress(), await vaultBeacon.getAddress()],
+      owner,
+    );
     await orionConfig.setVaultFactory(await transparentVaultFactory.getAddress());
 
     // Whitelist both vaults

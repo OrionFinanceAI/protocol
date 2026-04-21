@@ -39,10 +39,11 @@ describe("Upgrade Tests", function () {
       await underlyingAsset.waitForDeployment();
 
       // Deploy OrionConfig proxy
-      orionConfig = await deployUUPSProxy<OrionConfig>("OrionConfig", [
-        owner.address,
-        await underlyingAsset.getAddress(),
-      ]);
+      orionConfig = await deployUUPSProxy<OrionConfig>(
+        "OrionConfig",
+        [owner.address, await underlyingAsset.getAddress()],
+        owner,
+      );
     });
 
     it("Should deploy OrionConfig V1 successfully", async function () {
