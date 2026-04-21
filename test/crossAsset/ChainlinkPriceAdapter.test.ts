@@ -153,11 +153,13 @@ describe("ChainlinkPriceAdapter - Coverage Tests", function () {
     });
 
     it("Should reject invalid feed address", async function () {
-      // Owner EOA is not a feed; base feed decimals() fails and configureFeed reverts InvalidAdapter(asset).
+      // Use a contract that is not an Aggregator (adapter has no decimals()). An EOA can make
+      // decimals() succeed with empty returndata on forks; decoding then fails to match InvalidAdapter.
+      const badFeed = await chainlinkAdapter.getAddress();
       await expect(
         chainlinkAdapter.configureFeed(
           MAINNET.WETH,
-          owner.address,
+          badFeed,
           false,
           3600,
           ethers.parseUnits("1000", 8),
