@@ -7,7 +7,7 @@ install:
 .PHONY: ci
 ci:
 	pnpm audit --prod --audit-level high
-	pnpm typechain
+	pnpm build
 	pnpm lint
 	pnpm slither
 	pnpm test

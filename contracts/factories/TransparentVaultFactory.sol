@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.34;
 
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
@@ -41,7 +41,6 @@ contract TransparentVaultFactory is Initializable, Ownable2StepUpgradeable, UUPS
 
         __Ownable_init(initialOwner);
         __Ownable2Step_init();
-        __UUPSUpgradeable_init();
 
         config = IOrionConfig(configAddress);
         vaultBeacon = UpgradeableBeacon(vaultBeaconAddress);

@@ -1,11 +1,10 @@
-import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
+import type { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
-import "@openzeppelin/hardhat-upgrades";
-import { ethers } from "hardhat";
+import { ethers } from "./helpers/hh";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 import { resetNetwork } from "./helpers/resetNetwork";
 
-import {
+import type {
   MockUnderlyingAsset,
   MockERC4626Asset,
   OrionConfig,
@@ -156,7 +155,7 @@ describe("Strategist Linking", function () {
       expect(await vault.strategist()).to.equal(await contract.getAddress());
 
       // updateStrategist to the same contract must also not revert
-      await expect(vault.connect(owner).updateStrategist(await contract.getAddress())).to.not.be.reverted;
+      await expect(vault.connect(owner).updateStrategist(await contract.getAddress())).to.not.be.rejected;
       expect(await vault.strategist()).to.equal(await contract.getAddress());
     });
 
@@ -187,7 +186,7 @@ describe("Strategist Linking", function () {
       await vault.connect(owner).updateStrategist(await strategy.getAddress());
 
       // setVault was called automatically — submitIntent should not revert
-      await expect(strategy.connect(user).submitIntent()).to.not.be.reverted;
+      await expect(strategy.connect(user).submitIntent()).to.not.be.rejected;
 
       const [tokens] = await vault.getIntent();
       expect(tokens.length).to.equal(2);
@@ -213,7 +212,7 @@ describe("Strategist Linking", function () {
       expect(await vault.strategist()).to.equal(await strategy.getAddress());
 
       // setVault was called during initialize — submitIntent should not revert
-      await expect(strategy.connect(user).submitIntent()).to.not.be.reverted;
+      await expect(strategy.connect(user).submitIntent()).to.not.be.rejected;
 
       const [tokens] = await vault.getIntent();
       expect(tokens.length).to.equal(2);
@@ -255,7 +254,7 @@ describe("Strategist Linking", function () {
       await vault.connect(owner).updateStrategist(await strategy.getAddress());
 
       // Second updateStrategist with the SAME strategy on the SAME vault — must not revert
-      await expect(vault.connect(owner).updateStrategist(await strategy.getAddress())).to.not.be.reverted;
+      await expect(vault.connect(owner).updateStrategist(await strategy.getAddress())).to.not.be.rejected;
       expect(await vault.strategist()).to.equal(await strategy.getAddress());
     });
 
@@ -284,7 +283,7 @@ describe("Strategist Linking", function () {
 
       // EOA can submit directly
       const intent = [{ token: await assetA.getAddress(), weight: 1_000_000_000n }];
-      await expect(vault.connect(user).submitIntent(intent)).to.not.be.reverted;
+      await expect(vault.connect(user).submitIntent(intent)).to.not.be.rejected;
     });
 
     it("Rotating from strategyA to strategyB: vault links to B, A is detached", async function () {
@@ -311,7 +310,7 @@ describe("Strategist Linking", function () {
       expect(await vault.strategist()).to.equal(await strategyB.getAddress());
 
       // strategyB is linked and can submit
-      await expect(strategyB.connect(user).submitIntent()).to.not.be.reverted;
+      await expect(strategyB.connect(user).submitIntent()).to.not.be.rejected;
 
       // strategyA is no longer the strategist — its submitIntent is blocked by onlyStrategist
       await expect(strategyA.connect(user).submitIntent()).to.be.revertedWithCustomError(vault, "NotAuthorized");
@@ -340,12 +339,12 @@ describe("Strategist Linking", function () {
     });
 
     it("First call to a non-zero address succeeds", async function () {
-      await expect(strategy.setVault(user.address)).to.not.be.reverted;
+      await expect(strategy.setVault(user.address)).to.not.be.rejected;
     });
 
     it("Second call with the same address is idempotent — no revert", async function () {
       await strategy.setVault(user.address);
-      await expect(strategy.setVault(user.address)).to.not.be.reverted;
+      await expect(strategy.setVault(user.address)).to.not.be.rejected;
     });
 
     it("Second call with a different address reverts with StrategistVaultAlreadyLinked", async function () {
@@ -388,11 +387,11 @@ describe("Strategist Linking", function () {
     });
 
     it("Owner can call submitIntent", async function () {
-      await expect(strategy.connect(owner).submitIntent()).to.not.be.reverted;
+      await expect(strategy.connect(owner).submitIntent()).to.not.be.rejected;
     });
 
     it("Any random address can call submitIntent", async function () {
-      await expect(strategy.connect(stranger).submitIntent()).to.not.be.reverted;
+      await expect(strategy.connect(stranger).submitIntent()).to.not.be.rejected;
     });
 
     it("Both callers produce identical intent — output is deterministic", async function () {

@@ -1,7 +1,5 @@
-import { impersonateAccount, loadFixture, setBalance } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
-import "@openzeppelin/hardhat-upgrades";
-import { ethers } from "hardhat";
+import { ethers, networkHelpers } from "./helpers/hh";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 import { resetNetwork } from "./helpers/resetNetwork";
 
@@ -11,8 +9,8 @@ describe("OrionVault Exchange Rate Tests", function () {
   });
 
   async function impersonateOrchestrator(orchestratorAddress: string) {
-    await impersonateAccount(orchestratorAddress);
-    await setBalance(orchestratorAddress, ethers.parseEther("1"));
+    await networkHelpers.impersonateAccount(orchestratorAddress);
+    await networkHelpers.setBalance(orchestratorAddress, ethers.parseEther("1"));
     return await ethers.getSigner(orchestratorAddress);
   }
 
@@ -84,7 +82,7 @@ describe("OrionVault Exchange Rate Tests", function () {
 
   describe("Initial State", function () {
     it("Should have correct initial exchange rate values", async function () {
-      const { vault } = await loadFixture(deployVaultFixture);
+      const { vault } = await networkHelpers.loadFixture(deployVaultFixture);
 
       // Initial state: no assets, no shares
       expect(await vault.totalAssets()).to.equal(0);
@@ -96,7 +94,7 @@ describe("OrionVault Exchange Rate Tests", function () {
     });
 
     it("Should handle edge cases with virtual offset", async function () {
-      const { vault } = await loadFixture(deployVaultFixture);
+      const { vault } = await networkHelpers.loadFixture(deployVaultFixture);
 
       // Test with very small amounts
       const tinyAmount = 1;
@@ -111,7 +109,8 @@ describe("OrionVault Exchange Rate Tests", function () {
 
   describe("Exchange Rate After Initial Deposit", function () {
     it("Should maintain 1:1 exchange rate after first deposit", async function () {
-      const { vault, underlyingAsset, lp1, liquidityOrchestratorAddress } = await loadFixture(deployVaultFixture);
+      const { vault, underlyingAsset, lp1, liquidityOrchestratorAddress } =
+        await networkHelpers.loadFixture(deployVaultFixture);
 
       const depositAmount = ethers.parseUnits("1000", 6);
 
@@ -138,7 +137,8 @@ describe("OrionVault Exchange Rate Tests", function () {
     });
 
     it("Should handle multiple deposits correctly", async function () {
-      const { vault, underlyingAsset, lp1, lp2, liquidityOrchestratorAddress } = await loadFixture(deployVaultFixture);
+      const { vault, underlyingAsset, lp1, lp2, liquidityOrchestratorAddress } =
+        await networkHelpers.loadFixture(deployVaultFixture);
 
       const deposit1 = ethers.parseUnits("1000", 6);
       const deposit2 = ethers.parseUnits("500", 6);
@@ -169,7 +169,8 @@ describe("OrionVault Exchange Rate Tests", function () {
 
   describe("Exchange Rate Consistency", function () {
     it("Should maintain consistent exchange rate for round-trip conversions", async function () {
-      const { vault, underlyingAsset, lp1, liquidityOrchestratorAddress } = await loadFixture(deployVaultFixture);
+      const { vault, underlyingAsset, lp1, liquidityOrchestratorAddress } =
+        await networkHelpers.loadFixture(deployVaultFixture);
 
       const depositAmount = ethers.parseUnits("1000", 6);
 
@@ -191,7 +192,8 @@ describe("OrionVault Exchange Rate Tests", function () {
     });
 
     it("Should handle various asset amounts consistently", async function () {
-      const { vault, underlyingAsset, lp1, liquidityOrchestratorAddress } = await loadFixture(deployVaultFixture);
+      const { vault, underlyingAsset, lp1, liquidityOrchestratorAddress } =
+        await networkHelpers.loadFixture(deployVaultFixture);
 
       const depositAmount = ethers.parseUnits("1000", 6);
 
@@ -224,7 +226,7 @@ describe("OrionVault Exchange Rate Tests", function () {
   describe("Inflation Attack Protection", function () {
     it("Should be protected against donation‑based inflation attacks", async function () {
       const { vault, underlyingAsset, lp1, attacker, liquidityOrchestratorAddress } =
-        await loadFixture(deployVaultFixture);
+        await networkHelpers.loadFixture(deployVaultFixture);
 
       /* ── 1. Legitimate deposit ────────────────────────────────────────────── */
       const initialDeposit = ethers.parseUnits("1000", 6); // 1000 USDC
@@ -268,7 +270,7 @@ describe("OrionVault Exchange Rate Tests", function () {
 
     it("Should maintain exchange rate stability with multiple users", async function () {
       const { vault, underlyingAsset, lp1, lp2, attacker, liquidityOrchestratorAddress } =
-        await loadFixture(deployVaultFixture);
+        await networkHelpers.loadFixture(deployVaultFixture);
 
       // Multiple users deposit
       const deposit1 = ethers.parseUnits("1000", 6);
@@ -309,13 +311,14 @@ describe("OrionVault Exchange Rate Tests", function () {
       const expectedRatio = Number(shares1Before) / Number(shares2Before);
       const actualRatio = Number(increase1) / Number(increase2);
 
-      expect(actualRatio).to.be.closeTo(expectedRatio, 0.01);
+      expect(Math.abs(actualRatio - expectedRatio)).to.be.lessThan(0.01);
     });
   });
 
   describe("Virtual Offset Protection", function () {
     it("Should handle very small amounts with virtual offset", async function () {
-      const { vault, underlyingAsset, lp1, liquidityOrchestratorAddress } = await loadFixture(deployVaultFixture);
+      const { vault, underlyingAsset, lp1, liquidityOrchestratorAddress } =
+        await networkHelpers.loadFixture(deployVaultFixture);
 
       // Very small initial deposit
       const tinyDeposit = 1; // 1 wei
@@ -334,7 +337,8 @@ describe("OrionVault Exchange Rate Tests", function () {
     });
 
     it("Should maintain precision with virtual offset", async function () {
-      const { vault, underlyingAsset, lp1, liquidityOrchestratorAddress } = await loadFixture(deployVaultFixture);
+      const { vault, underlyingAsset, lp1, liquidityOrchestratorAddress } =
+        await networkHelpers.loadFixture(deployVaultFixture);
 
       const depositAmount = ethers.parseUnits("1000", 6);
 
@@ -366,7 +370,7 @@ describe("OrionVault Exchange Rate Tests", function () {
   describe("Edge Cases and Boundary Conditions", function () {
     it("Should maintain exchange rate under stress conditions", async function () {
       const { vault, underlyingAsset, lp1, lp2, lp3, liquidityOrchestratorAddress } =
-        await loadFixture(deployVaultFixture);
+        await networkHelpers.loadFixture(deployVaultFixture);
 
       // Multiple deposits and withdrawals to stress the system
       const deposit1 = ethers.parseUnits("1000", 6);
@@ -410,7 +414,8 @@ describe("OrionVault Exchange Rate Tests", function () {
 
   describe("Mathematical Properties", function () {
     it("Should maintain monotonicity in conversions", async function () {
-      const { vault, underlyingAsset, lp1, liquidityOrchestratorAddress } = await loadFixture(deployVaultFixture);
+      const { vault, underlyingAsset, lp1, liquidityOrchestratorAddress } =
+        await networkHelpers.loadFixture(deployVaultFixture);
 
       const depositAmount = ethers.parseUnits("1000", 6);
       await underlyingAsset.connect(lp1).approve(await vault.getAddress(), depositAmount);
@@ -435,7 +440,8 @@ describe("OrionVault Exchange Rate Tests", function () {
     });
 
     it("Should handle proportional relationships correctly", async function () {
-      const { vault, underlyingAsset, lp1, liquidityOrchestratorAddress } = await loadFixture(deployVaultFixture);
+      const { vault, underlyingAsset, lp1, liquidityOrchestratorAddress } =
+        await networkHelpers.loadFixture(deployVaultFixture);
 
       const depositAmount = ethers.parseUnits("1000", 6);
       await underlyingAsset.connect(lp1).approve(await vault.getAddress(), depositAmount);

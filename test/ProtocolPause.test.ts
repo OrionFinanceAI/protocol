@@ -35,13 +35,13 @@
  *
  */
 
-import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
+import type { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
-import { ethers } from "hardhat";
+import { ethers, networkHelpers } from "./helpers/hh";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 import { resetNetwork } from "./helpers/resetNetwork";
 
-import {
+import type {
   MockUnderlyingAsset,
   MockERC4626Asset,
   ERC4626ExecutionAdapter,
@@ -49,7 +49,6 @@ import {
   LiquidityOrchestrator,
   OrionTransparentVault,
 } from "../typechain-types";
-import { time } from "@nomicfoundation/hardhat-network-helpers";
 
 describe("Protocol Pause Functionality", function () {
   // Contract instances
@@ -274,7 +273,7 @@ describe("Protocol Pause Functionality", function () {
       await liquidityOrchestrator.connect(owner).unpause();
 
       // Now operations should work
-      await expect(transparentVault.connect(user1).requestDeposit(DEPOSIT_AMOUNT)).to.not.be.reverted;
+      await expect(transparentVault.connect(user1).requestDeposit(DEPOSIT_AMOUNT)).to.not.be.rejected;
 
       // Verify deposit was successful
       expect(await transparentVault.pendingDeposit(await config.maxFulfillBatchSize())).to.equal(DEPOSIT_AMOUNT);
@@ -291,7 +290,7 @@ describe("Protocol Pause Functionality", function () {
       await liquidityOrchestrator.connect(owner).unpause();
 
       // User can now cancel their request
-      await expect(transparentVault.connect(user1).cancelDepositRequest(DEPOSIT_AMOUNT)).to.not.be.reverted;
+      await expect(transparentVault.connect(user1).cancelDepositRequest(DEPOSIT_AMOUNT)).to.not.be.rejected;
 
       expect(await transparentVault.pendingDeposit(await config.maxFulfillBatchSize())).to.equal(0);
     });
@@ -310,10 +309,10 @@ describe("Protocol Pause Functionality", function () {
       await liquidityOrchestrator.connect(owner).unpause();
       void expect(await liquidityOrchestrator.paused()).to.be.false;
 
-      await time.increase(await liquidityOrchestrator.epochDuration());
+      await networkHelpers.time.increase(await liquidityOrchestrator.epochDuration());
 
       await expect(liquidityOrchestrator.connect(automationRegistry).performUpkeep("0x", "0x", "0x")).to.not.be
-        .reverted;
+        .rejected;
     });
 
     it("should preserve state across pause/unpause", async function () {

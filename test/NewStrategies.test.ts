@@ -1,12 +1,11 @@
-import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
+import type { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
-import "@openzeppelin/hardhat-upgrades";
 import type { ContractTransactionReceipt } from "ethers";
-import { ethers } from "hardhat";
+import { ethers } from "./helpers/hh";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 import { resetNetwork } from "./helpers/resetNetwork";
 
-import {
+import type {
   MockUnderlyingAsset,
   MockERC4626Asset,
   OrionConfig,
@@ -233,7 +232,7 @@ describe("New Strategies", function () {
 
     it("submitIntent is permissionless — stranger can call it", async function () {
       await mintAndDeposit(underlyingAsset, assetA, user, 1000, underlyingDecimals);
-      await expect(strategy.connect(stranger).submitIntent()).to.not.be.reverted;
+      await expect(strategy.connect(stranger).submitIntent()).to.not.be.rejected;
     });
 
     it("underlying (non-ERC4626) whitelisted asset gets no CheckpointRecorded from strategist", async function () {
