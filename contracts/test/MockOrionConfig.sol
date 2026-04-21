@@ -78,4 +78,14 @@ contract MockOrionConfig {
     function setGuardian(address _guardian) external {
         guardian = _guardian;
     }
+
+    bool private _systemIdle = true;
+
+    function isSystemIdle() external view returns (bool) {
+        return _systemIdle;
+    }
+
+    function setSystemIdle(bool idle) external {
+        _systemIdle = idle;
+    }
 }
