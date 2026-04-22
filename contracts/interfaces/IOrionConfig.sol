@@ -72,8 +72,8 @@ interface IOrionConfig {
 
     /// @notice Sets the protocol risk-free rate
     /// @dev Can only be called by the contract owner
-    /// @param riskFreeRate The risk-free rate
-    function setProtocolRiskFreeRate(uint16 riskFreeRate) external;
+    /// @param newRiskFreeRate The risk-free rate
+    function setProtocolRiskFreeRate(uint16 newRiskFreeRate) external;
 
     /// @notice Adds an asset to the whitelist
     /// @dev Can only be called by the contract owner
