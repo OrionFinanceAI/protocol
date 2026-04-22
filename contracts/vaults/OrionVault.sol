@@ -98,6 +98,9 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     /// @dev When true, intent is overridden to 100% underlying asset
     bool public isDecommissioning;
 
+    /// @notice Underlying amount owed to a user whose redemption transfer failed
+    mapping(address => uint256) public pendingUnderlyingClaims;
+
     /// @dev Restricts function to only vault manager
     modifier onlyManager() {
         if (msg.sender != manager) revert ErrorsLib.NotAuthorized();
@@ -728,13 +731,27 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
             );
             processedShares += userShares;
 
-            liquidityOrchestrator.transferRedemptionFunds(user, underlyingAmount);
-
-            emit Redeem(user, underlyingAmount, userShares);
+            // If the underlying transfer reverts (e.g. USDC denylist), hold the funds in the LO
+            // and record the claimable amount so the rest of the batch is unaffected.
+            try liquidityOrchestrator.transferRedemptionFunds(user, underlyingAmount) {
+                emit Redeem(user, underlyingAmount, userShares);
+            } catch {
+                pendingUnderlyingClaims[user] += underlyingAmount;
+                emit RedemptionTransferFailed(user, underlyingAmount);
+            }
         }
         _burn(address(this), processedShares);
     }
 
-    /// @dev Storage gap to allow for future upgrades
-    uint256[50] private __gap;
+    /// @inheritdoc IOrionVault
+    function claimUnderlying() external nonReentrant {
+        uint256 amount = pendingUnderlyingClaims[msg.sender];
+        if (amount == 0) revert ErrorsLib.InsufficientAmount();
+        pendingUnderlyingClaims[msg.sender] = 0;
+        liquidityOrchestrator.transferRedemptionFunds(msg.sender, amount);
+        emit RedemptionClaimed(msg.sender, amount);
+    }
+
+    /// @dev Storage gap to allow for future upgrades (reduced by 1 for pendingUnderlyingClaims)
+    uint256[49] private __gap;
 }
