@@ -47,7 +47,7 @@ contract KBestTvlWeightedAverage is IOrionStrategist, ERC165, Ownable2Step {
     }
 
     /// @inheritdoc IOrionStrategist
-    function submitIntent() external {
+    function submitIntent() external onlyOwner {
         if (k == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
         address vault_ = _vault;
         if (vault_ == address(0)) revert ErrorsLib.ZeroAddress();
