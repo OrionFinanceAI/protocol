@@ -8,6 +8,7 @@ import { IOrionStrategist } from "../interfaces/IOrionStrategist.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -18,7 +19,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
  * @author Orion Finance
  * @custom:security-contact security@orionfinance.ai
  */
-contract KBestTvlWeightedAverage is IOrionStrategist, ERC165, Ownable2Step {
+contract KBestTvlWeightedAverage is IOrionStrategist, ERC165, Ownable2Step, ReentrancyGuard {
     /// @notice The Orion configuration contract.
     IOrionConfig public immutable CONFIG;
 
@@ -47,7 +48,7 @@ contract KBestTvlWeightedAverage is IOrionStrategist, ERC165, Ownable2Step {
     }
 
     /// @inheritdoc IOrionStrategist
-    function submitIntent() external onlyOwner {
+    function submitIntent() external override onlyOwner nonReentrant {
         if (k == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
         address vault_ = _vault;
         if (vault_ == address(0)) revert ErrorsLib.ZeroAddress();
