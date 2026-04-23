@@ -507,7 +507,11 @@ contract LiquidityOrchestrator is
         } else if (currentPhase == LiquidityUpkeepPhase.ProcessVaultOperations) {
             StatesStruct memory states = _verifyPerformData(_publicValues, proofBytes, statesBytes);
             _processMinibatchVaultsOperations(states.vaults);
-            config.completeAssetsRemoval(_failedEpochTokens);
+            if (currentMinibatchIndex == 0) {
+                address[] memory failedTokens = _failedEpochTokens;
+                delete _failedEpochTokens;
+                config.completeAssetsRemoval(failedTokens);
+            }
         }
     }
 
@@ -884,7 +888,6 @@ contract LiquidityOrchestrator is
             emit EventsLib.EpochEnd(epochCounter);
             ++epochCounter;
 
-            delete _failedEpochTokens;
             delete _epochBufferHistory;
         }
 
