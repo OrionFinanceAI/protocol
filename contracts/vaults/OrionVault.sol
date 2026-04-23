@@ -80,10 +80,6 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     uint32 public constant YEAR_IN_SECONDS = 365 days;
     /// @notice Basis points factor (100% = 10_000)
     uint16 public constant BASIS_POINTS_FACTOR = 10_000;
-    /// @notice Maximum management fee (3% = 300)
-    uint16 public constant MAX_MANAGEMENT_FEE = 300;
-    /// @notice Maximum performance fee (30% = 3_000)
-    uint16 public constant MAX_PERFORMANCE_FEE = 3_000;
 
     /// @notice Fee model
     FeeModel public feeModel;
@@ -165,8 +161,6 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
 
         // Validate input
         if (feeType_ > uint8(FeeType.HURDLE_HWM)) revert ErrorsLib.InvalidArguments();
-        if (performanceFee_ > MAX_PERFORMANCE_FEE) revert ErrorsLib.InvalidArguments();
-        if (managementFee_ > MAX_MANAGEMENT_FEE) revert ErrorsLib.InvalidArguments();
 
         feeModel.feeType = FeeType(feeType_);
         feeModel.performanceFee = performanceFee_;
@@ -452,8 +446,6 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
 
         // Validate input
         if (feeType > uint8(FeeType.HURDLE_HWM)) revert ErrorsLib.InvalidArguments();
-        if (performanceFee > MAX_PERFORMANCE_FEE) revert ErrorsLib.InvalidArguments();
-        if (managementFee > MAX_MANAGEMENT_FEE) revert ErrorsLib.InvalidArguments();
 
         // Store old fee model for cooldown period
         oldFeeModel = activeFeeModel();

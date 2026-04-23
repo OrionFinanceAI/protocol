@@ -1,7 +1,7 @@
 .PHONY: install
 install:
 	uv venv --python 3.12
-	source .venv/bin/activate && uv pip install slither-analyzer==0.11.3
+	source .venv/bin/activate && uv pip install slither-analyzer==0.11.5
 	pnpm install --frozen-lockfile
 
 .PHONY: ci

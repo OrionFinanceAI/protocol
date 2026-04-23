@@ -101,12 +101,6 @@ contract LiquidityOrchestrator is
     /// @notice Slippage tolerance
     uint256 public slippageTolerance;
 
-    /// @notice Maximum minibatch size
-    uint8 public constant MAX_MINIBATCH_SIZE = 8;
-
-    /// @notice Maximum epoch duration (2 weeks)
-    uint32 public constant MAX_EPOCH_DURATION = 14 days;
-
     /* -------------------------------------------------------------------------- */
     /*                                 EPOCH STATE                                */
     /* -------------------------------------------------------------------------- */
@@ -255,7 +249,6 @@ contract LiquidityOrchestrator is
     /// @inheritdoc ILiquidityOrchestrator
     function updateEpochDuration(uint32 newEpochDuration) external onlyOwnerOrGuardian {
         if (newEpochDuration == 0) revert ErrorsLib.InvalidArguments();
-        if (newEpochDuration > MAX_EPOCH_DURATION) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         epochDuration = newEpochDuration;
@@ -272,7 +265,6 @@ contract LiquidityOrchestrator is
     /// @inheritdoc ILiquidityOrchestrator
     function updateMinibatchSize(uint8 _minibatchSize) external onlyOwnerOrGuardian {
         if (_minibatchSize == 0) revert ErrorsLib.InvalidArguments();
-        if (_minibatchSize > MAX_MINIBATCH_SIZE) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         minibatchSize = _minibatchSize;
     }
@@ -280,7 +272,6 @@ contract LiquidityOrchestrator is
     /// @inheritdoc ILiquidityOrchestrator
     function updateCommitmentMinibatchSize(uint8 _commitmentMinibatchSize) external onlyOwnerOrGuardian {
         if (_commitmentMinibatchSize == 0) revert ErrorsLib.InvalidArguments();
-        if (_commitmentMinibatchSize > MAX_MINIBATCH_SIZE) revert ErrorsLib.InvalidArguments();
         if (_commitmentMinibatchSize > commitmentMinibatchSize && !config.isSystemIdle()) {
             revert ErrorsLib.SystemNotIdle();
         }
