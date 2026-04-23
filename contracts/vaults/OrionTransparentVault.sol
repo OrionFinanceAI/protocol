@@ -78,6 +78,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
     /// @inheritdoc IOrionTransparentVault
     function submitIntent(IntentPosition[] calldata intent) external onlyStrategist {
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         uint256 len = intent.length;
         if (len == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
 
