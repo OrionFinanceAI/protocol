@@ -938,7 +938,7 @@ contract LiquidityOrchestrator is
         if (config.isDecommissioningVault(vaultAddress)) {
             // Finalize only when all queued requests are processed and no non-underlying positions remain open.
             bool noRequests = vaultContract.pendingRedeemCount() == 0 && vaultContract.pendingDepositCount() == 0;
-            bool portfolioLiquidated = tokens.length == 0;
+            bool portfolioLiquidated = tokens.length == 1;
             if (noRequests && portfolioLiquidated) {
                 config.completeVaultDecommissioning(vaultAddress);
             }
@@ -967,7 +967,7 @@ contract LiquidityOrchestrator is
     /// @dev Requires the caller to be the upgrade timelock (if set) or the owner (during initial
     ///      bootstrapping before a timelock has been configured).
     // solhint-disable-next-line use-natspec
-    function _authorizeUpgrade(address) internal override {
+    function _authorizeUpgrade(address) internal view override {
         if (upgradeTimelock != address(0)) {
             if (msg.sender != upgradeTimelock) revert ErrorsLib.NotAuthorized();
         } else {
