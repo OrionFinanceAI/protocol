@@ -76,7 +76,6 @@ contract PriceAdapterRegistry is Initializable, IPriceAdapterRegistry, Ownable2S
         if (address(adapter) == address(0)) revert ErrorsLib.AdapterNotSet();
 
         (uint256 rawPrice, uint8 priceDecimals) = adapter.getPriceData(asset);
-        if (rawPrice == 0) revert ErrorsLib.PriceMustBeGreaterThanZero(asset);
 
         uint256 normalizedPrice = UtilitiesLib.convertDecimals(rawPrice, priceDecimals, priceAdapterDecimals);
         if (normalizedPrice == 0) revert ErrorsLib.PriceMustBeGreaterThanZero(asset);
