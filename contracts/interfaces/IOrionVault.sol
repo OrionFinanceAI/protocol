@@ -183,6 +183,8 @@ interface IOrionVault is IERC4626 {
 
     /// @notice Claim underlying funds from a previously failed redemption transfer.
     /// @dev Called by the user after the transfer blocker (e.g. denylist) has been resolved.
+    ///      May revert transiently if the LO buffer is insufficient (e.g. mid-epoch);
+    ///      `pendingUnderlyingClaims` is restored on revert, so simply retry when idle.
     function claimUnderlying() external;
 
     // --------- MANAGER AND STRATEGIST FUNCTIONS ---------
