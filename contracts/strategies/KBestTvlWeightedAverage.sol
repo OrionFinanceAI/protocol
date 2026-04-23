@@ -113,7 +113,15 @@ contract KBestTvlWeightedAverage is IOrionStrategist, ERC165, Ownable2Step, Reen
             return 1;
         }
 
-        uint8 underlyingDecimals = IERC20Metadata(vaultUnderlying).decimals();
+        if (vaultUnderlying == address(0)) return 1;
+
+        uint8 underlyingDecimals = 0;
+        try IERC20Metadata(vaultUnderlying).decimals() returns (uint8 d) {
+            underlyingDecimals = d;
+        } catch {
+            return 1;
+        }
+
         uint256 underlyingPrice = 0;
 
         if (vaultUnderlying == protocolUnderlying) {
