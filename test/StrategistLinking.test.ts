@@ -398,7 +398,7 @@ describe("Strategist Linking", function () {
       await strategy.connect(owner).submitIntent();
       const [tokens1, weights1] = await vault.getIntent();
 
-      // Submit again from a different caller — same on-chain state → same result
+      // Submit again from a different caller — same onchain state → same result
       await strategy.connect(stranger).submitIntent();
       const [tokens2, weights2] = await vault.getIntent();
 

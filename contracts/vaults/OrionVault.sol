@@ -426,7 +426,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         emit StrategistUpdated(newStrategist);
     }
 
-    /// @dev Tells on-chain strategists which vault they manage; skips EOAs and wallets that are not Orion strategists.
+    /// @dev Tells onchain strategists which vault they manage; skips EOAs and wallets that are not Orion strategists.
     function _linkStrategistVault(address strategist_) internal {
         if (strategist_.code.length == 0) return;
         try IERC165(strategist_).supportsInterface(type(IOrionStrategist).interfaceId) returns (bool supported) {
