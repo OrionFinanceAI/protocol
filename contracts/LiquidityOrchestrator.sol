@@ -503,7 +503,9 @@ contract LiquidityOrchestrator is
         } else if (currentPhase == LiquidityUpkeepPhase.ProcessVaultOperations) {
             StatesStruct memory states = _verifyPerformData(_publicValues, proofBytes, statesBytes);
             _processMinibatchVaultsOperations(states.vaults);
-            config.completeAssetsRemoval();
+            if (currentMinibatchIndex == 0) {
+                config.completeAssetsRemoval();
+            }
         }
     }
 
@@ -938,11 +940,10 @@ contract LiquidityOrchestrator is
         vaultContract.updateVaultState(tokens, shares, finalTotalAssets);
 
         if (config.isDecommissioningVault(vaultAddress)) {
-            // Finalize only when all queued exits are drained and no non-underlying positions remain.
-            // Guards against premature finalization if the ZK circuit misbehaves or batches overflow.
-            bool queuesEmpty = vaultContract.pendingRedeem(1) == 0 && vaultContract.pendingDeposit(1) == 0;
-            bool portfolioLiquidated = tokens.length == 0;
-            if (queuesEmpty && portfolioLiquidated) {
+            // Finalize only when all queued requests are processed and no non-underlying positions remain open.
+            bool noRequests = vaultContract.pendingRedeemCount() == 0 && vaultContract.pendingDepositCount() == 0;
+            bool portfolioLiquidated = tokens.length == 1;
+            if (noRequests && portfolioLiquidated) {
                 config.completeVaultDecommissioning(vaultAddress);
             }
         }
@@ -970,7 +971,7 @@ contract LiquidityOrchestrator is
     /// @dev Requires the caller to be the upgrade timelock (if set) or the owner (during initial
     ///      bootstrapping before a timelock has been configured).
     // solhint-disable-next-line use-natspec
-    function _authorizeUpgrade(address) internal override {
+    function _authorizeUpgrade(address) internal view override {
         if (upgradeTimelock != address(0)) {
             if (msg.sender != upgradeTimelock) revert ErrorsLib.NotAuthorized();
         } else {
