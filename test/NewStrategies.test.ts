@@ -230,9 +230,13 @@ describe("New Strategies", function () {
         .withArgs(await assetA.getAddress(), 10n ** BigInt(underlyingDecimals), cp!.timestamp);
     });
 
-    it("submitIntent is permissionless — stranger can call it", async function () {
+    it("submitIntent is owner-only — owner can call it, stranger cannot", async function () {
       await mintAndDeposit(underlyingAsset, assetA, user, 1000, underlyingDecimals);
-      await expect(strategy.connect(stranger).submitIntent()).to.not.be.rejected;
+      await expect(strategy.connect(owner).submitIntent()).to.not.be.rejected;
+      await expect(strategy.connect(stranger).submitIntent()).to.be.revertedWithCustomError(
+        strategy,
+        "OwnableUnauthorizedAccount",
+      );
     });
 
     it("underlying (non-ERC4626) whitelisted asset gets no CheckpointRecorded from strategist", async function () {
@@ -371,7 +375,7 @@ describe("New Strategies", function () {
         WEIGHTING_APY,
       )) as unknown as KBestApyStrategist;
       await fresh.waitForDeployment();
-      await expect(fresh.connect(user).submitIntent()).to.be.revertedWithCustomError(fresh, "ZeroAddress");
+      await expect(fresh.connect(owner).submitIntent()).to.be.revertedWithCustomError(fresh, "ZeroAddress");
     });
 
     it("submitIntent: reverts OrderIntentCannotBeEmpty when k=0", async function () {
@@ -386,7 +390,10 @@ describe("New Strategies", function () {
       const v = await createVault(transparentVaultFactory, owner, await fresh.getAddress());
       void v;
       await fresh.connect(owner).updateParameters(0);
-      await expect(fresh.connect(user).submitIntent()).to.be.revertedWithCustomError(fresh, "OrderIntentCannotBeEmpty");
+      await expect(fresh.connect(owner).submitIntent()).to.be.revertedWithCustomError(
+        fresh,
+        "OrderIntentCannotBeEmpty",
+      );
     });
 
     // ── Zero-APY fallback ─────────────────────────────────────────────────────
@@ -517,20 +524,17 @@ describe("New Strategies", function () {
       );
     });
 
-    // ── Permissionlessness ────────────────────────────────────────────────────
+    // ── Access control ────────────────────────────────────────────────────────
 
-    it("submitIntent is permissionless — any caller produces same result", async function () {
+    it("submitIntent is owner-only — stranger is rejected", async function () {
       await mintAndDeposit(underlyingAsset, assetA, user, 1000, underlyingDecimals);
       await mintAndDeposit(underlyingAsset, assetB, user, 500, underlyingDecimals);
 
-      await strategy.connect(owner).submitIntent();
-      const [tokens1, weights1] = await vault.getIntent();
-
-      await strategy.connect(stranger).submitIntent();
-      const [tokens2, weights2] = await vault.getIntent();
-
-      expect(tokens1).to.deep.equal(tokens2);
-      expect(weights1).to.deep.equal(weights2);
+      await expect(strategy.connect(owner).submitIntent()).to.not.be.rejected;
+      await expect(strategy.connect(stranger).submitIntent()).to.be.revertedWithCustomError(
+        strategy,
+        "OwnableUnauthorizedAccount",
+      );
     });
 
     // ── Sum invariant ─────────────────────────────────────────────────────────
@@ -707,17 +711,14 @@ describe("New Strategies", function () {
       );
     });
 
-    // ── Permissionlessness ────────────────────────────────────────────────────
+    // ── Access control ────────────────────────────────────────────────────────
 
-    it("submitIntent is permissionless — any caller produces same result", async function () {
-      await strategy.connect(owner).submitIntent();
-      const [tokens1, weights1] = await vault.getIntent();
-
-      await strategy.connect(stranger).submitIntent();
-      const [tokens2, weights2] = await vault.getIntent();
-
-      expect(tokens1).to.deep.equal(tokens2);
-      expect(weights1).to.deep.equal(weights2);
+    it("submitIntent is owner-only — stranger is rejected", async function () {
+      await expect(strategy.connect(owner).submitIntent()).to.not.be.rejected;
+      await expect(strategy.connect(stranger).submitIntent()).to.be.revertedWithCustomError(
+        strategy,
+        "OwnableUnauthorizedAccount",
+      );
     });
 
     // ── Sum invariant ─────────────────────────────────────────────────────────
