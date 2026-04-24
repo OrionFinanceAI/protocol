@@ -419,9 +419,10 @@ contract LiquidityOrchestrator is
 
     /// @inheritdoc ILiquidityOrchestrator
     function returnDepositFunds(address user, uint256 amount) external {
-        // Verify the caller is a registered vault
-        if (!config.isOrionVault(msg.sender)) revert ErrorsLib.NotAuthorized();
         // Transfer funds back to the user
+        if (!config.isOrionVault(msg.sender) && !config.isDecommissionedVault(msg.sender)) {
+            revert ErrorsLib.NotAuthorized();
+        }
         IERC20(underlyingAsset).safeTransfer(user, amount);
     }
 
