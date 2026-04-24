@@ -544,7 +544,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         uint256 highWaterMark
     ) internal view returns (uint256) {
         uint256 benchmark = _performanceFeeBenchmark(feeType, highWaterMark);
-        if (benchmark == 0 || activeSharePrice <= benchmark) return 0;
+        if (activeSharePrice <= benchmark) return 0;
 
         uint256 profitsInAssets = (activeSharePrice - benchmark).mulDiv(feeTotalAssets, activeSharePrice);
         return _annualizedPerformanceFee(profitsInAssets, perfBps);
@@ -556,7 +556,6 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         uint16 perfBps
     ) internal view returns (uint256) {
         uint256 spotSharePrice = convertToAssets(10 ** decimals());
-        if (spotSharePrice == 0) return 0;
 
         uint256 hurdle = _getHurdlePrice(spotSharePrice);
         if (activeSharePrice <= hurdle) return 0;

@@ -641,7 +641,8 @@ describe("OrionVault Accounting", function () {
       const P_current = spotPrice(prevTotalAssets, supply, OFFSET);
       const P_hurdle = hurdlePrice(P_current, riskFreeRate, epochDuration);
 
-      const T_hurdle = (P_hurdle * (supply + OFFSET)) / 10n ** 18n;
+      const T_hurdle = (P_hurdle * (supply + OFFSET)) / 10n ** 18n - 1n;
+      expect(activePriceFor(T_hurdle, supply, OFFSET)).to.be.lte(P_hurdle);
 
       const feeModel: IOrionVault.FeeModelStruct = {
         feeType: FeeType.HARD_HURDLE,
