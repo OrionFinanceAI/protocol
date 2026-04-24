@@ -80,10 +80,6 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     uint32 public constant YEAR_IN_SECONDS = 365 days;
     /// @notice Basis points factor (100% = 10_000)
     uint16 public constant BASIS_POINTS_FACTOR = 10_000;
-    /// @notice Maximum management fee (3% = 300)
-    uint16 public constant MAX_MANAGEMENT_FEE = 300;
-    /// @notice Maximum performance fee (30% = 3_000)
-    uint16 public constant MAX_PERFORMANCE_FEE = 3_000;
 
     /// @notice Fee model
     FeeModel public feeModel;
@@ -165,8 +161,6 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
 
         // Validate input
         if (feeType_ > uint8(FeeType.HURDLE_HWM)) revert ErrorsLib.InvalidArguments();
-        if (performanceFee_ > MAX_PERFORMANCE_FEE) revert ErrorsLib.InvalidArguments();
-        if (managementFee_ > MAX_MANAGEMENT_FEE) revert ErrorsLib.InvalidArguments();
 
         feeModel.feeType = FeeType(feeType_);
         feeModel.performanceFee = performanceFee_;
@@ -452,8 +446,6 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
 
         // Validate input
         if (feeType > uint8(FeeType.HURDLE_HWM)) revert ErrorsLib.InvalidArguments();
-        if (performanceFee > MAX_PERFORMANCE_FEE) revert ErrorsLib.InvalidArguments();
-        if (managementFee > MAX_MANAGEMENT_FEE) revert ErrorsLib.InvalidArguments();
 
         // Store old fee model for cooldown period
         oldFeeModel = activeFeeModel();
@@ -520,50 +512,83 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         uint256 feeTotalAssets,
         FeeModel calldata snapshotFeeModel
     ) internal view returns (uint256) {
-        if (snapshotFeeModel.performanceFee == 0) return 0;
+        if (snapshotFeeModel.performanceFee == 0 || feeTotalAssets == 0) return 0;
 
         uint256 activeSharePrice = convertToAssetsWithPITTotalAssets(
             10 ** decimals(),
             feeTotalAssets,
             Math.Rounding.Floor
         );
+        if (activeSharePrice == 0) return 0;
 
-        (uint256 benchmark, uint256 divisor) = _getBenchmark(snapshotFeeModel.feeType, snapshotFeeModel.highWaterMark);
-
-        if (activeSharePrice < benchmark || divisor == 0) return 0;
-        uint256 feeRate = uint256(snapshotFeeModel.performanceFee).mulDiv(activeSharePrice - divisor, divisor);
-        uint256 performanceFeeAmount = feeRate.mulDiv(feeTotalAssets, BASIS_POINTS_FACTOR);
-        return performanceFeeAmount.mulDiv(liquidityOrchestrator.epochDuration(), YEAR_IN_SECONDS);
+        uint16 perfBps = snapshotFeeModel.performanceFee;
+        FeeType feeType = snapshotFeeModel.feeType;
+        if (feeType == FeeType.SOFT_HURDLE) {
+            return _performanceFeeAmountSoftHurdle(activeSharePrice, feeTotalAssets, perfBps);
+        }
+        return
+            _performanceFeeAmountNonSoft(
+                activeSharePrice,
+                feeTotalAssets,
+                perfBps,
+                feeType,
+                snapshotFeeModel.highWaterMark
+            );
     }
 
-    /// @notice Get benchmark value based on fee model type
-    /// @param feeType The fee type to get benchmark for
-    /// @param highWaterMark The high water mark value to use
-    /// @return benchmark The benchmark value
-    /// @return divisor The divisor value
-    function _getBenchmark(
+    function _performanceFeeAmountNonSoft(
+        uint256 activeSharePrice,
+        uint256 feeTotalAssets,
+        uint16 perfBps,
         FeeType feeType,
         uint256 highWaterMark
-    ) internal view returns (uint256 benchmark, uint256 divisor) {
+    ) internal view returns (uint256) {
+        uint256 benchmark = _performanceFeeBenchmark(feeType, highWaterMark);
+        if (activeSharePrice <= benchmark) return 0;
+
+        uint256 profitsInAssets = (activeSharePrice - benchmark).mulDiv(feeTotalAssets, activeSharePrice);
+        return _annualizedPerformanceFee(profitsInAssets, perfBps);
+    }
+
+    function _performanceFeeAmountSoftHurdle(
+        uint256 activeSharePrice,
+        uint256 feeTotalAssets,
+        uint16 perfBps
+    ) internal view returns (uint256) {
+        uint256 spotSharePrice = convertToAssets(10 ** decimals());
+
+        uint256 hurdle = _getHurdlePrice(spotSharePrice);
+        if (activeSharePrice <= hurdle) return 0;
+
+        uint256 profitsInAssets = (activeSharePrice - spotSharePrice).mulDiv(feeTotalAssets, activeSharePrice);
+        return _annualizedPerformanceFee(profitsInAssets, perfBps);
+    }
+
+    function _annualizedPerformanceFee(uint256 profitsInAssets, uint16 perfBps) internal view returns (uint256) {
+        uint256 epochProfits = profitsInAssets.mulDiv(liquidityOrchestrator.epochDuration(), YEAR_IN_SECONDS);
+        return uint256(perfBps).mulDiv(epochProfits, BASIS_POINTS_FACTOR);
+    }
+
+    /// @notice Share-price benchmark used as both gate and profit baseline.
+    /// @param feeType Active fee model
+    /// @param highWaterMark Stored HWM (same units as share price)
+    /// @return benchmark Assets per share threshold; profits are measured from this level upward.
+    function _performanceFeeBenchmark(
+        FeeType feeType,
+        uint256 highWaterMark
+    ) internal view returns (uint256 benchmark) {
         uint256 currentSharePrice = convertToAssets(10 ** decimals());
 
         if (feeType == FeeType.ABSOLUTE) {
             benchmark = currentSharePrice;
-            divisor = benchmark;
         } else if (feeType == FeeType.HIGH_WATER_MARK) {
             benchmark = highWaterMark;
-            divisor = benchmark;
-        } else if (feeType == FeeType.SOFT_HURDLE) {
-            benchmark = _getHurdlePrice(currentSharePrice);
-            divisor = currentSharePrice;
         } else if (feeType == FeeType.HARD_HURDLE) {
             benchmark = _getHurdlePrice(currentSharePrice);
-            divisor = benchmark;
         } else if (feeType == FeeType.HURDLE_HWM) {
             benchmark = Math.max(highWaterMark, _getHurdlePrice(currentSharePrice));
-            divisor = benchmark;
         }
-        return (benchmark, divisor);
+        return benchmark;
     }
 
     /// @notice Get hurdle price amount based on configured risk-free rate
@@ -625,6 +650,16 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         }
 
         return processableShares;
+    }
+
+    /// @inheritdoc IOrionVault
+    function pendingDepositCount() external view returns (uint256) {
+        return _depositRequests.length();
+    }
+
+    /// @inheritdoc IOrionVault
+    function pendingRedeemCount() external view returns (uint256) {
+        return _redeemRequests.length();
     }
 
     /// @inheritdoc IOrionVault

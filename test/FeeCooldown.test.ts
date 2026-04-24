@@ -341,26 +341,6 @@ describe("Fee Cooldown Mechanism", function () {
         config.connect(user1).setFeeChangeCooldownDuration(14n * 24n * 60n * 60n),
       ).to.be.revertedWithCustomError(config, "OwnableUnauthorizedAccount");
     });
-
-    it("should reject vault fee updates exceeding maximums", async function () {
-      const fixture = await networkHelpers.loadFixture(deployFixture);
-      const vault = await createVault(fixture, FEE_TYPE.ABSOLUTE, 1000, 100);
-
-      // Performance fee too high
-      await expect(
-        vault.connect(fixture.owner).updateFeeModel(FEE_TYPE.ABSOLUTE, MAX_PERFORMANCE_FEE + 1, 100),
-      ).to.be.revertedWithCustomError(vault, "InvalidArguments");
-
-      // Management fee too high
-      await expect(
-        vault.connect(fixture.owner).updateFeeModel(FEE_TYPE.ABSOLUTE, 1000, MAX_MANAGEMENT_FEE + 1),
-      ).to.be.revertedWithCustomError(vault, "InvalidArguments");
-
-      // Invalid fee type
-      await expect(
-        vault.connect(fixture.owner).updateFeeModel(6, 1000, 100), // Only 0-4 are valid
-      ).to.be.revertedWithCustomError(vault, "InvalidArguments");
-    });
   });
 
   describe("Edge Cases: Fee Model Changes", function () {

@@ -8,7 +8,7 @@ if [[ -x ".venv/bin/slither" ]]; then
 elif command -v slither >/dev/null 2>&1; then
   SLITHER_BIN="slither"
 else
-  echo "Slither not found. Run: make install (or source .venv/bin/activate && uv pip install slither-analyzer==0.11.3)"
+  echo "Slither not found. Run: make install (or source .venv/bin/activate && uv pip install slither-analyzer==0.11.5)"
   exit 1
 fi
 
