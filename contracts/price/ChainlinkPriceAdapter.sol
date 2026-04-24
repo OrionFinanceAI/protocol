@@ -169,6 +169,7 @@ contract ChainlinkPriceAdapter is IPriceAdapter, Ownable2Step {
         if (feedConfig.feed == address(0)) revert ErrorsLib.AdapterNotSet();
 
         AggregatorV3Interface chainlinkFeed = AggregatorV3Interface(feedConfig.feed);
+        // slither-disable-next-line unused-return
         (, int256 answer, uint256 startedAt, uint256 updatedAt, ) = chainlinkFeed.latestRoundData();
 
         if (answer < 1) revert ErrorsLib.InvalidPrice(asset, answer);
@@ -189,6 +190,7 @@ contract ChainlinkPriceAdapter is IPriceAdapter, Ownable2Step {
         }
 
         if (feedConfig.quoteFeed != address(0)) {
+            // slither-disable-next-line unused-return
             (, int256 qAnswer, uint256 qStartedAt, uint256 qUpdatedAt, ) = AggregatorV3Interface(feedConfig.quoteFeed)
                 .latestRoundData();
 
