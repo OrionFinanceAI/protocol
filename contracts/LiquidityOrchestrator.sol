@@ -419,8 +419,7 @@ contract LiquidityOrchestrator is
 
     /// @inheritdoc ILiquidityOrchestrator
     function returnDepositFunds(address user, uint256 amount) external {
-        // Mirrors transferVaultFees(): decommissioned vaults are removed from the active set,
-        // so isOrionVault() returns false for them and must be checked alongside isDecommissionedVault().
+        // Transfer funds back to the user
         if (!config.isOrionVault(msg.sender) && !config.isDecommissionedVault(msg.sender)) {
             revert ErrorsLib.NotAuthorized();
         }
