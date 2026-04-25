@@ -51,8 +51,6 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     uint8 public priceAdapterDecimals;
     /// @notice Risk-free rate in basis points. Same decimals as BASIS_POINTS_FACTOR
     uint16 public riskFreeRate;
-    /// @notice Maximum risk-free rate (8% = 800)
-    uint16 public constant MAX_RISK_FREE_RATE = 800;
     /// @notice Minimum deposit amount in underlying asset units
     uint256 public minDepositAmount;
     /// @notice Minimum redeem amount in share units
@@ -198,7 +196,6 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     /// @inheritdoc IOrionConfig
     function setProtocolRiskFreeRate(uint16 _riskFreeRate) external onlyOwner {
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
-        if (_riskFreeRate > MAX_RISK_FREE_RATE) revert ErrorsLib.InvalidArguments();
 
         riskFreeRate = _riskFreeRate;
 

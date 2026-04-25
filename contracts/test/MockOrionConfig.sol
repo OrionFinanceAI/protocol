@@ -17,6 +17,8 @@ contract MockOrionConfig {
     mapping(address => bool) private whitelisted;
     /// @dev When true, return 0 for unset tokens (simulates real OrionConfig where unwhitelisted tokens have no entry)
     bool public returnZeroForUnsetTokens;
+    /// @dev Mirrors OrionConfig `isSystemIdle` for adapter tests; default true (idle).
+    bool public systemIdle = true;
 
     constructor(address _underlyingAsset) {
         UNDERLYING_ASSET = _underlyingAsset;
@@ -79,13 +81,11 @@ contract MockOrionConfig {
         guardian = _guardian;
     }
 
-    bool private _systemIdle = true;
-
     function isSystemIdle() external view returns (bool) {
-        return _systemIdle;
+        return systemIdle;
     }
 
     function setSystemIdle(bool idle) external {
-        _systemIdle = idle;
+        systemIdle = idle;
     }
 }

@@ -228,6 +228,14 @@ interface IOrionVault is IERC4626 {
     /// @dev This returns share amounts, not underlying asset amounts
     function pendingRedeem(uint256 fulfillBatchSize) external view returns (uint256);
 
+    /// @notice Get the number of pending deposit queue entries.
+    /// @return The number of unique users with non-zero pending deposit requests.
+    function pendingDepositCount() external view returns (uint256);
+
+    /// @notice Get the number of pending redeem queue entries.
+    /// @return The number of unique users with non-zero pending redeem requests.
+    function pendingRedeemCount() external view returns (uint256);
+
     /// @notice Get the list of pending redeem entries (users and shares) for the next fulfill batch
     /// @param fulfillBatchSize The maximum number of requests to consider
     /// @return users Addresses with pending redeem requests in batch order
