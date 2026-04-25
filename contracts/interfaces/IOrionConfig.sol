@@ -114,9 +114,9 @@ interface IOrionConfig {
     function decommissioningAssets() external view returns (address[] memory);
 
     /// @notice Completes assets removal; only callable by liquidity orchestrator.
-    ///         Assets that appear in failedTokens were not successfully sold this epoch
+    ///         Assets that appear in failedTokens were not successfully processed this epoch
     ///         and are kept in the decommissioning list for retry next epoch.
-    /// @param failedTokens Tokens that failed to sell during the current epoch's SellingLeg.
+    /// @param failedTokens Tokens whose sell or buy execution failed during the current epoch.
     function completeAssetsRemoval(address[] calldata failedTokens) external;
 
     /// @notice Adds a manager to the whitelist

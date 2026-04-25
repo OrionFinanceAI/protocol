@@ -498,6 +498,7 @@ contract LiquidityOrchestrator is
             StatesStruct memory states = _verifyPerformData(_publicValues, proofBytes, statesBytes);
             _processMinibatchVaultsOperations(states.vaults);
             if (currentMinibatchIndex == 0) {
+                // After the final minibatch, currentMinibatchIndex resets to 0, triggering asset cleanup
                 address[] memory failedTokens = _failedEpochTokens;
                 delete _failedEpochTokens;
                 config.completeAssetsRemoval(failedTokens);

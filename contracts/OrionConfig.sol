@@ -317,17 +317,15 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         while (i < _decommissioningAssets.length) {
             address asset = _decommissioningAssets[i];
 
-            // Check if this asset failed to sell during the epoch's SellingLeg.
-            // If so, keep it in the decommissioning list for retry next epoch.
-            bool sellFailed = false;
+            bool failedThisEpoch = false;
             for (uint256 j = 0; j < failedTokens.length; ++j) {
                 if (failedTokens[j] == asset) {
-                    sellFailed = true;
+                    failedThisEpoch = true;
                     break;
                 }
             }
 
-            if (sellFailed) {
+            if (failedThisEpoch) {
                 ++i;
                 continue;
             }
