@@ -440,8 +440,10 @@ contract LiquidityOrchestrator is
 
     /// @inheritdoc ILiquidityOrchestrator
     function transferRedemptionFunds(address user, uint256 amount) external {
-        // Verify the caller is a registered vault
-        if (!config.isOrionVault(msg.sender)) revert ErrorsLib.NotAuthorized();
+        // Verify the caller is a registered or decommissioned vault
+        if (!config.isOrionVault(msg.sender) && !config.isDecommissionedVault(msg.sender)) {
+            revert ErrorsLib.NotAuthorized();
+        }
 
         if (amount > 0) {
             // Transfer underlying assets to the user
@@ -496,7 +498,10 @@ contract LiquidityOrchestrator is
             StatesStruct memory states = _verifyPerformData(_publicValues, proofBytes, statesBytes);
             _processMinibatchVaultsOperations(states.vaults);
             if (currentMinibatchIndex == 0) {
-                config.completeAssetsRemoval();
+                // After the final minibatch, currentMinibatchIndex resets to 0, triggering asset cleanup
+                address[] memory failedTokens = _failedEpochTokens;
+                delete _failedEpochTokens;
+                config.completeAssetsRemoval(failedTokens);
             }
         }
     }
@@ -874,7 +879,6 @@ contract LiquidityOrchestrator is
             emit EventsLib.EpochEnd(epochCounter);
             ++epochCounter;
 
-            delete _failedEpochTokens;
             delete _epochBufferHistory;
         }
 

@@ -19,7 +19,7 @@ import { resetNetwork } from "./helpers/resetNetwork";
  *
  * Uses LiquidityOrchestratorHarness to directly call the contract's internal
  * _calculateMaxWithSlippage and _calculateMinWithSlippage via Solidity (Math.mulDiv),
- * ensuring on-chain rounding behavior is validated rather than JS-only arithmetic.
+ * ensuring onchain rounding behavior is validated rather than JS-only arithmetic.
  */
 describe("LiquidityOrchestrator - Centralized Slippage Management", function () {
   let orionConfig: OrionConfig;
@@ -151,9 +151,9 @@ describe("LiquidityOrchestrator - Centralized Slippage Management", function () 
     );
   });
 
-  describe("Slippage Helper Functions - On-Chain Solidity Validation", function () {
+  describe("Slippage Helper Functions - onchain Solidity Validation", function () {
     describe("_calculateMaxWithSlippage (via harness)", function () {
-      it("should calculate correct max amount with 2% slippage on-chain", async function () {
+      it("should calculate correct max amount with 2% slippage onchain", async function () {
         await harness.setSlippageTolerance(200);
 
         const estimatedAmount = ethers.parseUnits("1000", 6);
@@ -162,7 +162,7 @@ describe("LiquidityOrchestrator - Centralized Slippage Management", function () 
         expect(contractResult).to.equal(ethers.parseUnits("1020", 6));
       });
 
-      it("should calculate correct max amount with 5% slippage on-chain", async function () {
+      it("should calculate correct max amount with 5% slippage onchain", async function () {
         await harness.setSlippageTolerance(500);
 
         const estimatedAmount = ethers.parseUnits("2000", 6);
@@ -171,7 +171,7 @@ describe("LiquidityOrchestrator - Centralized Slippage Management", function () 
         expect(contractResult).to.equal(ethers.parseUnits("2100", 6));
       });
 
-      it("should handle zero slippage correctly on-chain", async function () {
+      it("should handle zero slippage correctly onchain", async function () {
         await harness.setSlippageTolerance(0);
 
         const estimatedAmount = ethers.parseUnits("5000", 6);
@@ -180,7 +180,7 @@ describe("LiquidityOrchestrator - Centralized Slippage Management", function () 
         expect(contractResult).to.equal(estimatedAmount);
       });
 
-      it("should handle very small amounts on-chain (Solidity rounding)", async function () {
+      it("should handle very small amounts onchain (Solidity rounding)", async function () {
         await harness.setSlippageTolerance(100); // 1%
 
         const estimatedAmount = 100n; // 0.0001 USDC
@@ -190,7 +190,7 @@ describe("LiquidityOrchestrator - Centralized Slippage Management", function () 
         expect(contractResult).to.equal(101n);
       });
 
-      it("should handle very large amounts correctly on-chain", async function () {
+      it("should handle very large amounts correctly onchain", async function () {
         await harness.setSlippageTolerance(300); // 3%
 
         const estimatedAmount = ethers.parseUnits("1000000000", 6); // 1 billion USDC
@@ -201,7 +201,7 @@ describe("LiquidityOrchestrator - Centralized Slippage Management", function () 
     });
 
     describe("_calculateMinWithSlippage (via harness)", function () {
-      it("should calculate correct min amount with 2% slippage on-chain", async function () {
+      it("should calculate correct min amount with 2% slippage onchain", async function () {
         await harness.setSlippageTolerance(200);
 
         const estimatedAmount = ethers.parseUnits("1000", 6);
@@ -210,7 +210,7 @@ describe("LiquidityOrchestrator - Centralized Slippage Management", function () 
         expect(contractResult).to.equal(ethers.parseUnits("980", 6));
       });
 
-      it("should calculate correct min amount with 5% slippage on-chain", async function () {
+      it("should calculate correct min amount with 5% slippage onchain", async function () {
         await harness.setSlippageTolerance(500);
 
         const estimatedAmount = ethers.parseUnits("2000", 6);
@@ -219,7 +219,7 @@ describe("LiquidityOrchestrator - Centralized Slippage Management", function () 
         expect(contractResult).to.equal(ethers.parseUnits("1900", 6));
       });
 
-      it("should handle zero slippage correctly on-chain", async function () {
+      it("should handle zero slippage correctly onchain", async function () {
         await harness.setSlippageTolerance(0);
 
         const estimatedAmount = ethers.parseUnits("5000", 6);
@@ -228,7 +228,7 @@ describe("LiquidityOrchestrator - Centralized Slippage Management", function () 
         expect(contractResult).to.equal(estimatedAmount);
       });
 
-      it("should handle very small amounts on-chain (Solidity rounding)", async function () {
+      it("should handle very small amounts onchain (Solidity rounding)", async function () {
         await harness.setSlippageTolerance(100); // 1%
 
         const estimatedAmount = 100n;
@@ -238,7 +238,7 @@ describe("LiquidityOrchestrator - Centralized Slippage Management", function () 
         expect(contractResult).to.equal(99n);
       });
 
-      it("should handle very large amounts correctly on-chain", async function () {
+      it("should handle very large amounts correctly onchain", async function () {
         await harness.setSlippageTolerance(300); // 3%
 
         const estimatedAmount = ethers.parseUnits("1000000000", 6);
@@ -248,7 +248,7 @@ describe("LiquidityOrchestrator - Centralized Slippage Management", function () 
       });
     });
 
-    describe("Precision and Rounding (on-chain vs JS)", function () {
+    describe("Precision and Rounding (onchain vs JS)", function () {
       it("should match expected Solidity mulDiv rounding for fractional results", async function () {
         await harness.setSlippageTolerance(250); // 2.5%
 
@@ -261,7 +261,7 @@ describe("LiquidityOrchestrator - Centralized Slippage Management", function () 
         expect(minResult).to.equal(120370369n);
       });
 
-      it("should validate on-chain results match JS reference for multiple inputs", async function () {
+      it("should validate onchain results match JS reference for multiple inputs", async function () {
         const amounts = [1n, 999n, 1000000n, 100000000n, ethers.parseUnits("10000", 6)];
         const slippages = [50n, 100n, 200n, 500n, 1000n];
 
@@ -287,7 +287,7 @@ describe("LiquidityOrchestrator - Centralized Slippage Management", function () 
         }
       });
 
-      it("should handle amounts that result in exact division on-chain", async function () {
+      it("should handle amounts that result in exact division onchain", async function () {
         await harness.setSlippageTolerance(250); // 2.5%
 
         const estimatedAmount = 4000000n; // 4 USDC
@@ -379,7 +379,7 @@ describe("LiquidityOrchestrator - Centralized Slippage Management", function () 
   });
 
   describe("Edge Cases and Boundary Conditions", function () {
-    it("should handle maximum possible slippage tolerance on-chain", async function () {
+    it("should handle maximum possible slippage tolerance onchain", async function () {
       const highSlippage = 2000n; // 20%
       await harness.setSlippageTolerance(highSlippage);
 
@@ -391,7 +391,7 @@ describe("LiquidityOrchestrator - Centralized Slippage Management", function () 
       expect(contractMin).to.equal(ethers.parseUnits("800", 6));
     });
 
-    it("should maintain precision with fractional basis points on-chain", async function () {
+    it("should maintain precision with fractional basis points onchain", async function () {
       await harness.setSlippageTolerance(123); // 1.23%
 
       const estimatedAmount = ethers.parseUnits("10000", 6);
@@ -406,7 +406,7 @@ describe("LiquidityOrchestrator - Centralized Slippage Management", function () 
   });
 
   describe("Slippage Update Propagation", function () {
-    it("should immediately reflect slippage changes in on-chain calculations", async function () {
+    it("should immediately reflect slippage changes in onchain calculations", async function () {
       const estimatedAmount = ethers.parseUnits("1000", 6);
 
       await harness.setSlippageTolerance(100); // 1%
@@ -422,7 +422,7 @@ describe("LiquidityOrchestrator - Centralized Slippage Management", function () 
       expect(maxAmount).to.equal(ethers.parseUnits("1005", 6));
     });
 
-    it("should maintain consistency after multiple slippage updates on-chain", async function () {
+    it("should maintain consistency after multiple slippage updates onchain", async function () {
       const estimatedAmount = ethers.parseUnits("5000", 6);
       const slippageValues = [100n, 200n, 300n, 150n, 250n];
 
@@ -438,7 +438,7 @@ describe("LiquidityOrchestrator - Centralized Slippage Management", function () 
   });
 
   describe("Symmetry Validation", function () {
-    it("should validate max and min are symmetric within rounding on-chain", async function () {
+    it("should validate max and min are symmetric within rounding onchain", async function () {
       await harness.setSlippageTolerance(350); // 3.5%
 
       const amounts = [
@@ -461,7 +461,7 @@ describe("LiquidityOrchestrator - Centralized Slippage Management", function () 
       }
     });
 
-    it("should demonstrate single source of truth for slippage on-chain", async function () {
+    it("should demonstrate single source of truth for slippage onchain", async function () {
       await harness.setSlippageTolerance(200); // 2%
 
       const slippage = await harness.slippageTolerance();
