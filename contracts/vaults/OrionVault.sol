@@ -248,23 +248,17 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     }
 
     /// @inheritdoc IERC4626
-    /// @dev Returns 0 when the system is not idle, the vault is decommissioned, or the owner's
-    ///      balance is below minRedeemAmount, since redemption requests are not possible in those states.
+    /// @dev Synchronous redeem() is only available on decommissioned vaults. Returns 0 for any
+    ///      non-decommissioned vault. Returns the owner's full share balance when decommissioned.
     function maxRedeem(address owner) public view override(ERC4626Upgradeable, IERC4626) returns (uint256) {
-        if (!config.isSystemIdle()) return 0;
-        if (config.isDecommissionedVault(address(this))) return 0;
-        uint256 shares = balanceOf(owner);
-        if (shares < config.minRedeemAmount()) return 0;
-        return shares;
+        if (!config.isDecommissionedVault(address(this))) return 0;
+        return balanceOf(owner);
     }
 
     /// @inheritdoc IERC4626
-    /// @dev Returns 0 whenever maxRedeem returns 0. withdraw() is always disabled in this vault,
-    ///      so this reflects the same constraints as maxRedeem converted to assets.
-    function maxWithdraw(address owner) public view override(ERC4626Upgradeable, IERC4626) returns (uint256) {
-        uint256 maxShares = maxRedeem(owner);
-        if (maxShares == 0) return 0;
-        return convertToAssets(maxShares);
+    /// @dev withdraw() is unconditionally disabled in this vault — always returns 0.
+    function maxWithdraw(address) public pure override(ERC4626Upgradeable, IERC4626) returns (uint256) {
+        return 0;
     }
 
     /// @notice Override ERC4626 decimals to always use SHARE_DECIMALS regardless of underlying asset decimals
