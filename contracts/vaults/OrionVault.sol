@@ -227,6 +227,46 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         return _totalAssets;
     }
 
+    /// @inheritdoc IERC4626
+    /// @dev Returns 0 when the system is not idle, the vault is decommissioning/decommissioned,
+    ///      the caller is blocked by depositAccessControl, since deposits are not possible in those states.
+    function maxDeposit(address receiver) public view override(ERC4626Upgradeable, IERC4626) returns (uint256) {
+        if (!config.isSystemIdle()) return 0;
+        if (isDecommissioning || config.isDecommissionedVault(address(this))) return 0;
+        if (depositAccessControl != address(0)) {
+            if (!IOrionAccessControl(depositAccessControl).canRequestDeposit(receiver)) return 0;
+        }
+        return type(uint256).max;
+    }
+
+    /// @inheritdoc IERC4626
+    /// @dev Returns 0 whenever maxDeposit returns 0.
+    function maxMint(address receiver) public view override(ERC4626Upgradeable, IERC4626) returns (uint256) {
+        uint256 maxAssets = maxDeposit(receiver);
+        if (maxAssets == 0) return 0;
+        return type(uint256).max;
+    }
+
+    /// @inheritdoc IERC4626
+    /// @dev Returns 0 when the system is not idle, the vault is decommissioned, or the owner's
+    ///      balance is below minRedeemAmount, since redemption requests are not possible in those states.
+    function maxRedeem(address owner) public view override(ERC4626Upgradeable, IERC4626) returns (uint256) {
+        if (!config.isSystemIdle()) return 0;
+        if (config.isDecommissionedVault(address(this))) return 0;
+        uint256 shares = balanceOf(owner);
+        if (shares < config.minRedeemAmount()) return 0;
+        return shares;
+    }
+
+    /// @inheritdoc IERC4626
+    /// @dev Returns 0 whenever maxRedeem returns 0. withdraw() is always disabled in this vault,
+    ///      so this reflects the same constraints as maxRedeem converted to assets.
+    function maxWithdraw(address owner) public view override(ERC4626Upgradeable, IERC4626) returns (uint256) {
+        uint256 maxShares = maxRedeem(owner);
+        if (maxShares == 0) return 0;
+        return convertToAssets(maxShares);
+    }
+
     /// @notice Override ERC4626 decimals to always use SHARE_DECIMALS regardless of underlying asset decimals
     /// @dev This ensures consistent 18-decimal precision for share tokens across all vaults
     /// @return SHARE_DECIMALS for all vault share tokens
