@@ -67,6 +67,16 @@ interface IOrionVault is IERC4626 {
     /// @param newDepositAccessControl The new deposit access control contract address (address(0) = permissionless).
     event DepositAccessControlUpdated(address indexed newDepositAccessControl);
 
+    /// @notice A redemption transfer to a user failed (e.g. USDC denylist) and the amount is held for later claim.
+    /// @param user The user whose transfer failed.
+    /// @param amount The underlying amount held for the user.
+    event RedemptionTransferFailed(address indexed user, uint256 indexed amount);
+
+    /// @notice A user has claimed their held redemption proceeds.
+    /// @param user The user who claimed.
+    /// @param amount The underlying amount transferred.
+    event RedemptionClaimed(address indexed user, uint256 indexed amount);
+
     // --------- ENUMS AND STRUCTS ---------
 
     /// @notice Fee type
@@ -245,6 +255,9 @@ interface IOrionVault is IERC4626 {
     /// @notice Process all pending redemption requests and burn shares from redeemers
     /// @param redeemTotalAssets The total assets associated with the redemption requests
     function fulfillRedeem(uint256 redeemTotalAssets) external;
+
+    /// @notice Claim underlying assets that were held after a failed redemption transfer (e.g. USDC denylist)
+    function claimUnderlying() external;
 
     /// @notice Accrue vault fees for a specific epoch
     /// @param managementFee The amount of management fees to accrue in underlying asset units

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.34;
 
-import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import { ReentrancyGuardTransient } from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
@@ -44,7 +43,6 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGuardTransient, IOrionVault {
     using Math for uint256;
     using SafeERC20 for IERC20;
-    using EnumerableMap for EnumerableMap.AddressToUintMap;
 
     /// @notice Vault manager
     address public manager;
@@ -60,11 +58,10 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     /// @notice Total assets under management (t_0) - denominated in underlying asset units
     uint256 internal _totalAssets;
 
-    /// @notice Deposit requests queue (D) - mapping of user address to requested [assets] amount
-    EnumerableMap.AddressToUintMap private _depositRequests;
-
-    /// @notice Redemption requests queue (R) - mapping of user address to requested [shares] amount
-    EnumerableMap.AddressToUintMap private _redeemRequests;
+    /// @dev Reserved slots: replaced EnumerableMap deposit queue (3 slots, preserved for upgrade safety).
+    uint256[3] private __depositRequestsGap;
+    /// @dev Reserved slots: replaced EnumerableMap redeem queue (3 slots, preserved for upgrade safety).
+    uint256[3] private __redeemRequestsGap;
 
     /// @notice Pending vault fees [assets]
     uint256 public pendingVaultFees;
@@ -93,6 +90,9 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     /// @notice Flag indicating if the vault is in decommissioning mode
     /// @dev When true, intent is overridden to 100% underlying asset
     bool public isDecommissioning;
+
+    /// @notice Underlying amount owed to a user whose redemption transfer failed (e.g. USDC denylist)
+    mapping(address => uint256) public pendingUnderlyingClaims;
 
     /// @dev Restricts function to only vault manager
     modifier onlyManager() {
@@ -318,13 +318,27 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         if (assets > senderBalance) revert ErrorsLib.InsufficientAmount();
 
         IERC20(asset()).safeTransferFrom(msg.sender, address(liquidityOrchestrator), assets);
-
-        // slither-disable-next-line unused-return
-        (, uint256 currentAmount) = _depositRequests.tryGet(msg.sender);
-        // slither-disable-next-line unused-return
-        _depositRequests.set(msg.sender, currentAmount + assets);
+        _enqueueDeposit(msg.sender, assets);
 
         emit DepositRequest(msg.sender, assets);
+    }
+
+    /// @dev Adds `amount` to the user's deposit queue slot. Subsequent calls accumulate into
+    ///      the same slot, preserving the user's original queue position. Slots are 1-indexed;
+    ///      ticket value 0 is the sentinel for "not queued".
+    function _enqueueDeposit(address user, uint256 amount) private {
+        uint256 ticket = _depositTicket[user];
+        if (ticket != 0) {
+            _depositQueueAmount[ticket] += amount;
+            return;
+        }
+        uint256 slot = (_depositTail == 0) ? 1 : _depositTail;
+        _depositTail = slot + 1;
+        if (_depositHead == 0) _depositHead = slot;
+        _depositQueueUser[slot] = user;
+        _depositQueueAmount[slot] = amount;
+        _depositTicket[user] = slot;
+        ++_depositCount;
     }
 
     /// @inheritdoc IOrionVault
@@ -332,26 +346,25 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
 
-        // slither-disable-next-line unused-return
-        (, uint256 currentAmount) = _depositRequests.tryGet(msg.sender);
+        uint256 ticket = _depositTicket[msg.sender];
+        if (ticket == 0) revert ErrorsLib.InsufficientAmount();
+
+        uint256 currentAmount = _depositQueueAmount[ticket];
         if (currentAmount < amount) revert ErrorsLib.InsufficientAmount();
 
-        // Update internal state
         uint256 newAmount = currentAmount - amount;
 
         if (newAmount == 0) {
-            // slither-disable-next-line unused-return
-            _depositRequests.remove(msg.sender);
+            _depositQueueUser[ticket] = address(0);
+            _depositQueueAmount[ticket] = 0;
+            delete _depositTicket[msg.sender];
+            --_depositCount;
         } else {
-            // Avoid dust deposit requests by rejecting cancellations with small reminders.
             uint256 minDeposit = config.minDepositAmount();
             if (newAmount < minDeposit) revert ErrorsLib.BelowMinimumDeposit(newAmount, minDeposit);
-
-            // slither-disable-next-line unused-return
-            _depositRequests.set(msg.sender, newAmount);
+            _depositQueueAmount[ticket] = newAmount;
         }
 
-        // Request funds from liquidity orchestrator
         liquidityOrchestrator.returnDepositFunds(msg.sender, amount);
 
         emit DepositRequestCancelled(msg.sender, amount);
@@ -370,13 +383,27 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         if (shares > senderBalance) revert ErrorsLib.InsufficientAmount();
 
         IERC20(address(this)).safeTransferFrom(msg.sender, address(this), shares);
-
-        // slither-disable-next-line unused-return
-        (, uint256 currentShares) = _redeemRequests.tryGet(msg.sender);
-        // slither-disable-next-line unused-return
-        _redeemRequests.set(msg.sender, currentShares + shares);
+        _enqueueRedeem(msg.sender, shares);
 
         emit RedeemRequest(msg.sender, shares);
+    }
+
+    /// @dev Adds `amount` to the user's redeem queue slot. Subsequent calls accumulate into
+    ///      the same slot, preserving the user's original queue position. Slots are 1-indexed;
+    ///      ticket value 0 is the sentinel for "not queued".
+    function _enqueueRedeem(address user, uint256 amount) private {
+        uint256 ticket = _redeemTicket[user];
+        if (ticket != 0) {
+            _redeemQueueAmount[ticket] += amount;
+            return;
+        }
+        uint256 slot = (_redeemTail == 0) ? 1 : _redeemTail;
+        _redeemTail = slot + 1;
+        if (_redeemHead == 0) _redeemHead = slot;
+        _redeemQueueUser[slot] = user;
+        _redeemQueueAmount[slot] = amount;
+        _redeemTicket[user] = slot;
+        ++_redeemCount;
     }
 
     /// @inheritdoc IOrionVault
@@ -384,25 +411,24 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         if (shares == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(address(this));
 
-        // slither-disable-next-line unused-return
-        (, uint256 currentShares) = _redeemRequests.tryGet(msg.sender);
+        uint256 ticket = _redeemTicket[msg.sender];
+        if (ticket == 0) revert ErrorsLib.InsufficientAmount();
+
+        uint256 currentShares = _redeemQueueAmount[ticket];
         if (currentShares < shares) revert ErrorsLib.InsufficientAmount();
 
-        // Effects - update internal state
         uint256 newShares = currentShares - shares;
         if (newShares == 0) {
-            // slither-disable-next-line unused-return
-            _redeemRequests.remove(msg.sender);
+            _redeemQueueUser[ticket] = address(0);
+            _redeemQueueAmount[ticket] = 0;
+            delete _redeemTicket[msg.sender];
+            --_redeemCount;
         } else {
-            // Avoid dust redeem requests by rejecting cancellations with small reminders.
             uint256 minRedeem = config.minRedeemAmount();
             if (newShares < minRedeem) revert ErrorsLib.BelowMinimumRedeem(newShares, minRedeem);
-
-            // slither-disable-next-line unused-return
-            _redeemRequests.set(msg.sender, newShares);
+            _redeemQueueAmount[ticket] = newShares;
         }
 
-        // Interactions - return shares to LP.
         IERC20(address(this)).safeTransfer(msg.sender, shares);
 
         emit RedeemRequestCancelled(msg.sender, shares);
@@ -616,63 +642,52 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
 
     /// @inheritdoc IOrionVault
     function pendingDeposit(uint256 fulfillBatchSize) external view returns (uint256) {
-        uint256 length = _depositRequests.length();
-        if (length == 0) {
-            return 0;
+        if (_depositCount == 0) return 0;
+        uint256 found = 0;
+        uint256 total = 0;
+        for (uint256 i = _depositHead; i < _depositTail && found < fulfillBatchSize; ++i) {
+            if (_depositQueueUser[i] == address(0)) continue;
+            total += _depositQueueAmount[i];
+            ++found;
         }
-
-        uint256 batchSize = Math.min(length, fulfillBatchSize);
-        uint256 processableAmount = 0;
-
-        for (uint16 i = 0; i < batchSize; ++i) {
-            // slither-disable-next-line unused-return
-            (, uint256 amount) = _depositRequests.at(i);
-            processableAmount += amount;
-        }
-
-        return processableAmount;
+        return total;
     }
 
     /// @inheritdoc IOrionVault
     function pendingRedeem(uint256 fulfillBatchSize) external view returns (uint256) {
-        uint256 length = _redeemRequests.length();
-        if (length == 0) {
-            return 0;
+        if (_redeemCount == 0) return 0;
+        uint256 found = 0;
+        uint256 total = 0;
+        for (uint256 i = _redeemHead; i < _redeemTail && found < fulfillBatchSize; ++i) {
+            if (_redeemQueueUser[i] == address(0)) continue;
+            total += _redeemQueueAmount[i];
+            ++found;
         }
-
-        uint256 batchSize = Math.min(length, fulfillBatchSize);
-        uint256 processableShares = 0;
-
-        for (uint16 i = 0; i < batchSize; ++i) {
-            // slither-disable-next-line unused-return
-            (, uint256 shares) = _redeemRequests.at(i);
-            processableShares += shares;
-        }
-
-        return processableShares;
+        return total;
     }
 
     /// @inheritdoc IOrionVault
     function pendingDepositCount() external view returns (uint256) {
-        return _depositRequests.length();
+        return _depositCount;
     }
 
     /// @inheritdoc IOrionVault
     function pendingRedeemCount() external view returns (uint256) {
-        return _redeemRequests.length();
+        return _redeemCount;
     }
 
     /// @inheritdoc IOrionVault
     function pendingRedeemBatch(uint256 fulfillBatchSize) external view returns (address[] memory, uint256[] memory) {
-        uint256 length = _redeemRequests.length();
-        if (length == 0) {
-            return (new address[](0), new uint256[](0));
-        }
-        uint256 batchSize = Math.min(length, fulfillBatchSize);
+        if (_redeemCount == 0) return (new address[](0), new uint256[](0));
+        uint256 batchSize = Math.min(_redeemCount, fulfillBatchSize);
         address[] memory users = new address[](batchSize);
         uint256[] memory shares = new uint256[](batchSize);
-        for (uint256 i = 0; i < batchSize; ++i) {
-            (users[i], shares[i]) = _redeemRequests.at(i);
+        uint256 found = 0;
+        for (uint256 i = _redeemHead; i < _redeemTail && found < batchSize; ++i) {
+            if (_redeemQueueUser[i] == address(0)) continue;
+            users[found] = _redeemQueueUser[i];
+            shares[found] = _redeemQueueAmount[i];
+            ++found;
         }
         return (users, shares);
     }
@@ -689,30 +704,28 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
 
     /// @inheritdoc IOrionVault
     function fulfillDeposit(uint256 depositTotalAssets) external onlyLiquidityOrchestrator nonReentrant {
-        uint256 length = _depositRequests.length();
-        if (length == 0) {
-            return;
-        }
+        if (_depositCount == 0) return;
 
-        uint256 batchSize = Math.min(length, config.maxFulfillBatchSize());
+        uint256 batchSize = Math.min(_depositCount, config.maxFulfillBatchSize());
 
-        // Capture totalSupply snapshot to ensure consistent pricing for all users in this batch
         uint256 snapshotTotalSupply = totalSupply();
 
-        address[] memory users = new address[](batchSize);
-        uint256[] memory amounts = new uint256[](batchSize);
-        for (uint256 i = 0; i < batchSize; ++i) {
-            (users[i], amounts[i]) = _depositRequests.at(i);
-        }
+        uint256 found = 0;
+        uint256 cursor = _depositHead;
+        while (found < batchSize && cursor < _depositTail) {
+            address user = _depositQueueUser[cursor];
+            if (user == address(0)) {
+                ++cursor;
+                continue;
+            }
 
-        // Process requests in batch
-        uint256 processedAmount = 0;
-        for (uint256 i = 0; i < batchSize; ++i) {
-            address user = users[i];
-            uint256 amount = amounts[i];
+            uint256 amount = _depositQueueAmount[cursor];
 
-            // slither-disable-next-line unused-return
-            _depositRequests.remove(user);
+            _depositQueueUser[cursor] = address(0);
+            _depositQueueAmount[cursor] = 0;
+            delete _depositTicket[user];
+            --_depositCount;
+            ++cursor;
 
             uint256 shares = _convertToSharesWithPITTotalAssets(
                 amount,
@@ -721,39 +734,38 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
                 Math.Rounding.Floor
             );
             _mint(user, shares);
-            processedAmount += amount;
+            ++found;
 
             emit Deposit(user, user, amount, shares);
         }
+        _depositHead = cursor;
     }
 
     /// @inheritdoc IOrionVault
     function fulfillRedeem(uint256 redeemTotalAssets) external onlyLiquidityOrchestrator nonReentrant {
-        uint256 length = _redeemRequests.length();
-        if (length == 0) {
-            return;
-        }
+        if (_redeemCount == 0) return;
 
-        uint256 batchSize = Math.min(length, config.maxFulfillBatchSize());
+        uint256 batchSize = Math.min(_redeemCount, config.maxFulfillBatchSize());
 
-        // Capture totalSupply snapshot to ensure consistent pricing for all users in this batch
         uint256 snapshotTotalSupply = totalSupply();
 
-        // Collect all keys to process first to avoid swap-and-pop reordering issues
-        address[] memory users = new address[](batchSize);
-        uint256[] memory shares = new uint256[](batchSize);
-        for (uint256 i = 0; i < batchSize; ++i) {
-            (users[i], shares[i]) = _redeemRequests.at(i);
-        }
-
-        // Process requests in batch
+        uint256 found = 0;
         uint256 processedShares = 0;
-        for (uint256 i = 0; i < batchSize; ++i) {
-            address user = users[i];
-            uint256 userShares = shares[i];
+        uint256 cursor = _redeemHead;
+        while (found < batchSize && cursor < _redeemTail) {
+            address user = _redeemQueueUser[cursor];
+            if (user == address(0)) {
+                ++cursor;
+                continue;
+            }
 
-            // slither-disable-next-line unused-return
-            _redeemRequests.remove(user);
+            uint256 userShares = _redeemQueueAmount[cursor];
+
+            _redeemQueueUser[cursor] = address(0);
+            _redeemQueueAmount[cursor] = 0;
+            delete _redeemTicket[user];
+            --_redeemCount;
+            ++cursor;
 
             uint256 underlyingAmount = _convertToAssetsWithPITTotalAssets(
                 userShares,
@@ -762,14 +774,56 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
                 Math.Rounding.Floor
             );
             processedShares += userShares;
+            ++found;
 
-            liquidityOrchestrator.transferRedemptionFunds(user, underlyingAmount);
-
-            emit Redeem(user, underlyingAmount, userShares);
+            try liquidityOrchestrator.transferRedemptionFunds(user, underlyingAmount) {
+                emit Redeem(user, underlyingAmount, userShares);
+            } catch {
+                pendingUnderlyingClaims[user] += underlyingAmount;
+                emit RedemptionTransferFailed(user, underlyingAmount);
+            }
         }
+        _redeemHead = cursor;
         _burn(address(this), processedShares);
     }
 
-    /// @dev Storage gap to allow for future upgrades
-    uint256[50] private __gap;
+    /// @inheritdoc IOrionVault
+    function claimUnderlying() external nonReentrant {
+        uint256 amount = pendingUnderlyingClaims[msg.sender];
+        if (amount == 0) revert ErrorsLib.InsufficientAmount();
+        pendingUnderlyingClaims[msg.sender] = 0;
+        liquidityOrchestrator.transferRedemptionFunds(msg.sender, amount);
+        emit RedemptionClaimed(msg.sender, amount);
+    }
+
+    // ---- FIFO Deposit Queue ----
+    /// @dev Index of the oldest unfulfilled deposit slot (1-indexed; 0 means empty).
+    uint256 private _depositHead;
+    /// @dev Next insertion slot index (exclusive upper bound).
+    uint256 private _depositTail;
+    /// @dev Slot index → depositor address (address(0) = cancelled slot).
+    mapping(uint256 => address) private _depositQueueUser;
+    /// @dev Slot index → pending deposit amount in underlying tokens.
+    mapping(uint256 => uint256) private _depositQueueAmount;
+    /// @dev User address → their current queue slot index (0 = not in queue).
+    mapping(address => uint256) private _depositTicket;
+    /// @dev Number of active (non-cancelled) deposit entries.
+    uint256 private _depositCount;
+
+    // ---- FIFO Redeem Queue ----
+    /// @dev Index of the oldest unfulfilled redeem slot (1-indexed; 0 means empty).
+    uint256 private _redeemHead;
+    /// @dev Next insertion slot index (exclusive upper bound).
+    uint256 private _redeemTail;
+    /// @dev Slot index → redeemer address (address(0) = cancelled slot).
+    mapping(uint256 => address) private _redeemQueueUser;
+    /// @dev Slot index → pending redeem amount in vault shares.
+    mapping(uint256 => uint256) private _redeemQueueAmount;
+    /// @dev User address → their current queue slot index (0 = not in queue).
+    mapping(address => uint256) private _redeemTicket;
+    /// @dev Number of active (non-cancelled) redeem entries.
+    uint256 private _redeemCount;
+
+    /// @dev Storage gap (reduced by 12 for FIFO queue variables).
+    uint256[37] private __gap;
 }
