@@ -22,6 +22,12 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 contract KBestTvlWeightedAverage is IOrionStrategist, ERC165, Ownable2Step, ReentrancyGuard {
     /// @notice The Orion configuration contract.
     IOrionConfig public immutable CONFIG;
+    /// @notice Protocol underlying asset cached at deployment.
+    address public immutable PROTOCOL_UNDERLYING;
+    /// @notice Price adapter decimals cached at deployment.
+    uint8 public immutable PRICE_DECIMALS;
+    /// @notice Price registry cached at deployment.
+    IPriceAdapterRegistry public immutable PRICE_REGISTRY;
 
     /// @notice The number of top assets to select.
     uint16 public k;
@@ -36,6 +42,9 @@ contract KBestTvlWeightedAverage is IOrionStrategist, ERC165, Ownable2Step, Reen
     constructor(address owner_, address config_, uint16 k_) Ownable(owner_) {
         if (config_ == address(0)) revert ErrorsLib.ZeroAddress();
         CONFIG = IOrionConfig(config_);
+        PROTOCOL_UNDERLYING = address(CONFIG.underlyingAsset());
+        PRICE_DECIMALS = CONFIG.priceAdapterDecimals();
+        PRICE_REGISTRY = IPriceAdapterRegistry(CONFIG.priceAdapterRegistry());
         k = k_;
     }
 
@@ -81,11 +90,8 @@ contract KBestTvlWeightedAverage is IOrionStrategist, ERC165, Ownable2Step, Reen
     ///      unresolvable assets are ranked last rather than causing a revert.
     function _getAssetTVLs(address[] memory assets, uint16 n) internal view returns (uint256[] memory tvls) {
         tvls = new uint256[](n);
-        address protocolUnderlying = address(CONFIG.underlyingAsset());
-        uint8 priceDecimals = CONFIG.priceAdapterDecimals();
-        IPriceAdapterRegistry priceRegistry = IPriceAdapterRegistry(CONFIG.priceAdapterRegistry());
         for (uint16 i = 0; i < n; ++i) {
-            tvls[i] = _normalizedTvl(assets[i], protocolUnderlying, priceDecimals, priceRegistry);
+            tvls[i] = _normalizedTvl(assets[i]);
         }
     }
 
@@ -93,12 +99,7 @@ contract KBestTvlWeightedAverage is IOrionStrategist, ERC165, Ownable2Step, Reen
     ///      normalizedTvl = rawTvl * underlyingPrice / 10^underlyingDecimals
     ///      where underlyingPrice is sourced from the protocol price registry and is already
     ///      in priceAdapterDecimals precision, making all results directly comparable.
-    function _normalizedTvl(
-        address asset,
-        address protocolUnderlying,
-        uint8 priceDecimals,
-        IPriceAdapterRegistry priceRegistry
-    ) private view returns (uint256) {
+    function _normalizedTvl(address asset) private view returns (uint256) {
         uint256 rawTvl = 0;
         try IERC4626(asset).totalAssets() returns (uint256 tvl) {
             rawTvl = tvl;
@@ -124,11 +125,11 @@ contract KBestTvlWeightedAverage is IOrionStrategist, ERC165, Ownable2Step, Reen
 
         uint256 underlyingPrice = 0;
 
-        if (vaultUnderlying == protocolUnderlying) {
+        if (vaultUnderlying == PROTOCOL_UNDERLYING) {
             // TVL is already in protocol underlying units; use unit price in priceDecimals precision.
-            underlyingPrice = 10 ** priceDecimals;
+            underlyingPrice = 10 ** PRICE_DECIMALS;
         } else {
-            try priceRegistry.getPrice(vaultUnderlying) returns (uint256 p) {
+            try PRICE_REGISTRY.getPrice(vaultUnderlying) returns (uint256 p) {
                 underlyingPrice = p;
             } catch {
                 return 1;
