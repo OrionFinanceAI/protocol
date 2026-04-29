@@ -40,6 +40,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
  * 4. Portfolio Weights (w_0) [shares] – current allocation in share units for stateless TVL estimation
  * 5. Strategist Intent (w_1) [%] – target allocation in percentage of total supply
  */
+// solhint-disable-next-line max-states-count
 abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGuardTransient, IOrionVault {
     using Math for uint256;
     using SafeERC20 for IERC20;
@@ -91,7 +92,8 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     /// @dev When true, intent is overridden to 100% underlying asset
     bool public isDecommissioning;
 
-    /// @notice Underlying amount owed to a user whose redemption transfer failed (e.g. USDC denylist)
+    /// @notice Underlying owed when a redemption transfer failed (e.g. USDC denylist).
+    /// @dev User recovers via claimUnderlying().
     mapping(address => uint256) public pendingUnderlyingClaims;
 
     /// @dev Restricts function to only vault manager
@@ -450,6 +452,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
             if (supported) {
                 IOrionStrategist(strategist_).setVault(address(this));
             }
+            // solhint-disable-next-line no-empty-blocks
         } catch {}
     }
 
@@ -570,6 +573,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         uint256 highWaterMark
     ) internal view returns (uint256) {
         uint256 benchmark = _performanceFeeBenchmark(feeType, highWaterMark);
+        // solhint-disable-next-line gas-strict-inequalities
         if (activeSharePrice <= benchmark) return 0;
 
         uint256 profitsInAssets = (activeSharePrice - benchmark).mulDiv(feeTotalAssets, activeSharePrice);
@@ -584,6 +588,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         uint256 spotSharePrice = convertToAssets(10 ** decimals());
 
         uint256 hurdle = _getHurdlePrice(spotSharePrice);
+        // solhint-disable-next-line gas-strict-inequalities
         if (activeSharePrice <= hurdle) return 0;
 
         uint256 profitsInAssets = (activeSharePrice - spotSharePrice).mulDiv(feeTotalAssets, activeSharePrice);
@@ -780,7 +785,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
                 emit Redeem(user, underlyingAmount, userShares);
             } catch {
                 pendingUnderlyingClaims[user] += underlyingAmount;
-                emit RedemptionTransferFailed(user, underlyingAmount);
+                emit RedemptionFailed(user, underlyingAmount, userShares);
             }
         }
         _redeemHead = cursor;
