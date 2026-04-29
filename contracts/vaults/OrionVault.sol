@@ -95,7 +95,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     bool public isDecommissioning;
 
     /// @notice Underlying amount owed to a user whose redemption transfer failed
-    mapping(address => uint256) public pendingUnderlyingClaims;
+    EnumerableMap.AddressToUintMap private _pendingUnderlyingClaims;
 
     /// @dev Restricts function to only vault manager
     modifier onlyManager() {
@@ -800,13 +800,14 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
             );
             processedShares += userShares;
 
-            // If the underlying transfer reverts (e.g. USDC denylist), hold the funds in the LO
-            // and record the claimable amount so the rest of the batch is unaffected.
             try liquidityOrchestrator.transferRedemptionFunds(user, underlyingAmount) {
                 emit Redeem(user, underlyingAmount, userShares);
             } catch {
-                pendingUnderlyingClaims[user] += underlyingAmount;
-                emit RedemptionTransferFailed(user, underlyingAmount);
+                // slither-disable-next-line unused-return
+                (, uint256 pendingAmount) = _pendingUnderlyingClaims.tryGet(user);
+                // slither-disable-next-line unused-return
+                _pendingUnderlyingClaims.set(user, pendingAmount + underlyingAmount);
+                emit RedemptionFailed(user, underlyingAmount, userShares);
             }
         }
         _burn(address(this), processedShares);
@@ -814,13 +815,14 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
 
     /// @inheritdoc IOrionVault
     function claimUnderlying() external nonReentrant {
-        uint256 amount = pendingUnderlyingClaims[msg.sender];
-        if (amount == 0) revert ErrorsLib.InsufficientAmount();
-        pendingUnderlyingClaims[msg.sender] = 0;
+        (bool hasClaim, uint256 amount) = _pendingUnderlyingClaims.tryGet(msg.sender);
+        if (!hasClaim || amount == 0) revert ErrorsLib.InsufficientAmount();
+        // slither-disable-next-line unused-return
+        _pendingUnderlyingClaims.remove(msg.sender);
         liquidityOrchestrator.transferRedemptionFunds(msg.sender, amount);
         emit RedemptionClaimed(msg.sender, amount);
     }
 
-    /// @dev Storage gap to allow for future upgrades (reduced by 1 for pendingUnderlyingClaims)
-    uint256[49] private __gap;
+    /// @dev Storage gap to allow for future upgrades
+    uint256[50] private __gap;
 }

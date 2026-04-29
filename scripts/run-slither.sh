@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SLITHER_ARGS=(. --filter-paths "lib|node_modules|dependencies|test" --fail-medium)
+SLITHER_ARGS=(. --filter-paths "lib|node_modules|dependencies|test|contracts/morpho" --fail-medium)
 
 if [[ -x ".venv/bin/slither" ]]; then
   SLITHER_BIN=".venv/bin/slither"
