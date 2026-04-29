@@ -72,8 +72,8 @@ interface IOrionConfig {
 
     /// @notice Sets the protocol risk-free rate
     /// @dev Can only be called by the contract owner
-    /// @param riskFreeRate The risk-free rate
-    function setProtocolRiskFreeRate(uint16 riskFreeRate) external;
+    /// @param newRiskFreeRate The risk-free rate
+    function setProtocolRiskFreeRate(uint16 newRiskFreeRate) external;
 
     /// @notice Adds an asset to the whitelist
     /// @dev Can only be called by the contract owner
@@ -113,8 +113,11 @@ interface IOrionConfig {
     /// @return An array of decommissioning asset addresses
     function decommissioningAssets() external view returns (address[] memory);
 
-    /// @notice Completes assets removal; only callable by liquidity orchestrator
-    function completeAssetsRemoval() external;
+    /// @notice Completes assets removal; only callable by liquidity orchestrator.
+    ///         Assets that appear in failedTokens were not successfully processed this epoch
+    ///         and are kept in the decommissioning list for retry next epoch.
+    /// @param failedTokens Tokens whose sell or buy execution failed during the current epoch.
+    function completeAssetsRemoval(address[] calldata failedTokens) external;
 
     /// @notice Adds a manager to the whitelist
     /// @dev Can only be called by the contract owner

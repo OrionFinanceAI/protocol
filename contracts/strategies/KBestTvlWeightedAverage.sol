@@ -3,11 +3,14 @@ pragma solidity ^0.8.34;
 
 import { IOrionTransparentVault } from "../interfaces/IOrionTransparentVault.sol";
 import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
+import { IPriceAdapterRegistry } from "../interfaces/IPriceAdapterRegistry.sol";
 import { IOrionStrategist } from "../interfaces/IOrionStrategist.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
@@ -16,9 +19,15 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
  * @author Orion Finance
  * @custom:security-contact security@orionfinance.ai
  */
-contract KBestTvlWeightedAverage is IOrionStrategist, ERC165, Ownable2Step {
+contract KBestTvlWeightedAverage is IOrionStrategist, ERC165, Ownable2Step, ReentrancyGuard {
     /// @notice The Orion configuration contract.
     IOrionConfig public immutable CONFIG;
+    /// @notice Protocol underlying asset cached at deployment.
+    address public immutable PROTOCOL_UNDERLYING;
+    /// @notice Price adapter decimals cached at deployment.
+    uint8 public immutable PRICE_DECIMALS;
+    /// @notice Price registry cached at deployment.
+    IPriceAdapterRegistry public immutable PRICE_REGISTRY;
 
     /// @notice The number of top assets to select.
     uint16 public k;
@@ -33,6 +42,9 @@ contract KBestTvlWeightedAverage is IOrionStrategist, ERC165, Ownable2Step {
     constructor(address owner_, address config_, uint16 k_) Ownable(owner_) {
         if (config_ == address(0)) revert ErrorsLib.ZeroAddress();
         CONFIG = IOrionConfig(config_);
+        PROTOCOL_UNDERLYING = address(CONFIG.underlyingAsset());
+        PRICE_DECIMALS = CONFIG.priceAdapterDecimals();
+        PRICE_REGISTRY = IPriceAdapterRegistry(CONFIG.priceAdapterRegistry());
         k = k_;
     }
 
@@ -45,7 +57,7 @@ contract KBestTvlWeightedAverage is IOrionStrategist, ERC165, Ownable2Step {
     }
 
     /// @inheritdoc IOrionStrategist
-    function submitIntent() external {
+    function submitIntent() external override onlyOwner nonReentrant {
         if (k == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
         address vault_ = _vault;
         if (vault_ == address(0)) revert ErrorsLib.ZeroAddress();
@@ -72,17 +84,60 @@ contract KBestTvlWeightedAverage is IOrionStrategist, ERC165, Ownable2Step {
         k = kNew;
     }
 
-    /// @dev Fetches TVL for each asset via ERC4626.totalAssets(). Falls back to 1 on revert
-    ///      so that non-ERC4626 tokens are ranked last rather than causing a revert.
+    /// @dev Fetches TVL for each asset and normalizes it to a common price unit so that
+    ///      ERC4626 vaults backed by different underlying tokens (and different decimals) are
+    ///      directly comparable. Falls back to 1 whenever any external call fails so that
+    ///      unresolvable assets are ranked last rather than causing a revert.
     function _getAssetTVLs(address[] memory assets, uint16 n) internal view returns (uint256[] memory tvls) {
         tvls = new uint256[](n);
         for (uint16 i = 0; i < n; ++i) {
-            try IERC4626(assets[i]).totalAssets() returns (uint256 tvl) {
-                tvls[i] = tvl;
+            tvls[i] = _normalizedTvl(assets[i]);
+        }
+    }
+
+    /// @dev Returns the TVL of a single ERC4626 asset expressed in a common price unit.
+    ///      normalizedTvl = rawTvl * underlyingPrice / 10^underlyingDecimals
+    ///      where underlyingPrice is sourced from the protocol price registry and is already
+    ///      in priceAdapterDecimals precision, making all results directly comparable.
+    function _normalizedTvl(address asset) private view returns (uint256) {
+        uint256 rawTvl = 0;
+        try IERC4626(asset).totalAssets() returns (uint256 tvl) {
+            rawTvl = tvl;
+        } catch {
+            return 1;
+        }
+
+        address vaultUnderlying = address(0);
+        try IERC4626(asset).asset() returns (address u) {
+            vaultUnderlying = u;
+        } catch {
+            return 1;
+        }
+
+        if (vaultUnderlying == address(0)) return 1;
+
+        uint8 underlyingDecimals = 0;
+        try IERC20Metadata(vaultUnderlying).decimals() returns (uint8 d) {
+            underlyingDecimals = d;
+        } catch {
+            return 1;
+        }
+
+        uint256 underlyingPrice = 0;
+
+        if (vaultUnderlying == PROTOCOL_UNDERLYING) {
+            // TVL is already in protocol underlying units; use unit price in priceDecimals precision.
+            underlyingPrice = 10 ** PRICE_DECIMALS;
+        } else {
+            try PRICE_REGISTRY.getPrice(vaultUnderlying) returns (uint256 p) {
+                underlyingPrice = p;
             } catch {
-                tvls[i] = 1;
+                return 1;
             }
         }
+
+        uint256 normalized = Math.mulDiv(rawTvl, underlyingPrice, 10 ** underlyingDecimals);
+        return normalized == 0 ? 1 : normalized;
     }
 
     function _selectTopKAssets(

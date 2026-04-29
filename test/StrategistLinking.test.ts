@@ -186,7 +186,7 @@ describe("Strategist Linking", function () {
       await vault.connect(owner).updateStrategist(await strategy.getAddress());
 
       // setVault was called automatically — submitIntent should not revert
-      await expect(strategy.connect(user).submitIntent()).to.not.be.rejected;
+      await expect(strategy.connect(owner).submitIntent()).to.not.be.rejected;
 
       const [tokens] = await vault.getIntent();
       expect(tokens.length).to.equal(2);
@@ -212,7 +212,7 @@ describe("Strategist Linking", function () {
       expect(await vault.strategist()).to.equal(await strategy.getAddress());
 
       // setVault was called during initialize — submitIntent should not revert
-      await expect(strategy.connect(user).submitIntent()).to.not.be.rejected;
+      await expect(strategy.connect(owner).submitIntent()).to.not.be.rejected;
 
       const [tokens] = await vault.getIntent();
       expect(tokens.length).to.equal(2);
@@ -310,10 +310,10 @@ describe("Strategist Linking", function () {
       expect(await vault.strategist()).to.equal(await strategyB.getAddress());
 
       // strategyB is linked and can submit
-      await expect(strategyB.connect(user).submitIntent()).to.not.be.rejected;
+      await expect(strategyB.connect(owner).submitIntent()).to.not.be.rejected;
 
       // strategyA is no longer the strategist — its submitIntent is blocked by onlyStrategist
-      await expect(strategyA.connect(user).submitIntent()).to.be.revertedWithCustomError(vault, "NotAuthorized");
+      await expect(strategyA.connect(owner).submitIntent()).to.be.revertedWithCustomError(vault, "NotAuthorized");
     });
   });
 
@@ -358,15 +358,15 @@ describe("Strategist Linking", function () {
     it("submitIntent reverts with ZeroAddress when no vault has been linked", async function () {
       await mintAndDeposit(underlyingAsset, assetA, user, 1000, underlyingDecimals);
       // strategy._vault is still address(0)
-      await expect(strategy.connect(user).submitIntent()).to.be.revertedWithCustomError(strategy, "ZeroAddress");
+      await expect(strategy.connect(owner).submitIntent()).to.be.revertedWithCustomError(strategy, "ZeroAddress");
     });
   });
 
   // ───────────────────────────────────────────────────────────────────────────
-  // 3. submitIntent permissionlessness
+  // 3. submitIntent access control
   // ───────────────────────────────────────────────────────────────────────────
 
-  describe("submitIntent permissionlessness", function () {
+  describe("submitIntent access control", function () {
     let strategy: KBestTvlWeightedAverage;
     let vault: OrionTransparentVault;
 
@@ -390,16 +390,18 @@ describe("Strategist Linking", function () {
       await expect(strategy.connect(owner).submitIntent()).to.not.be.rejected;
     });
 
-    it("Any random address can call submitIntent", async function () {
-      await expect(strategy.connect(stranger).submitIntent()).to.not.be.rejected;
+    it("Any random address cannot call submitIntent", async function () {
+      await expect(strategy.connect(stranger).submitIntent()).to.be.revertedWithCustomError(
+        strategy,
+        "OwnableUnauthorizedAccount",
+      );
     });
 
-    it("Both callers produce identical intent — output is deterministic", async function () {
+    it("Owner produces deterministic intent — output depends on state not caller", async function () {
       await strategy.connect(owner).submitIntent();
       const [tokens1, weights1] = await vault.getIntent();
 
-      // Submit again from a different caller — same on-chain state → same result
-      await strategy.connect(stranger).submitIntent();
+      await strategy.connect(owner).submitIntent();
       const [tokens2, weights2] = await vault.getIntent();
 
       expect(tokens1).to.deep.equal(tokens2);

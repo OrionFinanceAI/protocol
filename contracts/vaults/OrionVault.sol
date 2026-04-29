@@ -94,6 +94,9 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     /// @dev When true, intent is overridden to 100% underlying asset
     bool public isDecommissioning;
 
+    /// @notice Underlying amount owed to a user whose redemption transfer failed
+    EnumerableMap.AddressToUintMap private _pendingUnderlyingClaims;
+
     /// @dev Restricts function to only vault manager
     modifier onlyManager() {
         if (msg.sender != manager) revert ErrorsLib.NotAuthorized();
@@ -222,6 +225,40 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     /// @inheritdoc IERC4626
     function totalAssets() public view override(ERC4626Upgradeable, IERC4626) returns (uint256) {
         return _totalAssets;
+    }
+
+    /// @inheritdoc IERC4626
+    function maxDeposit(address receiver) public view override(ERC4626Upgradeable, IERC4626) returns (uint256) {
+        if (!config.isSystemIdle()) return 0;
+        if (isDecommissioning || config.isDecommissionedVault(address(this))) return 0;
+        if (depositAccessControl != address(0)) {
+            if (!IOrionAccessControl(depositAccessControl).canRequestDeposit(receiver)) return 0;
+        }
+        return type(uint256).max;
+    }
+
+    /// @inheritdoc IERC4626
+    function maxMint(address receiver) public view override(ERC4626Upgradeable, IERC4626) returns (uint256) {
+        uint256 maxAssets = maxDeposit(receiver);
+        if (maxAssets == 0) return 0;
+        return type(uint256).max;
+    }
+
+    /// @inheritdoc IERC4626
+    function maxRedeem(address owner) public view override(ERC4626Upgradeable, IERC4626) returns (uint256) {
+        if (config.isDecommissionedVault(address(this))) return balanceOf(owner);
+
+        if (!config.isSystemIdle()) return 0;
+        uint256 shares = balanceOf(owner);
+        if (shares < config.minRedeemAmount()) return 0;
+        return shares;
+    }
+
+    /// @inheritdoc IERC4626
+    function maxWithdraw(address owner) public view override(ERC4626Upgradeable, IERC4626) returns (uint256) {
+        uint256 maxShares = maxRedeem(owner);
+        if (maxShares == 0) return 0;
+        return convertToAssets(maxShares);
     }
 
     /// @notice Override ERC4626 decimals to always use SHARE_DECIMALS regardless of underlying asset decimals
@@ -417,7 +454,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         emit StrategistUpdated(newStrategist);
     }
 
-    /// @dev Tells on-chain strategists which vault they manage; skips EOAs and wallets that are not Orion strategists.
+    /// @dev Tells onchain strategists which vault they manage; skips EOAs and wallets that are not Orion strategists.
     function _linkStrategistVault(address strategist_) internal {
         if (strategist_.code.length == 0) return;
         try IERC165(strategist_).supportsInterface(type(IOrionStrategist).interfaceId) returns (bool supported) {
@@ -763,11 +800,27 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
             );
             processedShares += userShares;
 
-            liquidityOrchestrator.transferRedemptionFunds(user, underlyingAmount);
-
-            emit Redeem(user, underlyingAmount, userShares);
+            try liquidityOrchestrator.transferRedemptionFunds(user, underlyingAmount) {
+                emit Redeem(user, underlyingAmount, userShares);
+            } catch {
+                // slither-disable-next-line unused-return
+                (, uint256 pendingAmount) = _pendingUnderlyingClaims.tryGet(user);
+                // slither-disable-next-line unused-return
+                _pendingUnderlyingClaims.set(user, pendingAmount + underlyingAmount);
+                emit RedemptionFailed(user, underlyingAmount, userShares);
+            }
         }
         _burn(address(this), processedShares);
+    }
+
+    /// @inheritdoc IOrionVault
+    function claimUnderlying() external nonReentrant {
+        (bool hasClaim, uint256 amount) = _pendingUnderlyingClaims.tryGet(msg.sender);
+        if (!hasClaim || amount == 0) revert ErrorsLib.InsufficientAmount();
+        // slither-disable-next-line unused-return
+        _pendingUnderlyingClaims.remove(msg.sender);
+        liquidityOrchestrator.transferRedemptionFunds(msg.sender, amount);
+        emit RedemptionClaimed(msg.sender, amount);
     }
 
     /// @dev Storage gap to allow for future upgrades
