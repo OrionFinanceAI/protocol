@@ -157,6 +157,8 @@ contract UniswapV3PoolPriceAdapterFuzzTest {
         require(priceOut == expected, "integration: matches pure");
     }
 
+    /// @notice `getPriceData` reverts with `PoolNotInitialized(asset)` when slot0 sqrt is zero.
+    /// @dev No forge `vm.expectRevert`: capture staticcall returndata and compare to encoded custom error.
     function test_RevertWhen_sqrtPriceZero() public {
         MockERC20 usdc = new MockERC20("USDC", "USDC", _MOCK_USDC_DECIMALS);
         MockERC20 asset = new MockERC20("AST", "AST", 18);
@@ -166,10 +168,14 @@ contract UniswapV3PoolPriceAdapterFuzzTest {
         UniswapV3PoolPriceAdapter adapter = new UniswapV3PoolPriceAdapter(address(usdc), address(this));
         adapter.setPool(address(asset), address(pool));
 
-        (bool ok, ) = address(adapter).staticcall(
+        bytes memory expectedRevert =
+            abi.encodeWithSelector(UniswapV3PoolPriceAdapter.PoolNotInitialized.selector, address(asset));
+
+        (bool ok, bytes memory ret) = address(adapter).staticcall(
             abi.encodeCall(UniswapV3PoolPriceAdapter.getPriceData, (address(asset)))
         );
-        require(!ok, "expect revert sqrt=0");
+        require(!ok, "expect revert from getPriceData");
+        require(keccak256(ret) == keccak256(expectedRevert), "PoolNotInitialized(asset)");
     }
 
     function boundUint8(uint256 x, uint8 lo, uint8 hi) internal pure returns (uint8) {
