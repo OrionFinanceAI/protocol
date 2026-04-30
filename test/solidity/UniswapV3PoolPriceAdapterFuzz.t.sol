@@ -5,20 +5,21 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 import { UniswapV3PoolPriceAdapter } from "../../contracts/price/UniswapV3PoolPriceAdapter.sol";
+import { TickMath } from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 
 /// @title Uniswap V3 pool price adapter fuzz tests (Hardhat 3 native Solidity tests)
-/// @notice Fuzzes the two-step `mulDiv` spot-price math used by `UniswapV3PoolPriceAdapter.getPriceData`,
-///         plus a thin integration path with mocked pool + ERC20 metadata.
+/// @notice Fuzzes the two-step `mulDiv` price math after TWAP tick → sqrt (`observe` + Uniswap `TickMath`),
+///         plus integration with mocked pool + ERC20 metadata.
 /// @dev No forge-std: guard clauses + `require` (same style as `MorphoBlueFuzz.t.sol`).
 ///
 ///      **Pure layer** — Mirrors `getPriceData` after `sqrtPriceX96 > 0`:
 ///      - USDC is token0: `price = precisionAmount * 2^192 / sqrtPriceX96²`
 ///      - USDC is token1: `price = precisionAmount * sqrtPriceX96² / 2^192`
 ///
-///      **Sqrt bounds** — Values match Uniswap V3 TickMath MIN_SQRT_RATIO / MAX_SQRT_RATIO (constants inlined here;
-///      the upstream TickMath library targets Solidity below 0.8.x, so it is not imported).
+///      **Sqrt bounds** — Values match Uniswap V3 TickMath MIN_SQRT_RATIO / MAX_SQRT_RATIO (constants inlined here).
 ///
-///      **Decimals** — `assetDecimals` is bounded so `precisionAmount = 10**(PRICE_DECIMALS + d)` stays practical for fuzz volume.
+///      **Decimals** — `assetDecimals` bounded so `precisionAmount = 10**(PRICE_DECIMALS + d)` stays
+///      practical for fuzz volume.
 contract UniswapV3PoolPriceAdapterFuzzTest {
     using Math for uint256;
 
@@ -26,6 +27,9 @@ contract UniswapV3PoolPriceAdapterFuzzTest {
 
     /// @dev Matches `UniswapV3PoolPriceAdapter` constructor reading `IERC20Metadata(usdc).decimals()`.
     uint8 internal constant _MOCK_USDC_DECIMALS = 6;
+
+    /// @dev Must match `twapObserveSeconds` passed to `new UniswapV3PoolPriceAdapter(...)` and mock `observe`.
+    uint32 internal constant _TWAP_OBSERVE_SECONDS = 300;
 
     /// @dev Uniswap V3 TickMath.MIN_SQRT_RATIO (fixed-point sqrt price lower bound).
     uint160 internal constant _MIN_SQRT_RATIO = 4295128739;
@@ -144,16 +148,25 @@ contract UniswapV3PoolPriceAdapterFuzzTest {
         address token0 = assetIsToken0 ? address(asset) : address(usdc);
         address token1 = assetIsToken0 ? address(usdc) : address(asset);
 
-        MockUniswapV3Pool pool = new MockUniswapV3Pool(token0, token1, sqrtPriceX96);
+        MockUniswapV3Pool pool = new MockUniswapV3Pool(token0, token1, sqrtPriceX96, type(uint128).max, 100, false);
 
-        UniswapV3PoolPriceAdapter adapter = new UniswapV3PoolPriceAdapter(address(usdc), address(this));
+        UniswapV3PoolPriceAdapter adapter = new UniswapV3PoolPriceAdapter(
+            address(usdc),
+            address(this),
+            _TWAP_OBSERVE_SECONDS,
+            0,
+            true,
+            0
+        );
         adapter.setPool(address(asset), address(pool));
 
         (uint256 priceOut, uint8 decimalsOut) = adapter.getPriceData(address(asset));
         require(decimalsOut == _PRICE_DECIMALS + _MOCK_USDC_DECIMALS, "decimals");
 
         bool usdcIsToken0 = !assetIsToken0;
-        uint256 expected = _priceLikeAdapter(sqrtPriceX96, assetDecimals, usdcIsToken0);
+        int24 twapTick = TickMath.getTickAtSqrtRatio(sqrtPriceX96);
+        uint160 sqrtFromTwap = TickMath.getSqrtRatioAtTick(twapTick);
+        uint256 expected = _priceLikeAdapter(sqrtFromTwap, assetDecimals, usdcIsToken0);
         require(priceOut == expected, "integration: matches pure");
     }
 
@@ -163,19 +176,204 @@ contract UniswapV3PoolPriceAdapterFuzzTest {
         MockERC20 usdc = new MockERC20("USDC", "USDC", _MOCK_USDC_DECIMALS);
         MockERC20 asset = new MockERC20("AST", "AST", 18);
 
-        MockUniswapV3Pool pool = new MockUniswapV3Pool(address(asset), address(usdc), 0);
+        MockUniswapV3Pool pool = new MockUniswapV3Pool(address(asset), address(usdc), 0, type(uint128).max, 100, false);
 
-        UniswapV3PoolPriceAdapter adapter = new UniswapV3PoolPriceAdapter(address(usdc), address(this));
+        UniswapV3PoolPriceAdapter adapter = new UniswapV3PoolPriceAdapter(
+            address(usdc),
+            address(this),
+            _TWAP_OBSERVE_SECONDS,
+            0,
+            true,
+            0
+        );
         adapter.setPool(address(asset), address(pool));
 
-        bytes memory expectedRevert =
-            abi.encodeWithSelector(UniswapV3PoolPriceAdapter.PoolNotInitialized.selector, address(asset));
+        bytes memory expectedRevert = abi.encodeWithSelector(
+            UniswapV3PoolPriceAdapter.PoolNotInitialized.selector,
+            address(asset)
+        );
 
         (bool ok, bytes memory ret) = address(adapter).staticcall(
             abi.encodeCall(UniswapV3PoolPriceAdapter.getPriceData, (address(asset)))
         );
         require(!ok, "expect revert from getPriceData");
         require(keccak256(ret) == keccak256(expectedRevert), "PoolNotInitialized(asset)");
+    }
+
+    /// @notice `getPriceData` reverts with `LowLiquidity(asset)` when liquidity is below the adapter minimum.
+    function test_RevertWhen_lowLiquidity() public {
+        MockERC20 usdc = new MockERC20("USDC", "USDC", _MOCK_USDC_DECIMALS);
+        MockERC20 asset = new MockERC20("AST", "AST", 18);
+
+        uint160 sqrtPriceX96 = uint160(1) << 80;
+        MockUniswapV3Pool pool = new MockUniswapV3Pool(address(asset), address(usdc), sqrtPriceX96, 50, 100, false);
+
+        UniswapV3PoolPriceAdapter adapter = new UniswapV3PoolPriceAdapter(
+            address(usdc),
+            address(this),
+            _TWAP_OBSERVE_SECONDS,
+            1000,
+            true,
+            0
+        );
+        adapter.setPool(address(asset), address(pool));
+
+        bytes memory expectedRevert = abi.encodeWithSelector(
+            UniswapV3PoolPriceAdapter.LowLiquidity.selector,
+            address(asset)
+        );
+
+        (bool ok, bytes memory ret) = address(adapter).staticcall(
+            abi.encodeCall(UniswapV3PoolPriceAdapter.getPriceData, (address(asset)))
+        );
+        require(!ok, "expect revert LowLiquidity");
+        require(keccak256(ret) == keccak256(expectedRevert), "LowLiquidity(asset)");
+    }
+
+    /// @notice When `observe` reverts and fallback is allowed, price matches spot `slot0` sqrt.
+    function test_SpotFallback_whenObserveFailsAndAllowed() public {
+        MockERC20 usdc = new MockERC20("USDC", "USDC", _MOCK_USDC_DECIMALS);
+        MockERC20 asset = new MockERC20("AST", "AST", 18);
+
+        uint160 sqrtPriceX96 = uint160(1) << 90;
+        MockUniswapV3Pool pool = new MockUniswapV3Pool(
+            address(asset),
+            address(usdc),
+            sqrtPriceX96,
+            type(uint128).max,
+            100,
+            true
+        );
+
+        UniswapV3PoolPriceAdapter adapter = new UniswapV3PoolPriceAdapter(
+            address(usdc),
+            address(this),
+            _TWAP_OBSERVE_SECONDS,
+            0,
+            true,
+            0
+        );
+        adapter.setPool(address(asset), address(pool));
+
+        (uint256 priceOut, uint8 decimalsOut) = adapter.getPriceData(address(asset));
+        require(decimalsOut == _PRICE_DECIMALS + _MOCK_USDC_DECIMALS, "decimals");
+
+        uint256 expected = _priceLikeAdapter(sqrtPriceX96, 18, false);
+        require(priceOut == expected, "fallback spot");
+    }
+
+    /// @notice When `observe` reverts and fallback is disallowed, `TwapUnavailable`.
+    function test_RevertWhen_twapUnavailable_noSpotFallback() public {
+        MockERC20 usdc = new MockERC20("USDC", "USDC", _MOCK_USDC_DECIMALS);
+        MockERC20 asset = new MockERC20("AST", "AST", 18);
+
+        uint160 sqrtPriceX96 = uint160(1) << 90;
+        MockUniswapV3Pool pool = new MockUniswapV3Pool(
+            address(asset),
+            address(usdc),
+            sqrtPriceX96,
+            type(uint128).max,
+            100,
+            true
+        );
+
+        UniswapV3PoolPriceAdapter adapter = new UniswapV3PoolPriceAdapter(
+            address(usdc),
+            address(this),
+            _TWAP_OBSERVE_SECONDS,
+            0,
+            false,
+            0
+        );
+        adapter.setPool(address(asset), address(pool));
+
+        bytes memory expectedRevert = abi.encodeWithSelector(
+            UniswapV3PoolPriceAdapter.TwapUnavailable.selector,
+            address(asset)
+        );
+
+        (bool ok, bytes memory ret) = address(adapter).staticcall(
+            abi.encodeCall(UniswapV3PoolPriceAdapter.getPriceData, (address(asset)))
+        );
+        require(!ok, "expect TwapUnavailable");
+        require(keccak256(ret) == keccak256(expectedRevert), "TwapUnavailable(asset)");
+    }
+
+    /// @notice `InsufficientObservationCardinality` when oracle buffer smaller than minimum.
+    function test_RevertWhen_insufficientObservationCardinality() public {
+        MockERC20 usdc = new MockERC20("USDC", "USDC", _MOCK_USDC_DECIMALS);
+        MockERC20 asset = new MockERC20("AST", "AST", 18);
+
+        uint160 sqrtPriceX96 = uint160(1) << 88;
+        MockUniswapV3Pool pool = new MockUniswapV3Pool(
+            address(asset),
+            address(usdc),
+            sqrtPriceX96,
+            type(uint128).max,
+            2,
+            false
+        );
+
+        UniswapV3PoolPriceAdapter adapter = new UniswapV3PoolPriceAdapter(
+            address(usdc),
+            address(this),
+            _TWAP_OBSERVE_SECONDS,
+            0,
+            true,
+            5
+        );
+        adapter.setPool(address(asset), address(pool));
+
+        bytes memory expectedRevert = abi.encodeWithSelector(
+            UniswapV3PoolPriceAdapter.InsufficientObservationCardinality.selector,
+            address(asset),
+            uint16(2),
+            uint16(5)
+        );
+
+        (bool ok, bytes memory ret) = address(adapter).staticcall(
+            abi.encodeCall(UniswapV3PoolPriceAdapter.getPriceData, (address(asset)))
+        );
+        require(!ok, "expect cardinality revert");
+        require(keccak256(ret) == keccak256(expectedRevert), "InsufficientObservationCardinality");
+    }
+
+    /// @notice Reverts when asset decimals exceed adapter maximum.
+    function test_RevertWhen_assetDecimalsTooHigh() public {
+        MockERC20 usdc = new MockERC20("USDC", "USDC", _MOCK_USDC_DECIMALS);
+        MockERC20 asset = new MockERC20("WEIRD", "WEIRD", 19);
+
+        uint160 sqrtPriceX96 = uint160(1) << 85;
+        MockUniswapV3Pool pool = new MockUniswapV3Pool(
+            address(asset),
+            address(usdc),
+            sqrtPriceX96,
+            type(uint128).max,
+            100,
+            false
+        );
+
+        UniswapV3PoolPriceAdapter adapter = new UniswapV3PoolPriceAdapter(
+            address(usdc),
+            address(this),
+            _TWAP_OBSERVE_SECONDS,
+            0,
+            true,
+            0
+        );
+        adapter.setPool(address(asset), address(pool));
+
+        bytes memory expectedRevert = abi.encodeWithSelector(
+            UniswapV3PoolPriceAdapter.AssetDecimalsTooHigh.selector,
+            address(asset),
+            uint8(19)
+        );
+
+        (bool ok, bytes memory ret) = address(adapter).staticcall(
+            abi.encodeCall(UniswapV3PoolPriceAdapter.getPriceData, (address(asset)))
+        );
+        require(!ok, "expect AssetDecimalsTooHigh");
+        require(keccak256(ret) == keccak256(expectedRevert), "AssetDecimalsTooHigh");
     }
 
     function boundUint8(uint256 x, uint8 lo, uint8 hi) internal pure returns (uint8) {
@@ -210,11 +408,34 @@ contract MockUniswapV3Pool {
     address public immutable TOKEN0;
     address public immutable TOKEN1;
     uint160 private immutable _sqrtPriceX96;
+    int24 private immutable _twapTick;
+    uint128 private immutable _liquidity;
+    uint16 private immutable _observationCardinality;
+    bool private immutable _observeReverts;
 
-    constructor(address token0_, address token1_, uint160 sqrtPriceX96_) {
+    constructor(
+        address token0_,
+        address token1_,
+        uint160 sqrtPriceX96_,
+        uint128 liquidity_,
+        uint16 observationCardinality_,
+        bool observeReverts_
+    ) {
         TOKEN0 = token0_;
         TOKEN1 = token1_;
         _sqrtPriceX96 = sqrtPriceX96_;
+        _liquidity = liquidity_;
+        _observationCardinality = observationCardinality_;
+        _observeReverts = observeReverts_;
+        if (sqrtPriceX96_ > 0) {
+            require(
+                sqrtPriceX96_ >= TickMath.MIN_SQRT_RATIO && sqrtPriceX96_ < TickMath.MAX_SQRT_RATIO,
+                "mock sqrt range"
+            );
+            _twapTick = TickMath.getTickAtSqrtRatio(sqrtPriceX96_);
+        } else {
+            _twapTick = 0;
+        }
     }
 
     function token0() external view returns (address) {
@@ -223,6 +444,10 @@ contract MockUniswapV3Pool {
 
     function token1() external view returns (address) {
         return TOKEN1;
+    }
+
+    function liquidity() external view returns (uint128) {
+        return _liquidity;
     }
 
     /// @dev Minimal `slot0` compatible with `IUniswapV3Pool.slot0()` — only sqrt used by adapter.
@@ -242,9 +467,28 @@ contract MockUniswapV3Pool {
         sqrtPriceX96 = _sqrtPriceX96;
         tick = 0;
         observationIndex = 0;
-        observationCardinality = 0;
+        observationCardinality = _observationCardinality;
         observationCardinalityNext = 0;
         feeProtocol = 0;
         unlocked = false;
+    }
+
+    /// @dev Synthetic cumulative ticks so TWAP mean equals tick implied by `slot0` sqrt in tests.
+    function observe(
+        uint32[] calldata secondsAgos
+    ) external view returns (int56[] memory tickCumulatives, uint160[] memory secondsPerLiquidityCumulativeX128s) {
+        if (_observeReverts) {
+            revert("mock observe revert");
+        }
+        tickCumulatives = new int56[](secondsAgos.length);
+        secondsPerLiquidityCumulativeX128s = new uint160[](secondsAgos.length);
+        int56 tick = int56(_twapTick);
+        int56 cumAnchor = tick * 1_000_000;
+        for (uint256 i = 0; i < secondsAgos.length; ) {
+            tickCumulatives[i] = cumAnchor - tick * int56(uint56(secondsAgos[i]));
+            unchecked {
+                ++i;
+            }
+        }
     }
 }
