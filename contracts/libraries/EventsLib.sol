@@ -145,6 +145,40 @@ library EventsLib {
     /// @param epochCounter The current epoch counter.
     event EpochEnd(uint256 indexed epochCounter);
 
+    /// @notice Sell leg executed during upkeep: vault shares swapped to underlying via the execution adapter.
+    /// @dev `bufferDeltaUnderlying` matches `_updateBufferAmount`: execution minus estimate for sells.
+    /// @param epochCounter Epoch id at execution time (`EpochEnd` increments after the batch that uses this counter).
+    /// @param asset Vault share token (ERC-4626) sold through the adapter.
+    /// @param executionUnderlyingAmount Underlying actually received (`adapter.sell` return).
+    /// @param sharesAmount Share tokens sold into the adapter.
+    /// @param estimatedUnderlyingAmount Upkeep estimate before routing to the adapter.
+    /// @param bufferDeltaUnderlying Net buffer adjustment signed in underlying wei.
+    event EpochSellExecuted(
+        uint256 indexed epochCounter,
+        address indexed asset,
+        uint256 indexed executionUnderlyingAmount,
+        uint256 sharesAmount,
+        uint256 estimatedUnderlyingAmount,
+        int256 bufferDeltaUnderlying
+    );
+
+    /// @notice Buy leg executed during upkeep: underlying spent for vault shares via the execution adapter.
+    /// @dev `bufferDeltaUnderlying` matches `_updateBufferAmount`: estimate minus execution for buys.
+    /// @param epochCounter Epoch id at execution time (`EpochEnd` increments after the batch that uses this counter).
+    /// @param asset Vault share token purchased from the adapter.
+    /// @param executionUnderlyingAmount Underlying actually spent (`adapter.buy` return).
+    /// @param sharesAmount Share tokens acquired from the adapter.
+    /// @param estimatedUnderlyingAmount Upkeep estimate before routing to the adapter.
+    /// @param bufferDeltaUnderlying Net buffer adjustment signed in underlying wei.
+    event EpochBuyExecuted(
+        uint256 indexed epochCounter,
+        address indexed asset,
+        uint256 indexed executionUnderlyingAmount,
+        uint256 sharesAmount,
+        uint256 estimatedUnderlyingAmount,
+        int256 bufferDeltaUnderlying
+    );
+
     /// @notice A price adapter has been set for an asset.
     /// @param asset The address of the asset.
     /// @param adapter The address of the price adapter.
