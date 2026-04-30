@@ -198,6 +198,8 @@ contract UniswapV3PoolPriceAdapter is IPriceAdapter, Ownable2Step {
         secs[0] = window;
         secs[1] = 0;
 
+        // TWAP uses tick cumulatives only; pool.observe also returns seconds-per-liquidity (unused here).
+        // slither-disable-next-line unused-return
         try IUniswapV3Pool(pool).observe(secs) returns (
             int56[] memory tickCumulatives,
             uint160[] memory /* secondsPerLiquidityCumulativeX128s */
