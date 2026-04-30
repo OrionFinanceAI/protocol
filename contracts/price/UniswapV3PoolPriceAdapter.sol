@@ -52,6 +52,9 @@ contract UniswapV3PoolPriceAdapter is IPriceAdapter, Ownable2Step {
     /// @notice TWAP window seconds is zero in pure sqrt helper.
     error ZeroTwapWindow();
 
+    /// @notice Mean TWAP tick is outside int24 bounds accepted by TickMath.
+    error TickOutOfBounds();
+
     /// @notice Latest oracle observation uninitialized or slot index mismatch vs pool expectations.
     error OracleObservationNotInitialized(address asset);
 
@@ -267,10 +270,12 @@ contract UniswapV3PoolPriceAdapter is IPriceAdapter, Ownable2Step {
     ) internal pure returns (uint160 sqrtPriceX96) {
         if (window == 0) revert ZeroTwapWindow();
         int56 denom = int56(uint56(window));
-        int24 avgTick = int24(tickCumulativesDelta / denom);
+        int256 avgTickLong = int256(tickCumulativesDelta) / int256(denom);
         if (tickCumulativesDelta < 0 && (tickCumulativesDelta % denom != 0)) {
-            --avgTick;
+            --avgTickLong;
         }
+        if (avgTickLong < int256(type(int24).min) || avgTickLong > int256(type(int24).max)) revert TickOutOfBounds();
+        int24 avgTick = int24(avgTickLong);
         sqrtPriceX96 = TickMath.getSqrtRatioAtTick(avgTick);
     }
 }
