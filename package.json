@@ -104,7 +104,7 @@
       ],
       "allowedVersions": {
         "hardhat": "^3.0.0",
-        "chai": "4.x",
+        "chai": "6.x",
         "ethers": "6.x",
         "@typechain/ethers-v6": "0.x"
       }
