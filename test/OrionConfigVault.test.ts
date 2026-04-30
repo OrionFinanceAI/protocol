@@ -207,6 +207,174 @@ describe("Config", function () {
     });
   });
 
+  describe("completeAssetsRemoval", function () {
+    async function asLiquidityOrchestrator() {
+      const loAddress = await liquidityOrchestrator.getAddress();
+      await networkHelpers.impersonateAccount(loAddress);
+      await networkHelpers.setBalance(loAddress, ethers.parseEther("1"));
+      return ethers.getSigner(loAddress);
+    }
+
+    async function stopAsLiquidityOrchestrator() {
+      await ethers.provider.send("hardhat_stopImpersonatingAccount", [await liquidityOrchestrator.getAddress()]);
+    }
+
+    async function deployAndWhitelistAssets(count: number): Promise<string[]> {
+      const addresses: string[] = [];
+      const MockERC4626AssetFactory = await ethers.getContractFactory("MockERC4626Asset");
+      for (let i = 0; i < count; ++i) {
+        const asset = (await MockERC4626AssetFactory.deploy(
+          await underlyingAsset.getAddress(),
+          `Extra Mock Asset ${i + 1}`,
+          `EMA${i + 1}`,
+        )) as unknown as MockERC4626Asset;
+        await asset.waitForDeployment();
+        const assetAddress = await asset.getAddress();
+        await orionConfig
+          .connect(owner)
+          .addWhitelistedAsset(
+            assetAddress,
+            await mockPriceAdapter1.getAddress(),
+            await mockExecutionAdapter1.getAddress(),
+          );
+        addresses.push(assetAddress);
+      }
+      return addresses;
+    }
+
+    function normalize(addresses: string[]): string[] {
+      return addresses.map((a) => a.toLowerCase()).sort();
+    }
+
+    it("Should revert when caller is not the liquidity orchestrator", async function () {
+      await expect(orionConfig.connect(owner).completeAssetsRemoval([])).to.be.revertedWithCustomError(
+        orionConfig,
+        "NotAuthorized",
+      );
+    });
+
+    it("Should remove all decommissioning assets when failedTokens is empty", async function () {
+      const asset1 = await mockAsset1.getAddress();
+      const asset2 = await mockAsset2.getAddress();
+
+      await orionConfig.connect(owner).removeWhitelistedAsset(asset1);
+      await orionConfig.connect(owner).removeWhitelistedAsset(asset2);
+
+      const loSigner = await asLiquidityOrchestrator();
+      await expect(orionConfig.connect(loSigner).completeAssetsRemoval([]))
+        .to.emit(orionConfig, "WhitelistedAssetRemoved")
+        .withArgs(asset1);
+      await stopAsLiquidityOrchestrator();
+
+      expect(await orionConfig.isWhitelisted(asset1)).to.equal(false);
+      expect(await orionConfig.isWhitelisted(asset2)).to.equal(false);
+      expect(await orionConfig.decommissioningAssets()).to.deep.equal([]);
+    });
+
+    it("Should keep failed tokens in decommissioning list and remove only successful ones", async function () {
+      const asset1 = await mockAsset1.getAddress();
+      const asset2 = await mockAsset2.getAddress();
+
+      await orionConfig.connect(owner).removeWhitelistedAsset(asset1);
+      await orionConfig.connect(owner).removeWhitelistedAsset(asset2);
+
+      const loSigner = await asLiquidityOrchestrator();
+      await expect(orionConfig.connect(loSigner).completeAssetsRemoval([asset2]))
+        .to.emit(orionConfig, "WhitelistedAssetRemoved")
+        .withArgs(asset1);
+      await stopAsLiquidityOrchestrator();
+
+      expect(await orionConfig.isWhitelisted(asset1)).to.equal(false);
+      expect(await orionConfig.isWhitelisted(asset2)).to.equal(true);
+      expect(await orionConfig.decommissioningAssets()).to.deep.equal([asset2]);
+    });
+
+    it("Should ignore failedTokens that are not in decommissioning assets", async function () {
+      const asset1 = await mockAsset1.getAddress();
+
+      await orionConfig.connect(owner).removeWhitelistedAsset(asset1);
+
+      const loSigner = await asLiquidityOrchestrator();
+      await expect(orionConfig.connect(loSigner).completeAssetsRemoval([user.address]))
+        .to.emit(orionConfig, "WhitelistedAssetRemoved")
+        .withArgs(asset1);
+      await stopAsLiquidityOrchestrator();
+
+      expect(await orionConfig.isWhitelisted(asset1)).to.equal(false);
+      expect(await orionConfig.decommissioningAssets()).to.deep.equal([]);
+    });
+
+    it("Should handle >2 failed tokens with >2 decommissioning tokens", async function () {
+      const extraAssets = await deployAndWhitelistAssets(3);
+      const allAssets = [await mockAsset1.getAddress(), await mockAsset2.getAddress(), ...extraAssets];
+      expect(allAssets.length).to.equal(5);
+
+      for (const asset of allAssets) {
+        await orionConfig.connect(owner).removeWhitelistedAsset(asset);
+      }
+      expect(normalize(await orionConfig.decommissioningAssets())).to.deep.equal(normalize(allAssets));
+
+      const failedTokens = [allAssets[1], allAssets[3], allAssets[4]]; // 3 failed tokens (>2)
+      const expectedRemoved = allAssets.filter((a) => !failedTokens.includes(a));
+
+      const loSigner = await asLiquidityOrchestrator();
+      await orionConfig.connect(loSigner).completeAssetsRemoval(failedTokens);
+      await stopAsLiquidityOrchestrator();
+
+      expect(normalize(await orionConfig.decommissioningAssets())).to.deep.equal(normalize(failedTokens));
+      for (const asset of failedTokens) {
+        expect(await orionConfig.isWhitelisted(asset)).to.equal(true);
+      }
+      for (const asset of expectedRemoved) {
+        expect(await orionConfig.isWhitelisted(asset)).to.equal(false);
+      }
+    });
+
+    it("Should preserve state propagation across nested-loop epochs", async function () {
+      const extraAssets = await deployAndWhitelistAssets(3);
+      const allAssets = [await mockAsset1.getAddress(), await mockAsset2.getAddress(), ...extraAssets]; // 5 assets
+      for (const asset of allAssets) {
+        await orionConfig.connect(owner).removeWhitelistedAsset(asset);
+      }
+
+      let expectedRemaining = [...allAssets];
+      const loSigner = await asLiquidityOrchestrator();
+
+      for (let outer = 0; outer < 3 && expectedRemaining.length > 0; ++outer) {
+        for (let inner = 0; inner < 3 && expectedRemaining.length > 0; ++inner) {
+          let failedTokens: string[] = [];
+
+          // Force a >2 failedTokens case early, then vary pattern in nested loops.
+          if (outer === 0 && inner === 0 && expectedRemaining.length >= 4) {
+            failedTokens = expectedRemaining.slice(0, 3);
+          } else {
+            for (let i = 0; i < expectedRemaining.length; ++i) {
+              if ((i + outer + inner) % 3 !== 0) failedTokens.push(expectedRemaining[i]);
+            }
+            if (failedTokens.length === expectedRemaining.length) {
+              failedTokens = failedTokens.slice(0, failedTokens.length - 1);
+            }
+          }
+
+          const failedSet = new Set(failedTokens.map((a) => a.toLowerCase()));
+          expectedRemaining = expectedRemaining.filter((a) => failedSet.has(a.toLowerCase()));
+
+          await orionConfig.connect(loSigner).completeAssetsRemoval(failedTokens);
+
+          const onchainRemaining = await orionConfig.decommissioningAssets();
+          expect(normalize(onchainRemaining)).to.deep.equal(normalize(expectedRemaining));
+
+          for (const asset of allAssets) {
+            const shouldBeWhitelisted = expectedRemaining.map((a) => a.toLowerCase()).includes(asset.toLowerCase());
+            expect(await orionConfig.isWhitelisted(asset)).to.equal(shouldBeWhitelisted);
+          }
+        }
+      }
+
+      await stopAsLiquidityOrchestrator();
+    });
+  });
+
   describe("addOrionVault", function () {
     it("Should revert when called by non-factory (malicious actor)", async function () {
       const maliciousVault = other.address;

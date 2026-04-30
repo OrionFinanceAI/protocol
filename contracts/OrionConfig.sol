@@ -312,13 +312,32 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     }
 
     /// @inheritdoc IOrionConfig
-    function completeAssetsRemoval() external onlyLiquidityOrchestrator {
-        for (uint256 i = 0; i < _decommissioningAssets.length; ++i) {
+    function completeAssetsRemoval(address[] calldata failedTokens) external onlyLiquidityOrchestrator {
+        uint256 i = 0;
+        while (i < _decommissioningAssets.length) {
+            address asset = _decommissioningAssets[i];
+
+            bool failedThisEpoch = false;
+            for (uint256 j = 0; j < failedTokens.length; ++j) {
+                if (failedTokens[j] == asset) {
+                    failedThisEpoch = true;
+                    break;
+                }
+            }
+
+            if (failedThisEpoch) {
+                ++i;
+                continue;
+            }
+
             // slither-disable-next-line unused-return
-            whitelistedAssets.remove(_decommissioningAssets[i]);
-            emit EventsLib.WhitelistedAssetRemoved(_decommissioningAssets[i]);
+            whitelistedAssets.remove(asset);
+            emit EventsLib.WhitelistedAssetRemoved(asset);
+
+            // Swap-and-pop to remove from decommissioning list without shifting.
+            _decommissioningAssets[i] = _decommissioningAssets[_decommissioningAssets.length - 1];
+            _decommissioningAssets.pop();
         }
-        delete _decommissioningAssets;
     }
 
     /// @inheritdoc IOrionConfig

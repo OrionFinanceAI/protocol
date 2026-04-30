@@ -169,13 +169,12 @@ contract ChainlinkPriceAdapter is IPriceAdapter, Ownable2Step {
         if (feedConfig.feed == address(0)) revert ErrorsLib.AdapterNotSet();
 
         AggregatorV3Interface chainlinkFeed = AggregatorV3Interface(feedConfig.feed);
-        (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound) = chainlinkFeed
-            .latestRoundData();
+        // slither-disable-next-line unused-return
+        (, int256 answer, uint256 startedAt, uint256 updatedAt, ) = chainlinkFeed.latestRoundData();
 
         if (answer < 1) revert ErrorsLib.InvalidPrice(asset, answer);
         if (updatedAt == 0) revert ErrorsLib.InvalidPrice(asset, answer);
         if (startedAt > block.timestamp) revert ErrorsLib.InvalidPrice(asset, answer);
-        if (answeredInRound < roundId) revert ErrorsLib.StalePrice(asset);
         if (block.timestamp - updatedAt > feedConfig.maxStaleness) revert ErrorsLib.StalePrice(asset);
 
         uint256 rawPrice = uint256(answer);
@@ -191,18 +190,13 @@ contract ChainlinkPriceAdapter is IPriceAdapter, Ownable2Step {
         }
 
         if (feedConfig.quoteFeed != address(0)) {
-            (
-                uint80 qRoundId,
-                int256 qAnswer,
-                uint256 qStartedAt,
-                uint256 qUpdatedAt,
-                uint80 qAnsweredInRound
-            ) = AggregatorV3Interface(feedConfig.quoteFeed).latestRoundData();
+            // slither-disable-next-line unused-return
+            (, int256 qAnswer, uint256 qStartedAt, uint256 qUpdatedAt, ) = AggregatorV3Interface(feedConfig.quoteFeed)
+                .latestRoundData();
 
             if (qAnswer < 1) revert ErrorsLib.InvalidPrice(asset, qAnswer);
             if (qUpdatedAt == 0) revert ErrorsLib.InvalidPrice(asset, qAnswer);
             if (qStartedAt > block.timestamp) revert ErrorsLib.InvalidPrice(asset, qAnswer);
-            if (qAnsweredInRound < qRoundId) revert ErrorsLib.StalePrice(asset);
             if (block.timestamp - qUpdatedAt > feedConfig.maxStaleness) revert ErrorsLib.StalePrice(asset);
 
             return (Math.mulDiv(rawPrice, feedConfig.scaleFactor, uint256(qAnswer)), PRICE_DECIMALS);
