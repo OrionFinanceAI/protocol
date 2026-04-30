@@ -119,7 +119,7 @@ contract UniswapV3PoolPriceAdapter is IPriceAdapter, Ownable2Step {
     }
 
     /// @notice Register or replace the V3 pool used to price an asset.
-    /// @dev Pool tokens must be asset and USDC in either order. Probes observe TWAP horizon and staleness (if configured).
+    /// @dev Pool tokens must be asset and USDC in either order. Probes observe TWAP horizon and staleness.
     /// @param asset ERC20 to price (not USDC)
     /// @param pool Uniswap V3 pool address
     function setPool(address asset, address pool) external onlyOwner {
@@ -159,8 +159,7 @@ contract UniswapV3PoolPriceAdapter is IPriceAdapter, Ownable2Step {
         secs[0] = TWAP_OBSERVE_SECONDS;
         secs[1] = 0;
         // slither-disable-next-line unused-return
-        try p.observe(secs) returns (int56[] memory, uint160[] memory) { }
-        catch {
+        try p.observe(secs) returns (int56[] memory, uint160[] memory) {} catch {
             revert TwapUnavailable(asset);
         }
 
@@ -208,14 +207,11 @@ contract UniswapV3PoolPriceAdapter is IPriceAdapter, Ownable2Step {
     }
 
     /// @dev Heuristic: slot0.observationIndex entry must be initialized and recent when staleness cap is set.
-    function _validateObservationFreshness(
-        IUniswapV3Pool pool,
-        address asset,
-        uint16 observationIndex
-    ) internal view {
+    function _validateObservationFreshness(IUniswapV3Pool pool, address asset, uint16 observationIndex) internal view {
         uint32 maxStale = MAX_OBSERVATION_STALENESS_SECONDS;
         if (maxStale == 0) return;
 
+        // slither-disable-next-line unused-return
         (uint32 blockTimestamp, , , bool initialized) = pool.observations(observationIndex);
         if (!initialized) {
             revert OracleObservationNotInitialized(asset);
@@ -227,6 +223,9 @@ contract UniswapV3PoolPriceAdapter is IPriceAdapter, Ownable2Step {
 
     /// @notice TWAP sqrt from observe.
     /// @dev Second observe return is unused (tick cumulatives only).
+    /// @param pool Uniswap V3 pool used for the asset pair.
+    /// @param asset Asset being priced (used in revert errors).
+    /// @return sqrtPriceX96 Q64.96 sqrt price derived from TWAP mean tick.
     function _observeSqrtPriceX96(address pool, address asset) internal view returns (uint160 sqrtPriceX96) {
         uint32 window = TWAP_OBSERVE_SECONDS;
         uint32[] memory secs = new uint32[](2);
@@ -264,6 +263,9 @@ contract UniswapV3PoolPriceAdapter is IPriceAdapter, Ownable2Step {
     }
 
     /// @notice Mean tick from oracle cumulative delta to sqrtPriceX96 (Q64.96).
+    /// @param tickCumulativesDelta Cumulative tick delta between observe endpoints.
+    /// @param window TWAP window in seconds.
+    /// @return sqrtPriceX96 Q64.96 sqrt price computed from the mean tick.
     function _sqrtPriceX96FromTickCumulativeDelta(
         int56 tickCumulativesDelta,
         uint32 window

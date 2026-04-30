@@ -305,7 +305,14 @@ contract UniswapV3PoolPriceAdapterFuzzTest {
         MockERC20 asset = new MockERC20("AST", "AST", 18);
 
         uint160 sqrtPriceX96 = uint160(1) << 90;
-        MockUniswapV3Pool pool = new MockUniswapV3Pool(address(asset), address(usdc), sqrtPriceX96, type(uint128).max, 100, false);
+        MockUniswapV3Pool pool = new MockUniswapV3Pool(
+            address(asset),
+            address(usdc),
+            sqrtPriceX96,
+            type(uint128).max,
+            100,
+            false
+        );
         pool.configureObservation(uint32(block.timestamp), false, 0);
 
         UniswapV3PoolPriceAdapter adapter = new UniswapV3PoolPriceAdapter(
@@ -337,7 +344,14 @@ contract UniswapV3PoolPriceAdapterFuzzTest {
         MockERC20 asset = new MockERC20("AST", "AST", 18);
 
         uint160 sqrtPriceX96 = uint160(1) << 90;
-        MockUniswapV3Pool pool = new MockUniswapV3Pool(address(asset), address(usdc), sqrtPriceX96, type(uint128).max, 100, false);
+        MockUniswapV3Pool pool = new MockUniswapV3Pool(
+            address(asset),
+            address(usdc),
+            sqrtPriceX96,
+            type(uint128).max,
+            100,
+            false
+        );
         uint32 staleTs = uint32(block.timestamp - 2);
         pool.configureObservation(staleTs, true, 0);
 
@@ -370,7 +384,14 @@ contract UniswapV3PoolPriceAdapterFuzzTest {
         MockERC20 asset = new MockERC20("AST", "AST", 18);
 
         uint160 sqrtPriceX96 = uint160(1) << 90;
-        MockUniswapV3Pool pool = new MockUniswapV3Pool(address(asset), address(usdc), sqrtPriceX96, type(uint128).max, 100, false);
+        MockUniswapV3Pool pool = new MockUniswapV3Pool(
+            address(asset),
+            address(usdc),
+            sqrtPriceX96,
+            type(uint128).max,
+            100,
+            false
+        );
         pool.configureObservation(uint32(block.timestamp), true, 0);
 
         UniswapV3PoolPriceAdapter adapter = new UniswapV3PoolPriceAdapter(
@@ -547,7 +568,16 @@ contract MockUniswapV3Pool {
 
     function observations(
         uint256 index
-    ) external view returns (uint32 blockTimestamp, int56 tickCumulative, uint160 secondsPerLiquidityCumulativeX128, bool initialized) {
+    )
+        external
+        view
+        returns (
+            uint32 blockTimestamp,
+            int56 tickCumulative,
+            uint160 secondsPerLiquidityCumulativeX128,
+            bool initialized
+        )
+    {
         if (index == _observationIndex) {
             blockTimestamp = _observationTimestamp;
             initialized = _observationInitialized;
