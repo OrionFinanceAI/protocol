@@ -837,6 +837,13 @@ contract LiquidityOrchestrator is
         IERC20(asset).forceApprove(address(adapter), 0);
 
         _updateBufferAmount(executionUnderlyingAmount.toInt256() - estimatedUnderlyingAmount.toInt256());
+        emit EventsLib.EpochSellExecuted(
+            epochCounter,
+            asset,
+            executionUnderlyingAmount,
+            sharesAmount,
+            estimatedUnderlyingAmount
+        );
     }
 
     /// @notice Executes a buy order
@@ -859,6 +866,13 @@ contract LiquidityOrchestrator is
         IERC20(underlyingAsset).forceApprove(address(adapter), 0);
 
         _updateBufferAmount(estimatedUnderlyingAmount.toInt256() - executionUnderlyingAmount.toInt256());
+        emit EventsLib.EpochBuyExecuted(
+            epochCounter,
+            asset,
+            executionUnderlyingAmount,
+            sharesAmount,
+            estimatedUnderlyingAmount
+        );
     }
 
     /// @notice Handles the vault operations
