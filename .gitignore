@@ -41,3 +41,5 @@ docker-compose/docker-compose-full.yml
 diagram.mmd
 .mcp.json
 .pnpm-store/
+npm/
+project/
