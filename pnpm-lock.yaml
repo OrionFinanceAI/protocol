@@ -31,8 +31,8 @@ importers:
         specifier: ^5.6.1
         version: 5.6.1(@openzeppelin/contracts@5.6.1)
       '@uniswap/v3-core':
-        specifier: ^1.0.1
-        version: 1.0.1
+        specifier: 1.0.2-solc-0.8-simulate
+        version: 1.0.2-solc-0.8-simulate
       '@uniswap/v3-periphery':
         specifier: ^1.4.4
         version: 1.4.4
@@ -1558,6 +1558,10 @@ packages:
 
   '@uniswap/v3-core@1.0.1':
     resolution: {integrity: sha512-7pVk4hEm00j9tc71Y9+ssYpO6ytkeI0y7WE9P6UcmNzhxPePwyAxImuhVsTqWK9YFvzgtvzJHi64pBl4jUzKMQ==}
+    engines: {node: '>=10'}
+
+  '@uniswap/v3-core@1.0.2-solc-0.8-simulate':
+    resolution: {integrity: sha512-ALAZbsb3wvUrRzeAjrTKjv1fH7UrueJ/+D8uX4yintXHxxzbnnp78Kis2pa4D26cFQ72rwM3DrZpUES9rhsEuQ==}
     engines: {node: '>=10'}
 
   '@uniswap/v3-periphery@1.4.4':
@@ -5829,6 +5833,8 @@ snapshots:
   '@uniswap/v2-core@1.0.1': {}
 
   '@uniswap/v3-core@1.0.1': {}
+
+  '@uniswap/v3-core@1.0.2-solc-0.8-simulate': {}
 
   '@uniswap/v3-periphery@1.4.4':
     dependencies:
