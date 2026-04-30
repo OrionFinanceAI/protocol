@@ -22,6 +22,10 @@ import { IUniswapV3Pool } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3
 contract UniswapV3PoolPriceAdapter is IPriceAdapter, Ownable2Step {
     using Math for uint256;
 
+    /// @notice Thrown when a registered pool exists but has not been initialized (slot0.sqrtPriceX96 == 0).
+    /// @param asset The asset being priced against USDC.
+    error PoolNotInitialized(address asset);
+
     /// @notice Extra precision digits added on top of USDC decimals in the returned price.
     ///         Mirrors ERC4626PriceAdapter.PRICE_DECIMALS so PriceAdapterRegistry normalises
     ///         outputs from both adapters identically.
@@ -60,8 +64,8 @@ contract UniswapV3PoolPriceAdapter is IPriceAdapter, Ownable2Step {
         if (asset == address(0) || pool == address(0)) revert ErrorsLib.ZeroAddress();
         if (asset == USDC) revert ErrorsLib.InvalidAdapter(asset);
 
-        address token0;
-        address token1;
+        address token0 = address(0);
+        address token1 = address(0);
         try IUniswapV3Pool(pool).token0() returns (address t0) {
             token0 = t0;
         } catch {
@@ -87,24 +91,22 @@ contract UniswapV3PoolPriceAdapter is IPriceAdapter, Ownable2Step {
     }
 
     /// @inheritdoc IPriceAdapter
-    /// @dev When sqrtPriceX96 is zero (pool not yet initialised) a 1:1 fallback price is
-    ///      returned so whitelisting succeeds before the pool becomes active.
-    ///      In all other cases the spot sqrtPriceX96 from slot0 is used; see the contract-level
-    ///      @dev comment for the full derivation and overflow-avoidance strategy.
+    /// @dev Reverts when slot0.sqrtPriceX96 is zero (pool not yet initialized) to avoid
+    ///      returning a misleading synthetic 1:1 price.
     function getPriceData(address asset) external view override returns (uint256 price, uint8 decimals) {
+        address pool = poolOf[asset];
         // slither-disable-next-line unused-return
-        (uint160 sqrtPriceX96, , , , , , ) = IUniswapV3Pool(poolOf[asset]).slot0();
+        (uint160 sqrtPriceX96, , , , , , ) = IUniswapV3Pool(pool).slot0();
 
         decimals = PRICE_DECIMALS + USDC_DECIMALS;
         uint8 assetDecimals = IERC20Metadata(asset).decimals();
         uint256 precisionAmount = 10 ** uint256(PRICE_DECIMALS + assetDecimals);
 
         if (sqrtPriceX96 == 0) {
-            price = precisionAmount;
-            return (price, decimals);
+            revert PoolNotInitialized(asset);
         }
 
-        bool usdcIsToken0 = (IUniswapV3Pool(poolOf[asset]).token0() == USDC);
+        bool usdcIsToken0 = (IUniswapV3Pool(pool).token0() == USDC);
 
         if (usdcIsToken0) {
             // rawUSDC_per_rawAsset = 2^192 / sqrtPriceX96²
