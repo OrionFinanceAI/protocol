@@ -155,7 +155,6 @@ contract UniswapV3PoolPriceAdapterFuzzTest {
             address(this),
             _TWAP_OBSERVE_SECONDS,
             0,
-            true,
             0
         );
         adapter.setPool(address(asset), address(pool));
@@ -183,7 +182,6 @@ contract UniswapV3PoolPriceAdapterFuzzTest {
             address(this),
             _TWAP_OBSERVE_SECONDS,
             0,
-            true,
             0
         );
         adapter.setPool(address(asset), address(pool));
@@ -213,7 +211,6 @@ contract UniswapV3PoolPriceAdapterFuzzTest {
             address(this),
             _TWAP_OBSERVE_SECONDS,
             1000,
-            true,
             0
         );
         adapter.setPool(address(asset), address(pool));
@@ -230,8 +227,8 @@ contract UniswapV3PoolPriceAdapterFuzzTest {
         require(keccak256(ret) == keccak256(expectedRevert), "LowLiquidity(asset)");
     }
 
-    /// @notice When `observe` reverts and fallback is allowed, price matches spot `slot0` sqrt.
-    function test_SpotFallback_whenObserveFailsAndAllowed() public {
+    /// @notice When `observe` reverts, adapter reverts with `TwapUnavailable`.
+    function test_RevertWhen_twapUnavailable_observeFails() public {
         MockERC20 usdc = new MockERC20("USDC", "USDC", _MOCK_USDC_DECIMALS);
         MockERC20 asset = new MockERC20("AST", "AST", 18);
 
@@ -250,39 +247,6 @@ contract UniswapV3PoolPriceAdapterFuzzTest {
             address(this),
             _TWAP_OBSERVE_SECONDS,
             0,
-            true,
-            0
-        );
-        adapter.setPool(address(asset), address(pool));
-
-        (uint256 priceOut, uint8 decimalsOut) = adapter.getPriceData(address(asset));
-        require(decimalsOut == _PRICE_DECIMALS + _MOCK_USDC_DECIMALS, "decimals");
-
-        uint256 expected = _priceLikeAdapter(sqrtPriceX96, 18, false);
-        require(priceOut == expected, "fallback spot");
-    }
-
-    /// @notice When `observe` reverts and fallback is disallowed, `TwapUnavailable`.
-    function test_RevertWhen_twapUnavailable_noSpotFallback() public {
-        MockERC20 usdc = new MockERC20("USDC", "USDC", _MOCK_USDC_DECIMALS);
-        MockERC20 asset = new MockERC20("AST", "AST", 18);
-
-        uint160 sqrtPriceX96 = uint160(1) << 90;
-        MockUniswapV3Pool pool = new MockUniswapV3Pool(
-            address(asset),
-            address(usdc),
-            sqrtPriceX96,
-            type(uint128).max,
-            100,
-            true
-        );
-
-        UniswapV3PoolPriceAdapter adapter = new UniswapV3PoolPriceAdapter(
-            address(usdc),
-            address(this),
-            _TWAP_OBSERVE_SECONDS,
-            0,
-            false,
             0
         );
         adapter.setPool(address(asset), address(pool));
@@ -319,7 +283,6 @@ contract UniswapV3PoolPriceAdapterFuzzTest {
             address(this),
             _TWAP_OBSERVE_SECONDS,
             0,
-            true,
             5
         );
         adapter.setPool(address(asset), address(pool));
@@ -358,7 +321,6 @@ contract UniswapV3PoolPriceAdapterFuzzTest {
             address(this),
             _TWAP_OBSERVE_SECONDS,
             0,
-            true,
             0
         );
         adapter.setPool(address(asset), address(pool));
