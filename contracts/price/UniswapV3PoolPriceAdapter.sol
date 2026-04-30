@@ -58,6 +58,24 @@ contract UniswapV3PoolPriceAdapter is IPriceAdapter, Ownable2Step {
     /// @param pool  Address of the Uniswap V3 pool for asset/USDC or USDC/asset.
     function setPool(address asset, address pool) external onlyOwner {
         if (asset == address(0) || pool == address(0)) revert ErrorsLib.ZeroAddress();
+        if (asset == USDC) revert ErrorsLib.InvalidAdapter(asset);
+
+        address token0;
+        address token1;
+        try IUniswapV3Pool(pool).token0() returns (address t0) {
+            token0 = t0;
+        } catch {
+            revert ErrorsLib.InvalidAdapter(asset);
+        }
+        try IUniswapV3Pool(pool).token1() returns (address t1) {
+            token1 = t1;
+        } catch {
+            revert ErrorsLib.InvalidAdapter(asset);
+        }
+
+        bool isValidPair = (token0 == asset && token1 == USDC) || (token0 == USDC && token1 == asset);
+        if (!isValidPair) revert ErrorsLib.InvalidAdapter(asset);
+
         poolOf[asset] = pool;
         emit PoolSet(asset, pool);
     }
