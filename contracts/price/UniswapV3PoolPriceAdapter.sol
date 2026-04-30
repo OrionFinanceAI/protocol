@@ -91,10 +91,12 @@ contract UniswapV3PoolPriceAdapter is IPriceAdapter, Ownable2Step {
     }
 
     /// @inheritdoc IPriceAdapter
-    /// @dev Reverts when slot0.sqrtPriceX96 is zero (pool not yet initialized) to avoid
-    ///      returning a misleading synthetic 1:1 price.
+    /// @dev Reverts with InvalidAdapter if no pool is registered.
+    /// @dev Reverts with PoolNotInitialized if slot0.sqrtPriceX96 is zero (pool not yet initialized).
     function getPriceData(address asset) external view override returns (uint256 price, uint8 decimals) {
         address pool = poolOf[asset];
+        if (pool == address(0)) revert ErrorsLib.InvalidAdapter(asset);
+
         // slither-disable-next-line unused-return
         (uint160 sqrtPriceX96, , , , , , ) = IUniswapV3Pool(pool).slot0();
 
