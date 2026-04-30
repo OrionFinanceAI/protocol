@@ -15,11 +15,12 @@ import { IUniswapV3Pool } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3
  * @author Orion Finance
  *
  * @dev TWAP via pool.observe([TWAP_OBSERVE_SECONDS, 0]); tick mean matches OracleLibrary.consult rounding,
- *      then TickMath.getSqrtRatioAtTick.
- *      Failed observe reverts with TwapUnavailable. sqrtPriceX96==0 in
- *      slot0 reverts PoolNotInitialized (init sanity only). MIN_POOL_LIQUIDITY checks in-range liquidity() only.
- *      MIN_OBSERVATION_CARDINALITY lower-binds observation buffer capacity in slot0, not observation freshness, full
- *      TWAP window coverage, or liveness—use monitoring or another oracle when freshness is critical.
+ *      then TickMath.getSqrtRatioAtTick. Failed observe reverts with TwapUnavailable.
+ *      `setPool` probes the same observe horizon and enforces MIN_OBSERVATION_CARDINALITY on slot0 so registration
+ *      fails before a pool is stored. Runtime cardinality is not re-checked (buffer size is not freshness).
+ *      When MAX_OBSERVATION_STALENESS_SECONDS > 0, the latest oracle observation at slot0.observationIndex must be
+ *      initialized and within that age vs block.timestamp at both registration and read (heuristic only).
+ *      sqrtPriceX96==0 in slot0 reverts PoolNotInitialized. MIN_POOL_LIQUIDITY checks in-range liquidity() only.
  *
  * @custom:security-contact security@orionfinance.ai
  */
@@ -39,17 +40,23 @@ contract UniswapV3PoolPriceAdapter is IPriceAdapter, Ownable2Step {
     /// @notice In-range pool liquidity below minPoolLiquidity.
     error LowLiquidity(address asset);
 
-    /// @notice observe failed and spot fallback is disabled.
+    /// @notice observe failed (TWAP probe at registration or price read).
     error TwapUnavailable(address asset);
 
     /// @notice Asset decimals exceed MAX_ASSET_DECIMALS.
     error AssetDecimalsTooHigh(address asset, uint8 decimals);
 
-    /// @notice slot0 observationCardinality below minimum (capacity gate only).
+    /// @notice slot0 observationCardinality below minimum at registration (buffer capacity only).
     error InsufficientObservationCardinality(address asset, uint16 cardinality, uint16 minimum);
 
     /// @notice TWAP window seconds is zero in pure sqrt helper.
     error ZeroTwapWindow();
+
+    /// @notice Latest oracle observation uninitialized or slot index mismatch vs pool expectations.
+    error OracleObservationNotInitialized(address asset);
+
+    /// @notice Latest oracle observation older than MAX_OBSERVATION_STALENESS_SECONDS (when non-zero).
+    error OracleStale(address asset);
 
     /// @notice Extra price precision digits (matches ERC4626PriceAdapter for registry normalization).
     uint8 public constant PRICE_DECIMALS = 10;
@@ -66,8 +73,11 @@ contract UniswapV3PoolPriceAdapter is IPriceAdapter, Ownable2Step {
     /// @notice Minimum in-range liquidity(); zero skips.
     uint128 public immutable MIN_POOL_LIQUIDITY;
 
-    /// @notice Minimum slot0.observationCardinality (buffer size only, not freshness).
+    /// @notice Minimum slot0.observationCardinality enforced at registration only (buffer size, not freshness).
     uint16 public immutable MIN_OBSERVATION_CARDINALITY;
+
+    /// @notice Max seconds since latest observation blockTimestamp; zero disables staleness check.
+    uint32 public immutable MAX_OBSERVATION_STALENESS_SECONDS;
 
     /// @notice Registered pool per priced asset (asset/USDC pool).
     mapping(address => address) public poolOf;
@@ -85,13 +95,15 @@ contract UniswapV3PoolPriceAdapter is IPriceAdapter, Ownable2Step {
     /// @param initialOwner Ownable owner for setPool
     /// @param twapObserveSeconds_ TWAP window in seconds; must be >= MIN_TWAP_WINDOW
     /// @param minPoolLiquidity_ Minimum in-range liquidity; 0 skips
-    /// @param minObservationCardinality_ Minimum observation cardinality; 0 skips
+    /// @param minObservationCardinality_ Minimum observation cardinality at setPool; 0 skips
+    /// @param maxObservationStalenessSeconds_ Max age of latest observation; 0 skips staleness guard
     constructor(
         address usdc,
         address initialOwner,
         uint32 twapObserveSeconds_,
         uint128 minPoolLiquidity_,
-        uint16 minObservationCardinality_
+        uint16 minObservationCardinality_,
+        uint32 maxObservationStalenessSeconds_
     ) Ownable(initialOwner) {
         if (usdc == address(0)) revert ErrorsLib.ZeroAddress();
         if (twapObserveSeconds_ < MIN_TWAP_WINDOW) revert ErrorsLib.InvalidArguments();
@@ -100,10 +112,11 @@ contract UniswapV3PoolPriceAdapter is IPriceAdapter, Ownable2Step {
         TWAP_OBSERVE_SECONDS = twapObserveSeconds_;
         MIN_POOL_LIQUIDITY = minPoolLiquidity_;
         MIN_OBSERVATION_CARDINALITY = minObservationCardinality_;
+        MAX_OBSERVATION_STALENESS_SECONDS = maxObservationStalenessSeconds_;
     }
 
     /// @notice Register or replace the V3 pool used to price an asset.
-    /// @dev Pool tokens must be asset and USDC in either order.
+    /// @dev Pool tokens must be asset and USDC in either order. Probes observe TWAP horizon and staleness (if configured).
     /// @param asset ERC20 to price (not USDC)
     /// @param pool Uniswap V3 pool address
     function setPool(address asset, address pool) external onlyOwner {
@@ -126,6 +139,30 @@ contract UniswapV3PoolPriceAdapter is IPriceAdapter, Ownable2Step {
         bool isValidPair = (token0 == asset && token1 == USDC) || (token0 == USDC && token1 == asset);
         if (!isValidPair) revert ErrorsLib.InvalidAdapter(asset);
 
+        IUniswapV3Pool p = IUniswapV3Pool(pool);
+        // slither-disable-next-line unused-return
+        (uint160 sqrtSlot0, , uint16 observationIndex, uint16 observationCardinality, , , ) = p.slot0();
+
+        if (sqrtSlot0 == 0) {
+            revert PoolNotInitialized(asset);
+        }
+
+        uint16 minCard = MIN_OBSERVATION_CARDINALITY;
+        if (minCard != 0 && observationCardinality < minCard) {
+            revert InsufficientObservationCardinality(asset, observationCardinality, minCard);
+        }
+
+        uint32[] memory secs = new uint32[](2);
+        secs[0] = TWAP_OBSERVE_SECONDS;
+        secs[1] = 0;
+        // slither-disable-next-line unused-return
+        try p.observe(secs) returns (int56[] memory, uint160[] memory) { }
+        catch {
+            revert TwapUnavailable(asset);
+        }
+
+        _validateObservationFreshness(p, asset, observationIndex);
+
         poolOf[asset] = pool;
         usdcIsToken0ForAsset[asset] = (token0 == USDC);
         emit PoolSet(asset, pool);
@@ -141,8 +178,9 @@ contract UniswapV3PoolPriceAdapter is IPriceAdapter, Ownable2Step {
         address pool = poolOf[asset];
         if (pool == address(0)) revert ErrorsLib.InvalidAdapter(asset);
 
+        IUniswapV3Pool p = IUniswapV3Pool(pool);
         // slither-disable-next-line unused-return
-        (uint160 sqrtSlot0, , , uint16 observationCardinality, , , ) = IUniswapV3Pool(pool).slot0();
+        (uint160 sqrtSlot0, , uint16 observationIndex, , , , ) = p.slot0();
 
         decimals = PRICE_DECIMALS + USDC_DECIMALS;
         uint8 assetDecimals = IERC20Metadata(asset).decimals();
@@ -151,20 +189,14 @@ contract UniswapV3PoolPriceAdapter is IPriceAdapter, Ownable2Step {
         }
         uint256 precisionAmount = 10 ** uint256(PRICE_DECIMALS + assetDecimals);
 
-        // Initialization sanity: not TWAP correctness; edge case could theoretically diverge from accumulators.
         if (sqrtSlot0 == 0) {
             revert PoolNotInitialized(asset);
         }
 
-        uint16 minCard = MIN_OBSERVATION_CARDINALITY;
-        // Cardinality ≥ minCard means oracle array capacity, not recent swaps nor TWAP window coverage.
-        if (minCard != 0 && observationCardinality < minCard) {
-            revert InsufficientObservationCardinality(asset, observationCardinality, minCard);
-        }
+        _validateObservationFreshness(p, asset, observationIndex);
 
-        // In-range liquidity only — does not bound total depth, distribution, or manipulation cost.
         uint128 minLiq = MIN_POOL_LIQUIDITY;
-        if (minLiq != 0 && IUniswapV3Pool(pool).liquidity() < minLiq) {
+        if (minLiq != 0 && p.liquidity() < minLiq) {
             revert LowLiquidity(asset);
         }
 
@@ -172,21 +204,32 @@ contract UniswapV3PoolPriceAdapter is IPriceAdapter, Ownable2Step {
         price = _priceFromSqrtX96(precisionAmount, sqrtPriceX96, usdcIsToken0ForAsset[asset]);
     }
 
+    /// @dev Heuristic: slot0.observationIndex entry must be initialized and recent when staleness cap is set.
+    function _validateObservationFreshness(
+        IUniswapV3Pool pool,
+        address asset,
+        uint16 observationIndex
+    ) internal view {
+        uint32 maxStale = MAX_OBSERVATION_STALENESS_SECONDS;
+        if (maxStale == 0) return;
+
+        (uint32 blockTimestamp, , , bool initialized) = pool.observations(observationIndex);
+        if (!initialized) {
+            revert OracleObservationNotInitialized(asset);
+        }
+        if (block.timestamp > blockTimestamp && block.timestamp - blockTimestamp > uint256(maxStale)) {
+            revert OracleStale(asset);
+        }
+    }
+
     /// @notice TWAP sqrt from observe.
     /// @dev Second observe return is unused (tick cumulatives only).
-    /// @param pool Uniswap V3 pool for the asset (validated pair in `setPool`).
-    /// @param asset Priced asset (`TwapUnavailable` includes this address).
-    /// @return sqrtPriceX96 Q64.96 sqrt price for `_priceFromSqrtX96`.
-    function _observeSqrtPriceX96(
-        address pool,
-        address asset
-    ) internal view returns (uint160 sqrtPriceX96) {
+    function _observeSqrtPriceX96(address pool, address asset) internal view returns (uint160 sqrtPriceX96) {
         uint32 window = TWAP_OBSERVE_SECONDS;
         uint32[] memory secs = new uint32[](2);
         secs[0] = window;
         secs[1] = 0;
 
-        // TWAP uses tick cumulatives only; pool.observe also returns seconds-per-liquidity (unused here).
         // slither-disable-next-line unused-return
         try IUniswapV3Pool(pool).observe(secs) returns (
             int56[] memory tickCumulatives,
@@ -200,7 +243,7 @@ contract UniswapV3PoolPriceAdapter is IPriceAdapter, Ownable2Step {
 
     /// @notice Convert sqrtPriceX96 to raw USDC per raw asset using PRICE_DECIMALS scaling.
     /// @param precisionAmount `10 ** (PRICE_DECIMALS + assetDecimals)`.
-    /// @param sqrtPriceX96 Q64.96 sqrt price from TWAP or spot fallback.
+    /// @param sqrtPriceX96 Q64.96 sqrt price from TWAP.
     /// @param usdcIsToken0 Whether USDC is token0 in the pool.
     /// @return price Raw price in USDC minor units with PRICE_DECIMALS extra precision.
     function _priceFromSqrtX96(
@@ -218,19 +261,13 @@ contract UniswapV3PoolPriceAdapter is IPriceAdapter, Ownable2Step {
     }
 
     /// @notice Mean tick from oracle cumulative delta to sqrtPriceX96 (Q64.96).
-    /// @dev Pure; rounding matches OracleLibrary.consult.
-    /// @param tickCumulativesDelta Later tick cumulative minus earlier (observe indices 1 and 0).
-    /// @param window TWAP window in seconds (effective observe horizon).
-    /// @return sqrtPriceX96 Q64.96 sqrt price ratio from the mean tick.
     function _sqrtPriceX96FromTickCumulativeDelta(
         int56 tickCumulativesDelta,
         uint32 window
     ) internal pure returns (uint160 sqrtPriceX96) {
         if (window == 0) revert ZeroTwapWindow();
-        // uint32 windows fit int56; do not cast via int32 (uint32 max overflows int32).
         int56 denom = int56(uint56(window));
         int24 avgTick = int24(tickCumulativesDelta / denom);
-        // Round toward negative infinity (matches Uniswap v3-periphery OracleLibrary.consult)
         if (tickCumulativesDelta < 0 && (tickCumulativesDelta % denom != 0)) {
             --avgTick;
         }

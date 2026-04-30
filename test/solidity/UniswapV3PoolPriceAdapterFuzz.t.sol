@@ -155,6 +155,7 @@ contract UniswapV3PoolPriceAdapterFuzzTest {
             address(this),
             _TWAP_OBSERVE_SECONDS,
             0,
+            0,
             0
         );
         adapter.setPool(address(asset), address(pool));
@@ -169,8 +170,7 @@ contract UniswapV3PoolPriceAdapterFuzzTest {
         require(priceOut == expected, "integration: matches pure");
     }
 
-    /// @notice `getPriceData` reverts with `PoolNotInitialized(asset)` when slot0 sqrt is zero.
-    /// @dev No forge `vm.expectRevert`: capture staticcall returndata and compare to encoded custom error.
+    /// @notice `setPool` reverts with `PoolNotInitialized(asset)` when slot0 sqrt is zero.
     function test_RevertWhen_sqrtPriceZero() public {
         MockERC20 usdc = new MockERC20("USDC", "USDC", _MOCK_USDC_DECIMALS);
         MockERC20 asset = new MockERC20("AST", "AST", 18);
@@ -182,19 +182,18 @@ contract UniswapV3PoolPriceAdapterFuzzTest {
             address(this),
             _TWAP_OBSERVE_SECONDS,
             0,
+            0,
             0
         );
-        adapter.setPool(address(asset), address(pool));
-
         bytes memory expectedRevert = abi.encodeWithSelector(
             UniswapV3PoolPriceAdapter.PoolNotInitialized.selector,
             address(asset)
         );
 
-        (bool ok, bytes memory ret) = address(adapter).staticcall(
-            abi.encodeCall(UniswapV3PoolPriceAdapter.getPriceData, (address(asset)))
+        (bool ok, bytes memory ret) = address(adapter).call(
+            abi.encodeCall(UniswapV3PoolPriceAdapter.setPool, (address(asset), address(pool)))
         );
-        require(!ok, "expect revert from getPriceData");
+        require(!ok, "expect revert from setPool");
         require(keccak256(ret) == keccak256(expectedRevert), "PoolNotInitialized(asset)");
     }
 
@@ -211,6 +210,7 @@ contract UniswapV3PoolPriceAdapterFuzzTest {
             address(this),
             _TWAP_OBSERVE_SECONDS,
             1000,
+            0,
             0
         );
         adapter.setPool(address(asset), address(pool));
@@ -227,7 +227,7 @@ contract UniswapV3PoolPriceAdapterFuzzTest {
         require(keccak256(ret) == keccak256(expectedRevert), "LowLiquidity(asset)");
     }
 
-    /// @notice When `observe` reverts, adapter reverts with `TwapUnavailable`.
+    /// @notice `setPool` reverts with `TwapUnavailable` when registration-time observe probe fails.
     function test_RevertWhen_twapUnavailable_observeFails() public {
         MockERC20 usdc = new MockERC20("USDC", "USDC", _MOCK_USDC_DECIMALS);
         MockERC20 asset = new MockERC20("AST", "AST", 18);
@@ -247,23 +247,22 @@ contract UniswapV3PoolPriceAdapterFuzzTest {
             address(this),
             _TWAP_OBSERVE_SECONDS,
             0,
+            0,
             0
         );
-        adapter.setPool(address(asset), address(pool));
-
         bytes memory expectedRevert = abi.encodeWithSelector(
             UniswapV3PoolPriceAdapter.TwapUnavailable.selector,
             address(asset)
         );
 
-        (bool ok, bytes memory ret) = address(adapter).staticcall(
-            abi.encodeCall(UniswapV3PoolPriceAdapter.getPriceData, (address(asset)))
+        (bool ok, bytes memory ret) = address(adapter).call(
+            abi.encodeCall(UniswapV3PoolPriceAdapter.setPool, (address(asset), address(pool)))
         );
-        require(!ok, "expect TwapUnavailable");
+        require(!ok, "expect TwapUnavailable from setPool");
         require(keccak256(ret) == keccak256(expectedRevert), "TwapUnavailable(asset)");
     }
 
-    /// @notice `InsufficientObservationCardinality` when oracle buffer smaller than minimum.
+    /// @notice `setPool` reverts when oracle buffer smaller than configured minimum.
     function test_RevertWhen_insufficientObservationCardinality() public {
         MockERC20 usdc = new MockERC20("USDC", "USDC", _MOCK_USDC_DECIMALS);
         MockERC20 asset = new MockERC20("AST", "AST", 18);
@@ -283,10 +282,9 @@ contract UniswapV3PoolPriceAdapterFuzzTest {
             address(this),
             _TWAP_OBSERVE_SECONDS,
             0,
-            5
+            5,
+            0
         );
-        adapter.setPool(address(asset), address(pool));
-
         bytes memory expectedRevert = abi.encodeWithSelector(
             UniswapV3PoolPriceAdapter.InsufficientObservationCardinality.selector,
             address(asset),
@@ -294,11 +292,110 @@ contract UniswapV3PoolPriceAdapterFuzzTest {
             uint16(5)
         );
 
+        (bool ok, bytes memory ret) = address(adapter).call(
+            abi.encodeCall(UniswapV3PoolPriceAdapter.setPool, (address(asset), address(pool)))
+        );
+        require(!ok, "expect cardinality revert from setPool");
+        require(keccak256(ret) == keccak256(expectedRevert), "InsufficientObservationCardinality");
+    }
+
+    /// @notice `setPool` reverts with `OracleObservationNotInitialized` when latest observation slot is not initialized.
+    function test_RevertWhen_observationUninitialized_atSetPool() public {
+        MockERC20 usdc = new MockERC20("USDC", "USDC", _MOCK_USDC_DECIMALS);
+        MockERC20 asset = new MockERC20("AST", "AST", 18);
+
+        uint160 sqrtPriceX96 = uint160(1) << 90;
+        MockUniswapV3Pool pool = new MockUniswapV3Pool(address(asset), address(usdc), sqrtPriceX96, type(uint128).max, 100, false);
+        pool.configureObservation(uint32(block.timestamp), false, 0);
+
+        UniswapV3PoolPriceAdapter adapter = new UniswapV3PoolPriceAdapter(
+            address(usdc),
+            address(this),
+            _TWAP_OBSERVE_SECONDS,
+            0,
+            0,
+            1
+        );
+
+        bytes memory expectedRevert = abi.encodeWithSelector(
+            UniswapV3PoolPriceAdapter.OracleObservationNotInitialized.selector,
+            address(asset)
+        );
+
+        (bool ok, bytes memory ret) = address(adapter).call(
+            abi.encodeCall(UniswapV3PoolPriceAdapter.setPool, (address(asset), address(pool)))
+        );
+        require(!ok, "expect OracleObservationNotInitialized");
+        require(keccak256(ret) == keccak256(expectedRevert), "OracleObservationNotInitialized(asset)");
+    }
+
+    /// @notice `setPool` reverts with `OracleStale` when latest observation is older than max staleness.
+    function test_RevertWhen_oracleStale_atSetPool() public {
+        if (block.timestamp <= 1) return;
+
+        MockERC20 usdc = new MockERC20("USDC", "USDC", _MOCK_USDC_DECIMALS);
+        MockERC20 asset = new MockERC20("AST", "AST", 18);
+
+        uint160 sqrtPriceX96 = uint160(1) << 90;
+        MockUniswapV3Pool pool = new MockUniswapV3Pool(address(asset), address(usdc), sqrtPriceX96, type(uint128).max, 100, false);
+        uint32 staleTs = uint32(block.timestamp - 2);
+        pool.configureObservation(staleTs, true, 0);
+
+        UniswapV3PoolPriceAdapter adapter = new UniswapV3PoolPriceAdapter(
+            address(usdc),
+            address(this),
+            _TWAP_OBSERVE_SECONDS,
+            0,
+            0,
+            1
+        );
+
+        bytes memory expectedRevert = abi.encodeWithSelector(
+            UniswapV3PoolPriceAdapter.OracleStale.selector,
+            address(asset)
+        );
+
+        (bool ok, bytes memory ret) = address(adapter).call(
+            abi.encodeCall(UniswapV3PoolPriceAdapter.setPool, (address(asset), address(pool)))
+        );
+        require(!ok, "expect OracleStale");
+        require(keccak256(ret) == keccak256(expectedRevert), "OracleStale(asset)");
+    }
+
+    /// @notice If staleness checks are enabled, `getPriceData` reverts with `OracleStale` when observation ages out.
+    function test_RevertWhen_oracleBecomesStale_atGetPriceData() public {
+        if (block.timestamp <= 1) return;
+
+        MockERC20 usdc = new MockERC20("USDC", "USDC", _MOCK_USDC_DECIMALS);
+        MockERC20 asset = new MockERC20("AST", "AST", 18);
+
+        uint160 sqrtPriceX96 = uint160(1) << 90;
+        MockUniswapV3Pool pool = new MockUniswapV3Pool(address(asset), address(usdc), sqrtPriceX96, type(uint128).max, 100, false);
+        pool.configureObservation(uint32(block.timestamp), true, 0);
+
+        UniswapV3PoolPriceAdapter adapter = new UniswapV3PoolPriceAdapter(
+            address(usdc),
+            address(this),
+            _TWAP_OBSERVE_SECONDS,
+            0,
+            0,
+            1
+        );
+        adapter.setPool(address(asset), address(pool));
+
+        uint32 staleTs = uint32(block.timestamp - 2);
+        pool.configureObservation(staleTs, true, 0);
+
+        bytes memory expectedRevert = abi.encodeWithSelector(
+            UniswapV3PoolPriceAdapter.OracleStale.selector,
+            address(asset)
+        );
+
         (bool ok, bytes memory ret) = address(adapter).staticcall(
             abi.encodeCall(UniswapV3PoolPriceAdapter.getPriceData, (address(asset)))
         );
-        require(!ok, "expect cardinality revert");
-        require(keccak256(ret) == keccak256(expectedRevert), "InsufficientObservationCardinality");
+        require(!ok, "expect OracleStale at getPriceData");
+        require(keccak256(ret) == keccak256(expectedRevert), "OracleStale(asset)");
     }
 
     /// @notice Reverts when asset decimals exceed adapter maximum.
@@ -320,6 +417,7 @@ contract UniswapV3PoolPriceAdapterFuzzTest {
             address(usdc),
             address(this),
             _TWAP_OBSERVE_SECONDS,
+            0,
             0,
             0
         );
@@ -374,6 +472,9 @@ contract MockUniswapV3Pool {
     uint128 private immutable _liquidity;
     uint16 private immutable _observationCardinality;
     bool private immutable _observeReverts;
+    uint32 private _observationTimestamp;
+    bool private _observationInitialized;
+    uint16 private _observationIndex;
 
     constructor(
         address token0_,
@@ -389,6 +490,9 @@ contract MockUniswapV3Pool {
         _liquidity = liquidity_;
         _observationCardinality = observationCardinality_;
         _observeReverts = observeReverts_;
+        _observationTimestamp = uint32(block.timestamp);
+        _observationInitialized = true;
+        _observationIndex = 0;
         if (sqrtPriceX96_ > 0) {
             require(
                 sqrtPriceX96_ >= TickMath.MIN_SQRT_RATIO && sqrtPriceX96_ < TickMath.MAX_SQRT_RATIO,
@@ -412,6 +516,12 @@ contract MockUniswapV3Pool {
         return _liquidity;
     }
 
+    function configureObservation(uint32 timestamp, bool initialized, uint16 index) external {
+        _observationTimestamp = timestamp;
+        _observationInitialized = initialized;
+        _observationIndex = index;
+    }
+
     /// @dev Minimal `slot0` compatible with `IUniswapV3Pool.slot0()` — only sqrt used by adapter.
     function slot0()
         external
@@ -428,11 +538,25 @@ contract MockUniswapV3Pool {
     {
         sqrtPriceX96 = _sqrtPriceX96;
         tick = 0;
-        observationIndex = 0;
+        observationIndex = _observationIndex;
         observationCardinality = _observationCardinality;
         observationCardinalityNext = 0;
         feeProtocol = 0;
         unlocked = false;
+    }
+
+    function observations(
+        uint256 index
+    ) external view returns (uint32 blockTimestamp, int56 tickCumulative, uint160 secondsPerLiquidityCumulativeX128, bool initialized) {
+        if (index == _observationIndex) {
+            blockTimestamp = _observationTimestamp;
+            initialized = _observationInitialized;
+        } else {
+            blockTimestamp = 0;
+            initialized = false;
+        }
+        tickCumulative = int56(_twapTick) * int56(uint56(blockTimestamp));
+        secondsPerLiquidityCumulativeX128 = 0;
     }
 
     /// @dev Synthetic cumulative ticks so TWAP mean equals tick implied by `slot0` sqrt in tests.
