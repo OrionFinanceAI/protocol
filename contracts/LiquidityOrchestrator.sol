@@ -836,15 +836,13 @@ contract LiquidityOrchestrator is
         // Clean up approval
         IERC20(asset).forceApprove(address(adapter), 0);
 
-        int256 bufferDeltaUnderlying = executionUnderlyingAmount.toInt256() - estimatedUnderlyingAmount.toInt256();
-        _updateBufferAmount(bufferDeltaUnderlying);
+        _updateBufferAmount(executionUnderlyingAmount.toInt256() - estimatedUnderlyingAmount.toInt256());
         emit EventsLib.EpochSellExecuted(
             epochCounter,
             asset,
             executionUnderlyingAmount,
             sharesAmount,
-            estimatedUnderlyingAmount,
-            bufferDeltaUnderlying
+            estimatedUnderlyingAmount
         );
     }
 
@@ -867,15 +865,13 @@ contract LiquidityOrchestrator is
         // Clean up approval
         IERC20(underlyingAsset).forceApprove(address(adapter), 0);
 
-        int256 bufferDeltaUnderlying = estimatedUnderlyingAmount.toInt256() - executionUnderlyingAmount.toInt256();
-        _updateBufferAmount(bufferDeltaUnderlying);
+        _updateBufferAmount(estimatedUnderlyingAmount.toInt256() - executionUnderlyingAmount.toInt256());
         emit EventsLib.EpochBuyExecuted(
             epochCounter,
             asset,
             executionUnderlyingAmount,
             sharesAmount,
-            estimatedUnderlyingAmount,
-            bufferDeltaUnderlying
+            estimatedUnderlyingAmount
         );
     }
 
