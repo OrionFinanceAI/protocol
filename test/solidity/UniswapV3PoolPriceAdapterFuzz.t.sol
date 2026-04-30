@@ -28,7 +28,7 @@ contract UniswapV3PoolPriceAdapterFuzzTest {
     /// @dev Matches `UniswapV3PoolPriceAdapter` constructor reading `IERC20Metadata(usdc).decimals()`.
     uint8 internal constant _MOCK_USDC_DECIMALS = 6;
 
-    /// @dev Must match `twapObserveSeconds` passed to `new UniswapV3PoolPriceAdapter(...)` and mock `observe`.
+    /// @dev Must match `TWAP_OBSERVE_SECONDS` passed to `new UniswapV3PoolPriceAdapter(...)` and mock `observe`.
     uint32 internal constant _TWAP_OBSERVE_SECONDS = 300;
 
     /// @dev Uniswap V3 TickMath.MIN_SQRT_RATIO (fixed-point sqrt price lower bound).

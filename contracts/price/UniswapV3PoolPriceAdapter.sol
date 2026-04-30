@@ -14,11 +14,12 @@ import { IUniswapV3Pool } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3
  * @notice Price adapter for ERC20 spot assets vs USDC using a registered Uniswap V3 pool.
  * @author Orion Finance
  *
- * @dev TWAP: pool.observe([effectiveTwapWindow, 0]), mean tick rounded like Uniswap OracleLibrary.consult, then
- *      TickMath.getSqrtRatioAtTick. If twapObserveSeconds is 0 at deploy, effectiveTwapWindow is SHORT_TWAP_SECONDS.
- *      Failed observe: allowSpotFallback uses slot0 spot (manipulable); otherwise TwapUnavailable. sqrtPriceX96==0 in
- *      slot0 reverts PoolNotInitialized (init sanity only). minPoolLiquidity checks in-range liquidity() only.
- *      minObservationCardinality lower-binds observation buffer capacity in slot0, not observation freshness, full
+ * @dev TWAP via pool.observe([EFFECTIVE_TWAP_WINDOW, 0]); tick mean matches OracleLibrary.consult rounding,
+ *      then TickMath.getSqrtRatioAtTick. If TWAP_OBSERVE_SECONDS is 0 at deploy, EFFECTIVE_TWAP_WINDOW is
+ *      SHORT_TWAP_SECONDS.
+ *      Failed observe: ALLOW_SPOT_FALLBACK uses slot0 spot (manipulable); otherwise TwapUnavailable. sqrtPriceX96==0 in
+ *      slot0 reverts PoolNotInitialized (init sanity only). MIN_POOL_LIQUIDITY checks in-range liquidity() only.
+ *      MIN_OBSERVATION_CARDINALITY lower-binds observation buffer capacity in slot0, not observation freshness, full
  *      TWAP window coverage, or liveness—use monitoring or another oracle when freshness is critical.
  *
  * @custom:security-contact security@orionfinance.ai
@@ -61,19 +62,19 @@ contract UniswapV3PoolPriceAdapter is IPriceAdapter, Ownable2Step {
     uint8 public immutable USDC_DECIMALS;
 
     /// @notice Deploy-time TWAP horizon; zero means SHORT_TWAP_SECONDS at runtime.
-    uint32 public immutable twapObserveSeconds;
+    uint32 public immutable TWAP_OBSERVE_SECONDS;
 
     /// @notice Seconds passed to observe (resolved from deploy config).
-    uint32 public immutable effectiveTwapWindow;
+    uint32 public immutable EFFECTIVE_TWAP_WINDOW;
 
     /// @notice Minimum in-range liquidity(); zero skips.
-    uint128 public immutable minPoolLiquidity;
+    uint128 public immutable MIN_POOL_LIQUIDITY;
 
     /// @notice Use slot0 spot when observe fails if true.
-    bool public immutable allowSpotFallback;
+    bool public immutable ALLOW_SPOT_FALLBACK;
 
     /// @notice Minimum slot0.observationCardinality (buffer size only, not freshness).
-    uint16 public immutable minObservationCardinality;
+    uint16 public immutable MIN_OBSERVATION_CARDINALITY;
 
     /// @notice Registered pool per priced asset (asset/USDC pool).
     mapping(address => address) public poolOf;
@@ -82,6 +83,8 @@ contract UniswapV3PoolPriceAdapter is IPriceAdapter, Ownable2Step {
     mapping(address => bool) public usdcIsToken0ForAsset;
 
     /// @notice Pool registration updated for an asset.
+    /// @param asset Priced ERC20 (not USDC).
+    /// @param pool Uniswap V3 pool registered for the asset.
     event PoolSet(address indexed asset, address indexed pool);
 
     /// @notice Constructor
@@ -102,11 +105,11 @@ contract UniswapV3PoolPriceAdapter is IPriceAdapter, Ownable2Step {
         if (usdc == address(0)) revert ErrorsLib.ZeroAddress();
         USDC = usdc;
         USDC_DECIMALS = IERC20Metadata(usdc).decimals();
-        twapObserveSeconds = twapObserveSeconds_;
-        effectiveTwapWindow = twapObserveSeconds_ == 0 ? SHORT_TWAP_SECONDS : twapObserveSeconds_;
-        minPoolLiquidity = minPoolLiquidity_;
-        allowSpotFallback = allowSpotFallback_;
-        minObservationCardinality = minObservationCardinality_;
+        TWAP_OBSERVE_SECONDS = twapObserveSeconds_;
+        EFFECTIVE_TWAP_WINDOW = twapObserveSeconds_ == 0 ? SHORT_TWAP_SECONDS : twapObserveSeconds_;
+        MIN_POOL_LIQUIDITY = minPoolLiquidity_;
+        ALLOW_SPOT_FALLBACK = allowSpotFallback_;
+        MIN_OBSERVATION_CARDINALITY = minObservationCardinality_;
     }
 
     /// @notice Register or replace the V3 pool used to price an asset.
@@ -163,55 +166,76 @@ contract UniswapV3PoolPriceAdapter is IPriceAdapter, Ownable2Step {
             revert PoolNotInitialized(asset);
         }
 
-        uint16 minCard = minObservationCardinality;
+        uint16 minCard = MIN_OBSERVATION_CARDINALITY;
         // Cardinality ≥ minCard means oracle array capacity, not recent swaps nor TWAP window coverage.
         if (minCard != 0 && observationCardinality < minCard) {
             revert InsufficientObservationCardinality(asset, observationCardinality, minCard);
         }
 
         // In-range liquidity only — does not bound total depth, distribution, or manipulation cost.
-        uint128 minLiq = minPoolLiquidity;
+        uint128 minLiq = MIN_POOL_LIQUIDITY;
         if (minLiq != 0 && IUniswapV3Pool(pool).liquidity() < minLiq) {
             revert LowLiquidity(asset);
         }
 
-        uint32 window = effectiveTwapWindow;
+        uint160 sqrtPriceX96 = _observeSqrtPriceX96(pool, asset, sqrtSlot0);
+        price = _priceFromSqrtX96(precisionAmount, sqrtPriceX96, usdcIsToken0ForAsset[asset]);
+    }
 
+    /// @notice TWAP sqrt from observe, or slot0 when ALLOW_SPOT_FALLBACK and observe fails.
+    /// @dev Second observe return is unused (tick cumulatives only).
+    /// @param pool Uniswap V3 pool for the asset (validated pair in `setPool`).
+    /// @param asset Priced asset (`TwapUnavailable` includes this address).
+    /// @param sqrtSlot0 Current slot0 sqrt price for optional spot fallback.
+    /// @return sqrtPriceX96 Q64.96 sqrt price for `_priceFromSqrtX96`.
+    function _observeSqrtPriceX96(
+        address pool,
+        address asset,
+        uint160 sqrtSlot0
+    ) internal view returns (uint160 sqrtPriceX96) {
+        uint32 window = EFFECTIVE_TWAP_WINDOW;
         uint32[] memory secs = new uint32[](2);
         secs[0] = window;
         secs[1] = 0;
 
-        uint160 sqrtPriceX96;
-        // Try/catch on pool.observe directly — avoids external self-call gas and redundant ABI boundary.
-        // Second return is required by the pool ABI but unused here (TWAP from tick cumulatives only).
         try IUniswapV3Pool(pool).observe(secs) returns (
             int56[] memory tickCumulatives,
             uint160[] memory /* secondsPerLiquidityCumulativeX128s */
         ) {
             sqrtPriceX96 = _sqrtPriceX96FromTickCumulativeDelta(tickCumulatives[1] - tickCumulatives[0], window);
         } catch {
-            if (allowSpotFallback) {
+            if (ALLOW_SPOT_FALLBACK) {
                 sqrtPriceX96 = sqrtSlot0;
             } else {
                 revert TwapUnavailable(asset);
             }
         }
+    }
 
-        bool usdcIsToken0 = usdcIsToken0ForAsset[asset];
-
+    /// @notice Convert sqrtPriceX96 to raw USDC per raw asset using PRICE_DECIMALS scaling.
+    /// @param precisionAmount `10 ** (PRICE_DECIMALS + assetDecimals)`.
+    /// @param sqrtPriceX96 Q64.96 sqrt price from TWAP or spot fallback.
+    /// @param usdcIsToken0 Whether USDC is token0 in the pool.
+    /// @return price Raw price in USDC minor units with PRICE_DECIMALS extra precision.
+    function _priceFromSqrtX96(
+        uint256 precisionAmount,
+        uint160 sqrtPriceX96,
+        bool usdcIsToken0
+    ) internal pure returns (uint256 price) {
         if (usdcIsToken0) {
-            // rawUSDC_per_rawAsset = 2^192 / sqrtPriceX96²
             uint256 step1 = precisionAmount.mulDiv(1 << 96, sqrtPriceX96);
             price = step1.mulDiv(1 << 96, sqrtPriceX96);
         } else {
-            // rawUSDC_per_rawAsset = sqrtPriceX96² / 2^192
             uint256 step1 = precisionAmount.mulDiv(sqrtPriceX96, 1 << 96);
             price = step1.mulDiv(sqrtPriceX96, 1 << 96);
         }
     }
 
     /// @notice Mean tick from oracle cumulative delta to sqrtPriceX96 (Q64.96).
-    /// @dev Pure; rounding matches OracleLibrary.consult. Caller wraps observe in try/catch.
+    /// @dev Pure; rounding matches OracleLibrary.consult.
+    /// @param tickCumulativesDelta Later tick cumulative minus earlier (observe indices 1 and 0).
+    /// @param window TWAP window in seconds (effective observe horizon).
+    /// @return sqrtPriceX96 Q64.96 sqrt price ratio from the mean tick.
     function _sqrtPriceX96FromTickCumulativeDelta(
         int56 tickCumulativesDelta,
         uint32 window
