@@ -240,6 +240,10 @@ interface IOrionVault is IERC4626 {
         uint256 fulfillBatchSize
     ) external view returns (address[] memory users, uint256[] memory shares);
 
+    /// @notice Total underlying assets owed to users whose redemption transfer failed
+    /// @return total Sum of all pending underlying claims across all users
+    function totalPendingUnderlyingClaims() external view returns (uint256 total);
+
     /// @notice Calculate the vault's fee based on total assets using a specific fee model
     /// @param totalAssets The total assets under management
     /// @param snapshotFeeModel The fee model to use for calculation (typically from epoch snapshot)
