@@ -601,6 +601,7 @@ contract LiquidityOrchestrator is
                     vault.pendingRedeem(maxFulfillBatchSize),
                     vault.pendingDeposit(maxFulfillBatchSize),
                     vault.totalSupply(),
+                    vault.totalAssets(),
                     portfolioHash,
                     intentHash
                 )

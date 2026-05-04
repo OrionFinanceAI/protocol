@@ -27,6 +27,7 @@ interface ILiquidityOrchestrator {
         uint256[] pendingRedeems;
         uint256[] pendingDeposits;
         uint256[] totalSupplies;
+        uint256[] totalAssets;
         address[][] portfolioTokens;
         uint256[][] portfolioShares;
         address[][] intentTokens;
