@@ -108,8 +108,11 @@ contract LiquidityOrchestrator is
     /// @notice Epoch counter
     uint256 public epochCounter;
 
-    /// @notice Buffer amount [assets]
+    /// @notice Live buffer amount [assets]
     uint256 public bufferAmount;
+
+    /// @notice Buffer snapshot captured at epoch start and used as deterministic proof input anchor [assets]
+    uint256 public initialEpochBufferAmount;
 
     /// @notice Pending protocol fees [assets]
     uint256 public pendingProtocolFees;
@@ -126,9 +129,6 @@ contract LiquidityOrchestrator is
     bytes32 private _partialVaultsHash;
     /// @notice Number of vault leaves already folded this epoch
     uint16 private _commitmentBatchIndex;
-
-    /// @notice Buffer amount after each execution minibatch for market impact tracking.
-    uint256[] private _epochBufferHistory;
 
     /// @notice Epoch protocol fees to accrue when transitioning to ProcessVaultOperations.
     uint256 private _pendingEpochProtocolFees;
@@ -383,11 +383,6 @@ contract LiquidityOrchestrator is
         return _failedEpochTokens;
     }
 
-    /// @inheritdoc ILiquidityOrchestrator
-    function getEpochBufferHistory() external view returns (uint256[] memory) {
-        return _epochBufferHistory;
-    }
-
     /* -------------------------------------------------------------------------- */
     /*                                CONFIG FUNCTIONS                            */
     /* -------------------------------------------------------------------------- */
@@ -488,7 +483,6 @@ contract LiquidityOrchestrator is
                 bufferAmount = states.bufferAmount;
                 _pendingEpochProtocolFees = states.epochProtocolFees;
             }
-            _recordBufferCheckpoint();
 
             _processMinibatchSell(states.sellLeg);
         } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
@@ -530,7 +524,8 @@ contract LiquidityOrchestrator is
             return;
         }
 
-        _recordBufferCheckpoint();
+        // Freeze deterministic proof-input anchor at epoch start.
+        initialEpochBufferAmount = bufferAmount;
 
         // Reset incremental commitment state for the new epoch
         _partialVaultsHash = bytes32(0);
@@ -649,8 +644,7 @@ contract LiquidityOrchestrator is
                 config.riskFreeRate(),
                 config.decommissioningAssets(),
                 _failedEpochTokens,
-                _epochBufferHistory,
-                bufferAmount
+                initialEpochBufferAmount
             )
         );
         return protocolStateHash;
@@ -726,7 +720,6 @@ contract LiquidityOrchestrator is
                 // successful execution, continue.
             } catch {
                 _failedEpochTokens.push(token);
-                _recordBufferCheckpoint();
                 _currentEpoch.epochStateCommitment = keccak256(
                     abi.encode(_buildProtocolStateHash(), _cachedAssetsHash, _cachedVaultsHash)
                 );
@@ -735,7 +728,6 @@ contract LiquidityOrchestrator is
             }
         }
 
-        _recordBufferCheckpoint();
         ++currentMinibatchIndex;
         if (i1 == sellLeg.sellingTokens.length) {
             currentMinibatchIndex = 0;
@@ -762,7 +754,6 @@ contract LiquidityOrchestrator is
                 // successful execution, continue.
             } catch {
                 _failedEpochTokens.push(token);
-                _recordBufferCheckpoint();
                 _currentEpoch.epochStateCommitment = keccak256(
                     abi.encode(_buildProtocolStateHash(), _cachedAssetsHash, _cachedVaultsHash)
                 );
@@ -771,7 +762,6 @@ contract LiquidityOrchestrator is
             }
         }
 
-        _recordBufferCheckpoint();
         ++currentMinibatchIndex;
         if (i1 == buyLeg.buyingTokens.length) {
             pendingProtocolFees += _pendingEpochProtocolFees;
@@ -789,14 +779,6 @@ contract LiquidityOrchestrator is
             bufferAmount += uint256(deltaAmount);
         } else if (deltaAmount < 0) {
             bufferAmount -= uint256(-deltaAmount);
-        }
-    }
-
-    /// @notice Records the current buffer amount as a checkpoint only if it differs from the last entry.
-    function _recordBufferCheckpoint() internal {
-        uint256 n = _epochBufferHistory.length;
-        if (n == 0 || _epochBufferHistory[n - 1] != bufferAmount) {
-            _epochBufferHistory.push(bufferAmount);
         }
     }
 
@@ -893,8 +875,6 @@ contract LiquidityOrchestrator is
             _nextUpdateTime = block.timestamp + epochDuration;
             emit EventsLib.EpochEnd(epochCounter);
             ++epochCounter;
-
-            delete _epochBufferHistory;
         }
 
         for (uint16 i = i0; i < i1; ++i) {

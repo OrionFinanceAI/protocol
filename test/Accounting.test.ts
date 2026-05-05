@@ -11,7 +11,6 @@ import type {
 } from "../typechain-types";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 import { resetNetwork } from "./helpers/resetNetwork";
-import type { IOrionVault } from "../typechain-types";
 
 const FeeType = {
   ABSOLUTE: 0,
@@ -208,6 +207,5 @@ describe("OrionVault Accounting", function () {
       const hwmAfterDecline = (await vault.feeModel()).highWaterMark;
       expect(hwmAfterDecline).to.equal(hwmAtPeak);
     });
-
   });
 });
