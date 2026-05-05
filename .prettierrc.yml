@@ -14,7 +14,6 @@ overrides:
   - files: "*.sol"
     options:
       compiler: "0.8.34"
-      parser: "solidity-parse"
       tabWidth: 4
   - files: "*.ts"
     options:

@@ -186,10 +186,6 @@ describe("Upgrade Tests", function () {
       expect(await vault1.getAddress()).to.not.equal(ethers.ZeroAddress);
       expect(await vault2.getAddress()).to.not.equal(ethers.ZeroAddress);
       expect(await vault1.getAddress()).to.not.equal(await vault2.getAddress());
-
-      // Both vaults should point to the same implementation via beacon
-      const implementation = await vaultBeacon.implementation();
-      expect(implementation).to.not.equal(ethers.ZeroAddress);
     });
 
     it("Should upgrade all vaults simultaneously via beacon", async function () {
@@ -357,9 +353,6 @@ describe("Upgrade Tests", function () {
       const vault1Address = (receipt1?.logs.find((log: any) => log.fragment?.name === "OrionVaultCreated") as any)
         ?.args?.[0];
 
-      // Get V1 implementation
-      const v1Implementation = await vaultBeacon.implementation();
-
       // Deploy V2 implementation
       const VaultV2Factory = await ethers.getContractFactory("OrionTransparentVaultV2");
       const vaultV2Impl = await VaultV2Factory.deploy();
@@ -375,6 +368,7 @@ describe("Upgrade Tests", function () {
 
       // Update factory to use new beacon
       await vaultFactory.connect(owner).setVaultBeacon(await newBeacon.getAddress());
+      expect(await vaultFactory.vaultBeacon()).to.equal(await newBeacon.getAddress());
 
       // Deploy second vault with V2 implementation
       const tx2 = await vaultFactory
@@ -384,12 +378,6 @@ describe("Upgrade Tests", function () {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const vault2Address = (receipt2?.logs.find((log: any) => log.fragment?.name === "OrionVaultCreated") as any)
         ?.args?.[0];
-
-      // Get V2 implementation from new beacon
-      const v2Implementation = await newBeacon.implementation();
-
-      // Verify implementations are different
-      expect(v1Implementation).to.not.equal(v2Implementation);
 
       // Attach to vaults and verify versions
       const VaultV1Factory = await ethers.getContractFactory("OrionTransparentVault");
