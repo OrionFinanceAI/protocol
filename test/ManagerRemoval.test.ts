@@ -1,11 +1,14 @@
 import { expect } from "chai";
-import { ethers } from "hardhat";
-import "@openzeppelin/hardhat-upgrades";
-import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import { ethers, networkHelpers } from "./helpers/hh";
 import type { Signer } from "ethers";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 import { resetNetwork } from "./helpers/resetNetwork";
-import { OrionConfig, OrionTransparentVault, LiquidityOrchestrator, TransparentVaultFactory } from "../typechain-types";
+import type {
+  OrionConfig,
+  OrionTransparentVault,
+  LiquidityOrchestrator,
+  TransparentVaultFactory,
+} from "../typechain-types";
 
 /**
  * @title Manager Removal Tests
@@ -85,7 +88,8 @@ describe("Manager Removal - Automatic Decommissioning", function () {
 
   describe("Single manager removal", function () {
     it("should decommission all vaults when manager is removed", async function () {
-      const { config, vaultFactory, manager1, strategist1, strategist2 } = await loadFixture(deployFixture);
+      const { config, vaultFactory, manager1, strategist1, strategist2 } =
+        await networkHelpers.loadFixture(deployFixture);
 
       // Create 2 vaults owned by manager1
       const vault1 = await createVault(vaultFactory, config, manager1, strategist1, "Vault 1", "V1");
@@ -113,7 +117,7 @@ describe("Manager Removal - Automatic Decommissioning", function () {
     });
 
     it("should emit ManagerRemoved event", async function () {
-      const { config, manager1 } = await loadFixture(deployFixture);
+      const { config, manager1 } = await networkHelpers.loadFixture(deployFixture);
 
       // Remove manager and check event
       await expect(config.removeWhitelistedManager(manager1.address))
@@ -124,7 +128,8 @@ describe("Manager Removal - Automatic Decommissioning", function () {
 
   describe("Multiple managers", function () {
     it("should only decommission vaults owned by removed manager", async function () {
-      const { config, vaultFactory, manager1, manager2, strategist1, strategist2 } = await loadFixture(deployFixture);
+      const { config, vaultFactory, manager1, manager2, strategist1, strategist2 } =
+        await networkHelpers.loadFixture(deployFixture);
 
       // Create vaults for both managers
       const vault1Manager1 = await createVault(vaultFactory, config, manager1, strategist1, "Manager1-Vault1", "M1V1");
@@ -155,10 +160,10 @@ describe("Manager Removal - Automatic Decommissioning", function () {
 
   describe("Edge cases", function () {
     it("should handle manager with no vaults", async function () {
-      const { config, manager1 } = await loadFixture(deployFixture);
+      const { config, manager1 } = await networkHelpers.loadFixture(deployFixture);
 
       // Remove manager who has no vaults
-      await expect(config.removeWhitelistedManager(manager1.address)).to.not.be.reverted;
+      await expect(config.removeWhitelistedManager(manager1.address)).to.not.be.rejected;
 
       // Verify manager is removed
       void expect(await config.isWhitelistedManager(manager1.address)).to.be.false;
@@ -166,7 +171,7 @@ describe("Manager Removal - Automatic Decommissioning", function () {
 
     it("should revert if system is not idle", async function () {
       const { config, vaultFactory, manager1, strategist1, liquidityOrchestrator, owner, usdc } =
-        await loadFixture(deployFixture);
+        await networkHelpers.loadFixture(deployFixture);
 
       // Create a vault with deposits to ensure processing happens
       const vault = await createVault(vaultFactory, config, manager1, strategist1, "Vault 1", "V1");
@@ -197,7 +202,7 @@ describe("Manager Removal - Automatic Decommissioning", function () {
     });
 
     it("should revert if manager is not whitelisted", async function () {
-      const { config, manager1 } = await loadFixture(deployFixture);
+      const { config, manager1 } = await networkHelpers.loadFixture(deployFixture);
 
       // Remove manager first
       await config.removeWhitelistedManager(manager1.address);
@@ -212,7 +217,7 @@ describe("Manager Removal - Automatic Decommissioning", function () {
 
   describe("Intent override verification", function () {
     it("should override vault intent to 100% underlying asset on decommissioning", async function () {
-      const { config, vaultFactory, manager1, strategist1 } = await loadFixture(deployFixture);
+      const { config, vaultFactory, manager1, strategist1 } = await networkHelpers.loadFixture(deployFixture);
 
       // Create a vault
       const vault = await createVault(vaultFactory, config, manager1, strategist1, "Vault 1", "V1");
@@ -237,7 +242,8 @@ describe("Manager Removal - Automatic Decommissioning", function () {
 
   describe("Integration with vault lifecycle", function () {
     it("should allow vault to complete decommissioning after owner removal", async function () {
-      const { config, vaultFactory, manager1, strategist1, liquidityOrchestrator } = await loadFixture(deployFixture);
+      const { config, vaultFactory, manager1, strategist1, liquidityOrchestrator } =
+        await networkHelpers.loadFixture(deployFixture);
 
       // Create a vault
       const vault = await createVault(vaultFactory, config, manager1, strategist1, "Vault 1", "V1");
@@ -269,7 +275,7 @@ describe("Manager Removal - Automatic Decommissioning", function () {
 
   describe("Security and access control", function () {
     it("should only allow owner to remove manager", async function () {
-      const { config, manager1, manager2 } = await loadFixture(deployFixture);
+      const { config, manager1, manager2 } = await networkHelpers.loadFixture(deployFixture);
 
       // Try to remove manager from non-owner account
       // Using Ownable2Step, so it will revert with OwnableUnauthorizedAccount
@@ -280,7 +286,7 @@ describe("Manager Removal - Automatic Decommissioning", function () {
     });
 
     it("should protect against reentrancy during manager removal", async function () {
-      const { config, vaultFactory, manager1, strategist1 } = await loadFixture(deployFixture);
+      const { config, vaultFactory, manager1, strategist1 } = await networkHelpers.loadFixture(deployFixture);
 
       // Create multiple vaults
       await createVault(vaultFactory, config, manager1, strategist1, "Vault 1", "V1");
@@ -288,26 +294,26 @@ describe("Manager Removal - Automatic Decommissioning", function () {
       await createVault(vaultFactory, config, manager1, strategist1, "Vault 3", "V3");
 
       // Remove manager - should complete without reentrancy issues
-      await expect(config.removeWhitelistedManager(manager1.address)).to.not.be.reverted;
+      await expect(config.removeWhitelistedManager(manager1.address)).to.not.be.rejected;
     });
   });
 
   describe("Manager-initiated vault decommissioning", function () {
     it("should allow vault manager to decommission their own vault", async function () {
-      const { config, vaultFactory, manager1, strategist1 } = await loadFixture(deployFixture);
+      const { config, vaultFactory, manager1, strategist1 } = await networkHelpers.loadFixture(deployFixture);
 
       const vault = await createVault(vaultFactory, config, manager1, strategist1, "My Vault", "MV1");
       void expect(await config.isOrionVault(await vault.getAddress())).to.be.true;
       void expect(await config.isDecommissioningVault(await vault.getAddress())).to.be.false;
 
-      await expect(config.connect(manager1).removeOrionVault(await vault.getAddress())).to.not.be.reverted;
+      await expect(config.connect(manager1).removeOrionVault(await vault.getAddress())).to.not.be.rejected;
 
       void expect(await vault.isDecommissioning()).to.be.true;
       void expect(await config.isDecommissioningVault(await vault.getAddress())).to.be.true;
     });
 
     it("should revert when non-manager tries to decommission a vault", async function () {
-      const { config, vaultFactory, manager1, manager2, strategist1 } = await loadFixture(deployFixture);
+      const { config, vaultFactory, manager1, manager2, strategist1 } = await networkHelpers.loadFixture(deployFixture);
 
       const vault = await createVault(vaultFactory, config, manager1, strategist1, "Manager1 Vault", "M1V");
       void expect(await vault.manager()).to.equal(manager1.address);

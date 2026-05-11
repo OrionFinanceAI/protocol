@@ -1,8 +1,7 @@
 import { expect } from "chai";
-import { ethers } from "hardhat";
-import "@openzeppelin/hardhat-upgrades";
+import { ethers } from "./helpers/hh";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
-import {
+import type {
   MockUnderlyingAsset,
   TransparentVaultFactory,
   OrionTransparentVault,
@@ -45,8 +44,7 @@ describe("Access Control", function () {
     let vault: OrionTransparentVault;
 
     beforeEach(async function () {
-      // Create vault with no access control (permissionless)
-      const tx = await factory.createVault(
+      const vaultAddress = await factory.createVault.staticCall(
         strategist.address,
         "Test Vault",
         "TV",
@@ -56,18 +54,16 @@ describe("Access Control", function () {
         ethers.ZeroAddress, // depositAccessControl = address(0)
       );
 
-      const receipt = await tx.wait();
-      const event = receipt?.logs.find((log) => {
-        try {
-          const parsed = factory.interface.parseLog(log);
-          return parsed?.name === "OrionVaultCreated";
-        } catch {
-          return false;
-        }
-      });
-
-      const parsedEvent = factory.interface.parseLog(event!);
-      const vaultAddress = parsedEvent?.args[0];
+      // Create vault with no access control (permissionless)
+      await factory.createVault(
+        strategist.address,
+        "Test Vault",
+        "TV",
+        0, // feeType
+        0, // performanceFee
+        0, // managementFee
+        ethers.ZeroAddress, // depositAccessControl = address(0)
+      );
 
       vault = (await ethers.getContractAt("OrionTransparentVault", vaultAddress)) as unknown as OrionTransparentVault;
     });
@@ -82,9 +78,8 @@ describe("Access Control", function () {
       await mockAsset.connect(user2).approve(await vault.getAddress(), DEPOSIT_AMOUNT);
 
       // Both users should be able to deposit
-      await expect(vault.connect(user1).requestDeposit(DEPOSIT_AMOUNT)).to.not.be.reverted;
-
-      await expect(vault.connect(user2).requestDeposit(DEPOSIT_AMOUNT)).to.not.be.reverted;
+      await vault.connect(user1).requestDeposit(DEPOSIT_AMOUNT);
+      await vault.connect(user2).requestDeposit(DEPOSIT_AMOUNT);
     });
 
     it("Should return zero address for depositAccessControl", async function () {
@@ -96,8 +91,7 @@ describe("Access Control", function () {
     let vault: OrionTransparentVault;
 
     beforeEach(async function () {
-      // Create vault with access control
-      const tx = await factory.createVault(
+      const vaultAddress = await factory.createVault.staticCall(
         strategist.address,
         "Gated Vault",
         "GV",
@@ -107,18 +101,16 @@ describe("Access Control", function () {
         await accessControl.getAddress(), // depositAccessControl enabled
       );
 
-      const receipt = await tx.wait();
-      const event = receipt?.logs.find((log) => {
-        try {
-          const parsed = factory.interface.parseLog(log);
-          return parsed?.name === "OrionVaultCreated";
-        } catch {
-          return false;
-        }
-      });
-
-      const parsedEvent = factory.interface.parseLog(event!);
-      const vaultAddress = parsedEvent?.args[0];
+      // Create vault with access control
+      await factory.createVault(
+        strategist.address,
+        "Gated Vault",
+        "GV",
+        0,
+        0,
+        0,
+        await accessControl.getAddress(), // depositAccessControl enabled
+      );
 
       vault = (await ethers.getContractAt("OrionTransparentVault", vaultAddress)) as unknown as OrionTransparentVault;
     });
@@ -136,7 +128,7 @@ describe("Access Control", function () {
       await mockAsset.connect(user1).approve(await vault.getAddress(), DEPOSIT_AMOUNT);
 
       // Should succeed
-      await expect(vault.connect(user1).requestDeposit(DEPOSIT_AMOUNT)).to.not.be.reverted;
+      await vault.connect(user1).requestDeposit(DEPOSIT_AMOUNT);
     });
 
     it("Should reject non-whitelisted user deposit", async function () {
@@ -160,7 +152,7 @@ describe("Access Control", function () {
       // Verify user3 can deposit
       await mockAsset.mint(user3.address, DEPOSIT_AMOUNT);
       await mockAsset.connect(user3).approve(await vault.getAddress(), DEPOSIT_AMOUNT);
-      await expect(vault.connect(user3).requestDeposit(DEPOSIT_AMOUNT)).to.not.be.reverted;
+      await vault.connect(user3).requestDeposit(DEPOSIT_AMOUNT);
     });
 
     it("Should allow owner to remove users from whitelist", async function () {
@@ -182,13 +174,13 @@ describe("Access Control", function () {
     it("Should support batch whitelisting", async function () {
       const addresses = [user1.address, user2.address, user3.address];
 
-      await expect(accessControl.addToWhitelist(addresses)).to.not.be.reverted;
+      await accessControl.addToWhitelist(addresses);
 
       // Verify all can deposit
       for (const user of [user1, user2, user3]) {
         await mockAsset.mint(user.address, DEPOSIT_AMOUNT);
         await mockAsset.connect(user).approve(await vault.getAddress(), DEPOSIT_AMOUNT);
-        await expect(vault.connect(user).requestDeposit(DEPOSIT_AMOUNT)).to.not.be.reverted;
+        await vault.connect(user).requestDeposit(DEPOSIT_AMOUNT);
       }
     });
   });
@@ -197,21 +189,18 @@ describe("Access Control", function () {
     let vault: OrionTransparentVault;
 
     beforeEach(async function () {
+      const vaultAddress = await factory.createVault.staticCall(
+        strategist.address,
+        "Updateable Vault",
+        "UV",
+        0,
+        0,
+        0,
+        ethers.ZeroAddress,
+      );
+
       // Create vault without access control initially
-      const tx = await factory.createVault(strategist.address, "Updateable Vault", "UV", 0, 0, 0, ethers.ZeroAddress);
-
-      const receipt = await tx.wait();
-      const event = receipt?.logs.find((log) => {
-        try {
-          const parsed = factory.interface.parseLog(log);
-          return parsed?.name === "OrionVaultCreated";
-        } catch {
-          return false;
-        }
-      });
-
-      const parsedEvent = factory.interface.parseLog(event!);
-      const vaultAddress = parsedEvent?.args[0];
+      await factory.createVault(strategist.address, "Updateable Vault", "UV", 0, 0, 0, ethers.ZeroAddress);
 
       vault = (await ethers.getContractAt("OrionTransparentVault", vaultAddress)) as unknown as OrionTransparentVault;
     });
@@ -246,7 +235,7 @@ describe("Access Control", function () {
       // Initially permissionless
       await mockAsset.mint(user1.address, DEPOSIT_AMOUNT);
       await mockAsset.connect(user1).approve(await vault.getAddress(), DEPOSIT_AMOUNT);
-      await expect(vault.connect(user1).requestDeposit(DEPOSIT_AMOUNT)).to.not.be.reverted;
+      await vault.connect(user1).requestDeposit(DEPOSIT_AMOUNT);
 
       // Cancel the deposit
       await vault.connect(user1).cancelDepositRequest(DEPOSIT_AMOUNT);
@@ -267,14 +256,14 @@ describe("Access Control", function () {
       await accessControl.addToWhitelist([user1.address]);
 
       // Now should work
-      await expect(vault.connect(user1).requestDeposit(DEPOSIT_AMOUNT)).to.not.be.reverted;
+      await vault.connect(user1).requestDeposit(DEPOSIT_AMOUNT);
     });
   });
 
   describe("Access Control Contract Behavior", function () {
     it("Should allow owner to transfer ownership", async function () {
-      await expect(accessControl.connect(owner).transferOwnership(user1.address)).to.not.be.reverted;
-      await expect(accessControl.connect(user1).acceptOwnership()).to.not.be.reverted;
+      await accessControl.connect(owner).transferOwnership(user1.address);
+      await accessControl.connect(user1).acceptOwnership();
       expect(await accessControl.owner()).to.equal(user1.address);
     });
   });

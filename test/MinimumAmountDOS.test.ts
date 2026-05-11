@@ -1,7 +1,5 @@
 import { expect } from "chai";
-import { ethers } from "hardhat";
-import "@openzeppelin/hardhat-upgrades";
-import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import { ethers, networkHelpers } from "./helpers/hh";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 import { resetNetwork } from "./helpers/resetNetwork";
@@ -76,7 +74,7 @@ describe("Minimum Amount DOS Prevention", function () {
 
   describe("Configuration", function () {
     it("should allow owner to set minimum deposit amount", async function () {
-      const { config, owner } = await loadFixture(deployFixture);
+      const { config, owner } = await networkHelpers.loadFixture(deployFixture);
 
       await expect(config.connect(owner).setMinDepositAmount(MIN_DEPOSIT))
         .to.emit(config, "MinDepositAmountUpdated")
@@ -86,7 +84,7 @@ describe("Minimum Amount DOS Prevention", function () {
     });
 
     it("should allow owner to set minimum redeem amount", async function () {
-      const { config, owner } = await loadFixture(deployFixture);
+      const { config, owner } = await networkHelpers.loadFixture(deployFixture);
 
       await expect(config.connect(owner).setMinRedeemAmount(MIN_REDEEM))
         .to.emit(config, "MinRedeemAmountUpdated")
@@ -96,24 +94,24 @@ describe("Minimum Amount DOS Prevention", function () {
     });
 
     it("should not allow non-owner to set minimum amounts", async function () {
-      const { config, attacker } = await loadFixture(deployFixture);
+      const { config, attacker } = await networkHelpers.loadFixture(deployFixture);
 
-      await expect(config.connect(attacker).setMinDepositAmount(MIN_DEPOSIT)).to.be.reverted;
+      await expect(config.connect(attacker).setMinDepositAmount(MIN_DEPOSIT)).to.be.rejected;
 
-      await expect(config.connect(attacker).setMinRedeemAmount(MIN_REDEEM)).to.be.reverted;
+      await expect(config.connect(attacker).setMinRedeemAmount(MIN_REDEEM)).to.be.rejected;
     });
 
     it("should only allow setting minimums when system is idle", async function () {
-      const { config, owner } = await loadFixture(deployFixture);
+      const { config, owner } = await networkHelpers.loadFixture(deployFixture);
 
       // When system is idle (default state), should succeed
-      await expect(config.connect(owner).setMinDepositAmount(MIN_DEPOSIT)).to.not.be.reverted;
+      await expect(config.connect(owner).setMinDepositAmount(MIN_DEPOSIT)).to.not.be.rejected;
 
       expect(await config.minDepositAmount()).to.equal(MIN_DEPOSIT);
     });
 
     it("should start with zero minimum amounts by default", async function () {
-      const { config } = await loadFixture(deployFixture);
+      const { config } = await networkHelpers.loadFixture(deployFixture);
 
       expect(await config.minDepositAmount()).to.equal(0);
       expect(await config.minRedeemAmount()).to.equal(0);
@@ -122,7 +120,7 @@ describe("Minimum Amount DOS Prevention", function () {
 
   describe("DOS Attack Prevention - Deposits", function () {
     it("should reject deposit requests below minimum (1 wei attack)", async function () {
-      const { config, vault, usdc, attacker, owner } = await loadFixture(deployFixture);
+      const { config, vault, usdc, attacker, owner } = await networkHelpers.loadFixture(deployFixture);
 
       // Set minimum deposit amount
       await config.connect(owner).setMinDepositAmount(MIN_DEPOSIT);
@@ -137,7 +135,7 @@ describe("Minimum Amount DOS Prevention", function () {
     });
 
     it("should reject deposit requests just below minimum", async function () {
-      const { config, vault, usdc, attacker, owner } = await loadFixture(deployFixture);
+      const { config, vault, usdc, attacker, owner } = await networkHelpers.loadFixture(deployFixture);
 
       await config.connect(owner).setMinDepositAmount(MIN_DEPOSIT);
 
@@ -150,7 +148,7 @@ describe("Minimum Amount DOS Prevention", function () {
     });
 
     it("should accept deposit requests at exact minimum", async function () {
-      const { config, vault, usdc, user1, owner } = await loadFixture(deployFixture);
+      const { config, vault, usdc, user1, owner } = await networkHelpers.loadFixture(deployFixture);
 
       await config.connect(owner).setMinDepositAmount(MIN_DEPOSIT);
 
@@ -162,7 +160,7 @@ describe("Minimum Amount DOS Prevention", function () {
     });
 
     it("should accept deposit requests above minimum", async function () {
-      const { config, vault, usdc, user1, owner } = await loadFixture(deployFixture);
+      const { config, vault, usdc, user1, owner } = await networkHelpers.loadFixture(deployFixture);
 
       await config.connect(owner).setMinDepositAmount(MIN_DEPOSIT);
 
@@ -175,7 +173,7 @@ describe("Minimum Amount DOS Prevention", function () {
     });
 
     it("should prevent spam attack with 150+ tiny deposits", async function () {
-      const { config, vault, usdc, owner } = await loadFixture(deployFixture);
+      const { config, vault, usdc, owner } = await networkHelpers.loadFixture(deployFixture);
 
       // Set minimum to prevent spam
       await config.connect(owner).setMinDepositAmount(MIN_DEPOSIT);
@@ -213,7 +211,7 @@ describe("Minimum Amount DOS Prevention", function () {
     });
 
     it("should allow legitimate users to deposit even with minimum set", async function () {
-      const { config, vault, usdc, user1, user2, owner } = await loadFixture(deployFixture);
+      const { config, vault, usdc, user1, user2, owner } = await networkHelpers.loadFixture(deployFixture);
 
       await config.connect(owner).setMinDepositAmount(MIN_DEPOSIT);
 
@@ -231,7 +229,7 @@ describe("Minimum Amount DOS Prevention", function () {
 
   describe("DOS Attack Prevention - Redeems", function () {
     it("should reject redeem requests below minimum (1 wei attack)", async function () {
-      const { config, vault, usdc, user1, owner } = await loadFixture(deployFixture);
+      const { config, vault, usdc, user1, owner } = await networkHelpers.loadFixture(deployFixture);
 
       // First deposit to get shares
       const depositAmount = ethers.parseUnits("1000", 6);
@@ -250,7 +248,7 @@ describe("Minimum Amount DOS Prevention", function () {
     });
 
     it("should reject redeem requests just below minimum", async function () {
-      const { config, vault, usdc, user1, owner } = await loadFixture(deployFixture);
+      const { config, vault, usdc, user1, owner } = await networkHelpers.loadFixture(deployFixture);
 
       const depositAmount = ethers.parseUnits("1000", 6);
       await usdc.connect(user1).approve(await vault.getAddress(), depositAmount);
@@ -266,7 +264,7 @@ describe("Minimum Amount DOS Prevention", function () {
     });
 
     it("should prevent changing minimum amounts to bypass protection", async function () {
-      const { config, vault, usdc, user1, owner } = await loadFixture(deployFixture);
+      const { config, vault, usdc, user1, owner } = await networkHelpers.loadFixture(deployFixture);
 
       // Set initial minimum
       await config.connect(owner).setMinDepositAmount(MIN_DEPOSIT);
@@ -284,7 +282,7 @@ describe("Minimum Amount DOS Prevention", function () {
 
   describe("Economic Attack Analysis", function () {
     it("should make spam attack economically unfeasible", async function () {
-      const { config, owner } = await loadFixture(deployFixture);
+      const { config, owner } = await networkHelpers.loadFixture(deployFixture);
 
       // Set minimum deposit to 100 USDC
       const minDeposit = ethers.parseUnits("100", 6);
@@ -303,7 +301,7 @@ describe("Minimum Amount DOS Prevention", function () {
     });
 
     it("should prevent queue flooding within gas budget", async function () {
-      const { config, owner } = await loadFixture(deployFixture);
+      const { config, owner } = await networkHelpers.loadFixture(deployFixture);
 
       await config.connect(owner).setMinDepositAmount(MIN_DEPOSIT);
 
@@ -320,7 +318,7 @@ describe("Minimum Amount DOS Prevention", function () {
 
   describe("Edge Cases", function () {
     it("should handle maximum uint256 minimum", async function () {
-      const { config, owner } = await loadFixture(deployFixture);
+      const { config, owner } = await networkHelpers.loadFixture(deployFixture);
 
       const maxUint256 = ethers.MaxUint256;
 
@@ -332,7 +330,7 @@ describe("Minimum Amount DOS Prevention", function () {
     });
 
     it("should properly validate with different decimal assets", async function () {
-      const { config, owner } = await loadFixture(deployFixture);
+      const { config, owner } = await networkHelpers.loadFixture(deployFixture);
 
       // For 6-decimal asset (USDC): 100 USDC = 100e6
       const min6Decimals = ethers.parseUnits("100", 6);
@@ -348,7 +346,7 @@ describe("Minimum Amount DOS Prevention", function () {
 
   describe("Integration with Existing Validations", function () {
     it("should still enforce zero amount check before minimum check", async function () {
-      const { config, vault, owner } = await loadFixture(deployFixture);
+      const { config, vault, owner } = await networkHelpers.loadFixture(deployFixture);
 
       await config.connect(owner).setMinDepositAmount(MIN_DEPOSIT);
 
@@ -357,18 +355,18 @@ describe("Minimum Amount DOS Prevention", function () {
     });
 
     it("should validate minimum check in proper order with other checks", async function () {
-      const { config, vault, usdc, user1, owner } = await loadFixture(deployFixture);
+      const { config, vault, usdc, user1, owner } = await networkHelpers.loadFixture(deployFixture);
 
       await config.connect(owner).setMinDepositAmount(MIN_DEPOSIT);
 
       // Minimum check happens after zero check but before transfer
       // If we pass a valid minimum amount, the minimum check passes
       await usdc.connect(user1).approve(await vault.getAddress(), MIN_DEPOSIT);
-      await expect(vault.connect(user1).requestDeposit(MIN_DEPOSIT)).to.not.be.reverted;
+      await expect(vault.connect(user1).requestDeposit(MIN_DEPOSIT)).to.not.be.rejected;
     });
 
     it("should still enforce balance check after minimum check", async function () {
-      const { config, vault, usdc, user1, owner } = await loadFixture(deployFixture);
+      const { config, vault, usdc, user1, owner } = await networkHelpers.loadFixture(deployFixture);
 
       await config.connect(owner).setMinDepositAmount(MIN_DEPOSIT);
 
@@ -388,7 +386,7 @@ describe("Minimum Amount DOS Prevention", function () {
 
   describe("Security Validation", function () {
     it("should completely prevent the described DOS attack scenario", async function () {
-      const { config, vault, usdc, owner, attacker } = await loadFixture(deployFixture);
+      const { config, vault, usdc, owner, attacker } = await networkHelpers.loadFixture(deployFixture);
 
       await config.connect(owner).setMinDepositAmount(MIN_DEPOSIT);
       await config.connect(owner).setMinRedeemAmount(MIN_REDEEM);

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.34;
 
 import { IOrionTransparentVault } from "../interfaces/IOrionTransparentVault.sol";
 import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
@@ -92,7 +92,7 @@ contract KBestApyStrategist is IOrionStrategist, ERC165, Ownable2Step, Reentranc
     }
 
     /// @inheritdoc IOrionStrategist
-    function submitIntent() external override nonReentrant {
+    function submitIntent() external override onlyOwner nonReentrant {
         if (k == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
         address vault_ = _vault;
         if (vault_ == address(0)) revert ErrorsLib.ZeroAddress();

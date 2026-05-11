@@ -1,11 +1,10 @@
-import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
+import type { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
-import "@openzeppelin/hardhat-upgrades";
-import { ethers } from "hardhat";
+import { ethers } from "./helpers/hh";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 import { resetNetwork } from "./helpers/resetNetwork";
 
-import {
+import type {
   MockUnderlyingAsset,
   MockERC4626Asset,
   MockPriceAdapter,
@@ -144,88 +143,6 @@ describe("TransparentVault - Strategist Pipeline", function () {
           .createVault(strategist.address, "Test Vault", longSymbol, 0, 0, 0, ethers.ZeroAddress),
       ).to.be.revertedWithCustomError(transparentVaultFactory, "InvalidArguments");
     });
-
-    it("Should reject fee update with management fee above limit", async function () {
-      // Create vault with valid fees first
-      const tx = await transparentVaultFactory.connect(owner).createVault(
-        strategist.address,
-        "Test Vault",
-        "TV",
-        0, // feeType
-        0, // performanceFee
-        100, // managementFee (1% - valid)
-        ethers.ZeroAddress, // depositAccessControl
-      );
-      const receipt = await tx.wait();
-
-      // Find the vault creation event
-      const event = receipt?.logs.find((log) => {
-        try {
-          const parsed = transparentVaultFactory.interface.parseLog(log);
-          return parsed?.name === "OrionVaultCreated";
-        } catch {
-          return false;
-        }
-      });
-
-      const parsedEvent = transparentVaultFactory.interface.parseLog(event!);
-      const vaultAddress = parsedEvent?.args[0];
-      const testVault = (await ethers.getContractAt(
-        "OrionTransparentVault",
-        vaultAddress,
-      )) as unknown as OrionTransparentVault;
-
-      // Try to update with management fee above limit (100% = 10,000 basis points)
-      // Maximum allowed is 3% (300 basis points)
-      await expect(
-        testVault.connect(owner).updateFeeModel(
-          0, // feeType
-          0, // performanceFee
-          10000, // managementFee (100% - should fail)
-        ),
-      ).to.be.revertedWithCustomError(testVault, "InvalidArguments");
-    });
-
-    it("Should reject fee update with performance fee above limit", async function () {
-      // Create vault with valid fees first
-      const tx = await transparentVaultFactory.connect(owner).createVault(
-        strategist.address,
-        "Test Vault",
-        "TV",
-        0, // feeType
-        1000, // performanceFee (10% - valid)
-        100, // managementFee (1% - valid)
-        ethers.ZeroAddress, // depositAccessControl
-      );
-      const receipt = await tx.wait();
-
-      // Find the vault creation event
-      const event = receipt?.logs.find((log) => {
-        try {
-          const parsed = transparentVaultFactory.interface.parseLog(log);
-          return parsed?.name === "OrionVaultCreated";
-        } catch {
-          return false;
-        }
-      });
-
-      const parsedEvent = transparentVaultFactory.interface.parseLog(event!);
-      const vaultAddress = parsedEvent?.args[0];
-      const testVault = (await ethers.getContractAt(
-        "OrionTransparentVault",
-        vaultAddress,
-      )) as unknown as OrionTransparentVault;
-
-      // Try to update with performance fee above limit (100% = 10,000 basis points)
-      // Maximum allowed is 30% (3,000 basis points)
-      await expect(
-        testVault.connect(owner).updateFeeModel(
-          0, // feeType
-          10000, // performanceFee (100% - should fail)
-          100, // managementFee (1% - valid)
-        ),
-      ).to.be.revertedWithCustomError(testVault, "InvalidArguments");
-    });
   });
 
   describe("Strategist Operations", function () {
@@ -257,7 +174,7 @@ describe("TransparentVault - Strategist Pipeline", function () {
       const managementFee = 100; // 1% in basis points
 
       await expect(transparentVault.connect(owner).updateFeeModel(feeType, performanceFee, managementFee)).to.not.be
-        .reverted;
+        .rejected;
     });
 
     it("Should allow strategist to claim vault fees", async function () {
@@ -282,7 +199,7 @@ describe("TransparentVault - Strategist Pipeline", function () {
         },
       ];
 
-      await expect(transparentVault.connect(strategist).submitIntent(intent)).to.not.be.reverted;
+      await expect(transparentVault.connect(strategist).submitIntent(intent)).to.not.be.rejected;
 
       // Verify the intent was stored correctly
       const [tokens, weights] = await transparentVault.getIntent();

@@ -5,9 +5,9 @@
  */
 
 import { expect } from "chai";
-import { ethers } from "hardhat";
+import { ethers } from "./helpers/hh";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
-import { ChainlinkPriceAdapter, MockChainlinkFeed } from "../typechain-types";
+import type { ChainlinkPriceAdapter, MockChainlinkFeed } from "../typechain-types";
 
 const STALENESS = 3_600; // 1 hour
 const MAX_PRICE = ethers.MaxUint256;
@@ -113,10 +113,14 @@ describe("ChainlinkPriceAdapter — unit tests (no fork)", function () {
       ).to.be.revertedWithCustomError(adapter, "InvalidArguments");
     });
 
-    it("rejects non-contract quoteFeed address", async function () {
+    it("rejects non-feed quoteFeed address", async function () {
+      // Use a contract that is not an Aggregator (adapter has no decimals()). An EOA makes
+      // decimals() succeed with empty returndata on some nodes; decoding then fails outside
+      // the try/catch pattern the matcher expects, so we assert against a bad contract instead.
+      const badQuote = await adapter.getAddress();
       await expect(
-        adapter.configureFeed(asset, await baseFeed.getAddress(), false, STALENESS, 1, MAX_PRICE, owner.address),
-      ).to.be.reverted;
+        adapter.configureFeed(asset, await baseFeed.getAddress(), false, STALENESS, 1, MAX_PRICE, badQuote),
+      ).to.be.revertedWithCustomError(adapter, "InvalidAdapter");
     });
   });
 
@@ -133,7 +137,7 @@ describe("ChainlinkPriceAdapter — unit tests (no fork)", function () {
         MAX_PRICE,
         await quoteFeed.getAddress(),
       );
-      await expect(adapter.validatePriceAdapter(asset)).to.not.be.reverted;
+      await expect(adapter.validatePriceAdapter(asset)).to.not.be.rejected;
     });
 
     it("passes single-feed path when base feed is live", async function () {
@@ -146,7 +150,7 @@ describe("ChainlinkPriceAdapter — unit tests (no fork)", function () {
         MAX_PRICE,
         ethers.ZeroAddress,
       );
-      await expect(adapter.validatePriceAdapter(asset)).to.not.be.reverted;
+      await expect(adapter.validatePriceAdapter(asset)).to.not.be.rejected;
     });
 
     it("reverts InvalidAdapter when baseFeed.latestRoundData answer is zero", async function () {

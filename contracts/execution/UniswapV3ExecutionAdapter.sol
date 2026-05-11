@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.34;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -88,6 +88,7 @@ contract UniswapV3ExecutionAdapter is IExecutionAdapter, Ownable2Step {
     /// @param fee The fee tier to set
     function setAssetFee(address asset, uint24 fee) external onlyOwnerOrGuardian {
         if (asset == address(0)) revert ErrorsLib.ZeroAddress();
+        if (!CONFIG.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         address pool = UNISWAP_V3_FACTORY.getPool(asset, address(UNDERLYING_ASSET), fee);
 

@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.34;
 
 import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import { ReentrancyGuardTransient } from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts/proxy/beacon/IBeacon.sol";
-import "@openzeppelin/contracts/utils/StorageSlot.sol";
 import "../interfaces/IOrionConfig.sol";
 import "../interfaces/IOrionVault.sol";
 import "../interfaces/ILiquidityOrchestrator.sol";
@@ -41,7 +39,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
  * 4. Portfolio Weights (w_0) [shares] – current allocation in share units for stateless TVL estimation
  * 5. Strategist Intent (w_1) [%] – target allocation in percentage of total supply
  */
-abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGuardUpgradeable, IOrionVault {
+abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGuardTransient, IOrionVault {
     using Math for uint256;
     using SafeERC20 for IERC20;
     using EnumerableMap for EnumerableMap.AddressToUintMap;
@@ -80,10 +78,6 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     uint32 public constant YEAR_IN_SECONDS = 365 days;
     /// @notice Basis points factor (100% = 10_000)
     uint16 public constant BASIS_POINTS_FACTOR = 10_000;
-    /// @notice Maximum management fee (3% = 300)
-    uint16 public constant MAX_MANAGEMENT_FEE = 300;
-    /// @notice Maximum performance fee (30% = 3_000)
-    uint16 public constant MAX_PERFORMANCE_FEE = 3_000;
 
     /// @notice Fee model
     FeeModel public feeModel;
@@ -92,11 +86,14 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     uint256 public newFeeRatesTimestamp;
 
     /// @notice Previous fee model (used during cooldown period)
-    FeeModel private oldFeeModel;
+    FeeModel internal oldFeeModel;
 
     /// @notice Flag indicating if the vault is in decommissioning mode
     /// @dev When true, intent is overridden to 100% underlying asset
     bool public isDecommissioning;
+
+    /// @notice Underlying amount owed to a user whose redemption transfer failed
+    EnumerableMap.AddressToUintMap private _pendingUnderlyingClaims;
 
     /// @dev Restricts function to only vault manager
     modifier onlyManager() {
@@ -153,7 +150,6 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         // Initialize parent contracts
         __ERC20_init(name_, symbol_);
         __ERC4626_init(config_.underlyingAsset());
-        __ReentrancyGuard_init();
 
         manager = manager_;
         strategist = strategist_;
@@ -166,8 +162,6 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
 
         // Validate input
         if (feeType_ > uint8(FeeType.HURDLE_HWM)) revert ErrorsLib.InvalidArguments();
-        if (performanceFee_ > MAX_PERFORMANCE_FEE) revert ErrorsLib.InvalidArguments();
-        if (managementFee_ > MAX_MANAGEMENT_FEE) revert ErrorsLib.InvalidArguments();
 
         feeModel.feeType = FeeType(feeType_);
         feeModel.performanceFee = performanceFee_;
@@ -231,6 +225,40 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         return _totalAssets;
     }
 
+    /// @inheritdoc IERC4626
+    function maxDeposit(address receiver) public view override(ERC4626Upgradeable, IERC4626) returns (uint256) {
+        if (!config.isSystemIdle()) return 0;
+        if (isDecommissioning || config.isDecommissionedVault(address(this))) return 0;
+        if (depositAccessControl != address(0)) {
+            if (!IOrionAccessControl(depositAccessControl).canRequestDeposit(receiver)) return 0;
+        }
+        return type(uint256).max;
+    }
+
+    /// @inheritdoc IERC4626
+    function maxMint(address receiver) public view override(ERC4626Upgradeable, IERC4626) returns (uint256) {
+        uint256 maxAssets = maxDeposit(receiver);
+        if (maxAssets == 0) return 0;
+        return type(uint256).max;
+    }
+
+    /// @inheritdoc IERC4626
+    function maxRedeem(address owner) public view override(ERC4626Upgradeable, IERC4626) returns (uint256) {
+        if (config.isDecommissionedVault(address(this))) return balanceOf(owner);
+
+        if (!config.isSystemIdle()) return 0;
+        uint256 shares = balanceOf(owner);
+        if (shares < config.minRedeemAmount()) return 0;
+        return shares;
+    }
+
+    /// @inheritdoc IERC4626
+    function maxWithdraw(address owner) public view override(ERC4626Upgradeable, IERC4626) returns (uint256) {
+        uint256 maxShares = maxRedeem(owner);
+        if (maxShares == 0) return 0;
+        return convertToAssets(maxShares);
+    }
+
     /// @notice Override ERC4626 decimals to always use SHARE_DECIMALS regardless of underlying asset decimals
     /// @dev This ensures consistent 18-decimal precision for share tokens across all vaults
     /// @return SHARE_DECIMALS for all vault share tokens
@@ -248,15 +276,6 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     }
 
     /* ---------- CONVERSION FUNCTIONS ---------- */
-
-    /// @inheritdoc IOrionVault
-    function convertToAssetsWithPITTotalAssets(
-        uint256 shares,
-        uint256 pointInTimeTotalAssets,
-        Math.Rounding rounding
-    ) public view returns (uint256) {
-        return shares.mulDiv(pointInTimeTotalAssets + 1, totalSupply() + 10 ** _decimalsOffset(), rounding);
-    }
 
     /// @notice Internal version that uses a snapshot of totalSupply for batch processing
     /// @param assets The assets to convert
@@ -293,16 +312,6 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     /// @inheritdoc IOrionVault
     function overrideIntentForDecommissioning() external onlyConfig {
         isDecommissioning = true;
-    }
-
-    /// @inheritdoc IOrionVault
-    function implementation() external view returns (address) {
-        bytes32 beaconSlot = 0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50;
-        address beacon = StorageSlot.getAddressSlot(beaconSlot).value;
-        if (beacon == address(0)) {
-            return address(0);
-        }
-        return IBeacon(beacon).implementation();
     }
 
     /// --------- LP FUNCTIONS ---------
@@ -424,7 +433,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         emit StrategistUpdated(newStrategist);
     }
 
-    /// @dev Tells on-chain strategists which vault they manage; skips EOAs and wallets that are not Orion strategists.
+    /// @dev Tells onchain strategists which vault they manage; skips EOAs and wallets that are not Orion strategists.
     function _linkStrategistVault(address strategist_) internal {
         if (strategist_.code.length == 0) return;
         try IERC165(strategist_).supportsInterface(type(IOrionStrategist).interfaceId) returns (bool supported) {
@@ -453,8 +462,6 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
 
         // Validate input
         if (feeType > uint8(FeeType.HURDLE_HWM)) revert ErrorsLib.InvalidArguments();
-        if (performanceFee > MAX_PERFORMANCE_FEE) revert ErrorsLib.InvalidArguments();
-        if (managementFee > MAX_MANAGEMENT_FEE) revert ErrorsLib.InvalidArguments();
 
         // Store old fee model for cooldown period
         oldFeeModel = activeFeeModel();
@@ -486,95 +493,6 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         for (uint256 i = 0; i < assets.length; ++i) {
             if (!config.isWhitelisted(assets[i])) revert ErrorsLib.TokenNotWhitelisted(assets[i]);
         }
-    }
-
-    /// @inheritdoc IOrionVault
-    function vaultFee(
-        uint256 activeTotalAssets,
-        FeeModel calldata snapshotFeeModel
-    ) external view returns (uint256 managementFee, uint256 performanceFee) {
-        managementFee = _managementFeeAmount(activeTotalAssets, snapshotFeeModel);
-        uint256 intermediateTotalAssets = activeTotalAssets - managementFee;
-        performanceFee = _performanceFeeAmount(intermediateTotalAssets, snapshotFeeModel);
-    }
-
-    /// @notice Calculate management fee amount
-    /// @param feeTotalAssets The total assets to calculate management fee for
-    /// @param snapshotFeeModel The fee model to use for calculation
-    /// @return The management fee amount in underlying asset units
-    function _managementFeeAmount(
-        uint256 feeTotalAssets,
-        FeeModel calldata snapshotFeeModel
-    ) internal view returns (uint256) {
-        if (snapshotFeeModel.managementFee == 0) return 0;
-
-        uint256 annualFeeAmount = uint256(snapshotFeeModel.managementFee).mulDiv(feeTotalAssets, BASIS_POINTS_FACTOR);
-        return annualFeeAmount.mulDiv(liquidityOrchestrator.epochDuration(), YEAR_IN_SECONDS);
-    }
-
-    /// @notice Calculate performance fee amount
-    /// @dev Performance fee calculation depends on the FeeType
-    /// @param feeTotalAssets The total assets to calculate performance fee for
-    /// @param snapshotFeeModel The fee model to use for calculation
-    /// @return The performance fee amount in underlying asset units
-    function _performanceFeeAmount(
-        uint256 feeTotalAssets,
-        FeeModel calldata snapshotFeeModel
-    ) internal view returns (uint256) {
-        if (snapshotFeeModel.performanceFee == 0) return 0;
-
-        uint256 activeSharePrice = convertToAssetsWithPITTotalAssets(
-            10 ** decimals(),
-            feeTotalAssets,
-            Math.Rounding.Floor
-        );
-
-        (uint256 benchmark, uint256 divisor) = _getBenchmark(snapshotFeeModel.feeType, snapshotFeeModel.highWaterMark);
-
-        if (activeSharePrice < benchmark || divisor == 0) return 0;
-        uint256 feeRate = uint256(snapshotFeeModel.performanceFee).mulDiv(activeSharePrice - divisor, divisor);
-        uint256 performanceFeeAmount = feeRate.mulDiv(feeTotalAssets, BASIS_POINTS_FACTOR);
-        return performanceFeeAmount.mulDiv(liquidityOrchestrator.epochDuration(), YEAR_IN_SECONDS);
-    }
-
-    /// @notice Get benchmark value based on fee model type
-    /// @param feeType The fee type to get benchmark for
-    /// @param highWaterMark The high water mark value to use
-    /// @return benchmark The benchmark value
-    /// @return divisor The divisor value
-    function _getBenchmark(
-        FeeType feeType,
-        uint256 highWaterMark
-    ) internal view returns (uint256 benchmark, uint256 divisor) {
-        uint256 currentSharePrice = convertToAssets(10 ** decimals());
-
-        if (feeType == FeeType.ABSOLUTE) {
-            benchmark = currentSharePrice;
-            divisor = benchmark;
-        } else if (feeType == FeeType.HIGH_WATER_MARK) {
-            benchmark = highWaterMark;
-            divisor = benchmark;
-        } else if (feeType == FeeType.SOFT_HURDLE) {
-            benchmark = _getHurdlePrice(currentSharePrice);
-            divisor = currentSharePrice;
-        } else if (feeType == FeeType.HARD_HURDLE) {
-            benchmark = _getHurdlePrice(currentSharePrice);
-            divisor = benchmark;
-        } else if (feeType == FeeType.HURDLE_HWM) {
-            benchmark = Math.max(highWaterMark, _getHurdlePrice(currentSharePrice));
-            divisor = benchmark;
-        }
-        return (benchmark, divisor);
-    }
-
-    /// @notice Get hurdle price amount based on configured risk-free rate
-    /// @param currentSharePrice The current share price to calculate hurdle from
-    /// @return The hurdle price
-    function _getHurdlePrice(uint256 currentSharePrice) internal view returns (uint256) {
-        uint256 riskFreeRate = config.riskFreeRate();
-
-        uint256 hurdleReturn = riskFreeRate.mulDiv(liquidityOrchestrator.epochDuration(), YEAR_IN_SECONDS);
-        return currentSharePrice.mulDiv(BASIS_POINTS_FACTOR + hurdleReturn, BASIS_POINTS_FACTOR);
     }
 
     /// @inheritdoc IOrionVault
@@ -629,6 +547,16 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     }
 
     /// @inheritdoc IOrionVault
+    function pendingDepositCount() external view returns (uint256) {
+        return _depositRequests.length();
+    }
+
+    /// @inheritdoc IOrionVault
+    function pendingRedeemCount() external view returns (uint256) {
+        return _redeemRequests.length();
+    }
+
+    /// @inheritdoc IOrionVault
     function pendingRedeemBatch(uint256 fulfillBatchSize) external view returns (address[] memory, uint256[] memory) {
         uint256 length = _redeemRequests.length();
         if (length == 0) {
@@ -641,6 +569,16 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
             (users[i], shares[i]) = _redeemRequests.at(i);
         }
         return (users, shares);
+    }
+
+    /// @inheritdoc IOrionVault
+    function totalPendingUnderlyingClaims() external view returns (uint256 total) {
+        uint256 length = _pendingUnderlyingClaims.length();
+        for (uint256 i = 0; i < length; ++i) {
+            // slither-disable-next-line unused-return
+            (, uint256 amount) = _pendingUnderlyingClaims.at(i);
+            total += amount;
+        }
     }
 
     /// @inheritdoc IOrionVault
@@ -729,11 +667,27 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
             );
             processedShares += userShares;
 
-            liquidityOrchestrator.transferRedemptionFunds(user, underlyingAmount);
-
-            emit Redeem(user, underlyingAmount, userShares);
+            try liquidityOrchestrator.transferRedemptionFunds(user, underlyingAmount) {
+                emit Redeem(user, underlyingAmount, userShares);
+            } catch {
+                // slither-disable-next-line unused-return
+                (, uint256 pendingAmount) = _pendingUnderlyingClaims.tryGet(user);
+                // slither-disable-next-line unused-return
+                _pendingUnderlyingClaims.set(user, pendingAmount + underlyingAmount);
+                emit RedemptionFailed(user, underlyingAmount, userShares);
+            }
         }
         _burn(address(this), processedShares);
+    }
+
+    /// @inheritdoc IOrionVault
+    function claimUnderlying() external nonReentrant {
+        (bool hasClaim, uint256 amount) = _pendingUnderlyingClaims.tryGet(msg.sender);
+        if (!hasClaim || amount == 0) revert ErrorsLib.InsufficientAmount();
+        // slither-disable-next-line unused-return
+        _pendingUnderlyingClaims.remove(msg.sender);
+        liquidityOrchestrator.transferRedemptionFunds(msg.sender, amount);
+        emit RedemptionClaimed(msg.sender, amount);
     }
 
     /// @dev Storage gap to allow for future upgrades

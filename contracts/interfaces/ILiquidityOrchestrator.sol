@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.34;
 
 import "./IExecutionAdapter.sol";
 import "./IOrionVault.sol";
@@ -27,6 +27,7 @@ interface ILiquidityOrchestrator {
         uint256[] pendingRedeems;
         uint256[] pendingDeposits;
         uint256[] totalSupplies;
+        uint256[] totalAssets;
         address[][] portfolioTokens;
         uint256[][] portfolioShares;
         address[][] intentTokens;
@@ -86,6 +87,10 @@ interface ILiquidityOrchestrator {
     /// @return The current buffer amount
     function bufferAmount() external view returns (uint256);
 
+    /// @notice Returns the epoch-start buffer snapshot used as deterministic proof input anchor
+    /// @return The initial epoch buffer amount
+    function initialEpochBufferAmount() external view returns (uint256);
+
     /// @notice Returns the pending protocol fees
     /// @return The pending protocol fees
     function pendingProtocolFees() external view returns (uint256);
@@ -122,10 +127,6 @@ interface ILiquidityOrchestrator {
     /// @return List of token addresses that failed
     function getFailedEpochTokens() external view returns (address[] memory);
 
-    /// @notice Returns the buffer amount after each execution minibatch for market impact tracking.
-    /// @return Buffer amount after each minibatch
-    function getEpochBufferHistory() external view returns (uint256[] memory);
-
     /// @notice Gets asset prices for the epoch
     /// @param assets Array of asset addresses
     /// @return assetPrices Array of asset prices
@@ -139,15 +140,22 @@ interface ILiquidityOrchestrator {
     /// @param _minibatchSize The new minibatch size
     function updateMinibatchSize(uint8 _minibatchSize) external;
 
+    /// @notice Updates the number of vault leaves folded per StateCommitment upkeep step.
+    /// @param _commitmentMinibatchSize The new commitment minibatch size
+    function updateCommitmentMinibatchSize(uint8 _commitmentMinibatchSize) external;
+
     /// @notice Updates the Chainlink Automation Registry address
     /// @param newAutomationRegistry The new automation registry address
     function updateAutomationRegistry(address newAutomationRegistry) external;
 
     /// @notice Updates the verifier contract address
+    /// @dev Only the owner may call this. Reverts with SystemNotIdle if an epoch is in progress,
+    ///      ensuring no mid-epoch proof verification uses a mismatched verifier.
     /// @param newVerifier The address of the new verifier contract
     function updateVerifier(address newVerifier) external;
 
     /// @notice Updates the internal state orchestrator verification key
+    /// @dev Reverts with InvalidArguments if newvKey is bytes32(0).
     /// @param newvKey The new verification key
     function updateVKey(bytes32 newvKey) external;
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.34;
 
 import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import "./OrionVault.sol";
@@ -78,6 +78,7 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
     /// @inheritdoc IOrionTransparentVault
     function submitIntent(IntentPosition[] calldata intent) external onlyStrategist {
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         uint256 len = intent.length;
         if (len == 0) revert ErrorsLib.OrderIntentCannotBeEmpty();
 
@@ -160,8 +161,12 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
 
         uint256 currentSharePrice = convertToAssets(10 ** decimals());
 
+        // Advance both HWMs to prevent double-charging during fee cooldown
         if (currentSharePrice > feeModel.highWaterMark) {
             feeModel.highWaterMark = currentSharePrice;
+        }
+        if (currentSharePrice > oldFeeModel.highWaterMark) {
+            oldFeeModel.highWaterMark = currentSharePrice;
         }
 
         emit EventsLib.VaultStateUpdated(

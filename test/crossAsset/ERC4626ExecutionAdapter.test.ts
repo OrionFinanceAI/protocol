@@ -16,9 +16,9 @@
  */
 
 import { expect } from "chai";
-import { ethers, network } from "hardhat";
+import { ethers, networkHelpers } from "../helpers/hh";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
-import {
+import type {
   OrionConfig,
   ERC4626ExecutionAdapter,
   UniswapV3ExecutionAdapter,
@@ -28,7 +28,7 @@ import {
   IERC20,
   MockLiquidityOrchestrator,
   MockERC4626Asset,
-} from "../../typechain-types";
+} from "../typechain-types";
 
 /** Adapter USDC balance must stay strictly below this (in base units); 0 is valid, guarantees dust bound.
  *  To find the failure threshold: set to 0 and run; the failure will show actual dust (e.g. "expected 5 to be below 0" → need > 5). */
@@ -89,17 +89,19 @@ describe("ERC4626ExecutionAdapter", function () {
     this.timeout(120000); // 2 minutes for mainnet forking
 
     // Skip all tests if not forking mainnet
-    const networkConfig = network.config;
-    if (!("forking" in networkConfig) || !networkConfig.forking || !networkConfig.forking.url) {
+    if (!(process.env.FORK_MAINNET === "true" && process.env.MAINNET_RPC_URL)) {
       this.skip();
     }
 
     [owner] = await ethers.getSigners();
 
     // Get contract instances
-    usdc = await ethers.getContractAt("IERC20", MAINNET.USDC);
-    weth = await ethers.getContractAt("IERC20", MAINNET.WETH);
-    morphoWETH = await ethers.getContractAt("IERC4626", MAINNET.MORPHO_WETH);
+    usdc = await ethers.getContractAt("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20", MAINNET.USDC);
+    weth = await ethers.getContractAt("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20", MAINNET.WETH);
+    morphoWETH = await ethers.getContractAt(
+      "@openzeppelin/contracts/interfaces/IERC4626.sol:IERC4626",
+      MAINNET.MORPHO_WETH,
+    );
   });
 
   describe("Setup and Deployment", function () {
@@ -203,10 +205,7 @@ describe("ERC4626ExecutionAdapter", function () {
 
     it("Should setup impersonated LO signer", async function () {
       const loAddress = await liquidityOrchestrator.getAddress();
-      await network.provider.request({
-        method: "hardhat_impersonateAccount",
-        params: [loAddress],
-      });
+      await networkHelpers.impersonateAccount(loAddress);
 
       loSigner = await ethers.getSigner(loAddress);
 
@@ -290,7 +289,7 @@ describe("ERC4626ExecutionAdapter", function () {
 
       await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), tooLowAllowance);
 
-      await expect(vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, sharesAmount)).to.be.reverted; // Should revert due to insufficient allowance
+      await expect(vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, sharesAmount)).to.be.rejected; // Should revert due to insufficient allowance
     });
   });
 
@@ -574,7 +573,7 @@ describe("ERC4626ExecutionAdapter", function () {
       await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), ethers.parseUnits("1000", USDC_DECIMALS));
 
       // Zero shares should revert (previewMint(0) returns 0, but vault.mint(0) may behave differently)
-      await expect(vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, 0)).to.be.reverted;
+      await expect(vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, 0)).to.be.rejected;
     });
 
     it("Should leave zero token approvals after buy (approval hygiene)", async function () {
@@ -1084,7 +1083,7 @@ describe("ERC4626ExecutionAdapter", function () {
     });
 
     it("Should validate same-asset vault", async function () {
-      await expect(usdcVaultAdapter.validateExecutionAdapter(await usdcVault.getAddress())).to.not.be.reverted;
+      await expect(usdcVaultAdapter.validateExecutionAdapter(await usdcVault.getAddress())).to.not.be.rejected;
     });
 
     it("Should buy same-asset vault shares (no swap)", async function () {
@@ -1147,7 +1146,7 @@ describe("ERC4626ExecutionAdapter", function () {
       const tooLittle = underlyingNeeded / 2n;
       await usdc.connect(loSigner).approve(await usdcVaultAdapter.getAddress(), tooLittle);
 
-      await expect(usdcVaultAdapter.connect(loSigner).buy(await usdcVault.getAddress(), sharesAmount)).to.be.reverted; // ERC20 allowance error — adapter tries to pull previewMint result but only tooLittle approved
+      await expect(usdcVaultAdapter.connect(loSigner).buy(await usdcVault.getAddress(), sharesAmount)).to.be.rejected; // ERC20 allowance error — adapter tries to pull previewMint result but only tooLittle approved
     });
   });
 
@@ -1158,7 +1157,7 @@ describe("ERC4626ExecutionAdapter", function () {
       // Ensure no allowance
       await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), 0);
 
-      await expect(vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, sharesAmount)).to.be.reverted;
+      await expect(vaultAdapter.connect(loSigner).buy(MAINNET.MORPHO_WETH, sharesAmount)).to.be.rejected;
     });
 
     it("Should reject sell without share allowance", async function () {
@@ -1185,17 +1184,17 @@ describe("ERC4626ExecutionAdapter", function () {
       // Now try to sell without approval
       await morphoWETH.connect(loSigner).approve(await vaultAdapter.getAddress(), 0);
 
-      await expect(vaultAdapter.connect(loSigner).sell(MAINNET.MORPHO_WETH, sharesAmount)).to.be.reverted;
+      await expect(vaultAdapter.connect(loSigner).sell(MAINNET.MORPHO_WETH, sharesAmount)).to.be.rejected;
     });
 
     it("Should reject non-LO caller", async function () {
       const sharesAmount = ethers.parseUnits("1", 18);
 
       // Adapter does not restrict callers; owner without approval will revert on transfer (e.g. insufficient allowance)
-      await expect(vaultAdapter.connect(owner).buy(MAINNET.MORPHO_WETH, sharesAmount)).to.be.reverted;
+      await expect(vaultAdapter.connect(owner).buy(MAINNET.MORPHO_WETH, sharesAmount)).to.be.rejected;
 
       // For sell, owner has no vault shares so will revert (e.g. insufficient balance or allowance)
-      await expect(vaultAdapter.connect(owner).sell(MAINNET.MORPHO_WETH, sharesAmount)).to.be.reverted;
+      await expect(vaultAdapter.connect(owner).sell(MAINNET.MORPHO_WETH, sharesAmount)).to.be.rejected;
     });
 
     it("Should handle vault with zero liquidity", async function () {
@@ -1217,7 +1216,7 @@ describe("ERC4626ExecutionAdapter", function () {
       await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), maxUSDC);
 
       // Should work - vault will mint at 1:1 initially
-      await expect(vaultAdapter.connect(loSigner).buy(await emptyVault.getAddress(), sharesAmount)).to.not.be.reverted;
+      await expect(vaultAdapter.connect(loSigner).buy(await emptyVault.getAddress(), sharesAmount)).to.not.be.rejected;
     });
   });
 });

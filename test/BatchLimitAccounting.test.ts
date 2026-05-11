@@ -1,8 +1,6 @@
 import { expect } from "chai";
-import { ethers } from "hardhat";
-import "@openzeppelin/hardhat-upgrades";
-import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import { OrionTransparentVault, LiquidityOrchestrator } from "../typechain-types";
+import { ethers, networkHelpers } from "./helpers/hh";
+import type { OrionTransparentVault, LiquidityOrchestrator } from "../typechain-types";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 import { resetNetwork } from "./helpers/resetNetwork";
 
@@ -80,7 +78,7 @@ describe("Batch Limit Accounting Fix", function () {
 
   describe("1. pendingDeposit() with limited users (< maxFulfillBatchSize)", function () {
     it("should return full amount when deposits < maxFulfillBatchSize", async function () {
-      const { vault, users, config } = await loadFixture(deployFixture);
+      const { vault, users, config } = await networkHelpers.loadFixture(deployFixture);
 
       // Make deposit requests with available users
       const numUsers = Math.min(users.length, 10);
@@ -95,14 +93,14 @@ describe("Batch Limit Accounting Fix", function () {
     });
 
     it("should return 0 when no deposits", async function () {
-      const { vault, config } = await loadFixture(deployFixture);
+      const { vault, config } = await networkHelpers.loadFixture(deployFixture);
 
       const pendingDeposit = await vault.pendingDeposit(await config.maxFulfillBatchSize());
       void expect(pendingDeposit).to.equal(0);
     });
 
     it("should handle varying deposit amounts correctly", async function () {
-      const { vault, users, config } = await loadFixture(deployFixture);
+      const { vault, users, config } = await networkHelpers.loadFixture(deployFixture);
 
       let expectedSum = BigInt(0);
       const numUsers = Math.min(users.length, 10);
@@ -120,7 +118,8 @@ describe("Batch Limit Accounting Fix", function () {
 
   describe("2. pendingRedeem() with limited users (< maxFulfillBatchSize)", function () {
     it("should return full shares when redeems < maxFulfillBatchSize", async function () {
-      const { vault, users, usdc, liquidityOrchestrator, owner, config } = await loadFixture(deployFixture);
+      const { vault, users, usdc, liquidityOrchestrator, owner, config } =
+        await networkHelpers.loadFixture(deployFixture);
 
       const numUsers = Math.min(users.length, 10);
 
@@ -158,7 +157,7 @@ describe("Batch Limit Accounting Fix", function () {
     });
 
     it("should return 0 when no redeems", async function () {
-      const { vault, config } = await loadFixture(deployFixture);
+      const { vault, config } = await networkHelpers.loadFixture(deployFixture);
 
       const pendingRedeem = await vault.pendingRedeem(await config.maxFulfillBatchSize());
       void expect(pendingRedeem).to.equal(0);
@@ -167,7 +166,7 @@ describe("Batch Limit Accounting Fix", function () {
 
   describe("3. Simulated batch limit behavior", function () {
     it("should demonstrate batch limit logic by making same user deposit multiple times", async function () {
-      const { vault, users, config } = await loadFixture(deployFixture);
+      const { vault, users, config } = await networkHelpers.loadFixture(deployFixture);
 
       // Strategy: have one user make multiple small deposits to simulate >maxFulfillBatchSize requests
       // Note: In production, requestDeposit overwrites previous request from same user,
@@ -189,7 +188,8 @@ describe("Batch Limit Accounting Fix", function () {
 
   describe("4. Integration with fulfillDeposit", function () {
     it("fulfillDeposit should process the amount that pendingDeposit reports", async function () {
-      const { vault, users, usdc, liquidityOrchestrator, owner, config } = await loadFixture(deployFixture);
+      const { vault, users, usdc, liquidityOrchestrator, owner, config } =
+        await networkHelpers.loadFixture(deployFixture);
 
       const numUsers = Math.min(users.length, 10);
 
@@ -228,7 +228,7 @@ describe("Batch Limit Accounting Fix", function () {
 
   describe("5. Documentation of the fix", function () {
     it("demonstrates the critical accounting fix prevents mismatch", async function () {
-      const { vault, users, config, owner } = await loadFixture(deployFixture);
+      const { vault, users, config, owner } = await networkHelpers.loadFixture(deployFixture);
 
       await config.connect(owner).setMaxFulfillBatchSize(8n);
 

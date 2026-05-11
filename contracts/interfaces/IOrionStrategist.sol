@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.34;
 
 import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
@@ -13,6 +13,7 @@ interface IOrionStrategist is IERC165 {
     /// @param vault_ The vault address to link to this strategist.
     function setVault(address vault_) external;
 
-    /// @notice Compute the current portfolio intent from on-chain state and submit it to the linked vault.
+    /// @notice Compute the current portfolio intent from onchain state and submit it to the linked vault.
+    /// @dev Permissioned access is strongly recommended for security.
     function submitIntent() external;
 }

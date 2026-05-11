@@ -1,9 +1,8 @@
-import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
+import type { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
-import { ethers, network } from "hardhat";
-import { time } from "@nomicfoundation/hardhat-network-helpers";
+import { ethers, networkHelpers, provider } from "../helpers/hh";
 
-import {
+import type {
   MockUnderlyingAsset,
   MockERC4626Asset,
   ERC4626ExecutionAdapter,
@@ -13,7 +12,7 @@ import {
   OrionTransparentVault,
   ERC4626PriceAdapter,
   KBestTvlWeightedAverage,
-} from "../../typechain-types";
+} from "../typechain-types";
 import { deployUpgradeableProtocol } from "../helpers/deployUpgradeable";
 import { resetNetwork } from "../helpers/resetNetwork";
 
@@ -155,7 +154,7 @@ describe("Orchestrators", function () {
       "InvalidArguments",
     );
 
-    await expect(liquidityOrchestrator.setTargetBufferRatio(100)).to.not.be.reverted;
+    await expect(liquidityOrchestrator.setTargetBufferRatio(100)).to.not.be.rejected;
     await liquidityOrchestrator.setSlippageTolerance(50); // 0.5% slippage
 
     // Set minibatch size to a large value to process all vaults in one batch for tests
@@ -518,12 +517,12 @@ describe("Orchestrators", function () {
       ),
     );
 
-    initialSnapshotId = (await network.provider.send("evm_snapshot", [])) as string;
+    initialSnapshotId = (await provider.send("evm_snapshot", [])) as string;
   });
 
   beforeEach(async function () {
-    await network.provider.send("evm_revert", [initialSnapshotId]);
-    initialSnapshotId = (await network.provider.send("evm_snapshot", [])) as string;
+    await provider.send("evm_revert", [initialSnapshotId]);
+    initialSnapshotId = (await provider.send("evm_snapshot", [])) as string;
   });
 
   describe("Idle-only functionality", function () {
@@ -533,12 +532,12 @@ describe("Orchestrators", function () {
 
       console.log("orionConfig address", await orionConfig.getAddress());
 
-      await expect(orionConfig.connect(owner).removeOrionVault(await hurdleHwmVault.getAddress())).not.to.be.reverted;
-      await expect(orionConfig.connect(owner).removeWhitelistedAsset(await mockAsset1.getAddress())).not.to.be.reverted;
+      await expect(orionConfig.connect(owner).removeOrionVault(await hurdleHwmVault.getAddress())).not.to.be.rejected;
+      await expect(orionConfig.connect(owner).removeWhitelistedAsset(await mockAsset1.getAddress())).not.to.be.rejected;
 
       const epochDuration = await liquidityOrchestrator.epochDuration();
-      await time.increase(epochDuration + 1n);
-      await time.increase((await orionConfig.feeChangeCooldownDuration()) + 1n);
+      await networkHelpers.time.increase(epochDuration + 1n);
+      await networkHelpers.time.increase((await orionConfig.feeChangeCooldownDuration()) + 1n);
 
       const upkeepNeeded = await liquidityOrchestrator.checkUpkeep();
       void expect(upkeepNeeded).to.be.true;
@@ -641,15 +640,15 @@ describe("Orchestrators", function () {
 
     it("should not trigger upkeep when not enough time has passed", async function () {
       const epochDuration = await liquidityOrchestrator.epochDuration();
-      await time.increase(epochDuration / 2n);
+      await networkHelpers.time.increase(epochDuration / 2n);
       const upkeepNeeded = await liquidityOrchestrator.checkUpkeep();
       void expect(upkeepNeeded).to.be.false;
     });
 
     it("should allow owner to call performUpkeep", async function () {
       const epochDuration = await liquidityOrchestrator.epochDuration();
-      await time.increase(epochDuration + 1n);
-      await expect(liquidityOrchestrator.connect(owner).performUpkeep("0x", "0x", "0x")).to.not.be.reverted;
+      await networkHelpers.time.increase(epochDuration + 1n);
+      await expect(liquidityOrchestrator.connect(owner).performUpkeep("0x", "0x", "0x")).to.not.be.rejected;
       await expect(
         liquidityOrchestrator.connect(strategist).performUpkeep("0x", "0x", "0x"),
       ).to.be.revertedWithCustomError(liquidityOrchestrator, "NotAuthorized");
@@ -657,14 +656,14 @@ describe("Orchestrators", function () {
 
     it("should allow automation registry to call performUpkeep", async function () {
       const epochDuration = await liquidityOrchestrator.epochDuration();
-      await time.increase(epochDuration + 1n);
+      await networkHelpers.time.increase(epochDuration + 1n);
       await expect(liquidityOrchestrator.connect(automationRegistry).performUpkeep("0x", "0x", "0x")).to.not.be
-        .reverted;
+        .rejected;
     });
 
     it("should not allow unauthorized addresses to call performUpkeep", async function () {
       const epochDuration = await liquidityOrchestrator.epochDuration();
-      await time.increase(epochDuration + 1n);
+      await networkHelpers.time.increase(epochDuration + 1n);
       await expect(liquidityOrchestrator.connect(user).performUpkeep("0x", "0x", "0x")).to.be.revertedWithCustomError(
         liquidityOrchestrator,
         "NotAuthorized",
@@ -680,26 +679,26 @@ describe("Orchestrators", function () {
 
     it("should allow owner to call liquidity orchestrator performUpkeep", async function () {
       const epochDuration = await liquidityOrchestrator.epochDuration();
-      await time.increase(epochDuration + 1n);
+      await networkHelpers.time.increase(epochDuration + 1n);
       const upkeepNeeded = await liquidityOrchestrator.checkUpkeep();
       if (upkeepNeeded) {
-        await expect(liquidityOrchestrator.connect(owner).performUpkeep("0x", "0x", "0x")).to.not.be.reverted;
+        await expect(liquidityOrchestrator.connect(owner).performUpkeep("0x", "0x", "0x")).to.not.be.rejected;
       }
     });
 
     it("should allow automation registry to call liquidity orchestrator performUpkeep", async function () {
       const epochDuration = await liquidityOrchestrator.epochDuration();
-      await time.increase(epochDuration + 1n);
+      await networkHelpers.time.increase(epochDuration + 1n);
       const upkeepNeeded = await liquidityOrchestrator.checkUpkeep();
       if (upkeepNeeded) {
         await expect(liquidityOrchestrator.connect(automationRegistry).performUpkeep("0x", "0x", "0x")).to.not.be
-          .reverted;
+          .rejected;
       }
     });
 
     it("should not allow unauthorized addresses to call liquidity orchestrator performUpkeep", async function () {
       const epochDuration = await liquidityOrchestrator.epochDuration();
-      await time.increase(epochDuration + 1n);
+      await networkHelpers.time.increase(epochDuration + 1n);
       await expect(liquidityOrchestrator.connect(user).performUpkeep("0x", "0x", "0x")).to.be.revertedWithCustomError(
         liquidityOrchestrator,
         "NotAuthorized",
@@ -719,7 +718,7 @@ describe("Orchestrators", function () {
       const currentPhase = await liquidityOrchestrator.currentPhase();
       void expect(currentPhase).to.equal(0);
 
-      await time.increase(epochDuration + 1n);
+      await networkHelpers.time.increase(epochDuration + 1n);
       await liquidityOrchestrator.connect(automationRegistry).performUpkeep("0x", "0x", "0x");
       expect(await liquidityOrchestrator.currentPhase()).to.not.equal(0);
 
@@ -742,7 +741,7 @@ describe("Orchestrators", function () {
       await underlyingAsset.connect(owner).approve(await liquidityOrchestrator.getAddress(), depositAmount);
       await liquidityOrchestrator.connect(owner).depositLiquidity(depositAmount);
 
-      await time.increase(epochDuration + 1n);
+      await networkHelpers.time.increase(epochDuration + 1n);
       await liquidityOrchestrator.connect(automationRegistry).performUpkeep("0x", "0x", "0x");
       expect(await liquidityOrchestrator.currentPhase()).to.not.equal(0);
 
@@ -760,7 +759,7 @@ describe("Orchestrators", function () {
     });
 
     it("should allow owner to update minibatch sizes", async function () {
-      await expect(liquidityOrchestrator.updateMinibatchSize(2)).to.not.be.reverted;
+      await expect(liquidityOrchestrator.updateMinibatchSize(2)).to.not.be.rejected;
     });
 
     it("should allow owner to update protocol fees", async function () {
@@ -875,7 +874,7 @@ describe("Orchestrators", function () {
       await underlyingAsset.mint(user.address, MIN_DEPOSIT);
       await underlyingAsset.connect(user).approve(await absoluteVault.getAddress(), MIN_DEPOSIT);
 
-      await expect(absoluteVault.connect(user).requestDeposit(MIN_DEPOSIT)).to.not.be.reverted;
+      await expect(absoluteVault.connect(user).requestDeposit(MIN_DEPOSIT)).to.not.be.rejected;
     });
 
     it("should demonstrate economic infeasibility of queue flooding", async function () {
@@ -909,7 +908,7 @@ describe("Orchestrators", function () {
       await underlyingAsset.connect(user).approve(await absoluteVault.getAddress(), legitimateAmount);
 
       // Should succeed
-      await expect(absoluteVault.connect(user).requestDeposit(legitimateAmount)).to.not.be.reverted;
+      await expect(absoluteVault.connect(user).requestDeposit(legitimateAmount)).to.not.be.rejected;
 
       // Verify deposit is in pending queue
       const pendingDeposit = await absoluteVault.pendingDeposit(await orionConfig.maxFulfillBatchSize());

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.34;
 
 import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
@@ -51,8 +51,6 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     uint8 public priceAdapterDecimals;
     /// @notice Risk-free rate in basis points. Same decimals as BASIS_POINTS_FACTOR
     uint16 public riskFreeRate;
-    /// @notice Maximum risk-free rate (8% = 800)
-    uint16 public constant MAX_RISK_FREE_RATE = 800;
     /// @notice Minimum deposit amount in underlying asset units
     uint256 public minDepositAmount;
     /// @notice Minimum redeem amount in share units
@@ -119,7 +117,6 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
 
         __Ownable_init(initialOwner);
         __Ownable2Step_init();
-        __UUPSUpgradeable_init();
 
         underlyingAsset = IERC20(underlyingAsset_);
 
@@ -199,7 +196,6 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     /// @inheritdoc IOrionConfig
     function setProtocolRiskFreeRate(uint16 _riskFreeRate) external onlyOwner {
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
-        if (_riskFreeRate > MAX_RISK_FREE_RATE) revert ErrorsLib.InvalidArguments();
 
         riskFreeRate = _riskFreeRate;
 
@@ -316,13 +312,32 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     }
 
     /// @inheritdoc IOrionConfig
-    function completeAssetsRemoval() external onlyLiquidityOrchestrator {
-        for (uint256 i = 0; i < _decommissioningAssets.length; ++i) {
+    function completeAssetsRemoval(address[] calldata failedTokens) external onlyLiquidityOrchestrator {
+        uint256 i = 0;
+        while (i < _decommissioningAssets.length) {
+            address asset = _decommissioningAssets[i];
+
+            bool failedThisEpoch = false;
+            for (uint256 j = 0; j < failedTokens.length; ++j) {
+                if (failedTokens[j] == asset) {
+                    failedThisEpoch = true;
+                    break;
+                }
+            }
+
+            if (failedThisEpoch) {
+                ++i;
+                continue;
+            }
+
             // slither-disable-next-line unused-return
-            whitelistedAssets.remove(_decommissioningAssets[i]);
-            emit EventsLib.WhitelistedAssetRemoved(_decommissioningAssets[i]);
+            whitelistedAssets.remove(asset);
+            emit EventsLib.WhitelistedAssetRemoved(asset);
+
+            // Swap-and-pop to remove from decommissioning list without shifting.
+            _decommissioningAssets[i] = _decommissioningAssets[_decommissioningAssets.length - 1];
+            _decommissioningAssets.pop();
         }
-        delete _decommissioningAssets;
     }
 
     /// @inheritdoc IOrionConfig
@@ -451,9 +466,8 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
 
     /// @inheritdoc IOrionConfig
     function getAllOrionVaults(EventsLib.VaultType vaultType) external view returns (address[] memory) {
-        EnumerableSet.AddressSet storage vaults = vaultType == EventsLib.VaultType.Encrypted
-            ? encryptedVaults
-            : transparentVaults;
+        EnumerableSet.AddressSet storage vaults =
+            vaultType == EventsLib.VaultType.Encrypted ? encryptedVaults : transparentVaults;
         uint16 length = uint16(vaults.length());
         address[] memory vaultArray = new address[](length);
         for (uint16 i = 0; i < length; ++i) {
@@ -522,11 +536,35 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         return tokenDecimals[token];
     }
 
+    /// @notice Address of the upgrade timelock that must authorise all implementation upgrades
+    address public upgradeTimelock;
+
+    /// @notice Sets the upgrade timelock address.
+    /// @dev If no timelock is set yet, only the owner may call this. Once a timelock is active,
+    ///      only the timelock itself may replace it, preventing the owner from bypassing the delay.
+    /// @param newTimelock The new timelock address (e.g. OpenZeppelin TimelockController); address(0) not permitted
+    function setUpgradeTimelock(address newTimelock) external {
+        if (upgradeTimelock == address(0)) {
+            if (msg.sender != owner()) revert ErrorsLib.NotAuthorized();
+        } else {
+            if (msg.sender != upgradeTimelock) revert ErrorsLib.NotAuthorized();
+        }
+        if (newTimelock == address(0)) revert ErrorsLib.ZeroAddress();
+        upgradeTimelock = newTimelock;
+        emit EventsLib.UpgradeTimelockSet(address(this), newTimelock);
+    }
+
     /// @notice Authorizes an upgrade to a new implementation
-    /// @dev This function is required by UUPS and can only be called by the owner
-    /// @param newImplementation The address of the new implementation contract
-    // solhint-disable-next-line no-empty-blocks, use-natspec
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+    /// @dev Requires the caller to be the upgrade timelock (if set) or the owner (during initial
+    ///      bootstrapping before a timelock has been configured).
+    // solhint-disable-next-line use-natspec
+    function _authorizeUpgrade(address) internal override {
+        if (upgradeTimelock != address(0)) {
+            if (msg.sender != upgradeTimelock) revert ErrorsLib.NotAuthorized();
+        } else {
+            if (msg.sender != owner()) revert ErrorsLib.NotAuthorized();
+        }
+    }
 
     /// @dev Storage gap to allow for future upgrades
     uint256[50] private __gap;

@@ -63,14 +63,13 @@
  * TOTAL TESTS: 7
  */
 
-import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
+import type { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
-import { ethers } from "hardhat";
-import { time } from "@nomicfoundation/hardhat-network-helpers";
+import { ethers, networkHelpers } from "../helpers/hh";
 import { deployUpgradeableProtocol } from "../helpers/deployUpgradeable";
 import { resetNetwork } from "../helpers/resetNetwork";
 
-import {
+import type {
   MockUnderlyingAsset,
   MockERC4626Asset,
   ERC4626ExecutionAdapter,
@@ -80,7 +79,7 @@ import {
   OrionTransparentVault,
   ERC4626PriceAdapter,
   KBestTvlWeightedAverage,
-} from "../../typechain-types";
+} from "../typechain-types";
 
 describe("Orchestrator Configuration", function () {
   before(async function () {
@@ -217,7 +216,7 @@ describe("Orchestrator Configuration", function () {
       "InvalidArguments",
     );
 
-    await expect(liquidityOrchestrator.setTargetBufferRatio(100)).to.not.be.reverted;
+    await expect(liquidityOrchestrator.setTargetBufferRatio(100)).to.not.be.rejected;
 
     // Set minibatch size to a large value to process all vaults in one batch for tests
     await liquidityOrchestrator.connect(owner).updateMinibatchSize(8);
@@ -587,7 +586,7 @@ describe("Orchestrator Configuration", function () {
     });
 
     it("should allow owner to update minibatch sizes", async function () {
-      await expect(liquidityOrchestrator.updateMinibatchSize(2)).to.not.be.reverted;
+      await expect(liquidityOrchestrator.updateMinibatchSize(2)).to.not.be.rejected;
     });
 
     it("should allow owner to update protocol fees", async function () {
@@ -633,7 +632,7 @@ describe("Orchestrator Configuration", function () {
     it("should not revert when updating automation registry when system is not idle", async function () {
       // Fast forward time to trigger upkeep and make system not idle
       const epochDuration = await liquidityOrchestrator.epochDuration();
-      await time.increase(epochDuration + 1n);
+      await networkHelpers.time.increase(epochDuration + 1n);
 
       const upkeepNeeded = await liquidityOrchestrator.checkUpkeep();
       void expect(upkeepNeeded).to.be.true;
@@ -642,7 +641,7 @@ describe("Orchestrator Configuration", function () {
       const isSystemIdle = await orionConfig.isSystemIdle();
       void expect(isSystemIdle).to.be.false;
 
-      await expect(liquidityOrchestrator.updateAutomationRegistry(automationRegistry.address)).to.not.be.reverted;
+      await expect(liquidityOrchestrator.updateAutomationRegistry(automationRegistry.address)).to.not.be.rejected;
     });
 
     it("should successfully update automation registry and emit event", async function () {

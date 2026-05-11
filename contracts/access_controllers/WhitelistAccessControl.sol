@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.28;
+pragma solidity 0.8.34;
 
 import { IOrionAccessControl } from "../interfaces/IOrionAccessControl.sol";
 import "@openzeppelin/contracts/access/Ownable2Step.sol";

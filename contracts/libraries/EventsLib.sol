@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.34;
 
 /// @title EventsLib
 /// @notice Centralized library of events emitted throughout the Orion protocol.
@@ -145,6 +145,34 @@ library EventsLib {
     /// @param epochCounter The current epoch counter.
     event EpochEnd(uint256 indexed epochCounter);
 
+    /// @notice Sell leg executed during upkeep: vault shares swapped to underlying via the execution adapter.
+    /// @param epochCounter Epoch id at execution time (`EpochEnd` increments after the batch that uses this counter).
+    /// @param asset asset shares sold through the adapter.
+    /// @param executionUnderlyingAmount Underlying actually received (`adapter.sell` return).
+    /// @param sharesAmount Share tokens sold into the adapter.
+    /// @param estimatedUnderlyingAmount Upkeep estimate before routing to the adapter.
+    event EpochSellExecuted(
+        uint256 indexed epochCounter,
+        address indexed asset,
+        uint256 indexed executionUnderlyingAmount,
+        uint256 sharesAmount,
+        uint256 estimatedUnderlyingAmount
+    );
+
+    /// @notice Buy leg executed during upkeep: underlying spent for vault shares via the execution adapter.
+    /// @param epochCounter Epoch id at execution time (`EpochEnd` increments after the batch that uses this counter).
+    /// @param asset asset shares purchased from the adapter.
+    /// @param executionUnderlyingAmount Underlying actually spent (`adapter.buy` return).
+    /// @param sharesAmount Share tokens acquired from the adapter.
+    /// @param estimatedUnderlyingAmount Upkeep estimate before routing to the adapter.
+    event EpochBuyExecuted(
+        uint256 indexed epochCounter,
+        address indexed asset,
+        uint256 indexed executionUnderlyingAmount,
+        uint256 sharesAmount,
+        uint256 estimatedUnderlyingAmount
+    );
+
     /// @notice A price adapter has been set for an asset.
     /// @param asset The address of the asset.
     /// @param adapter The address of the price adapter.
@@ -214,4 +242,13 @@ library EventsLib {
     /// @notice The vault beacon has been updated.
     /// @param newBeacon The address of the new vault beacon.
     event VaultBeaconUpdated(address indexed newBeacon);
+
+    // ==============================
+    // === Upgrade Timelock ===
+    // ==============================
+
+    /// @notice The upgrade timelock address has been set on an upgradeable contract.
+    /// @param proxy The proxy whose timelock was updated.
+    /// @param timelock The new upgrade timelock address (an OZ TimelockController).
+    event UpgradeTimelockSet(address indexed proxy, address indexed timelock);
 }

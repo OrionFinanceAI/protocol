@@ -1,8 +1,7 @@
 import { expect } from "chai";
-import { ethers } from "hardhat";
-import "@openzeppelin/hardhat-upgrades";
+import { ethers, networkHelpers } from "./helpers/hh";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
-import {
+import type {
   MockUnderlyingAsset,
   OrionConfig,
   TransparentVaultFactory,
@@ -11,14 +10,13 @@ import {
 } from "../typechain-types";
 import { deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 import { resetNetwork } from "./helpers/resetNetwork";
-import { impersonateAccount, setBalance } from "@nomicfoundation/hardhat-network-helpers";
 
 /**
  * Helper to impersonate the LiquidityOrchestrator for direct vault function calls
  */
 async function impersonateLiquidityOrchestrator(loAddress: string) {
-  await impersonateAccount(loAddress);
-  await setBalance(loAddress, ethers.parseEther("1"));
+  await networkHelpers.impersonateAccount(loAddress);
+  await networkHelpers.setBalance(loAddress, ethers.parseEther("1"));
   return await ethers.getSigner(loAddress);
 }
 

@@ -6,14 +6,14 @@
  */
 
 import { expect } from "chai";
-import { ethers, network } from "hardhat";
-import {
+import { ethers } from "../helpers/hh";
+import type {
   ERC4626PriceAdapter,
   MockOrionConfig,
   ChainlinkPriceAdapter,
   MockPriceAdapterRegistry,
   IERC4626,
-} from "../../typechain-types";
+} from "../typechain-types";
 
 // Mainnet addresses
 const MAINNET = {
@@ -36,8 +36,7 @@ describe("ERC4626PriceAdapter - Coverage Tests", function () {
     this.timeout(60000);
 
     // Skip if not forking mainnet
-    const networkConfig = network.config;
-    if (!("forking" in networkConfig) || !networkConfig.forking || !networkConfig.forking.url) {
+    if (!(process.env.FORK_MAINNET === "true" && process.env.MAINNET_RPC_URL)) {
       this.skip();
     }
 
@@ -88,7 +87,10 @@ describe("ERC4626PriceAdapter - Coverage Tests", function () {
     )) as unknown as ERC4626PriceAdapter;
 
     // Get Morpho vault instance
-    morphoWETH = (await ethers.getContractAt("IERC4626", MAINNET.MORPHO_WETH)) as unknown as IERC4626;
+    morphoWETH = (await ethers.getContractAt(
+      "@openzeppelin/contracts/interfaces/IERC4626.sol:IERC4626",
+      MAINNET.MORPHO_WETH,
+    )) as unknown as IERC4626;
   });
 
   describe("Constructor", function () {
@@ -111,7 +113,7 @@ describe("ERC4626PriceAdapter - Coverage Tests", function () {
 
   describe("validatePriceAdapter", function () {
     it("Should validate Morpho WETH vault", async function () {
-      await expect(vaultPriceAdapter.validatePriceAdapter(MAINNET.MORPHO_WETH)).to.not.be.reverted;
+      await expect(vaultPriceAdapter.validatePriceAdapter(MAINNET.MORPHO_WETH)).to.not.be.rejected;
     });
 
     it("Should reject non-ERC4626 asset", async function () {

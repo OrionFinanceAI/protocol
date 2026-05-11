@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.34;
 
 import "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import "./IOrionConfig.sol";
@@ -52,6 +52,17 @@ interface IOrionVault is IERC4626 {
     /// @param redeemAmount The amount of assets redeemed by the user.
     /// @param sharesBurned The number of shares burned for the user.
     event Redeem(address indexed user, uint256 indexed redeemAmount, uint256 indexed sharesBurned);
+
+    /// @notice Transfer to the redeemer failed (e.g. USDC denylist); funds are held until claimed.
+    /// @param user The address of the recipient whose transfer failed.
+    /// @param amount The underlying amount that could not be transferred.
+    /// @param shares The number of shares that could not be redeemed.
+    event RedemptionFailed(address indexed user, uint256 indexed amount, uint256 indexed shares);
+
+    /// @notice A previously failed redemption transfer has been claimed by the user.
+    /// @param user The address of the claimer.
+    /// @param amount The underlying amount claimed.
+    event RedemptionClaimed(address indexed user, uint256 indexed amount);
 
     /// @notice Fees have been accrued.
     /// @param managementFee The amount of management fees accrued.
@@ -113,25 +124,6 @@ interface IOrionVault is IERC4626 {
     /// @return The currently active fee model
     function activeFeeModel() external view returns (FeeModel memory);
 
-    /// @notice Convert shares to assets with point in time total assets.
-    /// @param shares The amount of shares to convert.
-    /// @param pointInTimeTotalAssets The point in time total assets.
-    /// @param rounding The rounding mode.
-    /// @return The amount of assets.
-    function convertToAssetsWithPITTotalAssets(
-        uint256 shares,
-        uint256 pointInTimeTotalAssets,
-        Math.Rounding rounding
-    ) external view returns (uint256);
-
-    /// @notice Returns the implementation address of this proxy contract
-    /// @dev This function enables third-party protocol integrations to verify
-    ///      that the implementation address has not been modified unexpectedly.
-    ///      It reads the beacon address from the ERC-1967 storage slot and
-    ///      returns the implementation address from the beacon.
-    /// @return The address of the implementation contract
-    function implementation() external view returns (address);
-
     /// --------- CONFIG FUNCTIONS ---------
 
     /// @notice Override intent to 100% underlying asset for decommissioning
@@ -165,6 +157,10 @@ interface IOrionVault is IERC4626 {
     ///      Share tokens are returned from the vault.
     /// @param shares The amount of share tokens to recover.
     function cancelRedeemRequest(uint256 shares) external;
+
+    /// @notice Claim underlying funds from a previously failed redemption transfer.
+    /// @dev Called by the user after the transfer blocker (e.g. denylist) has been resolved.
+    function claimUnderlying() external;
 
     // --------- MANAGER AND STRATEGIST FUNCTIONS ---------
 
@@ -207,28 +203,27 @@ interface IOrionVault is IERC4626 {
     /// @dev This returns share amounts, not underlying asset amounts
     function pendingRedeem(uint256 fulfillBatchSize) external view returns (uint256);
 
+    /// @notice Get the number of pending deposit queue entries.
+    /// @return The number of unique users with non-zero pending deposit requests.
+    function pendingDepositCount() external view returns (uint256);
+
+    /// @notice Get the number of pending redeem queue entries.
+    /// @return The number of unique users with non-zero pending redeem requests.
+    function pendingRedeemCount() external view returns (uint256);
+
     /// @notice Get the list of pending redeem entries (users and shares) for the next fulfill batch
     /// @param fulfillBatchSize The maximum number of requests to consider
     /// @return users Addresses with pending redeem requests in batch order
     /// @return shares Share amounts per user (same index as users)
-    /// @dev This function enables per-request convertToAssetsWithPITTotalAssets calculations,
+    /// @dev This function enables per-request conversion,
     ///      ensuring exact rounding behaviour for state transition.
     function pendingRedeemBatch(
         uint256 fulfillBatchSize
     ) external view returns (address[] memory users, uint256[] memory shares);
 
-    /// @notice Calculate the vault's fee based on total assets using a specific fee model
-    /// @param totalAssets The total assets under management
-    /// @param snapshotFeeModel The fee model to use for calculation (typically from epoch snapshot)
-    /// @return managementFee The management fee amount in underlying asset units
-    /// @return performanceFee The performance fee amount in underlying asset units
-    /// @dev This function allows zk circuits to use snapshotted fee models from epoch state commitments
-    ///      to ensure consistent fee calculations that match the epoch state commitment.
-    ///      Pass the snapshotted fee model from the epoch state to ensure consistency.
-    function vaultFee(
-        uint256 totalAssets,
-        FeeModel memory snapshotFeeModel
-    ) external view returns (uint256 managementFee, uint256 performanceFee);
+    /// @notice Total underlying assets owed to users whose redemption transfer failed
+    /// @return total Sum of all pending underlying claims across all users
+    function totalPendingUnderlyingClaims() external view returns (uint256 total);
 
     /// @notice Process all pending deposit requests and mint shares to depositors
     /// @param depositTotalAssets The total assets associated with the deposit requests
