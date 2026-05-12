@@ -47,6 +47,7 @@ interface ILiquidityOrchestrator {
         BuyLegOrders buyLeg;
         uint256 bufferAmount;
         uint256 epochProtocolFees;
+        uint256 nettedRebalanceVolumeUnderlying;
     }
 
     struct VaultState {
@@ -234,7 +235,7 @@ interface ILiquidityOrchestrator {
     /// @notice Performs the upkeep
     /// @param _publicValues Encoded PublicValuesStruct containing input and output commitments
     /// @param proofBytes The zk-proof bytes
-    /// @param statesBytes Encoded StatesStruct containing vaults, buy leg, and sell leg data
+    /// @param statesBytes Encoded StatesStruct containing state transition payload.
     /// @dev the API is inspired but different from the Chainlink Automation interface.
     function performUpkeep(
         bytes calldata _publicValues,

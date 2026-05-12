@@ -142,8 +142,9 @@ library EventsLib {
     event EpochStateCommitted(uint256 indexed epochCounter, bytes32 indexed epochStateCommitment);
 
     /// @notice The portfolio has been rebalanced.
-    /// @param epochCounter The current epoch counter.
-    event EpochEnd(uint256 indexed epochCounter);
+    /// @param epochCounter The epoch that has just completed.
+    /// @param nettedRebalanceVolumeUnderlying Zk-reported netted rebalance volume in underlying (from `StatesStruct`).
+    event EpochEnd(uint256 indexed epochCounter, uint256 nettedRebalanceVolumeUnderlying);
 
     /// @notice Sell leg executed during upkeep: vault shares swapped to underlying via the execution adapter.
     /// @param epochCounter Epoch id at execution time (`EpochEnd` increments after the batch that uses this counter).

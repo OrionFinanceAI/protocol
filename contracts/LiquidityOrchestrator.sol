@@ -491,11 +491,15 @@ contract LiquidityOrchestrator is
         } else if (currentPhase == LiquidityUpkeepPhase.ProcessVaultOperations) {
             StatesStruct memory states = _verifyPerformData(_publicValues, proofBytes, statesBytes);
             _processMinibatchVaultsOperations(states.vaults);
+
             if (currentMinibatchIndex == 0) {
-                // After the final minibatch, currentMinibatchIndex resets to 0, triggering asset cleanup
+                // After the final minibatch, currentMinibatchIndex resets to 0, triggering epoch end
                 address[] memory failedTokens = _failedEpochTokens;
                 delete _failedEpochTokens;
                 config.completeAssetsRemoval(failedTokens);
+                // Emit epoch end and increment epoch counter.
+                emit EventsLib.EpochEnd(epochCounter, states.nettedRebalanceVolumeUnderlying);
+                ++epochCounter;
             }
         }
     }
@@ -677,7 +681,7 @@ contract LiquidityOrchestrator is
     /// @notice Verifies the perform data
     /// @param _publicValues Encoded PublicValuesStruct containing input and output commitments
     /// @param proofBytes The zk-proof bytes
-    /// @param statesBytes Encoded StatesStruct containing vaults, buy leg, and sell leg data
+    /// @param statesBytes Encoded StatesStruct containing state transition payload.
     /// @return states The decoded StatesStruct
     function _verifyPerformData(
         bytes calldata _publicValues,
@@ -873,8 +877,6 @@ contract LiquidityOrchestrator is
             currentPhase = LiquidityUpkeepPhase.Idle;
             currentMinibatchIndex = 0;
             _nextUpdateTime = block.timestamp + epochDuration;
-            emit EventsLib.EpochEnd(epochCounter);
-            ++epochCounter;
         }
 
         for (uint16 i = i0; i < i1; ++i) {
