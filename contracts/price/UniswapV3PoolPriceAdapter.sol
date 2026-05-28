@@ -155,13 +155,8 @@ contract UniswapV3PoolPriceAdapter is IPriceAdapter, Ownable2Step {
             revert InsufficientObservationCardinality(asset, observationCardinality, minCard);
         }
 
-        uint32[] memory secs = new uint32[](2);
-        secs[0] = TWAP_OBSERVE_SECONDS;
-        secs[1] = 0;
-        // slither-disable-next-line unused-return
-        try p.observe(secs) returns (int56[] memory, uint160[] memory) {} catch {
-            revert TwapUnavailable(asset);
-        }
+        uint160 twapSqrtPriceX96 = _observeSqrtPriceX96(pool, asset);
+        if (twapSqrtPriceX96 == 0) revert TwapUnavailable(asset);
 
         _validateObservationFreshness(p, asset, observationIndex);
 
@@ -222,7 +217,7 @@ contract UniswapV3PoolPriceAdapter is IPriceAdapter, Ownable2Step {
     }
 
     /// @notice TWAP sqrt from observe.
-    /// @dev Second observe return is unused (tick cumulatives only).
+    /// @dev Price uses tick cumulatives; the second observe return is length-checked for ABI sanity.
     /// @param pool Uniswap V3 pool used for the asset pair.
     /// @param asset Asset being priced (used in revert errors).
     /// @return sqrtPriceX96 Q64.96 sqrt price derived from TWAP mean tick.
@@ -235,8 +230,9 @@ contract UniswapV3PoolPriceAdapter is IPriceAdapter, Ownable2Step {
         // slither-disable-next-line unused-return
         try IUniswapV3Pool(pool).observe(secs) returns (
             int56[] memory tickCumulatives,
-            uint160[] memory /* secondsPerLiquidityCumulativeX128s */
+            uint160[] memory secondsPerLiquidityCumulativeX128s
         ) {
+            if (secondsPerLiquidityCumulativeX128s.length != tickCumulatives.length) revert TwapUnavailable(asset);
             sqrtPriceX96 = _sqrtPriceX96FromTickCumulativeDelta(tickCumulatives[1] - tickCumulatives[0], window);
         } catch {
             revert TwapUnavailable(asset);
