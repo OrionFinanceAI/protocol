@@ -6,17 +6,18 @@
 
 import { expect } from "chai";
 import { ethers } from "./helpers/hh";
-import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
-import type { ChainlinkPriceAdapter, MockChainlinkFeed } from "../typechain-types";
+import type { ChainlinkPriceAdapter, MockChainlinkFeed, MockPriceAdapter } from "../typechain-types";
 
 const STALENESS = 3_600; // 1 hour
 const MAX_PRICE = ethers.MaxUint256;
+const FALLBACK_PRICE = 123_456_789n;
+const FALLBACK_DECIMALS = 14n;
 
 describe("ChainlinkPriceAdapter — unit tests (no fork)", function () {
-  let owner: SignerWithAddress;
   let adapter: ChainlinkPriceAdapter;
   let baseFeed: MockChainlinkFeed;
   let quoteFeed: MockChainlinkFeed;
+  let fallbackAdapter: MockPriceAdapter;
   let asset: string;
 
   const BASE_DECIMALS = 8;
@@ -27,9 +28,6 @@ describe("ChainlinkPriceAdapter — unit tests (no fork)", function () {
   const QUOTE_ANSWER = 1_00010000n; // $1.0001 in 8-dec fixed-point
 
   beforeEach(async function () {
-    [owner] = await ethers.getSigners();
-    asset = owner.address; // reuse signer address as a dummy asset address
-
     const AdapterF = await ethers.getContractFactory("ChainlinkPriceAdapter");
     adapter = (await AdapterF.deploy()) as unknown as ChainlinkPriceAdapter;
     await adapter.waitForDeployment();
@@ -37,7 +35,17 @@ describe("ChainlinkPriceAdapter — unit tests (no fork)", function () {
     const FeedF = await ethers.getContractFactory("MockChainlinkFeed");
     baseFeed = (await FeedF.deploy(BASE_DECIMALS, BASE_ANSWER)) as unknown as MockChainlinkFeed;
     quoteFeed = (await FeedF.deploy(QUOTE_DECIMALS, QUOTE_ANSWER)) as unknown as MockChainlinkFeed;
-    await Promise.all([baseFeed.waitForDeployment(), quoteFeed.waitForDeployment()]);
+
+    const FallbackF = await ethers.getContractFactory("MockPriceAdapter");
+    fallbackAdapter = (await FallbackF.deploy()) as unknown as MockPriceAdapter;
+
+    await Promise.all([
+      baseFeed.waitForDeployment(),
+      quoteFeed.waitForDeployment(),
+      fallbackAdapter.waitForDeployment(),
+    ]);
+    asset = await adapter.getAddress(); // deployed non-ERC4626 contract used as a dummy asset
+    await fallbackAdapter.setMockPrice(asset, FALLBACK_PRICE);
   });
 
   // ── configureFeed ─────────────────────────────────────────────────────────
@@ -121,6 +129,39 @@ describe("ChainlinkPriceAdapter — unit tests (no fork)", function () {
       await expect(
         adapter.configureFeed(asset, await baseFeed.getAddress(), false, STALENESS, 1, MAX_PRICE, badQuote),
       ).to.be.revertedWithCustomError(adapter, "InvalidAdapter");
+    });
+  });
+
+  // ── setFallbackAdapter ────────────────────────────────────────────────────
+
+  describe("setFallbackAdapter", function () {
+    it("stores and emits fallback adapter", async function () {
+      await expect(adapter.setFallbackAdapter(asset, await fallbackAdapter.getAddress()))
+        .to.emit(adapter, "FallbackAdapterSet")
+        .withArgs(asset, await fallbackAdapter.getAddress());
+
+      expect(await adapter.fallbackAdapterOf(asset)).to.equal(await fallbackAdapter.getAddress());
+    });
+
+    it("allows owner to disable fallback", async function () {
+      await adapter.setFallbackAdapter(asset, await fallbackAdapter.getAddress());
+      await adapter.setFallbackAdapter(asset, ethers.ZeroAddress);
+
+      expect(await adapter.fallbackAdapterOf(asset)).to.equal(ethers.ZeroAddress);
+    });
+
+    it("rejects non-owner", async function () {
+      const [, nonOwner] = await ethers.getSigners();
+      await expect(
+        adapter.connect(nonOwner).setFallbackAdapter(asset, await fallbackAdapter.getAddress()),
+      ).to.be.revertedWithCustomError(adapter, "OwnableUnauthorizedAccount");
+    });
+
+    it("rejects self as fallback adapter", async function () {
+      await expect(adapter.setFallbackAdapter(asset, await adapter.getAddress())).to.be.revertedWithCustomError(
+        adapter,
+        "InvalidArguments",
+      );
     });
   });
 
@@ -246,6 +287,46 @@ describe("ChainlinkPriceAdapter — unit tests (no fork)", function () {
       const now = (await ethers.provider.getBlock("latest"))!.timestamp;
       await quoteFeed.setUpdatedAt(now - STALENESS - 1);
       await expect(adapter.getPriceData(asset)).to.be.revertedWithCustomError(adapter, "StalePrice");
+    });
+
+    it("uses fallback adapter when base feed is stale", async function () {
+      await adapter.configureFeed(
+        asset,
+        await baseFeed.getAddress(),
+        false,
+        STALENESS,
+        1,
+        MAX_PRICE,
+        ethers.ZeroAddress,
+      );
+      await adapter.setFallbackAdapter(asset, await fallbackAdapter.getAddress());
+
+      const now = (await ethers.provider.getBlock("latest"))!.timestamp;
+      await baseFeed.setUpdatedAt(now - STALENESS - 1);
+
+      const [price, decimals] = await adapter.getPriceData(asset);
+      expect(price).to.equal(FALLBACK_PRICE);
+      expect(decimals).to.equal(FALLBACK_DECIMALS);
+    });
+
+    it("uses fallback adapter when quote feed is stale", async function () {
+      await adapter.configureFeed(
+        asset,
+        await baseFeed.getAddress(),
+        false,
+        STALENESS,
+        1,
+        MAX_PRICE,
+        await quoteFeed.getAddress(),
+      );
+      await adapter.setFallbackAdapter(asset, await fallbackAdapter.getAddress());
+
+      const now = (await ethers.provider.getBlock("latest"))!.timestamp;
+      await quoteFeed.setUpdatedAt(now - STALENESS - 1);
+
+      const [price, decimals] = await adapter.getPriceData(asset);
+      expect(price).to.equal(FALLBACK_PRICE);
+      expect(decimals).to.equal(FALLBACK_DECIMALS);
     });
 
     it("reverts InvalidPrice when quoteFeed answer is zero", async function () {
