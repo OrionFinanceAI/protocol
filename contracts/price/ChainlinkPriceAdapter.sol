@@ -236,6 +236,6 @@ contract ChainlinkPriceAdapter is IPriceAdapter, Ownable2Step {
     function _fallbackPriceDataOrRevert(address asset) internal view returns (uint256 price, uint8 decimals) {
         IPriceAdapter fallbackAdapter = fallbackAdapterOf[asset];
         if (address(fallbackAdapter) == address(0)) revert ErrorsLib.StalePrice(asset);
-        return fallbackAdapter.getPriceData(asset);
+        (price, decimals) = fallbackAdapter.getPriceData(asset);
     }
 }
