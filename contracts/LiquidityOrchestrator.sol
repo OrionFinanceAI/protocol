@@ -517,7 +517,6 @@ contract LiquidityOrchestrator is
     /// @dev No need to delete prices as they are either overwritten or associated with
     /// non-whitelisted assets.
     function _handleStart() internal {
-        // Build filtered vault lists for this epoch
         _buildVaultsEpoch();
 
         if (_currentEpoch.vaultsEpoch.length == 0) {
@@ -554,16 +553,13 @@ contract LiquidityOrchestrator is
         emit EventsLib.EpochStart(epochCounter, assets, prices);
     }
 
-    /// @notice Build filtered transparent vaults list for the epoch
+    /// @notice Build vaults list for the epoch
     function _buildVaultsEpoch() internal {
         address[] memory allTransparent = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
         delete _currentEpoch.vaultsEpoch;
 
-        uint256 maxFulfillBatchSize = config.maxFulfillBatchSize();
         for (uint16 i = 0; i < allTransparent.length; ++i) {
-            address v = allTransparent[i];
-            if (IOrionVault(v).pendingDeposit(maxFulfillBatchSize) + IOrionVault(v).totalAssets() == 0) continue;
-            _currentEpoch.vaultsEpoch.push(v);
+            _currentEpoch.vaultsEpoch.push(allTransparent[i]);
         }
     }
 
