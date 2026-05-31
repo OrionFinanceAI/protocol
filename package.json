@@ -94,7 +94,8 @@
     "overrides": {
       "@openzeppelin/contracts-upgradeable@>=4.3.0 <4.8.3": "^4.9.6",
       "@openzeppelin/contracts@>=4.3.0 <4.8.3": "^4.9.6",
-      "lodash": "^4.17.21"
+      "lodash": "^4.17.21",
+      "ws": ">=8.20.1"
     },
     "peerDependencyRules": {
       "ignoreMissing": [
