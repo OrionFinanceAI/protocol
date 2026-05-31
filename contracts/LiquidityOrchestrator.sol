@@ -929,7 +929,7 @@ contract LiquidityOrchestrator is
         if (config.isDecommissioningVault(vaultAddress)) {
             // Finalize only when all queued requests are processed and no non-underlying positions remain open.
             bool noRequests = vaultContract.pendingRedeemCount() == 0 && vaultContract.pendingDepositCount() == 0;
-            bool portfolioLiquidated = tokens.length == 1;
+            bool portfolioLiquidated = tokens.length == 1 && tokens[0] == underlyingAsset;
             if (noRequests && portfolioLiquidated) {
                 config.completeVaultDecommissioning(vaultAddress);
             }
