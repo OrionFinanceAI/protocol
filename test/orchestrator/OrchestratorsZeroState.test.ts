@@ -76,12 +76,12 @@ describe("Orchestrators - zero deposits and zero intents", function () {
     const epochDuration = await liquidityOrchestrator.epochDuration();
     await networkHelpers.time.increase(epochDuration + 1n);
 
-    void expect(await liquidityOrchestrator.checkUpkeep()).to.be.true;
+    expect(await liquidityOrchestrator.checkUpkeep()).to.equal(true);
     await liquidityOrchestrator.connect(automationRegistry).performUpkeep("0x", "0x", "0x");
 
     // All registered transparent vaults enter epoch accounting, even with zero TVL.
     expect(await liquidityOrchestrator.currentPhase()).to.equal(1n); // StateCommitment
-    void expect(await liquidityOrchestrator.checkUpkeep()).to.be.true;
+    expect(await liquidityOrchestrator.checkUpkeep()).to.equal(true);
   });
 
   it("starts epoch commitment when vault has intent but no TVL or pending deposits", async function () {
@@ -102,10 +102,10 @@ describe("Orchestrators - zero deposits and zero intents", function () {
     const epochDuration = await liquidityOrchestrator.epochDuration();
     await networkHelpers.time.increase(epochDuration + 1n);
 
-    void expect(await liquidityOrchestrator.checkUpkeep()).to.be.true;
+    expect(await liquidityOrchestrator.checkUpkeep()).to.equal(true);
     await liquidityOrchestrator.connect(automationRegistry).performUpkeep("0x", "0x", "0x");
 
     expect(await liquidityOrchestrator.currentPhase()).to.equal(1n); // StateCommitment
-    void expect(await liquidityOrchestrator.checkUpkeep()).to.be.true;
+    expect(await liquidityOrchestrator.checkUpkeep()).to.equal(true);
   });
 });
