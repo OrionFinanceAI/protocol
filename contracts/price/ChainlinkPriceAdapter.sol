@@ -41,6 +41,9 @@ contract ChainlinkPriceAdapter is IPriceAdapter, Ownable2Step {
     /// @notice Per-asset feed configuration store.
     mapping(address => FeedConfig) public feedConfigOf;
 
+    /// @notice Optional per-asset fallback adapter used only when Chainlink data is stale.
+    mapping(address => IPriceAdapter) public fallbackAdapterOf;
+
     /// @notice Precision used for inverse-feed output (1/price scaled to 10^INVERSE_DECIMALS).
     uint8 public constant INVERSE_DECIMALS = 18;
 
@@ -64,6 +67,11 @@ contract ChainlinkPriceAdapter is IPriceAdapter, Ownable2Step {
         uint256 maxPrice,
         address quoteFeed
     );
+
+    /// @notice Emitted when a stale-price fallback adapter is configured.
+    /// @param asset The asset address.
+    /// @param fallbackAdapter The fallback price adapter, or address(0) to disable.
+    event FallbackAdapterSet(address indexed asset, address indexed fallbackAdapter);
 
     constructor() Ownable(msg.sender) {}
 
@@ -128,6 +136,22 @@ contract ChainlinkPriceAdapter is IPriceAdapter, Ownable2Step {
         emit FeedConfigured(asset, feed, inverse, _maxStaleness, _minPrice, _maxPrice, quoteFeed);
     }
 
+    /// @notice Configure the adapter used when Chainlink data is stale.
+    /// @dev Intended for UniswapV3PoolPriceAdapter. Other Chainlink validation errors still revert.
+    /// @param asset The asset address.
+    /// @param fallbackAdapter The fallback adapter, or address(0) to disable.
+    function setFallbackAdapter(address asset, IPriceAdapter fallbackAdapter) external onlyOwner {
+        if (asset == address(0)) revert ErrorsLib.ZeroAddress();
+        if (address(fallbackAdapter) == address(this)) revert ErrorsLib.InvalidArguments();
+
+        if (address(fallbackAdapter) != address(0)) {
+            fallbackAdapter.validatePriceAdapter(asset);
+        }
+
+        fallbackAdapterOf[asset] = fallbackAdapter;
+        emit FallbackAdapterSet(asset, address(fallbackAdapter));
+    }
+
     /// @inheritdoc IPriceAdapter
     function validatePriceAdapter(address asset) external view override {
         FeedConfig memory feedConfig = feedConfigOf[asset];
@@ -175,7 +199,7 @@ contract ChainlinkPriceAdapter is IPriceAdapter, Ownable2Step {
         if (answer < 1) revert ErrorsLib.InvalidPrice(asset, answer);
         if (updatedAt == 0) revert ErrorsLib.InvalidPrice(asset, answer);
         if (startedAt > block.timestamp) revert ErrorsLib.InvalidPrice(asset, answer);
-        if (block.timestamp - updatedAt > feedConfig.maxStaleness) revert ErrorsLib.StalePrice(asset);
+        if (block.timestamp - updatedAt > feedConfig.maxStaleness) return _fallbackPriceDataOrRevert(asset);
 
         uint256 rawPrice = uint256(answer);
         uint8 feedDecimals = chainlinkFeed.decimals();
@@ -197,11 +221,21 @@ contract ChainlinkPriceAdapter is IPriceAdapter, Ownable2Step {
             if (qAnswer < 1) revert ErrorsLib.InvalidPrice(asset, qAnswer);
             if (qUpdatedAt == 0) revert ErrorsLib.InvalidPrice(asset, qAnswer);
             if (qStartedAt > block.timestamp) revert ErrorsLib.InvalidPrice(asset, qAnswer);
-            if (block.timestamp - qUpdatedAt > feedConfig.maxStaleness) revert ErrorsLib.StalePrice(asset);
+            if (block.timestamp - qUpdatedAt > feedConfig.maxStaleness) return _fallbackPriceDataOrRevert(asset);
 
             return (Math.mulDiv(rawPrice, feedConfig.scaleFactor, uint256(qAnswer)), PRICE_DECIMALS);
         }
 
         return (rawPrice, feedDecimals);
+    }
+
+    /// @notice Return fallback adapter price or preserve StalePrice when no fallback is configured.
+    /// @param asset The asset whose Chainlink feed is stale.
+    /// @return price The fallback raw price.
+    /// @return decimals The fallback price decimals.
+    function _fallbackPriceDataOrRevert(address asset) internal view returns (uint256 price, uint8 decimals) {
+        IPriceAdapter fallbackAdapter = fallbackAdapterOf[asset];
+        if (address(fallbackAdapter) == address(0)) revert ErrorsLib.StalePrice(asset);
+        (price, decimals) = fallbackAdapter.getPriceData(asset);
     }
 }

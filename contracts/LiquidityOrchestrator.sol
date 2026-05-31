@@ -108,8 +108,11 @@ contract LiquidityOrchestrator is
     /// @notice Epoch counter
     uint256 public epochCounter;
 
-    /// @notice Buffer amount [assets]
+    /// @notice Live buffer amount [assets]
     uint256 public bufferAmount;
+
+    /// @notice Buffer snapshot captured at epoch start and used as deterministic proof input anchor [assets]
+    uint256 public initialEpochBufferAmount;
 
     /// @notice Pending protocol fees [assets]
     uint256 public pendingProtocolFees;
@@ -126,9 +129,6 @@ contract LiquidityOrchestrator is
     bytes32 private _partialVaultsHash;
     /// @notice Number of vault leaves already folded this epoch
     uint16 private _commitmentBatchIndex;
-
-    /// @notice Buffer amount after each execution minibatch for market impact tracking.
-    uint256[] private _epochBufferHistory;
 
     /// @notice Epoch protocol fees to accrue when transitioning to ProcessVaultOperations.
     uint256 private _pendingEpochProtocolFees;
@@ -272,9 +272,7 @@ contract LiquidityOrchestrator is
     /// @inheritdoc ILiquidityOrchestrator
     function updateCommitmentMinibatchSize(uint8 _commitmentMinibatchSize) external onlyOwnerOrGuardian {
         if (_commitmentMinibatchSize == 0) revert ErrorsLib.InvalidArguments();
-        if (_commitmentMinibatchSize > commitmentMinibatchSize && !config.isSystemIdle()) {
-            revert ErrorsLib.SystemNotIdle();
-        }
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         commitmentMinibatchSize = _commitmentMinibatchSize;
     }
 
@@ -383,11 +381,6 @@ contract LiquidityOrchestrator is
         return _failedEpochTokens;
     }
 
-    /// @inheritdoc ILiquidityOrchestrator
-    function getEpochBufferHistory() external view returns (uint256[] memory) {
-        return _epochBufferHistory;
-    }
-
     /* -------------------------------------------------------------------------- */
     /*                                CONFIG FUNCTIONS                            */
     /* -------------------------------------------------------------------------- */
@@ -488,7 +481,6 @@ contract LiquidityOrchestrator is
                 bufferAmount = states.bufferAmount;
                 _pendingEpochProtocolFees = states.epochProtocolFees;
             }
-            _recordBufferCheckpoint();
 
             _processMinibatchSell(states.sellLeg);
         } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
@@ -497,11 +489,15 @@ contract LiquidityOrchestrator is
         } else if (currentPhase == LiquidityUpkeepPhase.ProcessVaultOperations) {
             StatesStruct memory states = _verifyPerformData(_publicValues, proofBytes, statesBytes);
             _processMinibatchVaultsOperations(states.vaults);
+
             if (currentMinibatchIndex == 0) {
-                // After the final minibatch, currentMinibatchIndex resets to 0, triggering asset cleanup
+                // After the final minibatch, currentMinibatchIndex resets to 0, triggering epoch end
                 address[] memory failedTokens = _failedEpochTokens;
                 delete _failedEpochTokens;
                 config.completeAssetsRemoval(failedTokens);
+                // Emit epoch end and increment epoch counter.
+                emit EventsLib.EpochEnd(epochCounter, states.nettedRebalanceVolumeUnderlying);
+                ++epochCounter;
             }
         }
     }
@@ -521,7 +517,6 @@ contract LiquidityOrchestrator is
     /// @dev No need to delete prices as they are either overwritten or associated with
     /// non-whitelisted assets.
     function _handleStart() internal {
-        // Build filtered vault lists for this epoch
         _buildVaultsEpoch();
 
         if (_currentEpoch.vaultsEpoch.length == 0) {
@@ -530,7 +525,8 @@ contract LiquidityOrchestrator is
             return;
         }
 
-        _recordBufferCheckpoint();
+        // Freeze deterministic proof-input anchor at epoch start.
+        initialEpochBufferAmount = bufferAmount;
 
         // Reset incremental commitment state for the new epoch
         _partialVaultsHash = bytes32(0);
@@ -557,16 +553,13 @@ contract LiquidityOrchestrator is
         emit EventsLib.EpochStart(epochCounter, assets, prices);
     }
 
-    /// @notice Build filtered transparent vaults list for the epoch
+    /// @notice Build vaults list for the epoch
     function _buildVaultsEpoch() internal {
         address[] memory allTransparent = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
         delete _currentEpoch.vaultsEpoch;
 
-        uint256 maxFulfillBatchSize = config.maxFulfillBatchSize();
         for (uint16 i = 0; i < allTransparent.length; ++i) {
-            address v = allTransparent[i];
-            if (IOrionVault(v).pendingDeposit(maxFulfillBatchSize) + IOrionVault(v).totalAssets() == 0) continue;
-            _currentEpoch.vaultsEpoch.push(v);
+            _currentEpoch.vaultsEpoch.push(allTransparent[i]);
         }
     }
 
@@ -601,6 +594,7 @@ contract LiquidityOrchestrator is
                     vault.pendingRedeem(maxFulfillBatchSize),
                     vault.pendingDeposit(maxFulfillBatchSize),
                     vault.totalSupply(),
+                    vault.totalAssets(),
                     portfolioHash,
                     intentHash
                 )
@@ -648,8 +642,7 @@ contract LiquidityOrchestrator is
                 config.riskFreeRate(),
                 config.decommissioningAssets(),
                 _failedEpochTokens,
-                _epochBufferHistory,
-                bufferAmount
+                initialEpochBufferAmount
             )
         );
         return protocolStateHash;
@@ -682,7 +675,7 @@ contract LiquidityOrchestrator is
     /// @notice Verifies the perform data
     /// @param _publicValues Encoded PublicValuesStruct containing input and output commitments
     /// @param proofBytes The zk-proof bytes
-    /// @param statesBytes Encoded StatesStruct containing vaults, buy leg, and sell leg data
+    /// @param statesBytes Encoded StatesStruct containing state transition payload.
     /// @return states The decoded StatesStruct
     function _verifyPerformData(
         bytes calldata _publicValues,
@@ -725,7 +718,6 @@ contract LiquidityOrchestrator is
                 // successful execution, continue.
             } catch {
                 _failedEpochTokens.push(token);
-                _recordBufferCheckpoint();
                 _currentEpoch.epochStateCommitment = keccak256(
                     abi.encode(_buildProtocolStateHash(), _cachedAssetsHash, _cachedVaultsHash)
                 );
@@ -734,7 +726,6 @@ contract LiquidityOrchestrator is
             }
         }
 
-        _recordBufferCheckpoint();
         ++currentMinibatchIndex;
         if (i1 == sellLeg.sellingTokens.length) {
             currentMinibatchIndex = 0;
@@ -761,7 +752,6 @@ contract LiquidityOrchestrator is
                 // successful execution, continue.
             } catch {
                 _failedEpochTokens.push(token);
-                _recordBufferCheckpoint();
                 _currentEpoch.epochStateCommitment = keccak256(
                     abi.encode(_buildProtocolStateHash(), _cachedAssetsHash, _cachedVaultsHash)
                 );
@@ -770,7 +760,6 @@ contract LiquidityOrchestrator is
             }
         }
 
-        _recordBufferCheckpoint();
         ++currentMinibatchIndex;
         if (i1 == buyLeg.buyingTokens.length) {
             pendingProtocolFees += _pendingEpochProtocolFees;
@@ -788,14 +777,6 @@ contract LiquidityOrchestrator is
             bufferAmount += uint256(deltaAmount);
         } else if (deltaAmount < 0) {
             bufferAmount -= uint256(-deltaAmount);
-        }
-    }
-
-    /// @notice Records the current buffer amount as a checkpoint only if it differs from the last entry.
-    function _recordBufferCheckpoint() internal {
-        uint256 n = _epochBufferHistory.length;
-        if (n == 0 || _epochBufferHistory[n - 1] != bufferAmount) {
-            _epochBufferHistory.push(bufferAmount);
         }
     }
 
@@ -837,6 +818,13 @@ contract LiquidityOrchestrator is
         IERC20(asset).forceApprove(address(adapter), 0);
 
         _updateBufferAmount(executionUnderlyingAmount.toInt256() - estimatedUnderlyingAmount.toInt256());
+        emit EventsLib.EpochSellExecuted(
+            epochCounter,
+            asset,
+            executionUnderlyingAmount,
+            sharesAmount,
+            estimatedUnderlyingAmount
+        );
     }
 
     /// @notice Executes a buy order
@@ -859,6 +847,13 @@ contract LiquidityOrchestrator is
         IERC20(underlyingAsset).forceApprove(address(adapter), 0);
 
         _updateBufferAmount(estimatedUnderlyingAmount.toInt256() - executionUnderlyingAmount.toInt256());
+        emit EventsLib.EpochBuyExecuted(
+            epochCounter,
+            asset,
+            executionUnderlyingAmount,
+            sharesAmount,
+            estimatedUnderlyingAmount
+        );
     }
 
     /// @notice Handles the vault operations
@@ -876,10 +871,6 @@ contract LiquidityOrchestrator is
             currentPhase = LiquidityUpkeepPhase.Idle;
             currentMinibatchIndex = 0;
             _nextUpdateTime = block.timestamp + epochDuration;
-            emit EventsLib.EpochEnd(epochCounter);
-            ++epochCounter;
-
-            delete _epochBufferHistory;
         }
 
         for (uint16 i = i0; i < i1; ++i) {
@@ -938,7 +929,7 @@ contract LiquidityOrchestrator is
         if (config.isDecommissioningVault(vaultAddress)) {
             // Finalize only when all queued requests are processed and no non-underlying positions remain open.
             bool noRequests = vaultContract.pendingRedeemCount() == 0 && vaultContract.pendingDepositCount() == 0;
-            bool portfolioLiquidated = tokens.length == 1;
+            bool portfolioLiquidated = tokens.length == 1 && tokens[0] == underlyingAsset;
             if (noRequests && portfolioLiquidated) {
                 config.completeVaultDecommissioning(vaultAddress);
             }

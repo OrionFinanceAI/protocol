@@ -27,6 +27,7 @@ interface ILiquidityOrchestrator {
         uint256[] pendingRedeems;
         uint256[] pendingDeposits;
         uint256[] totalSupplies;
+        uint256[] totalAssets;
         address[][] portfolioTokens;
         uint256[][] portfolioShares;
         address[][] intentTokens;
@@ -46,6 +47,7 @@ interface ILiquidityOrchestrator {
         BuyLegOrders buyLeg;
         uint256 bufferAmount;
         uint256 epochProtocolFees;
+        uint256 nettedRebalanceVolumeUnderlying;
     }
 
     struct VaultState {
@@ -86,6 +88,10 @@ interface ILiquidityOrchestrator {
     /// @return The current buffer amount
     function bufferAmount() external view returns (uint256);
 
+    /// @notice Returns the epoch-start buffer snapshot used as deterministic proof input anchor
+    /// @return The initial epoch buffer amount
+    function initialEpochBufferAmount() external view returns (uint256);
+
     /// @notice Returns the pending protocol fees
     /// @return The pending protocol fees
     function pendingProtocolFees() external view returns (uint256);
@@ -121,10 +127,6 @@ interface ILiquidityOrchestrator {
     /// @notice Returns tokens that failed during the current epoch's sell/buy execution
     /// @return List of token addresses that failed
     function getFailedEpochTokens() external view returns (address[] memory);
-
-    /// @notice Returns the buffer amount after each execution minibatch for market impact tracking.
-    /// @return Buffer amount after each minibatch
-    function getEpochBufferHistory() external view returns (uint256[] memory);
 
     /// @notice Gets asset prices for the epoch
     /// @param assets Array of asset addresses
@@ -233,7 +235,7 @@ interface ILiquidityOrchestrator {
     /// @notice Performs the upkeep
     /// @param _publicValues Encoded PublicValuesStruct containing input and output commitments
     /// @param proofBytes The zk-proof bytes
-    /// @param statesBytes Encoded StatesStruct containing vaults, buy leg, and sell leg data
+    /// @param statesBytes Encoded StatesStruct containing state transition payload.
     /// @dev the API is inspired but different from the Chainlink Automation interface.
     function performUpkeep(
         bytes calldata _publicValues,

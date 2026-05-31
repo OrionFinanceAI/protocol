@@ -6,8 +6,6 @@ import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import { ReentrancyGuardTransient } from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts/proxy/beacon/IBeacon.sol";
-import "@openzeppelin/contracts/utils/StorageSlot.sol";
 import "../interfaces/IOrionConfig.sol";
 import "../interfaces/IOrionVault.sol";
 import "../interfaces/ILiquidityOrchestrator.sol";
@@ -279,15 +277,6 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
 
     /* ---------- CONVERSION FUNCTIONS ---------- */
 
-    /// @inheritdoc IOrionVault
-    function convertToAssetsWithPITTotalAssets(
-        uint256 shares,
-        uint256 pointInTimeTotalAssets,
-        Math.Rounding rounding
-    ) public view returns (uint256) {
-        return shares.mulDiv(pointInTimeTotalAssets + 1, totalSupply() + 10 ** _decimalsOffset(), rounding);
-    }
-
     /// @notice Internal version that uses a snapshot of totalSupply for batch processing
     /// @param assets The assets to convert
     /// @param pointInTimeTotalAssets The point-in-time total assets
@@ -323,16 +312,6 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     /// @inheritdoc IOrionVault
     function overrideIntentForDecommissioning() external onlyConfig {
         isDecommissioning = true;
-    }
-
-    /// @inheritdoc IOrionVault
-    function implementation() external view returns (address) {
-        bytes32 beaconSlot = 0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50;
-        address beacon = StorageSlot.getAddressSlot(beaconSlot).value;
-        if (beacon == address(0)) {
-            return address(0);
-        }
-        return IBeacon(beacon).implementation();
     }
 
     /// --------- LP FUNCTIONS ---------
@@ -517,128 +496,6 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     }
 
     /// @inheritdoc IOrionVault
-    function vaultFee(
-        uint256 activeTotalAssets,
-        FeeModel calldata snapshotFeeModel
-    ) external view returns (uint256 managementFee, uint256 performanceFee) {
-        managementFee = _managementFeeAmount(activeTotalAssets, snapshotFeeModel);
-        uint256 intermediateTotalAssets = activeTotalAssets - managementFee;
-        performanceFee = _performanceFeeAmount(intermediateTotalAssets, snapshotFeeModel);
-    }
-
-    /// @notice Calculate management fee amount
-    /// @param feeTotalAssets The total assets to calculate management fee for
-    /// @param snapshotFeeModel The fee model to use for calculation
-    /// @return The management fee amount in underlying asset units
-    function _managementFeeAmount(
-        uint256 feeTotalAssets,
-        FeeModel calldata snapshotFeeModel
-    ) internal view returns (uint256) {
-        if (snapshotFeeModel.managementFee == 0) return 0;
-
-        uint256 annualFeeAmount = uint256(snapshotFeeModel.managementFee).mulDiv(feeTotalAssets, BASIS_POINTS_FACTOR);
-        return annualFeeAmount.mulDiv(liquidityOrchestrator.epochDuration(), YEAR_IN_SECONDS);
-    }
-
-    /// @notice Calculate performance fee amount
-    /// @dev Performance fee calculation depends on the FeeType
-    /// @param feeTotalAssets The total assets to calculate performance fee for
-    /// @param snapshotFeeModel The fee model to use for calculation
-    /// @return The performance fee amount in underlying asset units
-    function _performanceFeeAmount(
-        uint256 feeTotalAssets,
-        FeeModel calldata snapshotFeeModel
-    ) internal view returns (uint256) {
-        if (snapshotFeeModel.performanceFee == 0 || feeTotalAssets == 0) return 0;
-
-        uint256 activeSharePrice = convertToAssetsWithPITTotalAssets(
-            10 ** decimals(),
-            feeTotalAssets,
-            Math.Rounding.Floor
-        );
-        if (activeSharePrice == 0) return 0;
-
-        uint16 perfBps = snapshotFeeModel.performanceFee;
-        FeeType feeType = snapshotFeeModel.feeType;
-        if (feeType == FeeType.SOFT_HURDLE) {
-            return _performanceFeeAmountSoftHurdle(activeSharePrice, feeTotalAssets, perfBps);
-        }
-        return
-            _performanceFeeAmountNonSoft(
-                activeSharePrice,
-                feeTotalAssets,
-                perfBps,
-                feeType,
-                snapshotFeeModel.highWaterMark
-            );
-    }
-
-    function _performanceFeeAmountNonSoft(
-        uint256 activeSharePrice,
-        uint256 feeTotalAssets,
-        uint16 perfBps,
-        FeeType feeType,
-        uint256 highWaterMark
-    ) internal view returns (uint256) {
-        uint256 benchmark = _performanceFeeBenchmark(feeType, highWaterMark);
-        if (activeSharePrice <= benchmark) return 0;
-
-        uint256 profitsInAssets = (activeSharePrice - benchmark).mulDiv(feeTotalAssets, activeSharePrice);
-        return _annualizedPerformanceFee(profitsInAssets, perfBps);
-    }
-
-    function _performanceFeeAmountSoftHurdle(
-        uint256 activeSharePrice,
-        uint256 feeTotalAssets,
-        uint16 perfBps
-    ) internal view returns (uint256) {
-        uint256 spotSharePrice = convertToAssets(10 ** decimals());
-
-        uint256 hurdle = _getHurdlePrice(spotSharePrice);
-        if (activeSharePrice <= hurdle) return 0;
-
-        uint256 profitsInAssets = (activeSharePrice - spotSharePrice).mulDiv(feeTotalAssets, activeSharePrice);
-        return _annualizedPerformanceFee(profitsInAssets, perfBps);
-    }
-
-    function _annualizedPerformanceFee(uint256 profitsInAssets, uint16 perfBps) internal view returns (uint256) {
-        uint256 epochProfits = profitsInAssets.mulDiv(liquidityOrchestrator.epochDuration(), YEAR_IN_SECONDS);
-        return uint256(perfBps).mulDiv(epochProfits, BASIS_POINTS_FACTOR);
-    }
-
-    /// @notice Share-price benchmark used as both gate and profit baseline.
-    /// @param feeType Active fee model
-    /// @param highWaterMark Stored HWM (same units as share price)
-    /// @return benchmark Assets per share threshold; profits are measured from this level upward.
-    function _performanceFeeBenchmark(
-        FeeType feeType,
-        uint256 highWaterMark
-    ) internal view returns (uint256 benchmark) {
-        uint256 currentSharePrice = convertToAssets(10 ** decimals());
-
-        if (feeType == FeeType.ABSOLUTE) {
-            benchmark = currentSharePrice;
-        } else if (feeType == FeeType.HIGH_WATER_MARK) {
-            benchmark = highWaterMark;
-        } else if (feeType == FeeType.HARD_HURDLE) {
-            benchmark = _getHurdlePrice(currentSharePrice);
-        } else if (feeType == FeeType.HURDLE_HWM) {
-            benchmark = Math.max(highWaterMark, _getHurdlePrice(currentSharePrice));
-        }
-        return benchmark;
-    }
-
-    /// @notice Get hurdle price amount based on configured risk-free rate
-    /// @param currentSharePrice The current share price to calculate hurdle from
-    /// @return The hurdle price
-    function _getHurdlePrice(uint256 currentSharePrice) internal view returns (uint256) {
-        uint256 riskFreeRate = config.riskFreeRate();
-
-        uint256 hurdleReturn = riskFreeRate.mulDiv(liquidityOrchestrator.epochDuration(), YEAR_IN_SECONDS);
-        return currentSharePrice.mulDiv(BASIS_POINTS_FACTOR + hurdleReturn, BASIS_POINTS_FACTOR);
-    }
-
-    /// @inheritdoc IOrionVault
     function claimVaultFees(uint256 amount) external onlyManager {
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
         if (amount > pendingVaultFees) revert ErrorsLib.InsufficientAmount();
@@ -712,6 +569,16 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
             (users[i], shares[i]) = _redeemRequests.at(i);
         }
         return (users, shares);
+    }
+
+    /// @inheritdoc IOrionVault
+    function totalPendingUnderlyingClaims() external view returns (uint256 total) {
+        uint256 length = _pendingUnderlyingClaims.length();
+        for (uint256 i = 0; i < length; ++i) {
+            // slither-disable-next-line unused-return
+            (, uint256 amount) = _pendingUnderlyingClaims.at(i);
+            total += amount;
+        }
     }
 
     /// @inheritdoc IOrionVault

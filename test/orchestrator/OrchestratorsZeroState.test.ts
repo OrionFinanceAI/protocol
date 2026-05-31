@@ -70,20 +70,21 @@ describe("Orchestrators - zero deposits and zero intents", function () {
     expect(await transparentVault.pendingRedeem(await orionConfig.maxFulfillBatchSize())).to.equal(0);
   });
 
-  it("completes upkeep with zero TVL and zero intents without errors", async function () {
-    // Fast forward time to trigger upkeep
+  it("starts epoch commitment for a registered zero-state vault", async function () {
+    expect(await transparentVault.totalAssets()).to.equal(0);
+
     const epochDuration = await liquidityOrchestrator.epochDuration();
     await networkHelpers.time.increase(epochDuration + 1n);
 
-    // Start
-    const upkeepNeeded = await liquidityOrchestrator.checkUpkeep();
-    void expect(upkeepNeeded).to.be.true;
+    expect(await liquidityOrchestrator.checkUpkeep()).to.equal(true);
     await liquidityOrchestrator.connect(automationRegistry).performUpkeep("0x", "0x", "0x");
-    expect(await liquidityOrchestrator.currentPhase()).to.equal(0);
+
+    // All registered transparent vaults enter epoch accounting, even with zero TVL.
+    expect(await liquidityOrchestrator.currentPhase()).to.equal(1n); // StateCommitment
+    expect(await liquidityOrchestrator.checkUpkeep()).to.equal(true);
   });
 
-  it("should not move forward when vault has no total assets and no pending deposits but has valid intent", async function () {
-    // Submit a valid intent to the vault
+  it("starts epoch commitment when vault has intent but no TVL or pending deposits", async function () {
     const intent = [
       {
         token: await underlyingAsset.getAddress(),
@@ -92,30 +93,19 @@ describe("Orchestrators - zero deposits and zero intents", function () {
     ];
     await transparentVault.connect(strategist).submitIntent(intent);
 
-    // Verify the vault has no total assets and no pending deposits
     expect(await transparentVault.totalAssets()).to.equal(0);
     expect(await transparentVault.pendingDeposit(await orionConfig.maxFulfillBatchSize())).to.equal(0);
 
-    // Verify the vault has a valid intent
-    const [intentTokens, _intentWeights] = await transparentVault.getIntent();
+    const [intentTokens] = await transparentVault.getIntent();
     expect(intentTokens.length).to.be.gt(0);
 
-    // Fast forward time to trigger upkeep
     const epochDuration = await liquidityOrchestrator.epochDuration();
     await networkHelpers.time.increase(epochDuration + 1n);
 
-    // Check that upkeep is needed
-    const upkeepNeeded = await liquidityOrchestrator.checkUpkeep();
-    void expect(upkeepNeeded).to.be.true;
-
-    // Perform upkeep - should complete but not move to next phase
+    expect(await liquidityOrchestrator.checkUpkeep()).to.equal(true);
     await liquidityOrchestrator.connect(automationRegistry).performUpkeep("0x", "0x", "0x");
 
-    // Should remain in Idle phase (0) because no vaults were processed
-    expect(await liquidityOrchestrator.currentPhase()).to.equal(0);
-
-    // Now upkeep should NOT be needed, since epoch start was pushed forward by the upkeep.
-    const upkeepNeededAfter = await liquidityOrchestrator.checkUpkeep();
-    void expect(upkeepNeededAfter).to.be.false;
+    expect(await liquidityOrchestrator.currentPhase()).to.equal(1n); // StateCommitment
+    expect(await liquidityOrchestrator.checkUpkeep()).to.equal(true);
   });
 });

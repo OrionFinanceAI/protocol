@@ -466,9 +466,8 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
 
     /// @inheritdoc IOrionConfig
     function getAllOrionVaults(EventsLib.VaultType vaultType) external view returns (address[] memory) {
-        EnumerableSet.AddressSet storage vaults = vaultType == EventsLib.VaultType.Encrypted
-            ? encryptedVaults
-            : transparentVaults;
+        EnumerableSet.AddressSet storage vaults =
+            vaultType == EventsLib.VaultType.Encrypted ? encryptedVaults : transparentVaults;
         uint16 length = uint16(vaults.length());
         address[] memory vaultArray = new address[](length);
         for (uint16 i = 0; i < length; ++i) {
