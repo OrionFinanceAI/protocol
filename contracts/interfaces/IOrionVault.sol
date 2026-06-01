@@ -3,7 +3,6 @@ pragma solidity ^0.8.34;
 
 import "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import "./IOrionConfig.sol";
-import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /// @title IOrionVault
 /// @notice Interface for Orion vaults
@@ -124,13 +123,13 @@ interface IOrionVault is IERC4626 {
     /// @return The currently active fee model
     function activeFeeModel() external view returns (FeeModel memory);
 
-    /// --------- CONFIG FUNCTIONS ---------
+    // --------- CONFIG FUNCTIONS ---------
 
     /// @notice Override intent to 100% underlying asset for decommissioning
     /// @dev Can only be called by the OrionConfig contract
     function overrideIntentForDecommissioning() external;
 
-    /// --------- LP FUNCTIONS ---------
+    // --------- LP FUNCTIONS ---------
 
     /// @notice Submit an asynchronous deposit request.
     /// @dev No share tokens are minted immediately. The specified amount of underlying tokens
@@ -189,7 +188,7 @@ interface IOrionVault is IERC4626 {
     ///      to ensure the deposit access control is capable of performing its duties.
     function setDepositAccessControl(address newDepositAccessControl) external;
 
-    /// --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
+    // --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
 
     /// @notice Get total pending deposit amount across all users
     /// @param fulfillBatchSize The maximum number of requests to process per fulfill call
