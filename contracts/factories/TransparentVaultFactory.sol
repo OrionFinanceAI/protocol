@@ -24,6 +24,9 @@ contract TransparentVaultFactory is Initializable, Ownable2StepUpgradeable, UUPS
     /// @notice UpgradeableBeacon for transparent vaults
     UpgradeableBeacon public vaultBeacon;
 
+    /// @notice Address of the upgrade timelock that must authorise all implementation upgrades
+    address public upgradeTimelock;
+
     /// @notice Constructor that disables initializers for the implementation contract
     /// @custom:oz-upgrades-unsafe-allow constructor
     // solhint-disable-next-line use-natspec
@@ -113,9 +116,6 @@ contract TransparentVaultFactory is Initializable, Ownable2StepUpgradeable, UUPS
         emit EventsLib.VaultBeaconUpdated(newVaultBeacon);
     }
 
-    /// @notice Address of the upgrade timelock that must authorise all implementation upgrades
-    address public upgradeTimelock;
-
     /// @notice Sets the upgrade timelock address.
     /// @dev If no timelock is set yet, only the owner may call this. Once a timelock is active,
     ///      only the timelock itself may replace it, preventing the owner from bypassing the delay.
@@ -144,5 +144,5 @@ contract TransparentVaultFactory is Initializable, Ownable2StepUpgradeable, UUPS
     }
 
     /// @dev Storage gap to allow for future upgrades
-    uint256[50] private __gap;
+    uint256[49] private __gap;
 }
