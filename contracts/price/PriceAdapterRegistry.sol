@@ -31,6 +31,9 @@ contract PriceAdapterRegistry is Initializable, IPriceAdapterRegistry, Ownable2S
     /// @notice Mapping of asset addresses to their corresponding price adapters
     mapping(address => IPriceAdapter) public adapterOf;
 
+    /// @notice Address of the upgrade timelock that must authorise all implementation upgrades
+    address public upgradeTimelock;
+
     modifier onlyConfig() {
         if (msg.sender != configAddress) revert ErrorsLib.NotAuthorized();
         _;
@@ -83,9 +86,6 @@ contract PriceAdapterRegistry is Initializable, IPriceAdapterRegistry, Ownable2S
         return normalizedPrice;
     }
 
-    /// @notice Address of the upgrade timelock that must authorise all implementation upgrades
-    address public upgradeTimelock;
-
     /// @notice Sets the upgrade timelock address.
     /// @dev If no timelock is set yet, only the owner may call this. Once a timelock is active,
     ///      only the timelock itself may replace it, preventing the owner from bypassing the delay.
@@ -114,5 +114,5 @@ contract PriceAdapterRegistry is Initializable, IPriceAdapterRegistry, Ownable2S
     }
 
     /// @dev Storage gap to allow for future upgrades
-    uint256[50] private __gap;
+    uint256[49] private __gap;
 }
