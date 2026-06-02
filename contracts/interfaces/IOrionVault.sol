@@ -52,17 +52,6 @@ interface IOrionVault is IERC4626 {
     /// @param sharesBurned The number of shares burned for the user.
     event Redeem(address indexed user, uint256 indexed redeemAmount, uint256 indexed sharesBurned);
 
-    /// @notice Transfer to the redeemer failed (e.g. USDC denylist); funds are held until claimed.
-    /// @param user The address of the recipient whose transfer failed.
-    /// @param amount The underlying amount that could not be transferred.
-    /// @param shares The number of shares that could not be redeemed.
-    event RedemptionFailed(address indexed user, uint256 indexed amount, uint256 indexed shares);
-
-    /// @notice A previously failed redemption transfer has been claimed by the user.
-    /// @param user The address of the claimer.
-    /// @param amount The underlying amount claimed.
-    event RedemptionClaimed(address indexed user, uint256 indexed amount);
-
     /// @notice Fees have been accrued.
     /// @param managementFee The amount of management fees accrued.
     /// @param performanceFee The amount of performance fees accrued.
@@ -157,10 +146,6 @@ interface IOrionVault is IERC4626 {
     /// @param shares The amount of share tokens to recover.
     function cancelRedeemRequest(uint256 shares) external;
 
-    /// @notice Claim underlying funds from a previously failed redemption transfer.
-    /// @dev Called by the user after the transfer blocker (e.g. denylist) has been resolved.
-    function claimUnderlying() external;
-
     // --------- MANAGER AND STRATEGIST FUNCTIONS ---------
 
     /// @notice Update the strategist address
@@ -219,10 +204,6 @@ interface IOrionVault is IERC4626 {
     function pendingRedeemBatch(
         uint256 fulfillBatchSize
     ) external view returns (address[] memory users, uint256[] memory shares);
-
-    /// @notice Total underlying assets owed to users whose redemption transfer failed
-    /// @return total Sum of all pending underlying claims across all users
-    function totalPendingUnderlyingClaims() external view returns (uint256 total);
 
     /// @notice Process all pending deposit requests and mint shares to depositors
     /// @param depositTotalAssets The total assets associated with the deposit requests
