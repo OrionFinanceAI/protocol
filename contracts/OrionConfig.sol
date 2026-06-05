@@ -89,6 +89,9 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     /// @notice Timestamp when new protocol fee rates become effective
     uint256 public newProtocolFeeRatesTimestamp;
 
+    /// @notice Address of the upgrade timelock that must authorise all implementation upgrades
+    address public upgradeTimelock;
+
     modifier onlyFactories() {
         if (msg.sender != transparentVaultFactory) revert ErrorsLib.NotAuthorized();
         _;
@@ -536,9 +539,6 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         return tokenDecimals[token];
     }
 
-    /// @notice Address of the upgrade timelock that must authorise all implementation upgrades
-    address public upgradeTimelock;
-
     /// @notice Sets the upgrade timelock address.
     /// @dev If no timelock is set yet, only the owner may call this. Once a timelock is active,
     ///      only the timelock itself may replace it, preventing the owner from bypassing the delay.
@@ -567,5 +567,5 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     }
 
     /// @dev Storage gap to allow for future upgrades
-    uint256[50] private __gap;
+    uint256[49] private __gap;
 }

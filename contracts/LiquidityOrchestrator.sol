@@ -86,9 +86,6 @@ contract LiquidityOrchestrator is
     /// @notice Minibatch size for fulfill deposit and redeem processing
     uint8 public minibatchSize;
 
-    /// @notice Number of vault leaves folded into the commitment per StateCommitment upkeep step
-    uint8 public commitmentMinibatchSize;
-
     /// @notice Upkeep phase
     LiquidityUpkeepPhase public currentPhase;
 
@@ -111,9 +108,6 @@ contract LiquidityOrchestrator is
     /// @notice Live buffer amount [assets]
     uint256 public bufferAmount;
 
-    /// @notice Buffer snapshot captured at epoch start and used as deterministic proof input anchor [assets]
-    uint256 public initialEpochBufferAmount;
-
     /// @notice Pending protocol fees [assets]
     uint256 public pendingProtocolFees;
 
@@ -125,10 +119,8 @@ contract LiquidityOrchestrator is
     /// @notice Cached vaults hash from last full commitment build
     bytes32 private _cachedVaultsHash;
 
-    /// @notice Running vault leaf fold accumulator during StateCommitment phase
-    bytes32 private _partialVaultsHash;
-    /// @notice Number of vault leaves already folded this epoch
-    uint16 private _commitmentBatchIndex;
+    /// @notice Buffer snapshot captured at epoch start and used as deterministic proof input anchor [assets]
+    uint256 public initialEpochBufferAmount;
 
     /// @notice Epoch protocol fees to accrue when transitioning to ProcessVaultOperations.
     uint256 private _pendingEpochProtocolFees;
@@ -151,6 +143,18 @@ contract LiquidityOrchestrator is
 
     /// @notice Current epoch state
     EpochState internal _currentEpoch;
+
+    /// @notice Address of the upgrade timelock that must authorise all implementation upgrades
+    address public upgradeTimelock;
+
+    /// @notice Number of vault leaves folded into the commitment per StateCommitment upkeep step
+    uint8 public commitmentMinibatchSize;
+
+    /// @notice Running vault leaf fold accumulator during StateCommitment phase
+    bytes32 private _partialVaultsHash;
+
+    /// @notice Number of vault leaves already folded this epoch
+    uint16 private _commitmentBatchIndex;
 
     /* -------------------------------------------------------------------------- */
     /*                                MODIFIERS                                   */
@@ -936,9 +940,6 @@ contract LiquidityOrchestrator is
         }
     }
 
-    /// @notice Address of the upgrade timelock that must authorise all implementation upgrades
-    address public upgradeTimelock;
-
     /// @notice Sets the upgrade timelock address.
     /// @dev If no timelock is set yet, only the owner may call this. Once a timelock is active,
     ///      only the timelock itself may replace it, preventing the owner from bypassing the delay.
@@ -967,5 +968,5 @@ contract LiquidityOrchestrator is
     }
 
     /// @dev Storage gap to allow for future upgrades
-    uint256[50] private __gap;
+    uint256[47] private __gap;
 }
