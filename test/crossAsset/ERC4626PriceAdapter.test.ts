@@ -166,20 +166,25 @@ describe("ERC4626PriceAdapter - Coverage Tests", function () {
       expect(vaultPrice).to.be.closeTo(expectedPrice, expectedPrice / 100n); // Within 1%
     });
 
-    //#todo: Fix WBTC whale funding on fork
     it("Should handle vault with different underlying decimals (WBTC - 8 decimals)", async function () {
-      // Deploy a WBTC vault
-      const MockERC4626Factory = await ethers.getContractFactory("MockERC4626Asset");
-      const wbtcVault = await MockERC4626Factory.deploy(MAINNET.WBTC, "WBTC Vault", "vWBTC");
-      await wbtcVault.waitForDeployment();
+      await orionConfig.setTokenDecimals(MAINNET.WBTC, 8);
 
-      // Register in config
-      const mockConfig = await ethers.getContractAt("MockOrionConfig", await orionConfig.getAddress());
-      await mockConfig.setTokenDecimals(await wbtcVault.getAddress(), 18);
+      const MockVaultFactory = await ethers.getContractFactory("TestFixedRatioERC4626");
+      const totalAssets = 100_000_000n; // 1 WBTC (8 decimals)
+      const totalSupply = ethers.parseUnits("1", 18);
+      const wbtcVault = await MockVaultFactory.deploy(
+        MAINNET.WBTC,
+        "WBTC Vault",
+        "vWBTC",
+        18,
+        totalAssets,
+        totalSupply,
+      );
+      await wbtcVault.waitForDeployment();
 
       const [vaultPrice, priceDecimals] = await vaultPriceAdapter.getPriceData(await wbtcVault.getAddress());
 
-      expect(priceDecimals).to.equal(28); // PRICE_DECIMALS (10) + getTokenDecimals(WETH) (18)
+      expect(priceDecimals).to.equal(18); // PRICE_DECIMALS (10) + WBTC decimals (8)
       expect(vaultPrice).to.be.gt(0);
 
       console.log(`  WBTC vault price: ${ethers.formatUnits(vaultPrice, 14)} USDC per share`);
