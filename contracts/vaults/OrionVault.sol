@@ -92,9 +92,6 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     /// @dev When true, intent is overridden to 100% underlying asset
     bool public isDecommissioning;
 
-    /// @notice Underlying amount owed to a user whose redemption transfer failed
-    EnumerableMap.AddressToUintMap private _pendingUnderlyingClaims;
-
     /// @dev Restricts function to only vault manager
     modifier onlyManager() {
         if (msg.sender != manager) revert ErrorsLib.NotAuthorized();
@@ -572,16 +569,6 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     }
 
     /// @inheritdoc IOrionVault
-    function totalPendingUnderlyingClaims() external view returns (uint256 total) {
-        uint256 length = _pendingUnderlyingClaims.length();
-        for (uint256 i = 0; i < length; ++i) {
-            // slither-disable-next-line unused-return
-            (, uint256 amount) = _pendingUnderlyingClaims.at(i);
-            total += amount;
-        }
-    }
-
-    /// @inheritdoc IOrionVault
     function accrueVaultFees(uint256 managementFee, uint256 performanceFee) external onlyLiquidityOrchestrator {
         if (managementFee == 0 && performanceFee == 0) return;
 
@@ -667,27 +654,10 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
             );
             processedShares += userShares;
 
-            try liquidityOrchestrator.transferRedemptionFunds(user, underlyingAmount) {
-                emit Redeem(user, underlyingAmount, userShares);
-            } catch {
-                // slither-disable-next-line unused-return
-                (, uint256 pendingAmount) = _pendingUnderlyingClaims.tryGet(user);
-                // slither-disable-next-line unused-return
-                _pendingUnderlyingClaims.set(user, pendingAmount + underlyingAmount);
-                emit RedemptionFailed(user, underlyingAmount, userShares);
-            }
+            liquidityOrchestrator.transferRedemptionFunds(user, underlyingAmount);
+            emit Redeem(user, underlyingAmount, userShares);
         }
         _burn(address(this), processedShares);
-    }
-
-    /// @inheritdoc IOrionVault
-    function claimUnderlying() external nonReentrant {
-        (bool hasClaim, uint256 amount) = _pendingUnderlyingClaims.tryGet(msg.sender);
-        if (!hasClaim || amount == 0) revert ErrorsLib.InsufficientAmount();
-        // slither-disable-next-line unused-return
-        _pendingUnderlyingClaims.remove(msg.sender);
-        liquidityOrchestrator.transferRedemptionFunds(msg.sender, amount);
-        emit RedemptionClaimed(msg.sender, amount);
     }
 
     /// @dev Storage gap to allow for future upgrades

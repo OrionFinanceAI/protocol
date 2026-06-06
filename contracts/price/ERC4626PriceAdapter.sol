@@ -60,11 +60,16 @@ contract ERC4626PriceAdapter is IPriceAdapter {
         address vaultUnderlying = vault.asset();
 
         uint8 vaultAssetDecimals = IERC20Metadata(vaultAsset).decimals();
-        uint256 precisionAmount = 10 ** (PRICE_DECIMALS + vaultAssetDecimals);
+        uint256 totalAssets = vault.totalAssets();
+        uint256 totalSupply = vault.totalSupply();
 
-        // Floor rounding here, previewMint uses ceil in execution,
-        // buffer to deal with negligible truncation and rounding errors.
-        uint256 vaultUnderlyingAssetAmount = vault.convertToAssets(precisionAmount);
+        if (totalSupply == 0) {
+            return (0, PRICE_DECIMALS + CONFIG.getTokenDecimals(vaultUnderlying));
+        }
+
+        uint8 effectiveShareDecimals = _effectiveShareDecimals(totalAssets, totalSupply, vaultAssetDecimals);
+        uint256 precisionAmount = 10 ** (PRICE_DECIMALS + effectiveShareDecimals);
+        uint256 vaultUnderlyingAssetAmount = Math.mulDiv(totalAssets, precisionAmount, totalSupply);
 
         if (vaultUnderlying == address(UNDERLYING_ASSET)) {
             return (vaultUnderlyingAssetAmount, PRICE_DECIMALS + UNDERLYING_ASSET_DECIMALS);
@@ -77,5 +82,62 @@ contract ERC4626PriceAdapter is IPriceAdapter {
         );
 
         return (vaultPrice, PRICE_DECIMALS + CONFIG.getTokenDecimals(vaultUnderlying));
+    }
+
+    /// @notice Resolves share scale for pricing when reported vault decimals understate per-share value.
+    /// @dev Most vaults return `vaultAssetDecimals` after a single mulDiv. High-supply / low-asset
+    ///      vaults (decimal offset) need a larger scale: `vaultDecimals + digitCount(totalSupply / totalAssets)`.
+    /// @param totalAssets Vault total assets in underlying wei.
+    /// @param totalSupply Vault total supply in share wei.
+    /// @param vaultAssetDecimals IERC20Metadata(vault).decimals().
+    /// @return effectiveShareDecimals Exponent used in 10**effectiveShareDecimals share units.
+    function _effectiveShareDecimals(
+        uint256 totalAssets,
+        uint256 totalSupply,
+        uint8 vaultAssetDecimals
+    ) private pure returns (uint8 effectiveShareDecimals) {
+        uint256 shareUnit = 10 ** uint256(vaultAssetDecimals);
+        uint256 perShare = Math.mulDiv(totalAssets, shareUnit, totalSupply);
+
+        if (perShare > 1 || totalAssets == 0) {
+            return vaultAssetDecimals;
+        }
+
+        if (perShare == 1) {
+            // Distinguish true ~1 wei/share from a truncated larger value.
+            uint256 probePerShare = Math.mulDiv(totalAssets, shareUnit * 10, totalSupply);
+            if (probePerShare <= 10) {
+                return vaultAssetDecimals;
+            }
+        }
+
+        uint256 supplyToAssetsRatio = Math.mulDiv(totalSupply, 1, totalAssets);
+        uint8 extraDecimals = _decimalDigits(supplyToAssetsRatio);
+        uint256 adjusted = uint256(vaultAssetDecimals) + uint256(extraDecimals);
+
+        if (adjusted > 38) {
+            return 38;
+        }
+
+        return uint8(adjusted);
+    }
+
+    /// @notice Returns the number of decimal digits in `value` (minimum 1 when `value` > 0).
+    /// @param value The integer to measure.
+    /// @return digits The count of decimal digits in `value`.
+    function _decimalDigits(uint256 value) private pure returns (uint8) {
+        if (value == 0) {
+            return 0;
+        }
+
+        uint8 digits = 1;
+        while (value > 9) {
+            value /= 10;
+            unchecked {
+                ++digits;
+            }
+        }
+
+        return digits;
     }
 }

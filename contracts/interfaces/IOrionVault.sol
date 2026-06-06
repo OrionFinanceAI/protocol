@@ -3,7 +3,6 @@ pragma solidity ^0.8.34;
 
 import "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import "./IOrionConfig.sol";
-import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /// @title IOrionVault
 /// @notice Interface for Orion vaults
@@ -52,17 +51,6 @@ interface IOrionVault is IERC4626 {
     /// @param redeemAmount The amount of assets redeemed by the user.
     /// @param sharesBurned The number of shares burned for the user.
     event Redeem(address indexed user, uint256 indexed redeemAmount, uint256 indexed sharesBurned);
-
-    /// @notice Transfer to the redeemer failed (e.g. USDC denylist); funds are held until claimed.
-    /// @param user The address of the recipient whose transfer failed.
-    /// @param amount The underlying amount that could not be transferred.
-    /// @param shares The number of shares that could not be redeemed.
-    event RedemptionFailed(address indexed user, uint256 indexed amount, uint256 indexed shares);
-
-    /// @notice A previously failed redemption transfer has been claimed by the user.
-    /// @param user The address of the claimer.
-    /// @param amount The underlying amount claimed.
-    event RedemptionClaimed(address indexed user, uint256 indexed amount);
 
     /// @notice Fees have been accrued.
     /// @param managementFee The amount of management fees accrued.
@@ -124,13 +112,13 @@ interface IOrionVault is IERC4626 {
     /// @return The currently active fee model
     function activeFeeModel() external view returns (FeeModel memory);
 
-    /// --------- CONFIG FUNCTIONS ---------
+    // --------- CONFIG FUNCTIONS ---------
 
     /// @notice Override intent to 100% underlying asset for decommissioning
     /// @dev Can only be called by the OrionConfig contract
     function overrideIntentForDecommissioning() external;
 
-    /// --------- LP FUNCTIONS ---------
+    // --------- LP FUNCTIONS ---------
 
     /// @notice Submit an asynchronous deposit request.
     /// @dev No share tokens are minted immediately. The specified amount of underlying tokens
@@ -157,10 +145,6 @@ interface IOrionVault is IERC4626 {
     ///      Share tokens are returned from the vault.
     /// @param shares The amount of share tokens to recover.
     function cancelRedeemRequest(uint256 shares) external;
-
-    /// @notice Claim underlying funds from a previously failed redemption transfer.
-    /// @dev Called by the user after the transfer blocker (e.g. denylist) has been resolved.
-    function claimUnderlying() external;
 
     // --------- MANAGER AND STRATEGIST FUNCTIONS ---------
 
@@ -189,7 +173,7 @@ interface IOrionVault is IERC4626 {
     ///      to ensure the deposit access control is capable of performing its duties.
     function setDepositAccessControl(address newDepositAccessControl) external;
 
-    /// --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
+    // --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
 
     /// @notice Get total pending deposit amount across all users
     /// @param fulfillBatchSize The maximum number of requests to process per fulfill call
@@ -220,10 +204,6 @@ interface IOrionVault is IERC4626 {
     function pendingRedeemBatch(
         uint256 fulfillBatchSize
     ) external view returns (address[] memory users, uint256[] memory shares);
-
-    /// @notice Total underlying assets owed to users whose redemption transfer failed
-    /// @return total Sum of all pending underlying claims across all users
-    function totalPendingUnderlyingClaims() external view returns (uint256 total);
 
     /// @notice Process all pending deposit requests and mint shares to depositors
     /// @param depositTotalAssets The total assets associated with the deposit requests

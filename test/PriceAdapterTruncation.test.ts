@@ -99,13 +99,14 @@ describe("Price Adapter Truncation", function () {
   });
 
   it("should demonstrate ERC4626 getPriceData preserves precision and avoids truncation", async function () {
-    // ERC4626PriceAdapter uses: precisionAmount = 10^(PRICE_DECIMALS + vaultDecimals), then
-    // vaultPrice = convertToAssets(precisionAmount).mulDiv(underlyingPrice, 10^priceAdapterDecimals)
-    // Replicate that formula for expected price.
+    // ERC4626PriceAdapter uses mulDiv(totalAssets, 10^(PRICE_DECIMALS + effectiveShareDecimals), totalSupply)
+    // then composes with underlying price. Replicate that formula for expected price.
 
     const vaultDecimals = await vault.decimals();
+    const totalAssets = await vault.totalAssets();
+    const totalSupply = await vault.totalSupply();
     const precisionAmount = 10n ** BigInt(10 + Number(vaultDecimals)); // PRICE_DECIMALS (10) + vault decimals (18) = 10^28
-    const vaultUnderlyingAssetAmount = await vault.convertToAssets(precisionAmount);
+    const vaultUnderlyingAssetAmount = (totalAssets * precisionAmount) / totalSupply;
 
     const priceRegistry = await ethers.getContractAt("PriceAdapterRegistry", await orionConfig.priceAdapterRegistry());
     const underlyingPriceInUSDC = await priceRegistry.getPrice(await vaultUnderlying.getAddress());
