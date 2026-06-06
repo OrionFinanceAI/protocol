@@ -96,10 +96,6 @@ contract ERC4626PriceAdapter is IPriceAdapter {
         uint256 totalSupply,
         uint8 vaultAssetDecimals
     ) private pure returns (uint8 effectiveShareDecimals) {
-        if (totalSupply == 0) {
-            return vaultAssetDecimals;
-        }
-
         uint256 shareUnit = 10 ** uint256(vaultAssetDecimals);
         uint256 perShare = Math.mulDiv(totalAssets, shareUnit, totalSupply);
 
@@ -129,7 +125,7 @@ contract ERC4626PriceAdapter is IPriceAdapter {
     /// @notice Returns the number of decimal digits in `value` (minimum 1 when `value` > 0).
     /// @param value The integer to measure.
     /// @return digits The count of decimal digits in `value`.
-    function _decimalDigits(uint256 value) private pure returns (uint8 digits) {
+    function _decimalDigits(uint256 value) private pure returns (uint8) {
         if (value == 0) {
             return 0;
         }

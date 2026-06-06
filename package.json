@@ -46,6 +46,7 @@
     "@nomicfoundation/hardhat-network-helpers": "^3.0.9",
     "@nomicfoundation/hardhat-toolbox-mocha-ethers": "^3.0.6",
     "@nomicfoundation/hardhat-typechain": "^3.1.0",
+    "@nomicfoundation/hardhat-verify": "^3.0.18",
     "@nomicfoundation/ignition-core": "^3.1.6",
     "@typechain/ethers-v6": "^0.5.1",
     "@types/chai": "^5.2.3",
