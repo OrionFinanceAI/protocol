@@ -2,14 +2,13 @@ import * as dotenv from "dotenv";
 import { defineConfig } from "hardhat/config";
 import hardhatToolboxMochaEthers from "@nomicfoundation/hardhat-toolbox-mocha-ethers";
 import hardhatTypechain from "@nomicfoundation/hardhat-typechain";
-import hardhatVerify from "@nomicfoundation/hardhat-verify";
 
 dotenv.config({ quiet: true });
 
 const useMainnetFork = process.env.FORK_MAINNET === "true" && Boolean(process.env.MAINNET_RPC_URL);
 
 const config = defineConfig({
-  plugins: [hardhatToolboxMochaEthers, hardhatTypechain, hardhatVerify],
+  plugins: [hardhatToolboxMochaEthers, hardhatTypechain],
   paths: {
     tests: {
       solidity: "test/solidity",
@@ -72,10 +71,6 @@ const config = defineConfig({
           },
         }
       : {}),
-  },
-
-  etherscan: {
-    apiKey: process.env.ETHERSCAN_API_KEY ?? "",
   },
 });
 

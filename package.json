@@ -30,9 +30,7 @@
     "docgen": "cross-env TS_NODE_TRANSPILE_ONLY=true hardhat compile && node scripts/run-docgen.mjs",
     "prettier:check": "prettier --check \"**/*.{js,json,md,sol,ts,yml}\"",
     "prettier:write": "prettier --write \"**/*.{js,json,md,sol,ts,yml}\"",
-    "slither": "bash scripts/run-slither.sh",
-    "verify:vault": "hardhat run protocol-ops/verify-vault.ts --network sepolia",
-    "storage-layout": "hardhat run scripts/check-storage-layout.ts"
+    "slither": "bash scripts/run-slither.sh"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.5",
@@ -48,9 +46,7 @@
     "@nomicfoundation/hardhat-network-helpers": "^3.0.9",
     "@nomicfoundation/hardhat-toolbox-mocha-ethers": "^3.0.6",
     "@nomicfoundation/hardhat-typechain": "^3.1.0",
-    "@nomicfoundation/hardhat-verify": "^3.0.18",
     "@nomicfoundation/ignition-core": "^3.1.6",
-    "@openzeppelin/hardhat-upgrades": "^3.9.1",
     "@typechain/ethers-v6": "^0.5.1",
     "@types/chai": "^5.2.3",
     "@types/mocha": "^10.0.10",
