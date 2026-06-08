@@ -15,4 +15,26 @@ contract LiquidityOrchestratorHarness is LiquidityOrchestrator {
     function exposed_calculateMinWithSlippage(uint256 estimatedAmount) external view returns (uint256) {
         return _calculateMinWithSlippage(estimatedAmount);
     }
+
+    function exposed_processSingleVaultOperations(
+        address vaultAddress,
+        uint256 totalAssetsForDeposit,
+        uint256 totalAssetsForRedeem,
+        uint256 finalTotalAssets,
+        uint256 managementFee,
+        uint256 performanceFee,
+        address[] memory tokens,
+        uint256[] memory shares
+    ) external {
+        _processSingleVaultOperations(
+            vaultAddress,
+            totalAssetsForDeposit,
+            totalAssetsForRedeem,
+            finalTotalAssets,
+            managementFee,
+            performanceFee,
+            tokens,
+            shares
+        );
+    }
 }
