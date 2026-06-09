@@ -76,6 +76,10 @@ interface ILiquidityOrchestrator {
     /// @return The current LiquidityUpkeepPhase
     function currentPhase() external view returns (LiquidityUpkeepPhase);
 
+    /// @notice Returns how many leg slots were already processed in the active minibatch window
+    /// @return Leg slots completed since `currentMinibatchIndex` was set
+    function completedInCurrentMinibatch() external view returns (uint16);
+
     /// @notice Returns the target buffer ratio
     /// @return The target buffer ratio
     function targetBufferRatio() external view returns (uint256);
