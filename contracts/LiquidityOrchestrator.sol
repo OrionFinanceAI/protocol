@@ -918,6 +918,7 @@ contract LiquidityOrchestrator is
 
             _processSingleVaultOperations(
                 vaultAddress,
+                vaultState.processRedeem,
                 vaultState.totalAssetsForDeposit,
                 vaultState.totalAssetsForRedeem,
                 vaultState.finalTotalAssets,
@@ -931,6 +932,7 @@ contract LiquidityOrchestrator is
 
     /// @notice Processes deposit and redeem operations for a single vault
     /// @param vaultAddress The vault address
+    /// @param processRedeem When false, redeem fulfillment is skipped even if pending requests exist
     /// @param totalAssetsForDeposit The total assets for deposit operations
     /// @param totalAssetsForRedeem The total assets for redeem operations
     /// @param finalTotalAssets The final total assets for the vault
@@ -940,6 +942,7 @@ contract LiquidityOrchestrator is
     /// @param shares The portfolio token number of shares
     function _processSingleVaultOperations(
         address vaultAddress,
+        bool processRedeem,
         uint256 totalAssetsForDeposit,
         uint256 totalAssetsForRedeem,
         uint256 finalTotalAssets,
@@ -954,7 +957,7 @@ contract LiquidityOrchestrator is
         uint256 pendingRedeem = vaultContract.pendingRedeem(maxFulfillBatchSize);
         uint256 pendingDeposit = vaultContract.pendingDeposit(maxFulfillBatchSize);
 
-        if (pendingRedeem > 0) {
+        if (processRedeem && pendingRedeem > 0) {
             vaultContract.fulfillRedeem(totalAssetsForRedeem);
         }
 

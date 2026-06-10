@@ -51,6 +51,7 @@ interface ILiquidityOrchestrator {
     }
 
     struct VaultState {
+        bool processRedeem;
         uint256 totalAssetsForRedeem;
         uint256 totalAssetsForDeposit;
         uint256 finalTotalAssets;

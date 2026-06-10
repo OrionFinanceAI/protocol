@@ -51,6 +51,7 @@ describe("Vault decommissioning completion", function () {
   ): Promise<void> {
     await harness.exposed_processSingleVaultOperations(
       await vault.getAddress(),
+      true,
       0n,
       0n,
       finalTotalAssets,
