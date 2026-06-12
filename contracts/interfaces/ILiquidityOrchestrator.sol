@@ -155,13 +155,15 @@ interface ILiquidityOrchestrator {
     function updateAutomationRegistry(address newAutomationRegistry) external;
 
     /// @notice Updates the verifier contract address
-    /// @dev Only the owner may call this. Reverts with SystemNotIdle if an epoch is in progress,
-    ///      ensuring no mid-epoch proof verification uses a mismatched verifier.
+    /// @dev Callable mid-epoch for maintenance. The owner must coordinate with the zk-orchestrator so
+    ///      proofs submitted after this change are verified by the new contract.
     /// @param newVerifier The address of the new verifier contract
     function updateVerifier(address newVerifier) external;
 
     /// @notice Updates the internal state orchestrator verification key
-    /// @dev Reverts with InvalidArguments if newvKey is bytes32(0).
+    /// @dev Callable mid-epoch for maintenance. Reverts with InvalidArguments if newvKey is bytes32(0).
+    ///      The owner must coordinate with the zk-orchestrator so proofs submitted after this change
+    ///      match the new verification key and current epoch commitments.
     /// @param newvKey The new verification key
     function updateVKey(bytes32 newvKey) external;
 

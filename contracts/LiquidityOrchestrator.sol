@@ -286,7 +286,6 @@ contract LiquidityOrchestrator is
     /// @inheritdoc ILiquidityOrchestrator
     function updateVerifier(address newVerifier) external onlyOwner {
         if (newVerifier == address(0)) revert ErrorsLib.ZeroAddress();
-        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         verifier = ISP1Verifier(newVerifier);
         emit EventsLib.SP1VerifierUpdated(newVerifier);
     }
@@ -294,7 +293,6 @@ contract LiquidityOrchestrator is
     /// @inheritdoc ILiquidityOrchestrator
     function updateVKey(bytes32 newvKey) external onlyOwner {
         if (newvKey == bytes32(0)) revert ErrorsLib.InvalidArguments();
-        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         vKey = newvKey;
         emit EventsLib.VKeyUpdated(newvKey);
     }
