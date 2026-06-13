@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.34;
 
-import { IExecutionAdapter } from "../interfaces/IExecutionAdapter.sol";
 import { LiquidityOrchestrator } from "../LiquidityOrchestrator.sol";
 
 /**
@@ -39,23 +38,5 @@ contract LiquidityOrchestratorHarness is LiquidityOrchestrator {
             tokens,
             shares
         );
-    }
-
-    function exposed_processMinibatchSell(SellLegOrders memory sellLeg) external {
-        _processMinibatchSell(sellLeg);
-    }
-
-    function exposed_setLegUpkeepState(
-        LiquidityUpkeepPhase phase,
-        uint8 minibatchIndex,
-        uint16 completedInMinibatch
-    ) external {
-        currentPhase = phase;
-        currentMinibatchIndex = minibatchIndex;
-        completedInCurrentMinibatch = completedInMinibatch;
-    }
-
-    function exposed_registerExecutionAdapter(address asset, address adapter) external {
-        executionAdapterOf[asset] = IExecutionAdapter(adapter);
     }
 }

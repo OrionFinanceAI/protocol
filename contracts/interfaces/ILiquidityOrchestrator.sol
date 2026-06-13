@@ -18,22 +18,6 @@ interface ILiquidityOrchestrator {
         ProcessVaultOperations
     }
 
-    /// @notice Struct to hold vault state data
-    struct VaultStateData {
-        uint8[] feeTypes;
-        uint16[] performanceFees;
-        uint16[] managementFees;
-        uint256[] highWaterMarks;
-        uint256[] pendingRedeems;
-        uint256[] pendingDeposits;
-        uint256[] totalSupplies;
-        uint256[] totalAssets;
-        address[][] portfolioTokens;
-        uint256[][] portfolioShares;
-        address[][] intentTokens;
-        uint32[][] intentWeights;
-    }
-
     struct PublicValuesStruct {
         /// @notice Input state commitments
         bytes32 inputCommitment;
