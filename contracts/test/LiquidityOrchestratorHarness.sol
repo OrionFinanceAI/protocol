@@ -5,7 +5,7 @@ import { LiquidityOrchestrator } from "../LiquidityOrchestrator.sol";
 
 /**
  * @title LiquidityOrchestratorHarness
- * @notice Test harness that exposes internal slippage helper functions for direct testing
+ * @notice Test harness that exposes internal helper functions for direct testing
  */
 contract LiquidityOrchestratorHarness is LiquidityOrchestrator {
     function exposed_calculateMaxWithSlippage(uint256 estimatedAmount) external view returns (uint256) {
@@ -18,6 +18,7 @@ contract LiquidityOrchestratorHarness is LiquidityOrchestrator {
 
     function exposed_processSingleVaultOperations(
         address vaultAddress,
+        bool processRedeem,
         uint256 totalAssetsForDeposit,
         uint256 totalAssetsForRedeem,
         uint256 finalTotalAssets,
@@ -28,6 +29,7 @@ contract LiquidityOrchestratorHarness is LiquidityOrchestrator {
     ) external {
         _processSingleVaultOperations(
             vaultAddress,
+            processRedeem,
             totalAssetsForDeposit,
             totalAssetsForRedeem,
             finalTotalAssets,

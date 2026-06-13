@@ -156,6 +156,9 @@ contract LiquidityOrchestrator is
     /// @notice Number of vault leaves already folded this epoch
     uint16 private _commitmentBatchIndex;
 
+    /// @notice On-chain resume cursor for the active sell/buy minibatch window.
+    uint16 public completedInCurrentMinibatch;
+
     /* -------------------------------------------------------------------------- */
     /*                                MODIFIERS                                   */
     /* -------------------------------------------------------------------------- */
@@ -238,14 +241,6 @@ contract LiquidityOrchestrator is
         _nextUpdateTime = block.timestamp + epochDuration;
     }
 
-    /// @dev Must be called via upgradeToAndCall so migration is atomic with the implementation swap.
-    // solhint-disable-next-line use-natspec
-    function initializeV2() external reinitializer(2) onlyOwner {
-        if (commitmentMinibatchSize == 0) {
-            commitmentMinibatchSize = 1;
-        }
-    }
-
     /* -------------------------------------------------------------------------- */
     /*                                OWNER FUNCTIONS                             */
     /* -------------------------------------------------------------------------- */
@@ -276,7 +271,7 @@ contract LiquidityOrchestrator is
     /// @inheritdoc ILiquidityOrchestrator
     function updateCommitmentMinibatchSize(uint8 _commitmentMinibatchSize) external onlyOwnerOrGuardian {
         if (_commitmentMinibatchSize == 0) revert ErrorsLib.InvalidArguments();
-        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+        if (commitmentMinibatchSize != 0 && !config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         commitmentMinibatchSize = _commitmentMinibatchSize;
     }
 
@@ -291,7 +286,6 @@ contract LiquidityOrchestrator is
     /// @inheritdoc ILiquidityOrchestrator
     function updateVerifier(address newVerifier) external onlyOwner {
         if (newVerifier == address(0)) revert ErrorsLib.ZeroAddress();
-        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         verifier = ISP1Verifier(newVerifier);
         emit EventsLib.SP1VerifierUpdated(newVerifier);
     }
@@ -299,7 +293,6 @@ contract LiquidityOrchestrator is
     /// @inheritdoc ILiquidityOrchestrator
     function updateVKey(bytes32 newvKey) external onlyOwner {
         if (newvKey == bytes32(0)) revert ErrorsLib.InvalidArguments();
-        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         vKey = newvKey;
         emit EventsLib.VKeyUpdated(newvKey);
     }
@@ -535,6 +528,7 @@ contract LiquidityOrchestrator is
         // Reset incremental commitment state for the new epoch
         _partialVaultsHash = bytes32(0);
         _commitmentBatchIndex = 0;
+        completedInCurrentMinibatch = 0;
 
         currentPhase = LiquidityUpkeepPhase.StateCommitment;
 
@@ -624,6 +618,7 @@ contract LiquidityOrchestrator is
                 abi.encode(protocolStateHash, assetsHash, _partialVaultsHash)
             );
 
+            completedInCurrentMinibatch = 0;
             currentPhase = LiquidityUpkeepPhase.SellingLeg;
             emit EventsLib.EpochStateCommitted(epochCounter, _currentEpoch.epochStateCommitment);
         }
@@ -705,71 +700,108 @@ contract LiquidityOrchestrator is
 
     /// @notice Handles the sell action
     /// @param sellLeg The sell leg orders
-    // slither-disable-next-line reentrancy-no-eth
     function _processMinibatchSell(SellLegOrders memory sellLeg) internal {
-        uint16 i0 = currentMinibatchIndex * executionMinibatchSize;
-        uint16 i1 = i0 + executionMinibatchSize;
-
-        if (i1 > sellLeg.sellingTokens.length || i1 == sellLeg.sellingTokens.length) {
-            i1 = uint16(sellLeg.sellingTokens.length);
-        }
-
-        for (uint16 i = i0; i < i1; ++i) {
-            address token = sellLeg.sellingTokens[i];
-            if (token == address(underlyingAsset)) continue;
-            uint256 amount = sellLeg.sellingAmounts[i];
-            try this._executeSell(token, amount, sellLeg.sellingEstimatedUnderlyingAmounts[i]) {
-                // successful execution, continue.
-            } catch {
-                _failedEpochTokens.push(token);
-                _currentEpoch.epochStateCommitment = keccak256(
-                    abi.encode(_buildProtocolStateHash(), _cachedAssetsHash, _cachedVaultsHash)
-                );
-                emit EventsLib.EpochStateCommitted(epochCounter, _currentEpoch.epochStateCommitment);
-                return;
-            }
-        }
-
-        ++currentMinibatchIndex;
-        if (i1 == sellLeg.sellingTokens.length) {
-            currentMinibatchIndex = 0;
-            currentPhase = LiquidityUpkeepPhase.BuyingLeg;
-        }
+        _processMinibatchLeg(
+            sellLeg.sellingTokens,
+            sellLeg.sellingAmounts,
+            sellLeg.sellingEstimatedUnderlyingAmounts,
+            true
+        );
     }
 
     /// @notice Handles the buy action
     /// @param buyLeg The buy leg orders
-    // slither-disable-next-line reentrancy-no-eth
     function _processMinibatchBuy(BuyLegOrders memory buyLeg) internal {
-        uint16 i0 = currentMinibatchIndex * executionMinibatchSize;
-        uint16 i1 = i0 + executionMinibatchSize;
+        _processMinibatchLeg(buyLeg.buyingTokens, buyLeg.buyingAmounts, buyLeg.buyingEstimatedUnderlyingAmounts, false);
+    }
 
-        if (i1 > buyLeg.buyingTokens.length || i1 == buyLeg.buyingTokens.length) {
-            i1 = uint16(buyLeg.buyingTokens.length);
+    /// @notice Processes the next sell or buy minibatch window with resume support
+    /// @param tokens Leg token addresses
+    /// @param amounts Leg share amounts
+    /// @param estimatedUnderlyingAmounts Leg underlying estimates
+    /// @param isSell True for sell leg, false for buy leg
+    // slither-disable-next-line reentrancy-no-eth
+    function _processMinibatchLeg(
+        address[] memory tokens,
+        uint256[] memory amounts,
+        uint256[] memory estimatedUnderlyingAmounts,
+        bool isSell
+    ) internal {
+        uint16 batchSize = executionMinibatchSize;
+        uint16 i0 = currentMinibatchIndex * batchSize;
+        uint16 i1 = i0 + batchSize;
+        uint256 tokenCount = tokens.length;
+        if (i1 > tokenCount) {
+            i1 = uint16(tokenCount);
         }
 
-        for (uint16 i = i0; i < i1; ++i) {
-            address token = buyLeg.buyingTokens[i];
-            if (token == address(underlyingAsset)) continue;
-            uint256 amount = buyLeg.buyingAmounts[i];
-            try this._executeBuy(token, amount, buyLeg.buyingEstimatedUnderlyingAmounts[i]) {
-                // successful execution, continue.
-            } catch {
-                _failedEpochTokens.push(token);
-                _currentEpoch.epochStateCommitment = keccak256(
-                    abi.encode(_buildProtocolStateHash(), _cachedAssetsHash, _cachedVaultsHash)
-                );
-                emit EventsLib.EpochStateCommitted(epochCounter, _currentEpoch.epochStateCommitment);
-                return;
+        uint16 start = i0 + completedInCurrentMinibatch;
+        if (start >= i1) {
+            completedInCurrentMinibatch = 0;
+            ++currentMinibatchIndex;
+            _finalizeMinibatchLeg(isSell, i1 == tokenCount);
+            return;
+        }
+
+        for (uint16 i = start; i < i1; ++i) {
+            address token = tokens[i];
+            uint256 amount = amounts[i];
+
+            if (token == address(underlyingAsset)) {
+                ++completedInCurrentMinibatch;
+                continue;
+            }
+            if (amount == 0) {
+                ++completedInCurrentMinibatch;
+                continue;
+            }
+
+            if (isSell) {
+                try this._executeSell(token, amount, estimatedUnderlyingAmounts[i]) {
+                    ++completedInCurrentMinibatch;
+                } catch {
+                    _handleMinibatchLegFailure(token);
+                    return;
+                }
+            } else {
+                try this._executeBuy(token, amount, estimatedUnderlyingAmounts[i]) {
+                    ++completedInCurrentMinibatch;
+                } catch {
+                    _handleMinibatchLegFailure(token);
+                    return;
+                }
             }
         }
 
+        completedInCurrentMinibatch = 0;
         ++currentMinibatchIndex;
-        if (i1 == buyLeg.buyingTokens.length) {
+        _finalizeMinibatchLeg(isSell, i1 == tokenCount);
+    }
+
+    /// @notice Records a failed minibatch leg and refreshes the epoch commitment without advancing the minibatch index
+    function _handleMinibatchLegFailure(address token) internal {
+        _failedEpochTokens.push(token);
+        _currentEpoch.epochStateCommitment = keccak256(
+            abi.encode(_buildProtocolStateHash(), _cachedAssetsHash, _cachedVaultsHash)
+        );
+        emit EventsLib.EpochStateCommitted(epochCounter, _currentEpoch.epochStateCommitment);
+    }
+
+    /// @notice Applies phase transitions after a minibatch window completes successfully
+    function _finalizeMinibatchLeg(bool isSell, bool legFinished) internal {
+        if (!legFinished) {
+            return;
+        }
+
+        currentMinibatchIndex = 0;
+        completedInCurrentMinibatch = 0;
+
+        if (isSell) {
+            currentPhase = LiquidityUpkeepPhase.BuyingLeg;
+        } else {
             pendingProtocolFees += _pendingEpochProtocolFees;
             emit EventsLib.ProtocolFeesAccrued(_pendingEpochProtocolFees);
             _pendingEpochProtocolFees = 0;
-            currentMinibatchIndex = 0;
             currentPhase = LiquidityUpkeepPhase.ProcessVaultOperations;
         }
     }
@@ -874,6 +906,7 @@ contract LiquidityOrchestrator is
             i1 = uint16(vaultsEpoch.length);
             currentPhase = LiquidityUpkeepPhase.Idle;
             currentMinibatchIndex = 0;
+            completedInCurrentMinibatch = 0;
             _nextUpdateTime = block.timestamp + epochDuration;
         }
 
@@ -883,6 +916,7 @@ contract LiquidityOrchestrator is
 
             _processSingleVaultOperations(
                 vaultAddress,
+                vaultState.processRedeem,
                 vaultState.totalAssetsForDeposit,
                 vaultState.totalAssetsForRedeem,
                 vaultState.finalTotalAssets,
@@ -896,6 +930,7 @@ contract LiquidityOrchestrator is
 
     /// @notice Processes deposit and redeem operations for a single vault
     /// @param vaultAddress The vault address
+    /// @param processRedeem When false, redeem fulfillment is skipped even if pending requests exist
     /// @param totalAssetsForDeposit The total assets for deposit operations
     /// @param totalAssetsForRedeem The total assets for redeem operations
     /// @param finalTotalAssets The final total assets for the vault
@@ -905,6 +940,7 @@ contract LiquidityOrchestrator is
     /// @param shares The portfolio token number of shares
     function _processSingleVaultOperations(
         address vaultAddress,
+        bool processRedeem,
         uint256 totalAssetsForDeposit,
         uint256 totalAssetsForRedeem,
         uint256 finalTotalAssets,
@@ -919,7 +955,7 @@ contract LiquidityOrchestrator is
         uint256 pendingRedeem = vaultContract.pendingRedeem(maxFulfillBatchSize);
         uint256 pendingDeposit = vaultContract.pendingDeposit(maxFulfillBatchSize);
 
-        if (pendingRedeem > 0) {
+        if (processRedeem && pendingRedeem > 0) {
             vaultContract.fulfillRedeem(totalAssetsForRedeem);
         }
 
@@ -970,5 +1006,5 @@ contract LiquidityOrchestrator is
     }
 
     /// @dev Storage gap to allow for future upgrades
-    uint256[47] private __gap;
+    uint256[46] private __gap;
 }

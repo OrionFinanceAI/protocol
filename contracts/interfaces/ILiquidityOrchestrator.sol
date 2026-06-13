@@ -18,22 +18,6 @@ interface ILiquidityOrchestrator {
         ProcessVaultOperations
     }
 
-    /// @notice Struct to hold vault state data
-    struct VaultStateData {
-        uint8[] feeTypes;
-        uint16[] performanceFees;
-        uint16[] managementFees;
-        uint256[] highWaterMarks;
-        uint256[] pendingRedeems;
-        uint256[] pendingDeposits;
-        uint256[] totalSupplies;
-        uint256[] totalAssets;
-        address[][] portfolioTokens;
-        uint256[][] portfolioShares;
-        address[][] intentTokens;
-        uint32[][] intentWeights;
-    }
-
     struct PublicValuesStruct {
         /// @notice Input state commitments
         bytes32 inputCommitment;
@@ -51,6 +35,7 @@ interface ILiquidityOrchestrator {
     }
 
     struct VaultState {
+        bool processRedeem;
         uint256 totalAssetsForRedeem;
         uint256 totalAssetsForDeposit;
         uint256 finalTotalAssets;
@@ -75,6 +60,10 @@ interface ILiquidityOrchestrator {
     /// @notice Returns the current upkeep phase
     /// @return The current LiquidityUpkeepPhase
     function currentPhase() external view returns (LiquidityUpkeepPhase);
+
+    /// @notice Returns how many leg slots were already processed in the active minibatch window
+    /// @return Leg slots completed since `currentMinibatchIndex` was set
+    function completedInCurrentMinibatch() external view returns (uint16);
 
     /// @notice Returns the target buffer ratio
     /// @return The target buffer ratio
@@ -150,13 +139,15 @@ interface ILiquidityOrchestrator {
     function updateAutomationRegistry(address newAutomationRegistry) external;
 
     /// @notice Updates the verifier contract address
-    /// @dev Only the owner may call this. Reverts with SystemNotIdle if an epoch is in progress,
-    ///      ensuring no mid-epoch proof verification uses a mismatched verifier.
+    /// @dev Callable mid-epoch for maintenance. The owner must coordinate with the zk-orchestrator so
+    ///      proofs submitted after this change are verified by the new contract.
     /// @param newVerifier The address of the new verifier contract
     function updateVerifier(address newVerifier) external;
 
     /// @notice Updates the internal state orchestrator verification key
-    /// @dev Reverts with InvalidArguments if newvKey is bytes32(0).
+    /// @dev Callable mid-epoch for maintenance. Reverts with InvalidArguments if newvKey is bytes32(0).
+    ///      The owner must coordinate with the zk-orchestrator so proofs submitted after this change
+    ///      match the new verification key and current epoch commitments.
     /// @param newvKey The new verification key
     function updateVKey(bytes32 newvKey) external;
 
