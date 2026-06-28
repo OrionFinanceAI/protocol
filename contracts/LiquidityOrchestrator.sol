@@ -474,12 +474,11 @@ contract LiquidityOrchestrator is
         } else if (currentPhase == LiquidityUpkeepPhase.SellingLeg) {
             StatesStruct memory states = _verifyPerformData(_publicValues, proofBytes, statesBytes);
 
-            if (currentMinibatchIndex == 0) {
+            _processMinibatchSell(states.sellLeg);
+            if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
                 bufferAmount = states.bufferAmount;
                 _pendingEpochProtocolFees = states.epochProtocolFees;
             }
-
-            _processMinibatchSell(states.sellLeg);
         } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
             StatesStruct memory states = _verifyPerformData(_publicValues, proofBytes, statesBytes);
             _processMinibatchBuy(states.buyLeg);
