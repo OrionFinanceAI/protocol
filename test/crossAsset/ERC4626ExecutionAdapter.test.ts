@@ -393,8 +393,7 @@ describe("ERC4626ExecutionAdapter", function () {
       const mockVault = await MockERC4626Factory.deploy(MAINNET.WBTC, "Mock WBTC Vault", "mWBTC");
       await mockVault.waitForDeployment();
 
-      // MockOrionConfig returns hardcoded 18 decimals for all tokens
-      // Should fail validation because WBTC has no swap executor registered in LO
+      // Should fail validation because WBTC underlying is not registered in config (decimals mismatch)
       await expect(vaultAdapter.validateExecutionAdapter(await mockVault.getAddress())).to.be.revertedWithCustomError(
         vaultAdapter,
         "InvalidAdapter",

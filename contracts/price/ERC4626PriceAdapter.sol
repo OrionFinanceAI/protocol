@@ -64,7 +64,7 @@ contract ERC4626PriceAdapter is IPriceAdapter {
         uint256 totalSupply = vault.totalSupply();
 
         if (totalSupply == 0) {
-            return (0, PRICE_DECIMALS + CONFIG.getTokenDecimals(vaultUnderlying));
+            return (0, PRICE_DECIMALS + CONFIG.tokenDecimals(vaultUnderlying));
         }
 
         uint8 effectiveShareDecimals = _effectiveShareDecimals(totalAssets, totalSupply, vaultAssetDecimals);
@@ -81,7 +81,7 @@ contract ERC4626PriceAdapter is IPriceAdapter {
             10 ** CONFIG.priceAdapterDecimals()
         );
 
-        return (vaultPrice, PRICE_DECIMALS + CONFIG.getTokenDecimals(vaultUnderlying));
+        return (vaultPrice, PRICE_DECIMALS + CONFIG.tokenDecimals(vaultUnderlying));
     }
 
     /// @notice Resolves share scale for pricing when reported vault decimals understate per-share value.

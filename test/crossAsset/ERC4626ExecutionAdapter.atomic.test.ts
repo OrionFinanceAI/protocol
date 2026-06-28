@@ -415,7 +415,6 @@ describe("ERC4626ExecutionAdapter - Atomic Guarantees (Unit)", function () {
       const strictConfigFactory = await ethers.getContractFactory("MockOrionConfig");
       const strictConfig = (await strictConfigFactory.deploy(await usdc.getAddress())) as unknown as MockOrionConfig;
       await strictConfig.setLiquidityOrchestrator(await liquidityOrchestrator.getAddress());
-      await strictConfig.setReturnZeroForUnsetTokens(true);
       await strictConfig.setTokenDecimals(await vault.getAddress(), WETH_DECIMALS); // vault shares only; WETH not set => 0
 
       const adapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");

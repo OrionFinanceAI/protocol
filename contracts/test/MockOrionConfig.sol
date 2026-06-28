@@ -13,10 +13,8 @@ contract MockOrionConfig {
     address public liquidityOrchestrator;
     address public priceAdapterRegistryAddress;
     uint256 public slippageTolerance = 200; // 2% in basis points
-    mapping(address => uint8) private tokenDecimals;
+    mapping(address => uint8) public tokenDecimals;
     mapping(address => bool) private whitelisted;
-    /// @dev When true, return 0 for unset tokens (simulates real OrionConfig where unwhitelisted tokens have no entry)
-    bool public returnZeroForUnsetTokens;
     /// @dev Mirrors OrionConfig `isSystemIdle` for adapter tests; default true (idle).
     bool public systemIdle = true;
 
@@ -42,12 +40,6 @@ contract MockOrionConfig {
         return 14; // Protocol standard for price adapter decimals
     }
 
-    function getTokenDecimals(address token) external view returns (uint8) {
-        uint8 decimals = tokenDecimals[token];
-        if (returnZeroForUnsetTokens && decimals == 0) return 0;
-        return decimals == 0 ? 18 : decimals; // Default to 18 if not set
-    }
-
     // Mock helpers for testing
     function setSlippageTolerance(uint256 _tolerance) external {
         slippageTolerance = _tolerance;
@@ -71,10 +63,6 @@ contract MockOrionConfig {
 
     function setWhitelisted(address asset, bool _whitelisted) external {
         whitelisted[asset] = _whitelisted;
-    }
-
-    function setReturnZeroForUnsetTokens(bool _returnZero) external {
-        returnZeroForUnsetTokens = _returnZero;
     }
 
     function setGuardian(address _guardian) external {
