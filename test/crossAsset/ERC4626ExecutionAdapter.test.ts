@@ -143,6 +143,8 @@ describe("ERC4626ExecutionAdapter", function () {
       const mockConfig = await ethers.getContractAt("MockOrionConfig", await orionConfig.getAddress());
       await mockConfig.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
       await mockConfig.setLiquidityOrchestrator(await liquidityOrchestrator.getAddress());
+      await mockConfig.setTokenDecimals(MAINNET.WETH, WETH_DECIMALS);
+      await mockConfig.setTokenDecimals(MAINNET.MORPHO_WETH, WETH_DECIMALS);
 
       // Deploy vault price adapter
       const VaultPriceAdapterFactory = await ethers.getContractFactory("MockERC4626PriceAdapter");
@@ -1201,6 +1203,9 @@ describe("ERC4626ExecutionAdapter", function () {
       const MockERC4626Factory = await ethers.getContractFactory("MockERC4626Asset");
       const emptyVault = await MockERC4626Factory.deploy(MAINNET.WETH, "Empty Vault", "eVAULT");
       await emptyVault.waitForDeployment();
+
+      const mockConfig = await ethers.getContractAt("MockOrionConfig", await orionConfig.getAddress());
+      await mockConfig.setTokenDecimals(await emptyVault.getAddress(), WETH_DECIMALS);
 
       // Register in LO
       await liquidityOrchestrator.setExecutionAdapter(await emptyVault.getAddress(), await vaultAdapter.getAddress());

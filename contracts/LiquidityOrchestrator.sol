@@ -476,7 +476,7 @@ contract LiquidityOrchestrator is
 
             _processMinibatchSell(states.sellLeg);
             if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
-                bufferAmount = states.bufferAmount;
+                bufferAmount += states.bufferIncrease;
                 _pendingEpochProtocolFees = states.epochProtocolFees;
             }
         } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {

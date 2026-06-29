@@ -29,7 +29,7 @@ interface ILiquidityOrchestrator {
         VaultState[] vaults;
         SellLegOrders sellLeg;
         BuyLegOrders buyLeg;
-        uint256 bufferAmount;
+        uint256 bufferIncrease;
         uint256 epochProtocolFees;
         uint256 nettedRebalanceVolumeUnderlying;
     }
