@@ -1,0 +1,32 @@
+overrides:
+  "@nomicfoundation/hardhat-verify": "3.0.20"
+  "@openzeppelin/contracts-upgradeable@>=4.3.0 <4.8.3": "^4.9.6"
+  "@openzeppelin/contracts@>=4.3.0 <4.8.3": "^4.9.6"
+  lodash: "^4.17.21"
+  ws: ">=8.20.1"
+
+peerDependencyRules:
+  ignoreMissing:
+    - "@nomicfoundation/hardhat-ethers"
+    - "@nomicfoundation/hardhat-verify"
+    - "@nomicfoundation/hardhat-network-helpers"
+  allowedVersions:
+    hardhat: "^3.0.0"
+    chai: "6.x"
+    ethers: "6.x"
+    "@typechain/ethers-v6": "0.x"
+
+allowedDeprecatedVersions:
+  glob: "*"
+  inflight: "*"
+  rimraf: "*"
+  "@types/minimatch": "*"
+  lodash.isequal: "*"
+  zksync-web3: "*"
+
+allowBuilds:
+  "@parcel/watcher": true
+  esbuild: true
+  hardhat-deploy: true
+  keccak: true
+  secp256k1: true

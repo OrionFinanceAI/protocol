@@ -27,7 +27,7 @@ contract WhitelistAccessControl is IOrionAccessControl, Ownable2Step {
     constructor(address initialOwner_) Ownable(initialOwner_) {}
 
     /// @inheritdoc IOrionAccessControl
-    function canRequestDeposit(address sender) external view override returns (bool) {
+    function canRequestDeposit(address sender, bytes calldata) external view override returns (bool) {
         return whitelist[sender];
     }
 

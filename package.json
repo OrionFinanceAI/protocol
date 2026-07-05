@@ -87,34 +87,5 @@
     "@uniswap/v3-periphery": "^1.4.4",
     "encrypted-types": "^0.0.4"
   },
-  "pnpm": {
-    "overrides": {
-      "@nomicfoundation/hardhat-verify": "3.0.20",
-      "@openzeppelin/contracts-upgradeable@>=4.3.0 <4.8.3": "^4.9.6",
-      "@openzeppelin/contracts@>=4.3.0 <4.8.3": "^4.9.6",
-      "lodash": "^4.17.21",
-      "ws": ">=8.20.1"
-    },
-    "peerDependencyRules": {
-      "ignoreMissing": [
-        "@nomicfoundation/hardhat-ethers",
-        "@nomicfoundation/hardhat-verify",
-        "@nomicfoundation/hardhat-network-helpers"
-      ],
-      "allowedVersions": {
-        "hardhat": "^3.0.0",
-        "chai": "6.x",
-        "ethers": "6.x",
-        "@typechain/ethers-v6": "0.x"
-      }
-    },
-    "allowedDeprecatedVersions": {
-      "glob": "*",
-      "inflight": "*",
-      "rimraf": "*",
-      "@types/minimatch": "*",
-      "lodash.isequal": "*",
-      "zksync-web3": "*"
-    }
-  }
+  "packageManager": "pnpm@11.10.0+sha512.0b7f8b98060031904c017e3a41eb187a16d40eeb829b95c4f8cb03681761fc4ab53dd219115b9b447f4dce1a05a214764461e7d3703392a9f32f9511ce8c86c8"
 }
