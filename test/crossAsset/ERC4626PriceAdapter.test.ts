@@ -79,6 +79,8 @@ describe("ERC4626PriceAdapter - Coverage Tests", function () {
     await orionConfig.setPriceAdapterRegistry(await priceRegistry.getAddress());
     await orionConfig.setWhitelisted(MAINNET.WETH, true);
     await orionConfig.setWhitelisted(MAINNET.WBTC, true);
+    await orionConfig.setTokenDecimals(MAINNET.WETH, 18);
+    await orionConfig.setTokenDecimals(MAINNET.MORPHO_WETH, 18);
 
     // Deploy ERC4626 price adapter
     const ERC4626PriceAdapterFactory = await ethers.getContractFactory("ERC4626PriceAdapter");
@@ -155,7 +157,7 @@ describe("ERC4626PriceAdapter - Coverage Tests", function () {
     it("Should calculate correct composed price for Morpho WETH vault", async function () {
       const [vaultPrice, priceDecimals] = await vaultPriceAdapter.getPriceData(MAINNET.MORPHO_WETH);
 
-      expect(priceDecimals).to.equal(28); // PRICE_DECIMALS (10) + getTokenDecimals(WETH) (18)
+      expect(priceDecimals).to.equal(28); // PRICE_DECIMALS (10) + tokenDecimals(WETH) (18)
 
       const precisionAmount = 10n ** 28n; // PRICE_DECIMALS (10) + vault decimals (18)
       const wethForPrecisionShares = await morphoWETH.convertToAssets(precisionAmount);

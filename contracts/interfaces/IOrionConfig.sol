@@ -189,11 +189,10 @@ interface IOrionConfig {
     /// @return True if the system is idle, false otherwise
     function isSystemIdle() external view returns (bool);
 
-    /// @notice Returns the number of decimals for a given token
-    /// @dev This function returns the stored decimals for whitelisted tokens
-    /// @param token The address of the token
+    /// @notice Returns the stored decimals for a whitelisted token
+    /// @param token The token address
     /// @return The number of decimals for the token
-    function getTokenDecimals(address token) external view returns (uint8);
+    function tokenDecimals(address token) external view returns (uint8);
 
     /// @notice Returns the minimum deposit amount
     /// @return The minimum deposit amount in underlying asset units

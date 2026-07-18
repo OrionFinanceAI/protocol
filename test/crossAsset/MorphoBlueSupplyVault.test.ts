@@ -703,10 +703,11 @@ describe("MorphoBlueSupplyVault", function () {
       await liquidityOrchestrator.setExecutionAdapter(await usdcVault.getAddress(), await vaultAdapter.getAddress());
 
       // Token decimals for MockOrionConfig validation
+      await orionConfig.setTokenDecimals(MAINNET.WETH, WETH_DECIMALS);
+      await orionConfig.setTokenDecimals(await wethVault.getAddress(), WETH_DECIMALS);
       // USDC vault: shares have 6 decimals (inherited from USDC)
       await orionConfig.setTokenDecimals(await usdcVault.getAddress(), USDC_DECIMALS);
       await orionConfig.setTokenDecimals(MAINNET.USDC, USDC_DECIMALS);
-      // WETH vault: shares have 18 decimals (default, no explicit set needed)
 
       // Impersonate LO as caller for adapter interactions
       const loAddress = await liquidityOrchestrator.getAddress();
@@ -742,7 +743,7 @@ describe("MorphoBlueSupplyVault", function () {
       await wethVault.connect(seedDepositor).deposit(ethers.parseUnits("0.1", 18), seedDepositor.address);
 
       const [price, decimals] = await erc4626PriceAdapter.getPriceData(await wethVault.getAddress());
-      // priceDecimals = PRICE_DECIMALS(10) + getTokenDecimals(WETH)(18) = 28
+      // priceDecimals = PRICE_DECIMALS(10) + tokenDecimals(WETH)(18) = 28
       expect(decimals).to.equal(28);
       expect(price).to.be.gt(0n);
 

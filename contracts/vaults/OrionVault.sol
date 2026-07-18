@@ -227,7 +227,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         if (!config.isSystemIdle()) return 0;
         if (isDecommissioning || config.isDecommissionedVault(address(this))) return 0;
         if (depositAccessControl != address(0)) {
-            if (!IOrionAccessControl(depositAccessControl).canRequestDeposit(receiver)) return 0;
+            if (!IOrionAccessControl(depositAccessControl).canRequestDeposit(receiver, "")) return 0;
         }
         return type(uint256).max;
     }
@@ -316,7 +316,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     /// @inheritdoc IOrionVault
     function requestDeposit(uint256 assets) external nonReentrant {
         if (depositAccessControl != address(0)) {
-            if (!IOrionAccessControl(depositAccessControl).canRequestDeposit(msg.sender))
+            if (!IOrionAccessControl(depositAccessControl).canRequestDeposit(msg.sender, msg.data))
                 revert ErrorsLib.DepositNotAllowed();
         }
 

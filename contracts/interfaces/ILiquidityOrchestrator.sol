@@ -29,7 +29,7 @@ interface ILiquidityOrchestrator {
         VaultState[] vaults;
         SellLegOrders sellLeg;
         BuyLegOrders buyLeg;
-        uint256 bufferAmount;
+        uint256 bufferIncrease;
         uint256 epochProtocolFees;
         uint256 nettedRebalanceVolumeUnderlying;
     }
@@ -80,6 +80,10 @@ interface ILiquidityOrchestrator {
     /// @notice Returns the epoch-start buffer snapshot used as deterministic proof input anchor
     /// @return The initial epoch buffer amount
     function initialEpochBufferAmount() external view returns (uint256);
+
+    /// @notice Returns the BuyingLeg-entry buffer snapshot (after sell→buy bufferIncrease apply)
+    /// @return The BuyingLeg entry buffer amount
+    function buyingLegEntryBuffer() external view returns (uint256);
 
     /// @notice Returns the pending protocol fees
     /// @return The pending protocol fees

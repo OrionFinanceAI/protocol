@@ -59,7 +59,7 @@ contract ERC4626ExecutionAdapter is IExecutionAdapter {
         try IERC4626(asset).asset() returns (address vaultUnderlying) {
             // 2. Verify registered vault decimals match config decimals
             try IERC20Metadata(asset).decimals() returns (uint8 vaultDecimals) {
-                if (vaultDecimals != CONFIG.getTokenDecimals(asset)) {
+                if (vaultDecimals != CONFIG.tokenDecimals(asset)) {
                     revert ErrorsLib.InvalidAdapter(asset);
                 }
             } catch {
@@ -69,7 +69,7 @@ contract ERC4626ExecutionAdapter is IExecutionAdapter {
             // 3. Verify underlying vault decimals match config decimals
             // (vault underlying must be whitelisted in config)
             try IERC20Metadata(vaultUnderlying).decimals() returns (uint8 vaultUnderlyingDecimals) {
-                if (vaultUnderlyingDecimals != CONFIG.getTokenDecimals(vaultUnderlying)) {
+                if (vaultUnderlyingDecimals != CONFIG.tokenDecimals(vaultUnderlying)) {
                     revert ErrorsLib.InvalidAdapter(asset);
                 }
             } catch {

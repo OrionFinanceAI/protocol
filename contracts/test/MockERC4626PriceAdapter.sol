@@ -98,7 +98,7 @@ contract MockERC4626PriceAdapter is IPriceAdapter {
 
         // 3. Verify vault decimals are registered in config
         try IERC20Metadata(asset).decimals() returns (uint8 decimals) {
-            if (decimals != config.getTokenDecimals(asset)) {
+            if (decimals != config.tokenDecimals(asset)) {
                 revert ErrorsLib.InvalidAdapter(asset);
             }
         } catch {

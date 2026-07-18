@@ -534,11 +534,6 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
             ILiquidityOrchestrator.LiquidityUpkeepPhase.Idle;
     }
 
-    /// @inheritdoc IOrionConfig
-    function getTokenDecimals(address token) external view returns (uint8) {
-        return tokenDecimals[token];
-    }
-
     /// @notice Sets the upgrade timelock address.
     /// @dev If no timelock is set yet, only the owner may call this. Once a timelock is active,
     ///      only the timelock itself may replace it, preventing the owner from bypassing the delay.
