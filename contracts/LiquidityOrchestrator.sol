@@ -112,7 +112,7 @@ contract LiquidityOrchestrator is
     uint256 public pendingProtocolFees;
 
     /// @notice Tokens that failed during the current epoch's sell/buy execution (cleared at epoch end)
-    address[] private _failedEpochTokens;
+    address[] internal _failedEpochTokens;
 
     /// @notice Cached assets hash from last full commitment build
     bytes32 private _cachedAssetsHash;
@@ -490,12 +490,10 @@ contract LiquidityOrchestrator is
             StatesStruct memory states = _verifyPerformData(_publicValues, proofBytes, statesBytes);
             _processMinibatchVaultsOperations(states.vaults);
 
-            if (currentMinibatchIndex == 0) {
-                // After the final minibatch, currentMinibatchIndex resets to 0, triggering epoch end
+            if (currentPhase == LiquidityUpkeepPhase.Idle) {
                 address[] memory failedTokens = _failedEpochTokens;
                 delete _failedEpochTokens;
                 config.completeAssetsRemoval(failedTokens);
-                // Emit epoch end and increment epoch counter.
                 emit EventsLib.EpochEnd(epochCounter, states.nettedRebalanceVolumeUnderlying);
                 ++epochCounter;
             }
