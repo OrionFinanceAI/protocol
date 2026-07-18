@@ -159,6 +159,9 @@ contract LiquidityOrchestrator is
     /// @notice On-chain resume cursor for the active sell/buy minibatch window.
     uint16 public completedInCurrentMinibatch;
 
+    /// @notice Buffer snapshot at BuyingLeg entry (after bufferIncrease apply) [assets]
+    uint256 public buyingLegEntryBuffer;
+
     /* -------------------------------------------------------------------------- */
     /*                                MODIFIERS                                   */
     /* -------------------------------------------------------------------------- */
@@ -478,6 +481,7 @@ contract LiquidityOrchestrator is
             if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
                 bufferAmount += states.bufferIncrease;
                 _pendingEpochProtocolFees = states.epochProtocolFees;
+                buyingLegEntryBuffer = bufferAmount;
             }
         } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
             StatesStruct memory states = _verifyPerformData(_publicValues, proofBytes, statesBytes);
@@ -523,6 +527,7 @@ contract LiquidityOrchestrator is
 
         // Freeze deterministic proof-input anchor at epoch start.
         initialEpochBufferAmount = bufferAmount;
+        buyingLegEntryBuffer = 0;
 
         // Reset incremental commitment state for the new epoch
         _partialVaultsHash = bytes32(0);
@@ -1005,5 +1010,5 @@ contract LiquidityOrchestrator is
     }
 
     /// @dev Storage gap to allow for future upgrades
-    uint256[46] private __gap;
+    uint256[45] private __gap;
 }

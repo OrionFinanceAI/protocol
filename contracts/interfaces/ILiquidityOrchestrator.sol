@@ -81,6 +81,10 @@ interface ILiquidityOrchestrator {
     /// @return The initial epoch buffer amount
     function initialEpochBufferAmount() external view returns (uint256);
 
+    /// @notice Returns the BuyingLeg-entry buffer snapshot (after sell→buy bufferIncrease apply)
+    /// @return The BuyingLeg entry buffer amount
+    function buyingLegEntryBuffer() external view returns (uint256);
+
     /// @notice Returns the pending protocol fees
     /// @return The pending protocol fees
     function pendingProtocolFees() external view returns (uint256);
