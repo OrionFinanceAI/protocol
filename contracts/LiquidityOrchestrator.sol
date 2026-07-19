@@ -629,7 +629,7 @@ contract LiquidityOrchestrator is
     /// @notice Builds the protocol state hash from static epoch parameters
     /// @return The protocol state hash
     function _buildProtocolStateHash() internal view returns (bytes32) {
-        bytes32 protocolStateHash = keccak256(
+        return keccak256(
             abi.encode(
                 _currentEpoch.activeVFeeCoefficient,
                 _currentEpoch.activeRsFeeCoefficient,
@@ -643,10 +643,12 @@ contract LiquidityOrchestrator is
                 config.riskFreeRate(),
                 config.decommissioningAssets(),
                 _failedEpochTokens,
-                initialEpochBufferAmount
+                initialEpochBufferAmount,
+                buyingLegEntryBuffer,
+                bufferAmount,
+                IERC20(underlyingAsset).balanceOf(address(this))
             )
         );
-        return protocolStateHash;
     }
 
     /// @notice Aggregates asset leaves using sequential folding
