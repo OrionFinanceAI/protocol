@@ -478,11 +478,14 @@ contract LiquidityOrchestrator is
             StatesStruct memory states = _verifyPerformData(_publicValues, proofBytes, statesBytes);
 
             _processMinibatchSell(states.sellLeg);
+            // slither-disable-start reentrancy-no-eth
+            // Safe: performUpkeep is nonReentrant; buffer mutations are phase-gated (Idle-only deposit/withdraw).
             if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
                 bufferAmount += states.bufferIncrease;
                 _pendingEpochProtocolFees = states.epochProtocolFees;
                 buyingLegEntryBuffer = bufferAmount;
             }
+            // slither-disable-end reentrancy-no-eth
         } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
             StatesStruct memory states = _verifyPerformData(_publicValues, proofBytes, statesBytes);
             _processMinibatchBuy(states.buyLeg);
@@ -517,6 +520,7 @@ contract LiquidityOrchestrator is
     function _handleStart() internal {
         _buildVaultsEpoch();
 
+        // slither-disable-next-line incorrect-equality
         if (_currentEpoch.vaultsEpoch.length == 0) {
             // Defer the next upkeep by epoch duration
             _nextUpdateTime = block.timestamp + epochDuration;
@@ -606,6 +610,7 @@ contract LiquidityOrchestrator is
         _commitmentBatchIndex = i1;
 
         // All vault leaves processed, seal the commitment and advance phase
+        // slither-disable-next-line incorrect-equality
         if (i1 == vaultCount) {
             address[] memory assets = config.getAllWhitelistedAssets();
             uint256[] memory assetPrices = getAssetPrices(assets);
@@ -629,24 +634,27 @@ contract LiquidityOrchestrator is
     /// @notice Builds the protocol state hash from static epoch parameters
     /// @return The protocol state hash
     function _buildProtocolStateHash() internal view returns (bytes32) {
-        bytes32 protocolStateHash = keccak256(
-            abi.encode(
-                _currentEpoch.activeVFeeCoefficient,
-                _currentEpoch.activeRsFeeCoefficient,
-                config.maxFulfillBatchSize(),
-                targetBufferRatio,
-                config.priceAdapterDecimals(),
-                config.strategistIntentDecimals(),
-                epochDuration,
-                config.getAllWhitelistedAssets(),
-                config.getAllTokenDecimals(),
-                config.riskFreeRate(),
-                config.decommissioningAssets(),
-                _failedEpochTokens,
-                initialEpochBufferAmount
-            )
-        );
-        return protocolStateHash;
+        return
+            keccak256(
+                abi.encode(
+                    _currentEpoch.activeVFeeCoefficient,
+                    _currentEpoch.activeRsFeeCoefficient,
+                    config.maxFulfillBatchSize(),
+                    targetBufferRatio,
+                    config.priceAdapterDecimals(),
+                    config.strategistIntentDecimals(),
+                    epochDuration,
+                    config.getAllWhitelistedAssets(),
+                    config.getAllTokenDecimals(),
+                    config.riskFreeRate(),
+                    config.decommissioningAssets(),
+                    _failedEpochTokens,
+                    initialEpochBufferAmount,
+                    buyingLegEntryBuffer,
+                    bufferAmount,
+                    IERC20(underlyingAsset).balanceOf(address(this))
+                )
+            );
     }
 
     /// @notice Aggregates asset leaves using sequential folding
@@ -904,6 +912,7 @@ contract LiquidityOrchestrator is
         uint16 i1 = i0 + minibatchSize;
         ++currentMinibatchIndex;
 
+        // slither-disable-next-line incorrect-equality
         if (i1 > vaultsEpoch.length || i1 == vaultsEpoch.length) {
             i1 = uint16(vaultsEpoch.length);
             currentPhase = LiquidityUpkeepPhase.Idle;
@@ -970,6 +979,7 @@ contract LiquidityOrchestrator is
 
         if (config.isDecommissioningVault(vaultAddress)) {
             // Finalize only when all queued requests are processed and no non-underlying positions remain open.
+            // slither-disable-next-line incorrect-equality
             bool noRequests = vaultContract.pendingRedeemCount() == 0 && vaultContract.pendingDepositCount() == 0;
             bool portfolioLiquidated =
                 (tokens.length == 0 && finalTotalAssets == 0) || (tokens.length == 1 && tokens[0] == underlyingAsset);
