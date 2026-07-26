@@ -131,7 +131,7 @@ contract LiquidityOrchestrator is
         address[] vaultsEpoch;
         /// @notice Prices of assets in the current epoch [priceAdapterDecimals]
         mapping(address => uint256) pricesEpoch;
-        /// @notice Active volume fee coefficient for current epoch
+        /// @notice Active netting fee coefficient for current epoch
         uint16 activeNettingFeeCoefficient;
         /// @notice Active revenue share fee coefficient for current epoch
         uint16 activeRsFeeCoefficient;
