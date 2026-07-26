@@ -18,7 +18,7 @@ describe("Fee Cooldown Mechanism", function () {
   // Max fees for testing
   const MAX_PERFORMANCE_FEE = 3000; // 30%
   const MAX_MANAGEMENT_FEE = 300; // 3%
-  const MAX_PROTOCOL_VOLUME_FEE = 50; // 0.5%
+  const MAX_PROTOCOL_NETTING_FEE = 1000; // 10% of netted volume
   const MAX_PROTOCOL_REVENUE_SHARE = 2000; // 20%
 
   before(async function () {
@@ -203,10 +203,10 @@ describe("Fee Cooldown Mechanism", function () {
 
       await config.connect(owner).updateProtocolFees(25, 1000);
 
-      const vFee = await config.vFeeCoefficient();
+      const nettingFee = await config.nettingFeeCoefficient();
       const rsFee = await config.rsFeeCoefficient();
 
-      expect(vFee).to.equal(25);
+      expect(nettingFee).to.equal(25);
       expect(rsFee).to.equal(1000);
     });
 
@@ -231,9 +231,9 @@ describe("Fee Cooldown Mechanism", function () {
     it("should reject protocol fees exceeding maximums", async function () {
       const { config, owner } = await networkHelpers.loadFixture(deployFixture);
 
-      // Exceeding volume fee max (0.5%)
+      // Exceeding netting fee max (10%)
       await expect(
-        config.connect(owner).updateProtocolFees(MAX_PROTOCOL_VOLUME_FEE + 1, 1000),
+        config.connect(owner).updateProtocolFees(MAX_PROTOCOL_NETTING_FEE + 1, 1000),
       ).to.be.revertedWithCustomError(config, "InvalidArguments");
 
       // Exceeding revenue share max (20%)
@@ -247,7 +247,7 @@ describe("Fee Cooldown Mechanism", function () {
 
       await expect(config.connect(owner).updateProtocolFees(0, 0)).to.emit(config, "ProtocolFeeChangeScheduled");
 
-      expect(await config.vFeeCoefficient()).to.equal(0);
+      expect(await config.nettingFeeCoefficient()).to.equal(0);
       expect(await config.rsFeeCoefficient()).to.equal(0);
     });
   });

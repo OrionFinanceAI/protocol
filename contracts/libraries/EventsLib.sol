@@ -59,11 +59,11 @@ library EventsLib {
     );
 
     /// @notice A protocol fee change has been scheduled.
-    /// @param vFeeCoefficient The new volume fee coefficient.
+    /// @param nettingFeeCoefficient The new netting fee coefficient (bps of netted rebalance volume).
     /// @param rsFeeCoefficient The new revenue share fee coefficient.
     /// @param newProtocolFeeRatesTimestamp The timestamp when the new protocol fee rates become effective.
     event ProtocolFeeChangeScheduled(
-        uint16 indexed vFeeCoefficient,
+        uint16 indexed nettingFeeCoefficient,
         uint16 indexed rsFeeCoefficient,
         uint256 indexed newProtocolFeeRatesTimestamp
     );

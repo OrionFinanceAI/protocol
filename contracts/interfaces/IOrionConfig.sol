@@ -46,14 +46,14 @@ interface IOrionConfig {
     /// @dev If called while a previous fee change is still in cooldown, the prior scheduled change is cancelled:
     ///      activeProtocolFees() returns the current (old) rates, which are stored as old coefficients, then the new
     ///      coefficients overwrite the prior schedule. The previously scheduled intermediate fees never take effect.
-    /// @param _vFeeCoefficient The new volume fee coefficient
+    /// @param _nettingFeeCoefficient The new netting fee coefficient (bps of netted rebalance volume)
     /// @param _rsFeeCoefficient The new revenue share fee coefficient
-    function updateProtocolFees(uint16 _vFeeCoefficient, uint16 _rsFeeCoefficient) external;
+    function updateProtocolFees(uint16 _nettingFeeCoefficient, uint16 _rsFeeCoefficient) external;
 
     /// @notice Returns the active protocol fees (old during cooldown, new after)
-    /// @return vFee The active volume fee coefficient
+    /// @return nettingFee The active netting fee coefficient
     /// @return rsFee The active revenue share fee coefficient
-    function activeProtocolFees() external view returns (uint16 vFee, uint16 rsFee);
+    function activeProtocolFees() external view returns (uint16 nettingFee, uint16 rsFee);
 
     /// @notice Sets the liquidity orchestrator for the protocol
     /// @dev Can only be called by the contract owner
