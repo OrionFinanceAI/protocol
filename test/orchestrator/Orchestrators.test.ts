@@ -134,7 +134,7 @@ describe("Orchestrators", function () {
 
     await orionConfig.connect(owner).updateProtocolFees(10, 1000);
 
-    await expect(orionConfig.connect(owner).updateProtocolFees(51, 0)).to.be.revertedWithCustomError(
+    await expect(orionConfig.connect(owner).updateProtocolFees(1001, 0)).to.be.revertedWithCustomError(
       orionConfig,
       "InvalidArguments",
     );
@@ -763,26 +763,26 @@ describe("Orchestrators", function () {
     });
 
     it("should allow owner to update protocol fees", async function () {
-      await orionConfig.connect(owner).updateProtocolFees(50, 100); // 0.5% volume fee, 1% revenue share
-      expect(await orionConfig.vFeeCoefficient()).to.equal(50);
+      await orionConfig.connect(owner).updateProtocolFees(100, 100); // 1% netting fee, 1% revenue share
+      expect(await orionConfig.nettingFeeCoefficient()).to.equal(100);
       expect(await orionConfig.rsFeeCoefficient()).to.equal(100);
 
       // During cooldown, active rates reflect previous; after first deploy that is (0, 0)
-      const [activeVFee, activeRsFee] = await orionConfig.activeProtocolFees();
-      expect(activeVFee).to.equal(0);
+      const [activeNettingFee, activeRsFee] = await orionConfig.activeProtocolFees();
+      expect(activeNettingFee).to.equal(0);
       expect(activeRsFee).to.equal(0);
     });
 
     it("should revert when updating protocol fees with invalid arguments", async function () {
-      await expect(orionConfig.connect(owner).updateProtocolFees(101, 100)).to.be.revertedWithCustomError(
+      await expect(orionConfig.connect(owner).updateProtocolFees(1001, 100)).to.be.revertedWithCustomError(
         orionConfig,
         "InvalidArguments",
       );
-      await expect(orionConfig.connect(owner).updateProtocolFees(50, 2001)).to.be.revertedWithCustomError(
+      await expect(orionConfig.connect(owner).updateProtocolFees(100, 2001)).to.be.revertedWithCustomError(
         orionConfig,
         "InvalidArguments",
       );
-      await expect(orionConfig.connect(owner).updateProtocolFees(101, 2001)).to.be.revertedWithCustomError(
+      await expect(orionConfig.connect(owner).updateProtocolFees(1001, 2001)).to.be.revertedWithCustomError(
         orionConfig,
         "InvalidArguments",
       );

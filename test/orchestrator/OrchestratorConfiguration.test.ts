@@ -196,7 +196,7 @@ describe("Orchestrator Configuration", function () {
     // Configure protocol
     await orionConfig.connect(owner).updateProtocolFees(10, 1000);
 
-    await expect(orionConfig.connect(owner).updateProtocolFees(51, 0)).to.be.revertedWithCustomError(
+    await expect(orionConfig.connect(owner).updateProtocolFees(1001, 0)).to.be.revertedWithCustomError(
       orionConfig,
       "InvalidArguments",
     );
@@ -590,26 +590,26 @@ describe("Orchestrator Configuration", function () {
     });
 
     it("should allow owner to update protocol fees", async function () {
-      await orionConfig.updateProtocolFees(50, 100); // 0.5% volume fee, 1% revenue share
-      expect(await orionConfig.vFeeCoefficient()).to.equal(50);
+      await orionConfig.updateProtocolFees(100, 100); // 1% netting fee, 1% revenue share
+      expect(await orionConfig.nettingFeeCoefficient()).to.equal(100);
       expect(await orionConfig.rsFeeCoefficient()).to.equal(100);
     });
 
     it("should revert when updating protocol fees with invalid arguments", async function () {
-      // Test with volume fee coefficient exceeding maximum
-      await expect(orionConfig.updateProtocolFees(101, 100)).to.be.revertedWithCustomError(
+      // Test with netting fee coefficient exceeding maximum
+      await expect(orionConfig.updateProtocolFees(1001, 100)).to.be.revertedWithCustomError(
         orionConfig,
         "InvalidArguments",
       );
 
       // Test with revenue share fee coefficient exceeding maximum
-      await expect(orionConfig.updateProtocolFees(50, 2001)).to.be.revertedWithCustomError(
+      await expect(orionConfig.updateProtocolFees(100, 2001)).to.be.revertedWithCustomError(
         orionConfig,
         "InvalidArguments",
       );
 
       // Test with both coefficients exceeding maximum
-      await expect(orionConfig.updateProtocolFees(101, 2001)).to.be.revertedWithCustomError(
+      await expect(orionConfig.updateProtocolFees(1001, 2001)).to.be.revertedWithCustomError(
         orionConfig,
         "InvalidArguments",
       );

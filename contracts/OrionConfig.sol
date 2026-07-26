@@ -76,13 +76,13 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     /// @notice Assets pending removal (stays whitelisted until completeAssetRemoval)
     address[] private _decommissioningAssets;
 
-    /// @notice Old volume fee coefficient (used during cooldown period)
-    uint16 private oldVFeeCoefficient;
+    /// @notice Old netting fee coefficient (used during cooldown period)
+    uint16 private oldNettingFeeCoefficient;
     /// @notice Old revenue share fee coefficient (used during cooldown period)
     uint16 private oldRsFeeCoefficient;
 
-    /// @notice Volume fee coefficient
-    uint16 public vFeeCoefficient;
+    /// @notice Netting fee coefficient (bps of netted rebalance volume)
+    uint16 public nettingFeeCoefficient;
     /// @notice Revenue share fee coefficient
     uint16 public rsFeeCoefficient;
 
@@ -140,38 +140,42 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     // === Protocol Configuration ===
 
     /// @inheritdoc IOrionConfig
-    function updateProtocolFees(uint16 _vFeeCoefficient, uint16 _rsFeeCoefficient) external onlyOwner {
-        /// Maximum volume fee: 0.5%
+    function updateProtocolFees(uint16 _nettingFeeCoefficient, uint16 _rsFeeCoefficient) external onlyOwner {
+        /// Maximum netting fee: 10% of netted rebalance volume
         /// Maximum revenue share fee: 20%
-        if (_vFeeCoefficient > 50 || _rsFeeCoefficient > 2_000) revert ErrorsLib.InvalidArguments();
+        if (_nettingFeeCoefficient > 1_000 || _rsFeeCoefficient > 2_000) revert ErrorsLib.InvalidArguments();
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         // Store current active fees as old;
         // if already in cooldown this is the old rate, so prior schedule is effectively cancelled
-        (uint16 oldVFee, uint16 oldRsFee) = activeProtocolFees();
-        oldVFeeCoefficient = oldVFee;
+        (uint16 oldNettingFee, uint16 oldRsFee) = activeProtocolFees();
+        oldNettingFeeCoefficient = oldNettingFee;
         oldRsFeeCoefficient = oldRsFee;
 
         // Update to new fees immediately in storage
-        vFeeCoefficient = _vFeeCoefficient;
+        nettingFeeCoefficient = _nettingFeeCoefficient;
         rsFeeCoefficient = _rsFeeCoefficient;
 
         // Set when new rates become effective
         newProtocolFeeRatesTimestamp = block.timestamp + feeChangeCooldownDuration;
 
-        emit EventsLib.ProtocolFeeChangeScheduled(_vFeeCoefficient, _rsFeeCoefficient, newProtocolFeeRatesTimestamp);
+        emit EventsLib.ProtocolFeeChangeScheduled(
+            _nettingFeeCoefficient,
+            _rsFeeCoefficient,
+            newProtocolFeeRatesTimestamp
+        );
     }
 
     /// @notice Returns the active protocol fees (old during cooldown, new after)
-    /// @return vFee The active volume fee coefficient
+    /// @return nettingFee The active netting fee coefficient
     /// @return rsFee The active revenue share fee coefficient
-    function activeProtocolFees() public view returns (uint16 vFee, uint16 rsFee) {
+    function activeProtocolFees() public view returns (uint16 nettingFee, uint16 rsFee) {
         // If we're still in cooldown period, return old rates
         if (newProtocolFeeRatesTimestamp > block.timestamp) {
-            return (oldVFeeCoefficient, oldRsFeeCoefficient);
+            return (oldNettingFeeCoefficient, oldRsFeeCoefficient);
         }
         // Otherwise return new rates
-        return (vFeeCoefficient, rsFeeCoefficient);
+        return (nettingFeeCoefficient, rsFeeCoefficient);
     }
 
     /// @inheritdoc IOrionConfig

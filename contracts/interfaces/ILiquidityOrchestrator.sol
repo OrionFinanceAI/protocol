@@ -102,8 +102,8 @@ interface ILiquidityOrchestrator {
     struct EpochStateView {
         /// @notice Transparent vaults associated to the current epoch
         address[] vaultsEpoch;
-        /// @notice Active volume fee coefficient for current epoch
-        uint16 activeVFeeCoefficient;
+        /// @notice Active netting fee coefficient for current epoch
+        uint16 activeNettingFeeCoefficient;
         /// @notice Active revenue share fee coefficient for current epoch
         uint16 activeRsFeeCoefficient;
         /// @notice Active fee models for vaults in current epoch

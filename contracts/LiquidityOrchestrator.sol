@@ -131,8 +131,8 @@ contract LiquidityOrchestrator is
         address[] vaultsEpoch;
         /// @notice Prices of assets in the current epoch [priceAdapterDecimals]
         mapping(address => uint256) pricesEpoch;
-        /// @notice Active volume fee coefficient for current epoch
-        uint16 activeVFeeCoefficient;
+        /// @notice Active netting fee coefficient for current epoch
+        uint16 activeNettingFeeCoefficient;
         /// @notice Active revenue share fee coefficient for current epoch
         uint16 activeRsFeeCoefficient;
         /// @notice Active fee model for each vault in current epoch
@@ -369,7 +369,7 @@ contract LiquidityOrchestrator is
         return
             EpochStateView({
                 vaultsEpoch: _currentEpoch.vaultsEpoch,
-                activeVFeeCoefficient: _currentEpoch.activeVFeeCoefficient,
+                activeNettingFeeCoefficient: _currentEpoch.activeNettingFeeCoefficient,
                 activeRsFeeCoefficient: _currentEpoch.activeRsFeeCoefficient,
                 vaultFeeModels: vaultFeeModels,
                 epochStateCommitment: _currentEpoch.epochStateCommitment
@@ -539,7 +539,7 @@ contract LiquidityOrchestrator is
         currentPhase = LiquidityUpkeepPhase.StateCommitment;
 
         // Snapshot protocol fees at epoch start to ensure consistency throughout the epoch
-        (_currentEpoch.activeVFeeCoefficient, _currentEpoch.activeRsFeeCoefficient) = config.activeProtocolFees();
+        (_currentEpoch.activeNettingFeeCoefficient, _currentEpoch.activeRsFeeCoefficient) = config.activeProtocolFees();
 
         // Snapshot vault fee types at epoch start to ensure consistency throughout the epoch
         for (uint16 i = 0; i < _currentEpoch.vaultsEpoch.length; ++i) {
@@ -637,7 +637,7 @@ contract LiquidityOrchestrator is
         return
             keccak256(
                 abi.encode(
-                    _currentEpoch.activeVFeeCoefficient,
+                    _currentEpoch.activeNettingFeeCoefficient,
                     _currentEpoch.activeRsFeeCoefficient,
                     config.maxFulfillBatchSize(),
                     targetBufferRatio,
