@@ -21,8 +21,8 @@ importers:
         specifier: ^1.4.0
         version: 1.5.0
       '@fhevm/solidity':
-        specifier: ^0.11.1
-        version: 0.11.1
+        specifier: ^0.13.0
+        version: 0.13.0
       '@morpho-org/morpho-blue':
         specifier: ^1.0.0
         version: 1.0.0
@@ -50,7 +50,7 @@ importers:
         version: 10.0.1(eslint@10.7.0(supports-color@8.1.1))
       '@fhevm/hardhat-plugin':
         specifier: ^0.4.2
-        version: 0.4.2(@fhevm/mock-utils@0.4.2(@zama-fhe/relayer-sdk@0.4.4)(ethers@6.17.0)(typescript@6.0.3))(@fhevm/solidity@0.11.1)(@nomicfoundation/hardhat-ethers@4.0.15(hardhat@3.10.0))(@zama-fhe/relayer-sdk@0.4.4)(encrypted-types@0.0.4)(ethers@6.17.0)(hardhat@3.10.0)(supports-color@8.1.1)
+        version: 0.4.2(@fhevm/mock-utils@0.4.2(@zama-fhe/relayer-sdk@0.4.4)(ethers@6.17.0)(typescript@6.0.3))(@fhevm/solidity@0.13.0)(@nomicfoundation/hardhat-ethers@4.0.15(hardhat@3.10.0))(@zama-fhe/relayer-sdk@0.4.4)(encrypted-types@0.0.4)(ethers@6.17.0)(hardhat@3.10.0)(supports-color@8.1.1)
       '@fhevm/mock-utils':
         specifier: 0.4.2
         version: 0.4.2(@zama-fhe/relayer-sdk@0.4.4)(ethers@6.17.0)(typescript@6.0.3)
@@ -629,8 +629,8 @@ packages:
       typescript:
         optional: true
 
-  '@fhevm/solidity@0.11.1':
-    resolution: {integrity: sha512-KBHCF0an1sOqoABJ30p5foldSHy14F3jaQmYX+BKogpUJ1OFhNMzYfRkmPkJkwetyDcYg/euXcYQncYgHRT9aQ==}
+  '@fhevm/solidity@0.13.0':
+    resolution: {integrity: sha512-GX2wmL3ZTEV8DKE7SaSIYkTRUlqRrtW78+qXjoYJDOGt45UuVoH3mrqvwL9u26Rp+2TcakSVB8k5f5M7EmWoFQ==}
     engines: {node: '>=20.0.0'}
 
   '@fhevm/solidity@0.8.0':
@@ -4208,11 +4208,11 @@ snapshots:
 
   '@fastify/busboy@2.1.1': {}
 
-  '@fhevm/hardhat-plugin@0.4.2(@fhevm/mock-utils@0.4.2(@zama-fhe/relayer-sdk@0.4.4)(ethers@6.17.0)(typescript@6.0.3))(@fhevm/solidity@0.11.1)(@nomicfoundation/hardhat-ethers@4.0.15(hardhat@3.10.0))(@zama-fhe/relayer-sdk@0.4.4)(encrypted-types@0.0.4)(ethers@6.17.0)(hardhat@3.10.0)(supports-color@8.1.1)':
+  '@fhevm/hardhat-plugin@0.4.2(@fhevm/mock-utils@0.4.2(@zama-fhe/relayer-sdk@0.4.4)(ethers@6.17.0)(typescript@6.0.3))(@fhevm/solidity@0.13.0)(@nomicfoundation/hardhat-ethers@4.0.15(hardhat@3.10.0))(@zama-fhe/relayer-sdk@0.4.4)(encrypted-types@0.0.4)(ethers@6.17.0)(hardhat@3.10.0)(supports-color@8.1.1)':
     dependencies:
       '@fhevm/host-contracts': 0.10.0
       '@fhevm/mock-utils': 0.4.2(@zama-fhe/relayer-sdk@0.4.4)(ethers@6.17.0)(typescript@6.0.3)
-      '@fhevm/solidity': 0.11.1
+      '@fhevm/solidity': 0.13.0
       '@nomicfoundation/hardhat-ethers': 4.0.15(hardhat@3.10.0)
       '@zama-fhe/relayer-sdk': 0.4.4
       debug: 4.4.3(supports-color@8.1.1)
@@ -4239,7 +4239,7 @@ snapshots:
     optionalDependencies:
       typescript: 6.0.3
 
-  '@fhevm/solidity@0.11.1':
+  '@fhevm/solidity@0.13.0':
     dependencies:
       encrypted-types: 0.0.4
     optionalDependencies:
