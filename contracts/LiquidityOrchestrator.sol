@@ -122,8 +122,8 @@ contract LiquidityOrchestrator is
     /// @notice Buffer snapshot captured at epoch start and used as deterministic proof input anchor [assets]
     uint256 public initialEpochBufferAmount;
 
-    /// @notice Epoch protocol fees to accrue when transitioning to ProcessVaultOperations.
-    uint256 private _pendingEpochProtocolFees;
+    /// @notice Epoch delta amount to apply when transitioning to ProcessVaultOperations.
+    int256 private _epochDeltaAmount;
 
     /// @notice Struct to hold epoch state data
     struct EpochState {
@@ -158,9 +158,6 @@ contract LiquidityOrchestrator is
 
     /// @notice On-chain resume cursor for the active sell/buy minibatch window.
     uint16 public completedInCurrentMinibatch;
-
-    /// @notice Buffer snapshot at BuyingLeg entry (after bufferIncrease apply) [assets]
-    uint256 public buyingLegEntryBuffer;
 
     /* -------------------------------------------------------------------------- */
     /*                                MODIFIERS                                   */
@@ -476,19 +473,11 @@ contract LiquidityOrchestrator is
             _processCommitmentMinibatch();
         } else if (currentPhase == LiquidityUpkeepPhase.SellingLeg) {
             StatesStruct memory states = _verifyPerformData(_publicValues, proofBytes, statesBytes);
-
             _processMinibatchSell(states.sellLeg);
-            // slither-disable-start reentrancy-no-eth
-            // Safe: performUpkeep is nonReentrant; buffer mutations are phase-gated (Idle-only deposit/withdraw).
-            if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
-                bufferAmount += states.bufferIncrease;
-                _pendingEpochProtocolFees = states.epochProtocolFees;
-                buyingLegEntryBuffer = bufferAmount;
-            }
-            // slither-disable-end reentrancy-no-eth
         } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
             StatesStruct memory states = _verifyPerformData(_publicValues, proofBytes, statesBytes);
             _processMinibatchBuy(states.buyLeg);
+            _applyBuyLegSettlement(states.bufferIncrease, states.epochProtocolFees);
         } else if (currentPhase == LiquidityUpkeepPhase.ProcessVaultOperations) {
             StatesStruct memory states = _verifyPerformData(_publicValues, proofBytes, statesBytes);
             _processMinibatchVaultsOperations(states.vaults);
@@ -529,7 +518,7 @@ contract LiquidityOrchestrator is
 
         // Freeze deterministic proof-input anchor at epoch start.
         initialEpochBufferAmount = bufferAmount;
-        buyingLegEntryBuffer = 0;
+        _epochDeltaAmount = 0;
 
         // Reset incremental commitment state for the new epoch
         _partialVaultsHash = bytes32(0);
@@ -650,7 +639,6 @@ contract LiquidityOrchestrator is
                     config.decommissioningAssets(),
                     _failedEpochTokens,
                     initialEpochBufferAmount,
-                    buyingLegEntryBuffer,
                     bufferAmount,
                     IERC20(underlyingAsset).balanceOf(address(this))
                 )
@@ -809,11 +797,26 @@ contract LiquidityOrchestrator is
         if (isSell) {
             currentPhase = LiquidityUpkeepPhase.BuyingLeg;
         } else {
-            pendingProtocolFees += _pendingEpochProtocolFees;
-            emit EventsLib.ProtocolFeesAccrued(_pendingEpochProtocolFees);
-            _pendingEpochProtocolFees = 0;
             currentPhase = LiquidityUpkeepPhase.ProcessVaultOperations;
         }
+    }
+
+    /// @notice Applies bufferIncrease, accrued exec dust, and epoch protocol fees at Buy→PVO.
+    /// @param bufferIncrease Nominal buffer increase from the completing buy payload
+    /// @param epochProtocolFees Epoch protocol fees from the completing buy payload
+    function _applyBuyLegSettlement(uint256 bufferIncrease, uint256 epochProtocolFees) internal {
+        if (currentPhase != LiquidityUpkeepPhase.ProcessVaultOperations) {
+            return;
+        }
+
+        // slither-disable-start reentrancy-no-eth
+        // Safe: only reachable from nonReentrant performUpkeep after buys complete.
+        bufferAmount += bufferIncrease;
+        _updateBufferAmount(_epochDeltaAmount);
+        _epochDeltaAmount = 0;
+        pendingProtocolFees += epochProtocolFees;
+        emit EventsLib.ProtocolFeesAccrued(epochProtocolFees);
+        // slither-disable-end reentrancy-no-eth
     }
 
     /// @notice Updates the buffer amount based on execution vs estimated amounts
@@ -863,7 +866,8 @@ contract LiquidityOrchestrator is
         // Clean up approval
         IERC20(asset).forceApprove(address(adapter), 0);
 
-        _updateBufferAmount(executionUnderlyingAmount.toInt256() - estimatedUnderlyingAmount.toInt256());
+        _epochDeltaAmount += int256(executionUnderlyingAmount.toInt256() - estimatedUnderlyingAmount.toInt256());
+
         emit EventsLib.EpochSellExecuted(
             epochCounter,
             asset,
@@ -892,7 +896,8 @@ contract LiquidityOrchestrator is
         // Clean up approval
         IERC20(underlyingAsset).forceApprove(address(adapter), 0);
 
-        _updateBufferAmount(estimatedUnderlyingAmount.toInt256() - executionUnderlyingAmount.toInt256());
+        _epochDeltaAmount += int256(estimatedUnderlyingAmount.toInt256() - executionUnderlyingAmount.toInt256());
+
         emit EventsLib.EpochBuyExecuted(
             epochCounter,
             asset,
@@ -1018,5 +1023,5 @@ contract LiquidityOrchestrator is
     }
 
     /// @dev Storage gap to allow for future upgrades
-    uint256[45] private __gap;
+    uint256[46] private __gap;
 }
