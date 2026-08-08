@@ -60,6 +60,49 @@ jobs:
           echo "## Test results" >> $GITHUB_STEP_SUMMARY
           echo "✅ Passed" >> $GITHUB_STEP_SUMMARY
 
+  coverage:
+    name: "Code Coverage"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: "Check out the repo"
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: "Install Pnpm"
+        uses: pnpm/action-setup@v6
+
+      - name: "Setup Node.js"
+        uses: actions/setup-node@v7
+        with:
+          cache: pnpm
+          node-version: "22.22.3"
+
+      - name: "Install dependencies"
+        run: pnpm install --frozen-lockfile
+
+      - name: "Build"
+        run: pnpm build
+        env:
+          RPC_URL: ${{ secrets.RPC_URL }}
+          DEPLOYER_PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
+          LP_PRIVATE_KEY: ${{ secrets.LP_PRIVATE_KEY }}
+
+      - name: "Run coverage"
+        run: pnpm coverage
+        env:
+          RPC_URL: ${{ secrets.RPC_URL }}
+          DEPLOYER_PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
+          LP_PRIVATE_KEY: ${{ secrets.LP_PRIVATE_KEY }}
+
+      - name: "Upload coverage to Codecov"
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage/lcov.info
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+
   slither:
     name: "Slither Static Analysis"
     runs-on: "ubuntu-latest"

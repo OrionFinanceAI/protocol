@@ -13,7 +13,7 @@
   "scripts": {
     "build": "pnpm clean && cross-env TS_NODE_TRANSPILE_ONLY=true hardhat build",
     "build:sepolia": "pnpm clean && cross-env TS_NODE_TRANSPILE_ONLY=true hardhat compile --network sepolia",
-    "clean": "rimraf ./artifacts ./cache ./types",
+    "clean": "rimraf ./artifacts ./cache ./types ./coverage coverage.json",
     "compile": "cross-env TS_NODE_TRANSPILE_ONLY=true hardhat compile",
     "compile:sepolia": "cross-env TS_NODE_TRANSPILE_ONLY=true hardhat compile --network sepolia",
     "deploy:sepolia": "hardhat run protocol-ops/deploy.ts --network sepolia",
@@ -26,6 +26,7 @@
     "test:no-fork": "cross-env FORK_MAINNET=false hardhat test",
     "test:fork": "sh -c 'set -a; [ -f .env ] && source .env; set +a; if [ -z \"$MAINNET_RPC_URL\" ]; then echo \"Skipping fork tests: MAINNET_RPC_URL is not set\"; exit 0; fi; FORK_MAINNET=true hardhat test --network hardhat test/crossAsset/ChainlinkPriceAdapter.test.ts test/crossAsset/ERC4626PriceAdapter.test.ts test/crossAsset/ERC4626ExecutionAdapter.test.ts test/crossAsset/MorphoBlueSupplyVault.test.ts'",
     "test": "pnpm test:no-fork && pnpm test:fork",
+    "coverage": "cross-env FORK_MAINNET=false hardhat test --coverage",
     "test:sepolia": "hardhat test --network sepolia",
     "docgen": "cross-env TS_NODE_TRANSPILE_ONLY=true hardhat compile && node scripts/run-docgen.mjs",
     "prettier:check": "prettier --check \"**/*.{js,json,md,sol,ts,yml}\"",

@@ -114,4 +114,9 @@ contract LiquidityOrchestratorHarness is LiquidityOrchestrator {
             ++epochCounter;
         }
     }
+
+    /// @notice Test-only: seed pending protocol fees for claim tests
+    function h_setPendingProtocolFees(uint256 amount) external {
+        pendingProtocolFees = amount;
+    }
 }

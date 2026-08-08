@@ -14,6 +14,9 @@ const config = defineConfig({
       solidity: "test/solidity",
     },
   },
+  coverage: {
+    skipFiles: ["contracts/test/**"],
+  },
   defaultNetwork: "hardhat",
   solidity: {
     npmFilesToBuild: [

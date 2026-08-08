@@ -22,6 +22,8 @@ res/
 running_node/
 artifacts/
 edr-cache/
+coverage/
+coverage.json
 
 scripts/*.ts
 

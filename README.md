@@ -2,7 +2,7 @@
 
 <img src="./assets/Orion_Logo_white_horizontal.png" alt="orion" width="75%">
 
- [![Github Actions][gha-badge]][gha] [![Hardhat][hardhat-badge]][hardhat] [![CodeRabbit][cr-badge]][cr]
+ [![Github Actions][gha-badge]][gha] [![Coverage][cov-badge]][cov] [![Hardhat][hardhat-badge]][hardhat] [![CodeRabbit][cr-badge]][cr]
 
 [![LinkedIn][linkedin-badge]][linkedin] [![X][x-badge]][x] [![Telegram][telegram-badge]][telegram] [![Discord][discord-badge]][discord]
 
@@ -10,6 +10,8 @@
 
 [gha]: https://github.com/OrionFinanceAI/protocol/actions
 [gha-badge]: https://github.com/OrionFinanceAI/protocol/actions/workflows/ci.yml/badge.svg
+[cov]: https://codecov.io/gh/OrionFinanceAI/protocol
+[cov-badge]: https://codecov.io/gh/OrionFinanceAI/protocol/graph/badge.svg
 [hardhat]: https://hardhat.org/
 [hardhat-badge]: https://img.shields.io/badge/Built%20with-Hardhat-FFDB1C.svg
 
