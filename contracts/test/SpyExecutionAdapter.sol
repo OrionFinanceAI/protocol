@@ -15,12 +15,17 @@ contract SpyExecutionAdapter is IExecutionAdapter {
     /// @notice The value previewBuy will return (set by test)
     uint256 public previewBuyReturn;
 
+    /// @notice USDC (or protocol underlying) returned per unit of vault-underlying sold (1e18 = 1:1)
+    uint256 public sellRate = 1e18;
+
     /// @notice Recorded values from the last buy() call
     uint256 public lastBuyAllowanceReceived;
     uint256 public lastPreviewBuyResult;
+    uint256 public lastSellAmount;
 
     event PreviewBuyCalled(uint256 result);
     event BuyCalled(uint256 underlyingReceived, uint256 underlyingSpent);
+    event SellCalled(uint256 vaultUnderlyingIn, uint256 protocolUnderlyingOut);
 
     constructor(address underlying_) {
         UNDERLYING = IERC20(underlying_);
@@ -29,6 +34,11 @@ contract SpyExecutionAdapter is IExecutionAdapter {
     /// @notice Set the value previewBuy should return
     function setPreviewBuyReturn(uint256 amount) external {
         previewBuyReturn = amount;
+    }
+
+    /// @notice Set sell conversion rate: protocolUnderlyingOut = amount * sellRate / 1e18
+    function setSellRate(uint256 rate) external {
+        sellRate = rate;
     }
 
     /// @inheritdoc IExecutionAdapter
@@ -47,9 +57,7 @@ contract SpyExecutionAdapter is IExecutionAdapter {
         UNDERLYING.safeTransferFrom(msg.sender, address(this), lastBuyAllowanceReceived);
         executionUnderlyingAmount = lastBuyAllowanceReceived;
 
-        // Mint the requested output token to the caller (simulate swap)
-        // We need to transfer `amount` of the asset token to msg.sender
-        // For testing, we just transfer whatever asset tokens we hold
+        // Transfer requested output token to the caller (simulate swap)
         uint256 assetBalance = IERC20(asset).balanceOf(address(this));
         if (assetBalance >= amount) {
             IERC20(asset).safeTransfer(msg.sender, amount);
@@ -59,8 +67,12 @@ contract SpyExecutionAdapter is IExecutionAdapter {
     }
 
     /// @inheritdoc IExecutionAdapter
-    function sell(address, uint256) external pure returns (uint256 executionUnderlyingAmount) {
-        executionUnderlyingAmount = 0;
+    function sell(address asset, uint256 amount) external returns (uint256 executionUnderlyingAmount) {
+        lastSellAmount = amount;
+        IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
+        executionUnderlyingAmount = (amount * sellRate) / 1e18;
+        UNDERLYING.safeTransfer(msg.sender, executionUnderlyingAmount);
+        emit SellCalled(amount, executionUnderlyingAmount);
     }
 
     /// @inheritdoc IExecutionAdapter

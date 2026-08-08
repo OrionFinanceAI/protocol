@@ -57,6 +57,11 @@ contract LiquidityOrchestratorHarness is LiquidityOrchestrator {
         minibatchSize = size;
     }
 
+    /// @notice Test-only: set execution minibatch size (bypasses idle/owner checks)
+    function h_setExecutionMinibatchSize(uint8 size) external {
+        executionMinibatchSize = size;
+    }
+
     /// @notice Test-only: replace vaultsEpoch for the current epoch
     function h_setVaultsEpoch(address[] calldata vaults) external {
         delete _currentEpoch.vaultsEpoch;
@@ -177,5 +182,43 @@ contract LiquidityOrchestratorHarness is LiquidityOrchestrator {
     /// @notice Test-only: invoke Buy→PVO settlement helper
     function h_applyBuyLegSettlement(uint256 bufferIncrease, uint256 epochProtocolFees) external {
         _applyBuyLegSettlement(bufferIncrease, epochProtocolFees);
+    }
+
+    /// @notice Test-only: run sell minibatch processing
+    function h_processMinibatchSell(
+        address[] calldata tokens,
+        uint256[] calldata amounts,
+        uint256[] calldata estimated
+    ) external {
+        SellLegOrders memory sellLeg = SellLegOrders({
+            sellingTokens: tokens,
+            sellingAmounts: amounts,
+            sellingEstimatedUnderlyingAmounts: estimated
+        });
+        _processMinibatchSell(sellLeg);
+    }
+
+    /// @notice Test-only: run buy minibatch processing
+    function h_processMinibatchBuy(
+        address[] calldata tokens,
+        uint256[] calldata amounts,
+        uint256[] calldata estimated
+    ) external {
+        BuyLegOrders memory buyLeg = BuyLegOrders({
+            buyingTokens: tokens,
+            buyingAmounts: amounts,
+            buyingEstimatedUnderlyingAmounts: estimated
+        });
+        _processMinibatchBuy(buyLeg);
+    }
+
+    /// @notice Test-only: trigger empty-epoch start (no vaults → defer next update)
+    function h_handleStart() external {
+        _handleStart();
+    }
+
+    /// @notice Test-only: set completedInCurrentMinibatch cursor
+    function h_setCompletedInCurrentMinibatch(uint8 value) external {
+        completedInCurrentMinibatch = value;
     }
 }

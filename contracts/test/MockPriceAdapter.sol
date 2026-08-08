@@ -10,6 +10,8 @@ import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/I
 contract MockPriceAdapter is IPriceAdapter {
     /// @notice Configurable mock prices for non-ERC4626 assets
     mapping(address => uint256) public mockPrices;
+    /// @dev When set, getPriceData returns (0, 14) for the asset (broken-adapter tests).
+    mapping(address => bool) public forceZeroPrice;
 
     /// @notice Default price for non-ERC4626 assets when not explicitly configured (14-decimal scaled)
     uint256 public constant DEFAULT_MOCK_PRICE = 1e14; // 1.0 in 14 decimals
@@ -25,10 +27,20 @@ contract MockPriceAdapter is IPriceAdapter {
     /// @param price The price in 14-decimal format
     function setMockPrice(address asset, uint256 price) external {
         mockPrices[asset] = price;
+        forceZeroPrice[asset] = false;
+    }
+
+    /// @notice Force getPriceData to return zero for `asset` (PriceMustBeGreaterThanZero tests).
+    function setForceZeroPrice(address asset, bool enabled) external {
+        forceZeroPrice[asset] = enabled;
     }
 
     /// @inheritdoc IPriceAdapter
     function getPriceData(address asset) external view returns (uint256 price, uint8 decimals) {
+        if (forceZeroPrice[asset]) {
+            return (0, 14);
+        }
+
         // Check if asset is an ERC4626 vault
         try IERC4626(asset).asset() returns (address) {
             // It's an ERC4626 vault - return actual exchange rate

@@ -130,6 +130,61 @@ describe("ChainlinkPriceAdapter — unit tests (no fork)", function () {
         adapter.configureFeed(asset, await baseFeed.getAddress(), false, STALENESS, 1, MAX_PRICE, badQuote),
       ).to.be.revertedWithCustomError(adapter, "InvalidAdapter");
     });
+
+    it("should reject zero asset address", async function () {
+      await expect(
+        adapter.configureFeed(
+          ethers.ZeroAddress,
+          await baseFeed.getAddress(),
+          false,
+          STALENESS,
+          1,
+          MAX_PRICE,
+          ethers.ZeroAddress,
+        ),
+      ).to.be.revertedWithCustomError(adapter, "ZeroAddress");
+    });
+
+    it("should reject zero feed address", async function () {
+      await expect(
+        adapter.configureFeed(asset, ethers.ZeroAddress, false, STALENESS, 1, MAX_PRICE, ethers.ZeroAddress),
+      ).to.be.revertedWithCustomError(adapter, "ZeroAddress");
+    });
+
+    it("should reject zero staleness", async function () {
+      await expect(
+        adapter.configureFeed(asset, await baseFeed.getAddress(), false, 0, 1, MAX_PRICE, ethers.ZeroAddress),
+      ).to.be.revertedWithCustomError(adapter, "InvalidArguments");
+    });
+
+    it("should reject zero maxPrice", async function () {
+      await expect(
+        adapter.configureFeed(asset, await baseFeed.getAddress(), false, STALENESS, 1, 0, ethers.ZeroAddress),
+      ).to.be.revertedWithCustomError(adapter, "InvalidArguments");
+    });
+
+    it("should reject minPrice greater than maxPrice", async function () {
+      await expect(
+        adapter.configureFeed(asset, await baseFeed.getAddress(), false, STALENESS, 100, 50, ethers.ZeroAddress),
+      ).to.be.revertedWithCustomError(adapter, "InvalidArguments");
+    });
+
+    it("should reject base feed that reverts on decimals", async function () {
+      await baseFeed.setDecimalsReverts(true);
+      await expect(
+        adapter.configureFeed(asset, await baseFeed.getAddress(), false, STALENESS, 1, MAX_PRICE, ethers.ZeroAddress),
+      ).to.be.revertedWithCustomError(adapter, "InvalidAdapter");
+      await baseFeed.setDecimalsReverts(false);
+    });
+
+    it("should reject non-owner configureFeed", async function () {
+      const [, nonOwner] = await ethers.getSigners();
+      await expect(
+        adapter
+          .connect(nonOwner)
+          .configureFeed(asset, await baseFeed.getAddress(), false, STALENESS, 1, MAX_PRICE, ethers.ZeroAddress),
+      ).to.be.revertedWithCustomError(adapter, "OwnableUnauthorizedAccount");
+    });
   });
 
   // ── setFallbackAdapter ────────────────────────────────────────────────────
@@ -162,6 +217,12 @@ describe("ChainlinkPriceAdapter — unit tests (no fork)", function () {
         adapter,
         "InvalidArguments",
       );
+    });
+
+    it("should reject zero asset for setFallbackAdapter", async function () {
+      await expect(
+        adapter.setFallbackAdapter(ethers.ZeroAddress, await fallbackAdapter.getAddress()),
+      ).to.be.revertedWithCustomError(adapter, "ZeroAddress");
     });
   });
 
@@ -234,6 +295,40 @@ describe("ChainlinkPriceAdapter — unit tests (no fork)", function () {
         await quoteFeed.getAddress(),
       );
       await expect(adapter.validatePriceAdapter(asset)).to.be.revertedWithCustomError(adapter, "InvalidAdapter");
+    });
+
+    it("should reject unconfigured asset", async function () {
+      await expect(adapter.validatePriceAdapter(asset)).to.be.revertedWithCustomError(adapter, "InvalidAdapter");
+    });
+
+    it("should reject when base feed latestRoundData reverts", async function () {
+      await adapter.configureFeed(
+        asset,
+        await baseFeed.getAddress(),
+        false,
+        STALENESS,
+        1,
+        MAX_PRICE,
+        ethers.ZeroAddress,
+      );
+      await baseFeed.setLatestRoundReverts(true);
+      await expect(adapter.validatePriceAdapter(asset)).to.be.revertedWithCustomError(adapter, "InvalidAdapter");
+      await baseFeed.setLatestRoundReverts(false);
+    });
+
+    it("should reject when quote feed latestRoundData reverts", async function () {
+      await adapter.configureFeed(
+        asset,
+        await baseFeed.getAddress(),
+        false,
+        STALENESS,
+        1,
+        MAX_PRICE,
+        await quoteFeed.getAddress(),
+      );
+      await quoteFeed.setLatestRoundReverts(true);
+      await expect(adapter.validatePriceAdapter(asset)).to.be.revertedWithCustomError(adapter, "InvalidAdapter");
+      await quoteFeed.setLatestRoundReverts(false);
     });
   });
 
@@ -354,6 +449,111 @@ describe("ChainlinkPriceAdapter — unit tests (no fork)", function () {
         await quoteFeed.getAddress(),
       );
       await quoteFeed.setAnswer(-1);
+      await expect(adapter.getPriceData(asset)).to.be.revertedWithCustomError(adapter, "InvalidPrice");
+    });
+
+    it("should revert AdapterNotSet for unconfigured asset", async function () {
+      await expect(adapter.getPriceData(asset)).to.be.revertedWithCustomError(adapter, "AdapterNotSet");
+    });
+
+    it("should revert InvalidPrice when base answer is zero", async function () {
+      await adapter.configureFeed(
+        asset,
+        await baseFeed.getAddress(),
+        false,
+        STALENESS,
+        1,
+        MAX_PRICE,
+        ethers.ZeroAddress,
+      );
+      await baseFeed.setAnswer(0);
+      await expect(adapter.getPriceData(asset)).to.be.revertedWithCustomError(adapter, "InvalidPrice");
+    });
+
+    it("should revert InvalidPrice when updatedAt is zero", async function () {
+      await adapter.configureFeed(
+        asset,
+        await baseFeed.getAddress(),
+        false,
+        STALENESS,
+        1,
+        MAX_PRICE,
+        ethers.ZeroAddress,
+      );
+      await baseFeed.setUpdatedAt(0);
+      await expect(adapter.getPriceData(asset)).to.be.revertedWithCustomError(adapter, "InvalidPrice");
+    });
+
+    it("should revert InvalidPrice when startedAt is in the future", async function () {
+      await adapter.configureFeed(
+        asset,
+        await baseFeed.getAddress(),
+        false,
+        STALENESS,
+        1,
+        MAX_PRICE,
+        ethers.ZeroAddress,
+      );
+      const now = (await ethers.provider.getBlock("latest"))!.timestamp;
+      await baseFeed.setStartedAt(now + 10_000);
+      await expect(adapter.getPriceData(asset)).to.be.revertedWithCustomError(adapter, "InvalidPrice");
+    });
+
+    it("should revert PriceOutOfBounds when price exceeds max", async function () {
+      await adapter.configureFeed(
+        asset,
+        await baseFeed.getAddress(),
+        false,
+        STALENESS,
+        1,
+        BASE_ANSWER - 1n,
+        ethers.ZeroAddress,
+      );
+      await expect(adapter.getPriceData(asset)).to.be.revertedWithCustomError(adapter, "PriceOutOfBounds");
+    });
+
+    it("should handle inverse feed pricing", async function () {
+      // Configure USDC/ETH-style inverse: answer = USDC per ETH fraction; inverse → ETH per USDC scale
+      await adapter.configureFeed(
+        asset,
+        await baseFeed.getAddress(),
+        true,
+        STALENESS,
+        1,
+        MAX_PRICE,
+        ethers.ZeroAddress,
+      );
+      const [price, decimals] = await adapter.getPriceData(asset);
+      expect(decimals).to.equal(18);
+      expect(price).to.be.gt(0n);
+    });
+
+    it("should revert InvalidPrice when quote updatedAt is zero", async function () {
+      await adapter.configureFeed(
+        asset,
+        await baseFeed.getAddress(),
+        false,
+        STALENESS,
+        1,
+        MAX_PRICE,
+        await quoteFeed.getAddress(),
+      );
+      await quoteFeed.setUpdatedAt(0);
+      await expect(adapter.getPriceData(asset)).to.be.revertedWithCustomError(adapter, "InvalidPrice");
+    });
+
+    it("should revert InvalidPrice when quote startedAt is in the future", async function () {
+      await adapter.configureFeed(
+        asset,
+        await baseFeed.getAddress(),
+        false,
+        STALENESS,
+        1,
+        MAX_PRICE,
+        await quoteFeed.getAddress(),
+      );
+      const now = (await ethers.provider.getBlock("latest"))!.timestamp;
+      await quoteFeed.setStartedAt(now + 10_000);
       await expect(adapter.getPriceData(asset)).to.be.revertedWithCustomError(adapter, "InvalidPrice");
     });
   });

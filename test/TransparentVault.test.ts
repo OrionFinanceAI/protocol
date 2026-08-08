@@ -27,70 +27,70 @@ let transparentVault: OrionTransparentVault;
 
 let owner: SignerWithAddress, strategist: SignerWithAddress, other: SignerWithAddress;
 
-before(async function () {
-  await resetNetwork();
-});
-
-beforeEach(async function () {
-  this.timeout(90_000); // deployment-heavy; CI coverage runs slower than normal
-  [owner, strategist, other] = await ethers.getSigners();
-
-  const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
-  const underlyingAssetDeployed = await MockUnderlyingAssetFactory.deploy(6);
-  await underlyingAssetDeployed.waitForDeployment();
-  underlyingAsset = underlyingAssetDeployed as unknown as MockUnderlyingAsset;
-
-  const MockERC4626AssetFactory = await ethers.getContractFactory("MockERC4626Asset");
-  const mockAsset1Deployed = await MockERC4626AssetFactory.deploy(
-    await underlyingAsset.getAddress(),
-    "Mock Asset 1",
-    "MA1",
-  );
-  await mockAsset1Deployed.waitForDeployment();
-  mockAsset1 = mockAsset1Deployed as unknown as MockERC4626Asset;
-
-  const mockAsset2Deployed = await MockERC4626AssetFactory.deploy(
-    await underlyingAsset.getAddress(),
-    "Mock Asset 2",
-    "MA2",
-  );
-  await mockAsset2Deployed.waitForDeployment();
-  mockAsset2 = mockAsset2Deployed as unknown as MockERC4626Asset;
-
-  const deployed = await deployUpgradeableProtocol(owner, underlyingAsset);
-
-  orionConfig = deployed.orionConfig;
-  transparentVaultFactory = deployed.transparentVaultFactory;
-
-  const MockPriceAdapterFactory = await ethers.getContractFactory("MockPriceAdapter");
-  mockPriceAdapter1 = (await MockPriceAdapterFactory.deploy()) as unknown as MockPriceAdapter;
-  await mockPriceAdapter1.waitForDeployment();
-
-  mockPriceAdapter2 = (await MockPriceAdapterFactory.deploy()) as unknown as MockPriceAdapter;
-  await mockPriceAdapter2.waitForDeployment();
-
-  const MockExecutionAdapterFactory = await ethers.getContractFactory("MockExecutionAdapter");
-  mockExecutionAdapter1 = (await MockExecutionAdapterFactory.deploy()) as unknown as MockExecutionAdapter;
-  await mockExecutionAdapter1.waitForDeployment();
-
-  mockExecutionAdapter2 = (await MockExecutionAdapterFactory.deploy()) as unknown as MockExecutionAdapter;
-  await mockExecutionAdapter2.waitForDeployment();
-
-  await orionConfig.setProtocolRiskFreeRate(0.0423 * 10_000);
-
-  await orionConfig.addWhitelistedAsset(
-    await mockAsset1.getAddress(),
-    await mockPriceAdapter1.getAddress(),
-    await mockExecutionAdapter1.getAddress(),
-  );
-  await orionConfig.addWhitelistedAsset(
-    await mockAsset2.getAddress(),
-    await mockPriceAdapter2.getAddress(),
-    await mockExecutionAdapter2.getAddress(),
-  );
-});
-
 describe("TransparentVault - Strategist Pipeline", function () {
+  before(async function () {
+    await resetNetwork();
+  });
+
+  beforeEach(async function () {
+    this.timeout(90_000); // deployment-heavy; CI coverage runs slower than normal
+    [owner, strategist, other] = await ethers.getSigners();
+
+    const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
+    const underlyingAssetDeployed = await MockUnderlyingAssetFactory.deploy(6);
+    await underlyingAssetDeployed.waitForDeployment();
+    underlyingAsset = underlyingAssetDeployed as unknown as MockUnderlyingAsset;
+
+    const MockERC4626AssetFactory = await ethers.getContractFactory("MockERC4626Asset");
+    const mockAsset1Deployed = await MockERC4626AssetFactory.deploy(
+      await underlyingAsset.getAddress(),
+      "Mock Asset 1",
+      "MA1",
+    );
+    await mockAsset1Deployed.waitForDeployment();
+    mockAsset1 = mockAsset1Deployed as unknown as MockERC4626Asset;
+
+    const mockAsset2Deployed = await MockERC4626AssetFactory.deploy(
+      await underlyingAsset.getAddress(),
+      "Mock Asset 2",
+      "MA2",
+    );
+    await mockAsset2Deployed.waitForDeployment();
+    mockAsset2 = mockAsset2Deployed as unknown as MockERC4626Asset;
+
+    const deployed = await deployUpgradeableProtocol(owner, underlyingAsset);
+
+    orionConfig = deployed.orionConfig;
+    transparentVaultFactory = deployed.transparentVaultFactory;
+
+    const MockPriceAdapterFactory = await ethers.getContractFactory("MockPriceAdapter");
+    mockPriceAdapter1 = (await MockPriceAdapterFactory.deploy()) as unknown as MockPriceAdapter;
+    await mockPriceAdapter1.waitForDeployment();
+
+    mockPriceAdapter2 = (await MockPriceAdapterFactory.deploy()) as unknown as MockPriceAdapter;
+    await mockPriceAdapter2.waitForDeployment();
+
+    const MockExecutionAdapterFactory = await ethers.getContractFactory("MockExecutionAdapter");
+    mockExecutionAdapter1 = (await MockExecutionAdapterFactory.deploy()) as unknown as MockExecutionAdapter;
+    await mockExecutionAdapter1.waitForDeployment();
+
+    mockExecutionAdapter2 = (await MockExecutionAdapterFactory.deploy()) as unknown as MockExecutionAdapter;
+    await mockExecutionAdapter2.waitForDeployment();
+
+    await orionConfig.setProtocolRiskFreeRate(0.0423 * 10_000);
+
+    await orionConfig.addWhitelistedAsset(
+      await mockAsset1.getAddress(),
+      await mockPriceAdapter1.getAddress(),
+      await mockExecutionAdapter1.getAddress(),
+    );
+    await orionConfig.addWhitelistedAsset(
+      await mockAsset2.getAddress(),
+      await mockPriceAdapter2.getAddress(),
+      await mockExecutionAdapter2.getAddress(),
+    );
+  });
+
   describe("Vault Creation", function () {
     it("Should create a transparent vault with correct parameters", async function () {
       const tx = await transparentVaultFactory
@@ -142,6 +142,36 @@ describe("TransparentVault - Strategist Pipeline", function () {
           .connect(owner)
           .createVault(strategist.address, "Test Vault", longSymbol, 0, 0, 0, ethers.ZeroAddress),
       ).to.be.revertedWithCustomError(transparentVaultFactory, "InvalidArguments");
+    });
+
+    it("should reject createVault from non-whitelisted manager", async function () {
+      await expect(
+        transparentVaultFactory
+          .connect(other)
+          .createVault(strategist.address, "Test Vault", "TV", 0, 0, 0, ethers.ZeroAddress),
+      ).to.be.revertedWithCustomError(transparentVaultFactory, "NotAuthorized");
+    });
+
+    it("should reject setVaultBeacon with zero address", async function () {
+      await expect(
+        transparentVaultFactory.connect(owner).setVaultBeacon(ethers.ZeroAddress),
+      ).to.be.revertedWithCustomError(transparentVaultFactory, "ZeroAddress");
+    });
+
+    it("should reject factory initialize with zero addresses", async function () {
+      const Impl = await ethers.getContractFactory("TransparentVaultFactory");
+      const impl = await Impl.deploy();
+      await impl.waitForDeployment();
+      const Proxy = await ethers.getContractFactory("OrionERC1967Proxy");
+      const badOwner = Impl.interface.encodeFunctionData("initialize", [
+        ethers.ZeroAddress,
+        await orionConfig.getAddress(),
+        await transparentVaultFactory.vaultBeacon(),
+      ]);
+      await expect(Proxy.deploy(await impl.getAddress(), badOwner)).to.be.revertedWithCustomError(
+        transparentVaultFactory,
+        "ZeroAddress",
+      );
     });
   });
 
@@ -207,6 +237,12 @@ describe("TransparentVault - Strategist Pipeline", function () {
       void expect(weights).to.deep.equal([600000000, 400000000]);
     });
 
+    it("should return empty portfolio before any LO state update", async function () {
+      const [portfolioTokens, shares] = await transparentVault.getPortfolio();
+      expect(portfolioTokens.length).to.equal(0);
+      expect(shares.length).to.equal(0);
+    });
+
     it("Should reject intent with invalid total weight", async function () {
       // Submit intent with total weight != 100%
       const intent = [
@@ -261,6 +297,23 @@ describe("TransparentVault - Strategist Pipeline", function () {
         transparentVault,
         "NotAuthorized",
       );
+    });
+
+    it("should reject empty intent", async function () {
+      await expect(transparentVault.connect(strategist).submitIntent([])).to.be.revertedWithCustomError(
+        transparentVault,
+        "OrderIntentCannotBeEmpty",
+      );
+    });
+
+    it("should reject duplicate tokens in intent", async function () {
+      const token = await mockAsset1.getAddress();
+      await expect(
+        transparentVault.connect(strategist).submitIntent([
+          { token, weight: 500000000 },
+          { token, weight: 500000000 },
+        ]),
+      ).to.be.revertedWithCustomError(transparentVault, "TokenAlreadyInOrder");
     });
 
     it("Should reject absoluteIntent not summing up to 100", async function () {

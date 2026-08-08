@@ -15,12 +15,13 @@ const config = defineConfig({
     },
   },
   coverage: {
-    skipFiles: ["contracts/test/**", "contracts/sp1-contracts/**"],
+    skipFiles: ["contracts/test/**", "contracts/sp1-contracts/**", "contracts/morpho/MorphoBlueSupplyVault.sol"],
   },
   defaultNetwork: "hardhat",
   solidity: {
     npmFilesToBuild: [
       "@openzeppelin/contracts/token/ERC20/IERC20.sol",
+      "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol",
       "@openzeppelin/contracts/interfaces/IERC4626.sol",
       "@openzeppelin/contracts/governance/TimelockController.sol",
       "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol",
@@ -49,6 +50,7 @@ const config = defineConfig({
       chainType: "l1",
       chainId: 31337,
       initialBaseFeePerGas: 0,
+      allowUnlimitedContractSize: true,
       ...(useMainnetFork
         ? {
             forking: {

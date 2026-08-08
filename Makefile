@@ -10,7 +10,7 @@ ci:
 	pnpm build
 	pnpm lint
 	pnpm slither
-	pnpm test
+	pnpm coverage
 
 .PHONY: docs
 docs:

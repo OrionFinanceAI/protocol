@@ -15,6 +15,8 @@ contract ControllableExecutionAdapter is IExecutionAdapter {
     IERC20 public immutable UNDERLYING;
     uint256 public sellReturn;
     uint256 public buyReturn;
+    bool public sellReverts;
+    bool public buyReverts;
 
     constructor(address underlying_) {
         UNDERLYING = IERC20(underlying_);
@@ -28,6 +30,14 @@ contract ControllableExecutionAdapter is IExecutionAdapter {
         buyReturn = amount;
     }
 
+    function setSellReverts(bool reverts_) external {
+        sellReverts = reverts_;
+    }
+
+    function setBuyReverts(bool reverts_) external {
+        buyReverts = reverts_;
+    }
+
     /// @inheritdoc IExecutionAdapter
     function previewBuy(address, uint256) external view returns (uint256 underlyingAmount) {
         underlyingAmount = buyReturn;
@@ -35,6 +45,7 @@ contract ControllableExecutionAdapter is IExecutionAdapter {
 
     /// @inheritdoc IExecutionAdapter
     function buy(address, uint256) external returns (uint256 executionUnderlyingAmount) {
+        if (buyReverts) revert("buy revert");
         executionUnderlyingAmount = buyReturn;
         if (executionUnderlyingAmount > 0) {
             UNDERLYING.safeTransferFrom(msg.sender, address(this), executionUnderlyingAmount);
@@ -43,6 +54,7 @@ contract ControllableExecutionAdapter is IExecutionAdapter {
 
     /// @inheritdoc IExecutionAdapter
     function sell(address, uint256) external returns (uint256 executionUnderlyingAmount) {
+        if (sellReverts) revert("sell revert");
         executionUnderlyingAmount = sellReturn;
     }
 

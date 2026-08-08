@@ -7,8 +7,9 @@
 
 import { expect } from "chai";
 import { ethers } from "../helpers/hh";
+import { skipUnlessMainnetFork } from "../helpers/fork";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
-import type { ChainlinkPriceAdapter } from "../typechain-types";
+import type { ChainlinkPriceAdapter } from "../../typechain-types";
 
 // Mainnet addresses
 const MAINNET = {
@@ -32,10 +33,7 @@ describe("ChainlinkPriceAdapter - Coverage Tests", function () {
   before(async function () {
     this.timeout(60000);
 
-    // Skip if not forking mainnet
-    if (!(process.env.FORK_MAINNET === "true" && process.env.MAINNET_RPC_URL)) {
-      this.skip();
-    }
+    await skipUnlessMainnetFork(this);
 
     [owner, nonOwner] = await ethers.getSigners();
 

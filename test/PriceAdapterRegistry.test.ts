@@ -6,7 +6,7 @@ import type {
   MockERC4626Asset,
   MockExecutionAdapter,
   MockUnderlyingAsset,
-  MockZeroPriceAdapter,
+  MockPriceAdapter,
   OrionConfig,
   PriceAdapterRegistry,
 } from "../typechain-types";
@@ -43,9 +43,9 @@ describe("PriceAdapterRegistry", function () {
       )) as unknown as MockERC4626Asset;
       await mockAsset.waitForDeployment();
 
-      const MockZeroPriceAdapterFactory = await ethers.getContractFactory("MockZeroPriceAdapter");
-      const zeroPriceAdapter = (await MockZeroPriceAdapterFactory.deploy()) as unknown as MockZeroPriceAdapter;
-      await zeroPriceAdapter.waitForDeployment();
+      const MockPriceAdapterFactory = await ethers.getContractFactory("MockPriceAdapter");
+      const priceAdapter = (await MockPriceAdapterFactory.deploy()) as unknown as MockPriceAdapter;
+      await priceAdapter.waitForDeployment();
 
       const MockExecutionAdapterFactory = await ethers.getContractFactory("MockExecutionAdapter");
       const mockExecutionAdapter = (await MockExecutionAdapterFactory.deploy()) as unknown as MockExecutionAdapter;
@@ -53,13 +53,60 @@ describe("PriceAdapterRegistry", function () {
 
       await orionConfig.addWhitelistedAsset(
         await mockAsset.getAddress(),
-        await zeroPriceAdapter.getAddress(),
+        await priceAdapter.getAddress(),
         await mockExecutionAdapter.getAddress(),
       );
+      await priceAdapter.setForceZeroPrice(await mockAsset.getAddress(), true);
 
       await expect(priceAdapterRegistry.getPrice(await mockAsset.getAddress()))
         .to.be.revertedWithCustomError(priceAdapterRegistry, "PriceMustBeGreaterThanZero")
         .withArgs(await mockAsset.getAddress());
+    });
+
+    it("should return 1e14 for the underlying asset", async function () {
+      const price = await priceAdapterRegistry.getPrice(await underlyingAsset.getAddress());
+      expect(price).to.equal(10n ** 14n);
+    });
+
+    it("should revert AdapterNotSet for unknown asset", async function () {
+      await expect(priceAdapterRegistry.getPrice(owner.address)).to.be.revertedWithCustomError(
+        priceAdapterRegistry,
+        "AdapterNotSet",
+      );
+    });
+  });
+
+  describe("setPriceAdapter access control", function () {
+    it("should reject non-config caller", async function () {
+      const MockPriceAdapterFactory = await ethers.getContractFactory("MockPriceAdapter");
+      const priceAdapter = (await MockPriceAdapterFactory.deploy()) as unknown as MockPriceAdapter;
+      await expect(
+        priceAdapterRegistry.setPriceAdapter(await underlyingAsset.getAddress(), await priceAdapter.getAddress()),
+      ).to.be.revertedWithCustomError(priceAdapterRegistry, "NotAuthorized");
+    });
+  });
+
+  describe("initialize", function () {
+    it("should reject zero owner or config on initialize via proxy", async function () {
+      const Impl = await ethers.getContractFactory("PriceAdapterRegistry");
+      const impl = await Impl.deploy();
+      await impl.waitForDeployment();
+
+      const Proxy = await ethers.getContractFactory("OrionERC1967Proxy");
+      const initBadOwner = Impl.interface.encodeFunctionData("initialize", [
+        ethers.ZeroAddress,
+        await orionConfig.getAddress(),
+      ]);
+      await expect(Proxy.deploy(await impl.getAddress(), initBadOwner)).to.be.revertedWithCustomError(
+        priceAdapterRegistry,
+        "ZeroAddress",
+      );
+
+      const initBadConfig = Impl.interface.encodeFunctionData("initialize", [owner.address, ethers.ZeroAddress]);
+      await expect(Proxy.deploy(await impl.getAddress(), initBadConfig)).to.be.revertedWithCustomError(
+        priceAdapterRegistry,
+        "ZeroAddress",
+      );
     });
   });
 });

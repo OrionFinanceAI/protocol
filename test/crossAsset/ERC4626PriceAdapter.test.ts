@@ -7,13 +7,14 @@
 
 import { expect } from "chai";
 import { ethers } from "../helpers/hh";
+import { skipUnlessMainnetFork } from "../helpers/fork";
 import type {
   ERC4626PriceAdapter,
   MockOrionConfig,
   ChainlinkPriceAdapter,
   MockPriceAdapterRegistry,
   IERC4626,
-} from "../typechain-types";
+} from "../../typechain-types";
 
 // Mainnet addresses
 const MAINNET = {
@@ -35,10 +36,7 @@ describe("ERC4626PriceAdapter - Coverage Tests", function () {
   before(async function () {
     this.timeout(60000);
 
-    // Skip if not forking mainnet
-    if (!(process.env.FORK_MAINNET === "true" && process.env.MAINNET_RPC_URL)) {
-      this.skip();
-    }
+    await skipUnlessMainnetFork(this);
 
     // Deploy mock config
     const MockOrionConfigFactory = await ethers.getContractFactory("MockOrionConfig");

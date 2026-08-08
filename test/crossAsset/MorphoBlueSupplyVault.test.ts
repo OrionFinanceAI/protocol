@@ -24,6 +24,7 @@
 import { expect } from "chai";
 import type { Contract } from "ethers";
 import { ethers, provider } from "../helpers/hh";
+import { skipUnlessMainnetFork } from "../helpers/fork";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import {
   ERC4626ExecutionAdapter,
@@ -157,10 +158,7 @@ describe("MorphoBlueSupplyVault", function () {
   before(async function () {
     this.timeout(120_000);
 
-    // Skip when this isn't a fork run or the RPC endpoint isn't configured.
-    if (!(process.env.FORK_MAINNET === "true" && process.env.MAINNET_RPC_URL)) {
-      this.skip();
-    }
+    await skipUnlessMainnetFork(this);
 
     [owner] = await ethers.getSigners();
     usdc = (await ethers.getContractAt("IERC20", MAINNET.USDC)) as unknown as IERC20;

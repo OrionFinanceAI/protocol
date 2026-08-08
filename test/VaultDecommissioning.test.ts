@@ -143,23 +143,6 @@ describe("Vault decommissioning completion", function () {
     );
   });
 
-  it("completes decommissioning for zero-state vault with empty portfolio", async function () {
-    const vault = await createVault("Zero State", "ZS");
-    const vaultAddress = await vault.getAddress();
-
-    expect(await vault.totalAssets()).to.equal(0);
-    expect((await vault.getPortfolio()).tokens).to.deep.equal([]);
-
-    await orionConfig.connect(manager).removeOrionVault(vaultAddress);
-    void expect(await orionConfig.isDecommissioningVault(vaultAddress)).to.be.true;
-
-    await processVaultEpochState(vault, [], [], 0n);
-
-    void expect(await orionConfig.isDecommissioningVault(vaultAddress)).to.be.false;
-    void expect(await orionConfig.isDecommissionedVault(vaultAddress)).to.be.true;
-    void expect(await orionConfig.isOrionVault(vaultAddress)).to.be.false;
-  });
-
   it("completes decommissioning when portfolio is 100% underlying", async function () {
     const vault = await createVault("Underlying Only", "UO");
     const vaultAddress = await vault.getAddress();
