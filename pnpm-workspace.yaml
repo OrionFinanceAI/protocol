@@ -27,6 +27,5 @@ allowedDeprecatedVersions:
 allowBuilds:
   "@parcel/watcher": true
   esbuild: true
-  hardhat-deploy: true
   keccak: true
   secp256k1: true
