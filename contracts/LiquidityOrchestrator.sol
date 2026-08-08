@@ -123,7 +123,7 @@ contract LiquidityOrchestrator is
     uint256 public initialEpochBufferAmount;
 
     /// @notice Epoch delta amount to apply when transitioning to ProcessVaultOperations.
-    int256 private _epochDeltaAmount;
+    int256 internal _epochDeltaAmount;
 
     /// @notice Struct to hold epoch state data
     struct EpochState {
@@ -154,7 +154,7 @@ contract LiquidityOrchestrator is
     bytes32 private _partialVaultsHash;
 
     /// @notice Number of vault leaves already folded this epoch
-    uint16 private _commitmentBatchIndex;
+    uint16 internal _commitmentBatchIndex;
 
     /// @notice On-chain resume cursor for the active sell/buy minibatch window.
     uint16 public completedInCurrentMinibatch;

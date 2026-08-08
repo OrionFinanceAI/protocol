@@ -15,7 +15,7 @@ const config = defineConfig({
     },
   },
   coverage: {
-    skipFiles: ["contracts/test/**"],
+    skipFiles: ["contracts/test/**", "contracts/sp1-contracts/**"],
   },
   defaultNetwork: "hardhat",
   solidity: {
