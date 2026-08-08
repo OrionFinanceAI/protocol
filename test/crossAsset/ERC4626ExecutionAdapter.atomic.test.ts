@@ -428,4 +428,147 @@ describe("ERC4626ExecutionAdapter - Atomic Guarantees (Unit)", function () {
       );
     });
   });
+
+  describe("Constructor and access control", function () {
+    it("should revert when config address is zero", async function () {
+      const Factory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
+      await expect(Factory.deploy(ethers.ZeroAddress)).to.be.revertedWithCustomError(vaultAdapter, "ZeroAddress");
+    });
+
+    it("should revert when liquidity orchestrator is zero", async function () {
+      const MockConfigFactory = await ethers.getContractFactory("MockOrionConfig");
+      const bareConfig = (await MockConfigFactory.deploy(await usdc.getAddress())) as unknown as MockOrionConfig;
+      await bareConfig.setLiquidityOrchestrator(ethers.ZeroAddress);
+
+      const Factory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
+      await expect(Factory.deploy(await bareConfig.getAddress())).to.be.revertedWithCustomError(
+        vaultAdapter,
+        "ZeroAddress",
+      );
+    });
+
+    it("should reject non-LO caller on buy", async function () {
+      await expect(vaultAdapter.connect(owner).buy(await vault.getAddress(), 1n)).to.be.revertedWithCustomError(
+        vaultAdapter,
+        "NotAuthorized",
+      );
+    });
+
+    it("should reject non-LO caller on sell", async function () {
+      await expect(vaultAdapter.connect(owner).sell(await vault.getAddress(), 1n)).to.be.revertedWithCustomError(
+        vaultAdapter,
+        "NotAuthorized",
+      );
+    });
+  });
+
+  describe("Validation edge cases", function () {
+    it("should reject non-ERC4626 asset", async function () {
+      await expect(vaultAdapter.validateExecutionAdapter(await usdc.getAddress())).to.be.revertedWithCustomError(
+        vaultAdapter,
+        "InvalidAdapter",
+      );
+    });
+
+    it("should reject vault with mismatched share decimals in config", async function () {
+      await config.setTokenDecimals(await vault.getAddress(), 8); // wrong: vault is 18
+      await expect(vaultAdapter.validateExecutionAdapter(await vault.getAddress())).to.be.revertedWithCustomError(
+        vaultAdapter,
+        "InvalidAdapter",
+      );
+      await config.setTokenDecimals(await vault.getAddress(), WETH_DECIMALS);
+    });
+  });
+
+  describe("Zero amount reverts", function () {
+    it("should revert buy with zero shares", async function () {
+      await expect(vaultAdapter.connect(loSigner).buy(await vault.getAddress(), 0)).to.be.revertedWithCustomError(
+        vaultAdapter,
+        "AmountMustBeGreaterThanZero",
+      );
+    });
+
+    it("should revert sell with zero shares", async function () {
+      await expect(vaultAdapter.connect(loSigner).sell(await vault.getAddress(), 0)).to.be.revertedWithCustomError(
+        vaultAdapter,
+        "AmountMustBeGreaterThanZero",
+      );
+    });
+  });
+
+  describe("Same-asset previewBuy and sell", function () {
+    let usdcVault: MockERC4626Asset;
+    let usdcVaultAdapter: ERC4626ExecutionAdapter;
+
+    before(async function () {
+      const MockVaultFactory = await ethers.getContractFactory("MockERC4626Asset");
+      usdcVault = (await MockVaultFactory.deploy(
+        await usdc.getAddress(),
+        "USDC Vault B",
+        "vUSDC2",
+      )) as unknown as MockERC4626Asset;
+      await config.setTokenDecimals(await usdcVault.getAddress(), USDC_DECIMALS);
+
+      usdcVaultAdapter = (await (
+        await ethers.getContractFactory("ERC4626ExecutionAdapter")
+      ).deploy(await config.getAddress())) as unknown as ERC4626ExecutionAdapter;
+      await liquidityOrchestrator.setExecutionAdapter(
+        await usdcVault.getAddress(),
+        await usdcVaultAdapter.getAddress(),
+      );
+
+      await usdc.mint(owner.address, ethers.parseUnits("50000", USDC_DECIMALS));
+      await usdc.approve(await usdcVault.getAddress(), ethers.parseUnits("50000", USDC_DECIMALS));
+      await usdcVault.deposit(ethers.parseUnits("10000", USDC_DECIMALS), owner.address);
+    });
+
+    it("should return previewMint via same-asset previewBuy", async function () {
+      const shares = ethers.parseUnits("10", USDC_DECIMALS);
+      const expected = await usdcVault.previewMint(shares);
+      expect(await usdcVaultAdapter.previewBuy.staticCall(await usdcVault.getAddress(), shares)).to.equal(expected);
+    });
+
+    it("should sell same-asset shares and return underlying to LO", async function () {
+      const shares = ethers.parseUnits("5", USDC_DECIMALS);
+      const mintCost = await usdcVault.previewMint(shares);
+      await usdc.mint(loSigner.address, mintCost);
+      await usdc.connect(loSigner).approve(await usdcVaultAdapter.getAddress(), mintCost);
+      await usdcVaultAdapter.connect(loSigner).buy(await usdcVault.getAddress(), shares);
+
+      await usdcVault.connect(loSigner).approve(await usdcVaultAdapter.getAddress(), shares);
+      const before = await usdc.balanceOf(loSigner.address);
+      const received = await usdcVaultAdapter.connect(loSigner).sell.staticCall(await usdcVault.getAddress(), shares);
+      await usdcVaultAdapter.connect(loSigner).sell(await usdcVault.getAddress(), shares);
+      const after = await usdc.balanceOf(loSigner.address);
+      expect(after - before).to.equal(received);
+      expect(received).to.be.gt(0n);
+    });
+  });
+
+  describe("Cross-asset sell path", function () {
+    it("should redeem vault shares, swap via executor, and return USDC to LO", async function () {
+      const shares = ethers.parseUnits("1", 18);
+      const previewUsdc = ethers.parseUnits("2000", USDC_DECIMALS);
+      await spySwapExecutor.setPreviewBuyReturn(previewUsdc);
+
+      const wethNeeded = await vault.previewMint(shares);
+      await weth.mint(await spySwapExecutor.getAddress(), wethNeeded * 2n);
+      await usdc.mint(loSigner.address, previewUsdc * 2n);
+      await usdc.connect(loSigner).approve(await vaultAdapter.getAddress(), previewUsdc * 2n);
+      await vaultAdapter.connect(loSigner).buy(await vault.getAddress(), shares);
+
+      // Fund spy with USDC so sell can pay out (1:1 WETH→USDC rate for simplicity needs USDC liquidity)
+      // sellRate default 1e18 means 1 WETH wei → 1 USDC wei; use a rate that matches USDC decimals
+      // 1 WETH (1e18) → 2000 USDC (2000e6): rate = 2000e6 * 1e18 / 1e18 = 2000e6
+      await spySwapExecutor.setSellRate(ethers.parseUnits("2000", USDC_DECIMALS));
+      await usdc.mint(await spySwapExecutor.getAddress(), ethers.parseUnits("100000", USDC_DECIMALS));
+
+      await vault.connect(loSigner).approve(await vaultAdapter.getAddress(), shares);
+      const before = await usdc.balanceOf(loSigner.address);
+      await vaultAdapter.connect(loSigner).sell(await vault.getAddress(), shares);
+      const after = await usdc.balanceOf(loSigner.address);
+      expect(after).to.be.gt(before);
+      expect(await spySwapExecutor.lastSellAmount()).to.be.gt(0n);
+    });
+  });
 });

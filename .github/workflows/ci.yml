@@ -47,13 +47,19 @@ jobs:
           echo "## Lint results" >> $GITHUB_STEP_SUMMARY
           echo "✅ Passed" >> $GITHUB_STEP_SUMMARY
 
-      - name: "Run unit tests"
-        run: pnpm test
+      - name: "Run unit tests with coverage"
+        run: pnpm coverage
         env:
           RPC_URL: ${{ secrets.RPC_URL }}
           DEPLOYER_PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
           LP_PRIVATE_KEY: ${{ secrets.LP_PRIVATE_KEY }}
-          MAINNET_RPC_URL: ${{ secrets.MAINNET_RPC_URL }}
+
+      - name: "Upload coverage to Codecov"
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage/lcov.info
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
 
       - name: "Add test summary"
         run: |

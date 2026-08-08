@@ -1,5 +1,5 @@
 overrides:
-  "@nomicfoundation/hardhat-verify": "3.0.21"
+  "@nomicfoundation/hardhat-verify": "3.0.22"
   "@openzeppelin/contracts-upgradeable@>=4.3.0 <4.8.3": "^4.9.6"
   "@openzeppelin/contracts@>=4.3.0 <4.8.3": "^4.9.6"
   lodash: "^4.17.21"
@@ -27,6 +27,5 @@ allowedDeprecatedVersions:
 allowBuilds:
   "@parcel/watcher": true
   esbuild: true
-  hardhat-deploy: true
   keccak: true
   secp256k1: true

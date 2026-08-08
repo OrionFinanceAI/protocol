@@ -6,9 +6,6 @@ dist
 node_modules
 types
 deployments
-kms-fhe-keys/
-network-fhe-keys/
-fhevmTemp/
 abi/
 .vscode/
 .venv/
@@ -25,6 +22,8 @@ res/
 running_node/
 artifacts/
 edr-cache/
+coverage/
+coverage.json
 
 scripts/*.ts
 

@@ -101,6 +101,46 @@ describe("UniswapV3ExecutionAdapter - Unit Tests", function () {
           await config.getAddress(),
         ),
       ).to.be.revertedWithCustomError(adapter, "ZeroAddress");
+
+      await expect(
+        AdapterFactory.deploy(
+          owner.address,
+          await mockFactory.getAddress(),
+          ethers.ZeroAddress,
+          await mockQuoter.getAddress(),
+          await config.getAddress(),
+        ),
+      ).to.be.revertedWithCustomError(adapter, "ZeroAddress");
+
+      await expect(
+        AdapterFactory.deploy(
+          owner.address,
+          await mockFactory.getAddress(),
+          await mockRouter.getAddress(),
+          ethers.ZeroAddress,
+          await config.getAddress(),
+        ),
+      ).to.be.revertedWithCustomError(adapter, "ZeroAddress");
+
+      await expect(
+        AdapterFactory.deploy(
+          owner.address,
+          await mockFactory.getAddress(),
+          await mockRouter.getAddress(),
+          await mockQuoter.getAddress(),
+          ethers.ZeroAddress,
+        ),
+      ).to.be.revertedWithCustomError(adapter, "ZeroAddress");
+
+      await expect(
+        AdapterFactory.deploy(
+          ethers.ZeroAddress,
+          await mockFactory.getAddress(),
+          await mockRouter.getAddress(),
+          await mockQuoter.getAddress(),
+          await config.getAddress(),
+        ),
+      ).to.be.revertedWithCustomError(adapter, "OwnableInvalidOwner");
     });
   });
 
@@ -131,6 +171,15 @@ describe("UniswapV3ExecutionAdapter - Unit Tests", function () {
         adapter,
         "ZeroAddress",
       );
+    });
+
+    it("Should revert when system is not idle", async function () {
+      await config.setSystemIdle(false);
+      await expect(adapter.setAssetFee(await weth.getAddress(), FEE_TIER)).to.be.revertedWithCustomError(
+        adapter,
+        "SystemNotIdle",
+      );
+      await config.setSystemIdle(true);
     });
 
     it("Should revert when no pool exists for the fee tier", async function () {

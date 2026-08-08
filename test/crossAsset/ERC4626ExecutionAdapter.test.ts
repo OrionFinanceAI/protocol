@@ -17,6 +17,7 @@
 
 import { expect } from "chai";
 import { ethers, networkHelpers } from "../helpers/hh";
+import { skipUnlessMainnetFork } from "../helpers/fork";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import type {
   OrionConfig,
@@ -28,7 +29,7 @@ import type {
   IERC20,
   MockLiquidityOrchestrator,
   MockERC4626Asset,
-} from "../typechain-types";
+} from "../../typechain-types";
 
 /** Adapter USDC balance must stay strictly below this (in base units); 0 is valid, guarantees dust bound.
  *  To find the failure threshold: set to 0 and run; the failure will show actual dust (e.g. "expected 5 to be below 0" → need > 5). */
@@ -88,10 +89,7 @@ describe("ERC4626ExecutionAdapter", function () {
   before(async function () {
     this.timeout(120000); // 2 minutes for mainnet forking
 
-    // Skip all tests if not forking mainnet
-    if (!(process.env.FORK_MAINNET === "true" && process.env.MAINNET_RPC_URL)) {
-      this.skip();
-    }
+    await skipUnlessMainnetFork(this);
 
     [owner] = await ethers.getSigners();
 

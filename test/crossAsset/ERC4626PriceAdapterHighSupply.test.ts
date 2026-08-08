@@ -1,9 +1,12 @@
 /**
- * ERC4626PriceAdapter high-supply / decimal-offset vault pricing tests.
+ * ERC4626PriceAdapter unit surface (mock high-supply / decimal-offset / validation).
+ * Primary non-fork coverage for ERC4626PriceAdapter; fork smoke lives in the nested
+ * "mainnet vfUSDC fork" describe (skipped when FORK_MAINNET=false / coverage).
  */
 
 import { expect } from "chai";
 import { ethers } from "../helpers/hh";
+import { skipUnlessMainnetFork } from "../helpers/fork";
 import type {
   ERC4626PriceAdapter,
   TestFixedRatioERC4626,
@@ -113,11 +116,168 @@ describe("ERC4626PriceAdapter - High Supply Vaults", function () {
     expect(underlyingPerShare).to.equal(expectedPerShare);
   });
 
-  describe("mainnet vfUSDC fork", function () {
-    before(function () {
-      if (!(process.env.FORK_MAINNET === "true" && process.env.MAINNET_RPC_URL)) {
-        this.skip();
+  describe("constructor and validation", function () {
+    it("should reject zero config address", async function () {
+      const Factory = await ethers.getContractFactory("ERC4626PriceAdapter");
+      await expect(Factory.deploy(ethers.ZeroAddress)).to.be.revertedWithCustomError(priceAdapter, "ZeroAddress");
+    });
+
+    it("should reject non-ERC4626 asset on validate", async function () {
+      await expect(
+        priceAdapter.validatePriceAdapter(await protocolUnderlying.getAddress()),
+      ).to.be.revertedWithCustomError(priceAdapter, "InvalidAdapter");
+    });
+
+    it("should reject vault whose underlying is not whitelisted", async function () {
+      const MockVaultFactory = await ethers.getContractFactory("MockERC4626Asset");
+      const otherUnderlying = await (await ethers.getContractFactory("MockUnderlyingAsset")).deploy(6);
+      const orphanVault = await MockVaultFactory.deploy(await otherUnderlying.getAddress(), "Orphan", "ORPH");
+      await expect(priceAdapter.validatePriceAdapter(await orphanVault.getAddress())).to.be.revertedWithCustomError(
+        priceAdapter,
+        "InvalidAdapter",
+      );
+    });
+
+    it("should return zero price when vault totalSupply is zero", async function () {
+      const MockVaultFactory = await ethers.getContractFactory("TestFixedRatioERC4626");
+      const vault = (await MockVaultFactory.deploy(
+        await protocolUnderlying.getAddress(),
+        "Empty",
+        "EMP",
+        6,
+        0n,
+        0n,
+      )) as unknown as TestFixedRatioERC4626;
+      await vault.waitForDeployment();
+      await registerVault(vault);
+
+      const [price, decimals] = await priceAdapter.getPriceData(await vault.getAddress());
+      expect(price).to.equal(0n);
+      expect(decimals).to.equal(PRICE_DECIMALS + 6);
+    });
+
+    it("should handle zero-decimal vault with truncated per-share ratio", async function () {
+      const MockVaultFactory = await ethers.getContractFactory("TestFixedRatioERC4626");
+      const vault = (await MockVaultFactory.deploy(
+        await protocolUnderlying.getAddress(),
+        "ZeroDec",
+        "ZD",
+        0,
+        5n,
+        3n,
+      )) as unknown as TestFixedRatioERC4626;
+      await vault.waitForDeployment();
+      await registerVault(vault);
+      const [price] = await priceAdapter.getPriceData(await vault.getAddress());
+      expect(price).to.be.gte(0n);
+    });
+
+    it("should clamp effective share decimals at 38 for extreme supply ratios", async function () {
+      const MockVaultFactory = await ethers.getContractFactory("TestFixedRatioERC4626");
+      // 18 share decimals + many digits of supply/assets should hit the 38 clamp
+      const totalAssets = 1n;
+      const totalSupply = 10n ** 40n;
+      const vault = (await MockVaultFactory.deploy(
+        await protocolUnderlying.getAddress(),
+        "Extreme",
+        "EXT",
+        18,
+        totalAssets,
+        totalSupply,
+      )) as unknown as TestFixedRatioERC4626;
+      await vault.waitForDeployment();
+      await registerVault(vault);
+      const [price] = await priceAdapter.getPriceData(await vault.getAddress());
+      expect(price).to.be.gte(0n);
+    });
+
+    it("should keep vault decimals when per-share truncates to exactly 1 (probe <= 10)", async function () {
+      const MockVaultFactory = await ethers.getContractFactory("TestFixedRatioERC4626");
+      // perShare = 1 * 10^6 / 10^6 = 1; probe = 10 → return vaultAssetDecimals
+      const vault = (await MockVaultFactory.deploy(
+        await protocolUnderlying.getAddress(),
+        "ExactOne",
+        "EO",
+        6,
+        1n,
+        10n ** 6n,
+      )) as unknown as TestFixedRatioERC4626;
+      await vault.waitForDeployment();
+      await registerVault(vault);
+      const [price, decimals] = await priceAdapter.getPriceData(await vault.getAddress());
+      expect(decimals).to.equal(PRICE_DECIMALS + 6);
+      expect(price).to.equal(10n ** BigInt(PRICE_DECIMALS));
+    });
+  });
+
+  describe("cross-asset precision (merged from PriceAdapterTruncation)", function () {
+    it("should preserve precision for cross-asset ERC4626 vaults composed with registry price", async function () {
+      const [deployer] = await ethers.getSigners();
+      const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
+      const protocolUnderlying = (await MockUnderlyingAssetFactory.deploy(6)) as unknown as MockUnderlyingAsset;
+      const vaultUnderlying = (await MockUnderlyingAssetFactory.deploy(18)) as unknown as MockUnderlyingAsset;
+      const deployed = await deployUpgradeableProtocol(deployer, protocolUnderlying);
+
+      const mockUnderlyingPriceAdapter = await (await ethers.getContractFactory("MockPriceAdapter")).deploy();
+      const mockExecutionAdapter = await (await ethers.getContractFactory("MockExecutionAdapter")).deploy();
+      await deployed.orionConfig.addWhitelistedAsset(
+        await vaultUnderlying.getAddress(),
+        await mockUnderlyingPriceAdapter.getAddress(),
+        await mockExecutionAdapter.getAddress(),
+      );
+
+      const priceAdapter = await (
+        await ethers.getContractFactory("ERC4626PriceAdapter")
+      ).deploy(await deployed.orionConfig.getAddress());
+      const vault = await (
+        await ethers.getContractFactory("MockERC4626Asset")
+      ).deploy(await vaultUnderlying.getAddress(), "Test Vault", "TV");
+      const vaultExec = await (await ethers.getContractFactory("MockExecutionAdapter")).deploy();
+      await deployed.orionConfig.addWhitelistedAsset(
+        await vault.getAddress(),
+        await priceAdapter.getAddress(),
+        await vaultExec.getAddress(),
+      );
+
+      const hugeDeposit = ethers.parseUnits("1000000000000000000000000", 18);
+      await vaultUnderlying.mint(deployer.address, hugeDeposit);
+      await vaultUnderlying.connect(deployer).approve(await vault.getAddress(), hugeDeposit);
+      await vault.connect(deployer).deposit(hugeDeposit, deployer.address);
+
+      const totalSupply = await vault.totalSupply();
+      const targetRatio = 1234567890123n;
+      const targetTotalAssets = (totalSupply * targetRatio) / 1000000000000n;
+      const currentTotalAssets = await vault.totalAssets();
+      const extraAmount = targetTotalAssets > currentTotalAssets ? targetTotalAssets - currentTotalAssets : 0n;
+      if (extraAmount > 0n) {
+        await vaultUnderlying.mint(deployer.address, extraAmount);
+        await vaultUnderlying.transfer(await vault.getAddress(), extraAmount);
       }
+
+      const vaultDecimals = await vault.decimals();
+      const totalAssets = await vault.totalAssets();
+      const supply = await vault.totalSupply();
+      const precisionAmount = 10n ** BigInt(PRICE_DECIMALS + Number(vaultDecimals));
+      const vaultUnderlyingAssetAmount = (totalAssets * precisionAmount) / supply;
+      const priceRegistry = await ethers.getContractAt(
+        "PriceAdapterRegistry",
+        await deployed.orionConfig.priceAdapterRegistry(),
+      );
+      const underlyingPriceInUSDC = await priceRegistry.getPrice(await vaultUnderlying.getAddress());
+      const priceAdapterDecimals = await deployed.orionConfig.priceAdapterDecimals();
+      const expectedPrice = (vaultUnderlyingAssetAmount * underlyingPriceInUSDC) / 10n ** BigInt(priceAdapterDecimals);
+
+      const [priceFromAdapter, priceDecimals] = await priceAdapter.getPriceData(await vault.getAddress());
+      expect(priceDecimals).to.equal(28);
+      const priceDifference =
+        priceFromAdapter > expectedPrice ? priceFromAdapter - expectedPrice : expectedPrice - priceFromAdapter;
+      expect(priceDifference).to.be.lte(1n);
+    });
+  });
+
+  describe("mainnet vfUSDC fork", function () {
+    before(async function () {
+      await skipUnlessMainnetFork(this);
     });
 
     it("reports ~1.1 USDC per share for vfUSDC", async function () {
@@ -127,7 +287,10 @@ describe("ERC4626PriceAdapter - High Supply Vaults", function () {
         "@openzeppelin/contracts/interfaces/IERC4626.sol:IERC4626",
         MAINNET.VF_USDC,
       );
-      const vaultToken = await ethers.getContractAt("IERC20Metadata", MAINNET.VF_USDC);
+      const vaultToken = await ethers.getContractAt(
+        "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol:IERC20Metadata",
+        MAINNET.VF_USDC,
+      );
 
       const totalAssets = await vault.totalAssets();
       const totalSupply = await vault.totalSupply();

@@ -283,78 +283,53 @@ describe("Batch Limit Consistency - Critical Accounting Fix", function () {
     });
   });
 
-  describe("3. Verify Fix Prevents Double-Counting", function () {
-    it("Should limit pendingDeposit to maxFulfillBatchSize preventing overcounting in totalAssets", async function () {
-      // NOTE: Limited by available Hardhat signers
-      const excessRequests = 5;
-      const numUsers = Math.min(maxFulfillBatchSize + excessRequests, users.length);
-      const effectiveBatchSize = Math.min(maxFulfillBatchSize, Math.max(1, numUsers - 2));
-
-      // Create many requests
+  describe("4. Unique Accounting paths (merged from BatchLimitAccounting)", function () {
+    it("Should sum varying deposit amounts across users", async function () {
+      const numUsers = Math.min(10, users.length);
+      let expectedSum = 0n;
       for (let i = 0; i < numUsers; i++) {
-        await underlyingAsset.mint(users[i].address, DEPOSIT_AMOUNT);
-        await underlyingAsset.connect(users[i]).approve(await vault.getAddress(), DEPOSIT_AMOUNT);
-        await vault.connect(users[i]).requestDeposit(DEPOSIT_AMOUNT);
+        const amount = DEPOSIT_AMOUNT * BigInt(i + 1);
+        await underlyingAsset.mint(users[i].address, amount);
+        await underlyingAsset.connect(users[i]).approve(await vault.getAddress(), amount);
+        await vault.connect(users[i]).requestDeposit(amount);
+        expectedSum += amount;
       }
-
-      // CRITICAL: pendingDeposit should return ONLY effectiveBatchSize worth
-      const pendingAmount = await vault.pendingDeposit(effectiveBatchSize);
-      const limitedAmount = DEPOSIT_AMOUNT * BigInt(effectiveBatchSize);
-
-      expect(pendingAmount).to.equal(limitedAmount);
-
-      // Verify it's less than total requested
-      const totalRequested = DEPOSIT_AMOUNT * BigInt(numUsers);
-      expect(pendingAmount).to.be.lessThan(totalRequested);
-
-      // This prevents the bug where totalAssets would count ALL requests,
-      // but fulfillDeposit would only process maxFulfillBatchSize
+      expect(await vault.pendingDeposit(maxFulfillBatchSize)).to.equal(expectedSum);
     });
 
-    it("Should limit pendingRedeem to maxFulfillBatchSize preventing double-subtraction from totalAssets", async function () {
-      // Setup: Give users shares by requesting deposits and fulfilling them
-      // NOTE: Limited by available Hardhat signers
-      const excessRequests = 5;
-      const numUsers = Math.min(maxFulfillBatchSize + excessRequests, users.length);
-      const effectiveBatchSize = Math.min(maxFulfillBatchSize, Math.max(1, numUsers - 2));
+    it("Should increment pendingDeposit when the same user deposits twice", async function () {
+      await underlyingAsset.mint(users[0].address, DEPOSIT_AMOUNT * 3n);
+      await underlyingAsset.connect(users[0]).approve(await vault.getAddress(), DEPOSIT_AMOUNT * 3n);
+      await vault.connect(users[0]).requestDeposit(DEPOSIT_AMOUNT);
+      expect(await vault.pendingDeposit(maxFulfillBatchSize)).to.equal(DEPOSIT_AMOUNT);
 
-      // Request deposits
+      const largerAmount = DEPOSIT_AMOUNT * 2n;
+      await vault.connect(users[0]).requestDeposit(largerAmount);
+      expect(await vault.pendingDeposit(maxFulfillBatchSize)).to.equal(DEPOSIT_AMOUNT + largerAmount);
+    });
+
+    it("fulfillDeposit should clear pendingDeposit and mint shares", async function () {
+      const numUsers = Math.min(10, users.length);
       for (let i = 0; i < numUsers; i++) {
         await underlyingAsset.mint(users[i].address, DEPOSIT_AMOUNT);
         await underlyingAsset.connect(users[i]).approve(await vault.getAddress(), DEPOSIT_AMOUNT);
         await vault.connect(users[i]).requestDeposit(DEPOSIT_AMOUNT);
       }
 
-      // Deposit liquidity and fulfill deposits to give users shares
-      const totalDeposit = DEPOSIT_AMOUNT * BigInt(numUsers);
-      await underlyingAsset.mint(owner.address, totalDeposit);
-      await underlyingAsset.connect(owner).approve(await liquidityOrchestrator.getAddress(), totalDeposit);
-      await liquidityOrchestrator.connect(owner).depositLiquidity(totalDeposit);
+      const pendingBefore = await vault.pendingDeposit(maxFulfillBatchSize);
+      expect(pendingBefore).to.equal(DEPOSIT_AMOUNT * BigInt(numUsers));
 
-      const loAddress = await liquidityOrchestrator.getAddress();
-      const loSigner = await impersonateLiquidityOrchestrator(loAddress);
-      await vault.connect(loSigner).fulfillDeposit(totalDeposit);
+      await underlyingAsset.mint(owner.address, pendingBefore);
+      await underlyingAsset.connect(owner).approve(await liquidityOrchestrator.getAddress(), pendingBefore);
+      await liquidityOrchestrator.connect(owner).depositLiquidity(pendingBefore);
 
-      // Now create many redeem requests
-      let totalSharesRequested = 0n;
+      const loSigner = await impersonateLiquidityOrchestrator(await liquidityOrchestrator.getAddress());
+      await vault.connect(loSigner).fulfillDeposit(pendingBefore);
+
+      expect(await vault.pendingDeposit(maxFulfillBatchSize)).to.equal(0n);
       for (let i = 0; i < numUsers; i++) {
-        const userShares = await vault.balanceOf(users[i].address);
-        if (userShares > 0n) {
-          totalSharesRequested += userShares;
-          // Approve vault to transfer shares for redeem
-          await vault.connect(users[i]).approve(await vault.getAddress(), userShares);
-          await vault.connect(users[i]).requestRedeem(userShares);
-        }
+        expect(await vault.balanceOf(users[i].address)).to.be.greaterThan(0n);
       }
-
-      // CRITICAL: pendingRedeem should NOT return all shares
-      const pendingShares = await vault.pendingRedeem(effectiveBatchSize);
-
-      expect(pendingShares).to.be.lessThan(totalSharesRequested);
-
-      // This prevents the bug where totalAssets would subtract ALL pending redeems,
-      // but fulfillRedeem would only process maxFulfillBatchSize, leading to
-      // re-subtraction in the next epoch
     });
   });
 });

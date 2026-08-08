@@ -9,31 +9,65 @@ contract MockChainlinkFeed is AggregatorV3Interface {
     uint8 private _decimals;
     int256 private _answer;
     uint256 private _updatedAt;
+    uint256 private _startedAt;
     uint80 private _roundId;
+    bool private _latestRoundReverts;
+    bool private _decimalsReverts;
 
     constructor(uint8 decimals_, int256 answer_) {
         _decimals = decimals_;
         _answer = answer_;
         _updatedAt = block.timestamp;
+        _startedAt = block.timestamp;
         _roundId = 1;
     }
 
-    function setAnswer(int256 answer_) external { _answer = answer_; }
-    function setUpdatedAt(uint256 updatedAt_) external { _updatedAt = updatedAt_; }
-
-    function decimals() external view override returns (uint8) { return _decimals; }
-    function description() external pure override returns (string memory) { return "MockFeed"; }
-    function version() external pure override returns (uint256) { return 1; }
-
-    function latestRoundData() external view override returns (
-        uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound
-    ) {
-        return (_roundId, _answer, block.timestamp, _updatedAt, _roundId);
+    function setAnswer(int256 answer_) external {
+        _answer = answer_;
     }
 
-    function getRoundData(uint80) external view override returns (
-        uint80, int256, uint256, uint256, uint80
-    ) {
-        return (_roundId, _answer, block.timestamp, _updatedAt, _roundId);
+    function setUpdatedAt(uint256 updatedAt_) external {
+        _updatedAt = updatedAt_;
+    }
+
+    function setStartedAt(uint256 startedAt_) external {
+        _startedAt = startedAt_;
+    }
+
+    function setLatestRoundReverts(bool reverts_) external {
+        _latestRoundReverts = reverts_;
+    }
+
+    function setDecimalsReverts(bool reverts_) external {
+        _decimalsReverts = reverts_;
+    }
+
+    function decimals() external view override returns (uint8) {
+        if (_decimalsReverts) revert("decimals revert");
+        return _decimals;
+    }
+
+    function description() external pure override returns (string memory) {
+        return "MockFeed";
+    }
+
+    function version() external pure override returns (uint256) {
+        return 1;
+    }
+
+    function latestRoundData()
+        external
+        view
+        override
+        returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)
+    {
+        if (_latestRoundReverts) revert("latestRoundData revert");
+        return (_roundId, _answer, _startedAt, _updatedAt, _roundId);
+    }
+
+    function getRoundData(
+        uint80
+    ) external view override returns (uint80, int256, uint256, uint256, uint80) {
+        return (_roundId, _answer, _startedAt, _updatedAt, _roundId);
     }
 }
