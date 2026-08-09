@@ -5,15 +5,8 @@ import hardhatTypechain from "@nomicfoundation/hardhat-typechain";
 
 dotenv.config({ quiet: true });
 
-const useMainnetFork = process.env.FORK_MAINNET === "true" && Boolean(process.env.MAINNET_RPC_URL);
-
 const config = defineConfig({
   plugins: [hardhatToolboxMochaEthers, hardhatTypechain],
-  paths: {
-    tests: {
-      solidity: "test/solidity",
-    },
-  },
   coverage: {
     skipFiles: ["contracts/test/**", "contracts/sp1-contracts/**", "contracts/morpho/MorphoBlueSupplyVault.sol"],
   },
@@ -51,14 +44,6 @@ const config = defineConfig({
       chainId: 31337,
       initialBaseFeePerGas: 0,
       allowUnlimitedContractSize: true,
-      ...(useMainnetFork
-        ? {
-            forking: {
-              url: process.env.MAINNET_RPC_URL!,
-              blockNumber: 24490214,
-            },
-          }
-        : {}),
     },
     localhost: {
       type: "http",

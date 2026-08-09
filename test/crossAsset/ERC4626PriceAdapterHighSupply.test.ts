@@ -1,12 +1,10 @@
 /**
  * ERC4626PriceAdapter unit surface (mock high-supply / decimal-offset / validation).
- * Primary non-fork coverage for ERC4626PriceAdapter; fork smoke lives in the nested
- * "mainnet vfUSDC fork" describe (skipped when FORK_MAINNET=false / coverage).
+ * Mainnet catalog / adapter compatibility lives in the investment-universe repo.
  */
 
 import { expect } from "chai";
 import { ethers } from "../helpers/hh";
-import { skipUnlessMainnetFork } from "../helpers/fork";
 import type {
   ERC4626PriceAdapter,
   TestFixedRatioERC4626,
@@ -19,14 +17,10 @@ import { deployUpgradeableProtocol } from "../helpers/deployUpgradeable";
 
 const PRICE_DECIMALS = 10;
 
-// vfUSDC mainnet snapshot (Varlamore Falcon USDC)
+// vfUSDC-like mainnet snapshot ratios (Varlamore Falcon USDC) — unit fixture only
 const VF_USDC_TOTAL_ASSETS = 41_875_623_172n;
 const VF_USDC_TOTAL_SUPPLY = 37_863_307_763_348_816n;
 const VF_USDC_VAULT_DECIMALS = 6;
-
-const MAINNET = {
-  VF_USDC: "0xa9b23B28621CFB32e0ebf50b572aFAC671fCc17B",
-};
 
 describe("ERC4626PriceAdapter - High Supply Vaults", function () {
   let protocolUnderlying: MockUnderlyingAsset;
@@ -272,45 +266,6 @@ describe("ERC4626PriceAdapter - High Supply Vaults", function () {
       const priceDifference =
         priceFromAdapter > expectedPrice ? priceFromAdapter - expectedPrice : expectedPrice - priceFromAdapter;
       expect(priceDifference).to.be.lte(1n);
-    });
-  });
-
-  describe("mainnet vfUSDC fork", function () {
-    before(async function () {
-      await skipUnlessMainnetFork(this);
-    });
-
-    it("reports ~1.1 USDC per share for vfUSDC", async function () {
-      const USDC = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
-
-      const vault = await ethers.getContractAt(
-        "@openzeppelin/contracts/interfaces/IERC4626.sol:IERC4626",
-        MAINNET.VF_USDC,
-      );
-      const vaultToken = await ethers.getContractAt(
-        "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol:IERC20Metadata",
-        MAINNET.VF_USDC,
-      );
-
-      const totalAssets = await vault.totalAssets();
-      const totalSupply = await vault.totalSupply();
-      const vaultDecimals = await vaultToken.decimals();
-
-      const [deployer] = await ethers.getSigners();
-      const deployed = await deployUpgradeableProtocol(deployer, USDC);
-      const forkAdapter = await (
-        await ethers.getContractFactory("ERC4626PriceAdapter")
-      ).deploy(await deployed.orionConfig.getAddress());
-
-      const [price] = await forkAdapter.getPriceData(MAINNET.VF_USDC);
-      const underlyingPerShare = price / 10n ** BigInt(PRICE_DECIMALS);
-
-      const naivePerShare = (totalAssets * 10n ** BigInt(vaultDecimals)) / totalSupply;
-      const highPrecisionPerShare = (totalAssets * 10n ** 12n) / totalSupply;
-
-      expect(naivePerShare).to.be.lte(1n);
-      expect(underlyingPerShare).to.be.closeTo(highPrecisionPerShare, 2n);
-      expect(underlyingPerShare).to.be.gt(1_000_000n);
     });
   });
 });
