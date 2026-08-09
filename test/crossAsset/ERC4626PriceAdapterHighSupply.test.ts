@@ -1,6 +1,5 @@
 /**
  * ERC4626PriceAdapter unit surface (mock high-supply / decimal-offset / validation).
- * Mainnet catalog / adapter compatibility lives in the investment-universe repo.
  */
 
 import { expect } from "chai";
