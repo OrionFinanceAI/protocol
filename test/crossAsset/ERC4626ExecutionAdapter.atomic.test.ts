@@ -6,7 +6,7 @@
  * - The swap executor receives exactly the previewBuy amount
  * - No tokens are stuck in the adapter
  *
- * Uses mocks (no mainnet fork required) to isolate and verify
+ * Uses mocks to isolate and verify
  * the atomic previewBuy→pull→swap→mint flow.
  */
 

@@ -1,6 +1,6 @@
 /**
  * Near-100% coverage gap closers for OrionVault / OrionConfig / LiquidityOrchestrator
- * and remaining mid-gap branches. Uses harness + impersonation (no mainnet fork).
+ * and remaining mid-gap branches. Uses harness + impersonation.
  */
 import { expect } from "chai";
 import { ethers, networkHelpers } from "./helpers/hh";

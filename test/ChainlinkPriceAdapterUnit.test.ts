@@ -1,5 +1,5 @@
 /**
- * ChainlinkPriceAdapter Unit Tests (no mainnet fork required)
+ * ChainlinkPriceAdapter unit tests.
  *
  * Covers the quoteFeed cross-rate normalisation path using MockChainlinkFeed.
  */
@@ -13,7 +13,7 @@ const MAX_PRICE = ethers.MaxUint256;
 const FALLBACK_PRICE = 123_456_789n;
 const FALLBACK_DECIMALS = 14n;
 
-describe("ChainlinkPriceAdapter — unit tests (no fork)", function () {
+describe("ChainlinkPriceAdapter — unit tests", function () {
   let adapter: ChainlinkPriceAdapter;
   let baseFeed: MockChainlinkFeed;
   let quoteFeed: MockChainlinkFeed;

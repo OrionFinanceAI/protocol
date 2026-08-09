@@ -1,5 +1,5 @@
 /**
- * UniswapV3PoolPriceAdapter unit tests (no mainnet fork).
+ * UniswapV3PoolPriceAdapter unit tests.
  */
 
 import { expect } from "chai";
@@ -9,7 +9,7 @@ import type { MockUnderlyingAsset, UniswapV3PoolPriceAdapter } from "../typechai
 const TWAP = 300;
 const SQRT_OK = 1n << 96n; // ~1.0 price
 
-describe("UniswapV3PoolPriceAdapter — unit tests (no fork)", function () {
+describe("UniswapV3PoolPriceAdapter — unit tests", function () {
   let owner: Awaited<ReturnType<typeof ethers.getSigners>>[0];
   let usdc: MockUnderlyingAsset;
   let asset: MockUnderlyingAsset;
