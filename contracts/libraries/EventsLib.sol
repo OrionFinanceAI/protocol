@@ -114,6 +114,22 @@ library EventsLib {
         uint256[] shares
     );
 
+    /// @notice A confidential intent ciphertext was submitted.
+    /// @param strategist The strategist who submitted the intent.
+    event ConfidentialOrderSubmitted(address indexed strategist);
+
+    /// @notice The vault's state has been updated without portfolio information.
+    /// @param newTotalAssets The new total assets value for the vault.
+    /// @param totalSupply The total supply of the vault.
+    /// @param currentSharePrice The current share price of the vault.
+    /// @param highWaterMark The new high watermark value for the vault.
+    event ConfidentialVaultStateUpdated(
+        uint256 indexed newTotalAssets,
+        uint256 indexed totalSupply,
+        uint256 indexed currentSharePrice,
+        uint256 highWaterMark
+    );
+
     // ================================
     // === Liquidity Orchestrator ===
     // ================================

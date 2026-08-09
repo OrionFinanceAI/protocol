@@ -92,8 +92,16 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     /// @notice Address of the upgrade timelock that must authorise all implementation upgrades
     address public upgradeTimelock;
 
+    /// @notice HPKE recipient public key
+    bytes32 public hpkePublicKey;
+
+    /// @notice Address of the encrypted vault factory
+    address public encryptedVaultFactory;
+
     modifier onlyFactories() {
-        if (msg.sender != transparentVaultFactory) revert ErrorsLib.NotAuthorized();
+        if (msg.sender != transparentVaultFactory && msg.sender != encryptedVaultFactory) {
+            revert ErrorsLib.NotAuthorized();
+        }
         _;
     }
 
@@ -194,6 +202,14 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     }
 
     /// @inheritdoc IOrionConfig
+    function setEncryptedVaultFactory(address encryptedFactory) external onlyOwner {
+        if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+        if (encryptedFactory == address(0)) revert ErrorsLib.ZeroAddress();
+        if (encryptedVaultFactory != address(0)) revert ErrorsLib.AlreadyRegistered();
+        encryptedVaultFactory = encryptedFactory;
+    }
+
+    /// @inheritdoc IOrionConfig
     function setPriceAdapterRegistry(address registry) external onlyOwner {
         if (registry == address(0)) revert ErrorsLib.ZeroAddress();
         if (priceAdapterRegistry != address(0)) revert ErrorsLib.AlreadyRegistered();
@@ -259,6 +275,13 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
 
         guardian = _guardian;
         emit EventsLib.GuardianUpdated(_guardian);
+    }
+
+    /// @inheritdoc IOrionConfig
+    function setHpkePublicKey(bytes32 _hpkePublicKey) external onlyOwner {
+        if (_hpkePublicKey == bytes32(0)) revert ErrorsLib.InvalidArguments();
+
+        hpkePublicKey = _hpkePublicKey;
     }
 
     // === Whitelist Functions ===
@@ -566,5 +589,5 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     }
 
     /// @dev Storage gap to allow for future upgrades
-    uint256[49] private __gap;
+    uint256[47] private __gap;
 }
