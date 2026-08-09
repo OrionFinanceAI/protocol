@@ -38,6 +38,12 @@ const vectors = JSON.parse(readFileSync(join(__dirname, "vectors/hpke-orion-v1.j
     skE: string;
     pkE: string;
   };
+  guest_seals: {
+    enc_seed_portfolio: string;
+    enc_seed_intent: string;
+    portfolio_blob: string;
+    intent_blob: string;
+  };
 };
 
 describe("Orion HPKE (ORION_HPKE_V1)", function () {
@@ -94,28 +100,37 @@ describe("Orion HPKE (ORION_HPKE_V1)", function () {
   });
 
   describe("§17.6 negatives", function () {
-    it("rejects truncated blob before open", async function () {
+    async function expectReject(p: Promise<unknown>): Promise<void> {
+      let rejected = false;
+      try {
+        await p;
+      } catch {
+        rejected = true;
+      }
+      expect(rejected).to.equal(true);
+    }
+
+    it("rejects truncated blob before open", function () {
       expect(() => parseOrionCiphertext(portfolioBlob.subarray(0, 47))).to.throw(/too short/);
-      await expect(orionDecrypt(skR, portfolioBlob.subarray(0, 47), ORION_PORTFOLIO_V1)).to.be.rejected;
     });
 
     it("fails open on bitflip after offset 32", async function () {
       const flipped = new Uint8Array(portfolioBlob);
       flipped[40] ^= 0x01;
-      await expect(orionDecrypt(skR, flipped, ORION_PORTFOLIO_V1)).to.be.rejected;
+      await expectReject(orionDecrypt(skR, flipped, ORION_PORTFOLIO_V1));
     });
 
     it("fails open with wrong info", async function () {
-      await expect(orionDecrypt(skR, portfolioBlob, "ORION_INTENT_V2" as "ORION_INTENT_V1")).to.be.rejected;
+      await expectReject(orionDecrypt(skR, portfolioBlob, "ORION_INTENT_V2" as "ORION_INTENT_V1"));
     });
 
     it("fails cross-type open", async function () {
-      await expect(orionDecrypt(skR, portfolioBlob, ORION_INTENT_V1)).to.be.rejected;
-      await expect(orionDecrypt(skR, intentBlob, ORION_PORTFOLIO_V1)).to.be.rejected;
+      await expectReject(orionDecrypt(skR, portfolioBlob, ORION_INTENT_V1));
+      await expectReject(orionDecrypt(skR, intentBlob, ORION_PORTFOLIO_V1));
     });
 
     it("fails open with non-empty aad", async function () {
-      await expect(orionDecrypt(skR, portfolioBlob, ORION_PORTFOLIO_V1, new Uint8Array([1]))).to.be.rejected;
+      await expectReject(orionDecrypt(skR, portfolioBlob, ORION_PORTFOLIO_V1, new Uint8Array([1])));
     });
   });
 
@@ -131,15 +146,33 @@ describe("Orion HPKE (ORION_HPKE_V1)", function () {
     });
 
     it("rejects zero pkR", async function () {
-      await expect(orionEncrypt(new Uint8Array(32), portfolioPt, ORION_PORTFOLIO_V1)).to.be.rejectedWith(/zero key/);
+      let msg = "";
+      try {
+        await orionEncrypt(new Uint8Array(32), portfolioPt, ORION_PORTFOLIO_V1);
+      } catch (e) {
+        msg = e instanceof Error ? e.message : String(e);
+      }
+      expect(msg).to.match(/zero key/);
     });
   });
 
   it("§17.5 enc_seed DeriveKeyPair intermediates (derivation check)", async function () {
-    // Optional gate: DeriveKeyPair(enc_seed) matches published skE/pkE.
-    // Full guest-seal OrionCiphertext is out of Phase 2 scope.
     const { skR: skE, pkR: pkE } = await deriveRecipientKeyPair(hexToBytes(vectors.guest_enc_seed_check.enc_seed));
     expect(bytesToHex(skE)).to.equal(vectors.guest_enc_seed_check.skE);
     expect(bytesToHex(pkE)).to.equal(vectors.guest_enc_seed_check.pkE);
+  });
+
+  it("§17.5 OpenBase recovers Rust guest portfolio seal", async function () {
+    const blob = hexToBytes(vectors.guest_seals.portfolio_blob);
+    expect(blob.length).to.equal(304);
+    const pt = await orionDecrypt(skR, blob, ORION_PORTFOLIO_V1);
+    expect(bytesToHex(pt)).to.equal(vectors.portfolio.pt);
+  });
+
+  it("§17.5 OpenBase recovers Rust guest intent seal", async function () {
+    const blob = hexToBytes(vectors.guest_seals.intent_blob);
+    expect(blob.length).to.equal(304);
+    const pt = await orionDecrypt(skR, blob, ORION_INTENT_V1);
+    expect(bytesToHex(pt)).to.equal(vectors.intent.pt);
   });
 });
