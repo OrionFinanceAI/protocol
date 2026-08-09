@@ -181,6 +181,11 @@ interface IOrionConfig {
     /// @return True if the address is a registered Orion vault, false otherwise
     function isOrionVault(address vault) external view returns (bool);
 
+    /// @notice Checks if an address is a registered encrypted Orion vault
+    /// @param vault The address of the vault to check
+    /// @return True if the address is an encrypted Orion vault, false otherwise
+    function isEncryptedVault(address vault) external view returns (bool);
+
     /// @notice Checks if an address is a decommissioning Orion vault
     /// @param vault The address of the vault to check
     /// @return True if the address is a decommissioning Orion vault, false otherwise

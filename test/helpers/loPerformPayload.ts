@@ -2,7 +2,7 @@ import { AbiCoder, keccak256 } from "ethers";
 
 /** Matches `ILiquidityOrchestrator.StatesStruct` ABI encoding used by `_verifyPerformData`. */
 export const STATES_STRUCT_TYPE =
-  "tuple(tuple(bool processRedeem,uint256 totalAssetsForRedeem,uint256 totalAssetsForDeposit,uint256 finalTotalAssets,uint256 managementFee,uint256 performanceFee,address[] tokens,uint256[] shares)[] vaults,tuple(address[] sellingTokens,uint256[] sellingAmounts,uint256[] sellingEstimatedUnderlyingAmounts) sellLeg,tuple(address[] buyingTokens,uint256[] buyingAmounts,uint256[] buyingEstimatedUnderlyingAmounts) buyLeg,uint256 bufferIncrease,uint256 epochProtocolFees,uint256 nettedRebalanceVolumeUnderlying)";
+  "tuple(tuple(bool processRedeem,uint256 totalAssetsForRedeem,uint256 totalAssetsForDeposit,uint256 finalTotalAssets,uint256 managementFee,uint256 performanceFee,address[] tokens,uint256[] shares,bytes portfolioCiphertext)[] vaults,tuple(address[] sellingTokens,uint256[] sellingAmounts,uint256[] sellingEstimatedUnderlyingAmounts) sellLeg,tuple(address[] buyingTokens,uint256[] buyingAmounts,uint256[] buyingEstimatedUnderlyingAmounts) buyLeg,uint256 bufferIncrease,uint256 epochProtocolFees,uint256 nettedRebalanceVolumeUnderlying)";
 
 export const PUBLIC_VALUES_TYPE = "tuple(bytes32 inputCommitment,bytes32 outputCommitment)";
 
@@ -15,6 +15,8 @@ export type VaultStatePayload = {
   performanceFee: bigint;
   tokens: string[];
   shares: bigint[];
+  /** Encrypted next portfolio blob; transparent vaults use `0x`. */
+  portfolioCiphertext: string;
 };
 
 export type BuyLegPayload = {
@@ -51,6 +53,7 @@ export function emptyVaultState(): VaultStatePayload {
     performanceFee: 0n,
     tokens: [],
     shares: [],
+    portfolioCiphertext: "0x",
   };
 }
 

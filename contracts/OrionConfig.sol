@@ -512,6 +512,11 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     }
 
     /// @inheritdoc IOrionConfig
+    function isEncryptedVault(address vault) external view returns (bool) {
+        return encryptedVaults.contains(vault);
+    }
+
+    /// @inheritdoc IOrionConfig
     function isDecommissioningVault(address vault) external view returns (bool) {
         return decommissioningInProgressVaults.contains(vault);
     }

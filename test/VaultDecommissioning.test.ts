@@ -49,17 +49,17 @@ describe("Vault decommissioning completion", function () {
     shares: bigint[],
     finalTotalAssets: bigint,
   ): Promise<void> {
-    await harness.exposed_processSingleVaultOperations(
-      await vault.getAddress(),
-      true,
-      0n,
-      0n,
+    await harness.exposed_processSingleVaultOperations(await vault.getAddress(), {
+      processRedeem: true,
+      totalAssetsForRedeem: 0n,
+      totalAssetsForDeposit: 0n,
       finalTotalAssets,
-      0n,
-      0n,
+      managementFee: 0n,
+      performanceFee: 0n,
       tokens,
       shares,
-    );
+      portfolioCiphertext: "0x",
+    });
   }
 
   before(async function () {
