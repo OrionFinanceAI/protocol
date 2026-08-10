@@ -1,6 +1,6 @@
 /**
- * Near-100% coverage gap closers for OrionVault / OrionConfig / LiquidityOrchestrator
- * and remaining mid-gap branches. Uses harness + impersonation.
+ * Edge-branch tests for OrionVault, OrionConfig, LiquidityOrchestrator,
+ * adapters, strategies, and registry. Uses harness + impersonation.
  */
 import { expect } from "chai";
 import { ethers, networkHelpers } from "./helpers/hh";
@@ -25,7 +25,7 @@ const PHASE_IDLE = 0;
 const PHASE_PVO = 4;
 const VAULT_TYPE_ENCRYPTED = 1;
 
-describe("Coverage gaps — vault / config / LO", function () {
+describe("OrionVault / OrionConfig / LO edge branches", function () {
   let owner: SignerWithAddress;
   let manager: SignerWithAddress;
   let strategist: SignerWithAddress;
@@ -778,7 +778,7 @@ describe("Coverage gaps — vault / config / LO", function () {
   });
 });
 
-describe("Coverage gaps — adapters / strategies / registry", function () {
+describe("Adapters / strategies / registry edge branches", function () {
   before(async function () {
     await resetNetwork();
   });
