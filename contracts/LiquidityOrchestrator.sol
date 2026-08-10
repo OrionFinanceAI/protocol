@@ -577,9 +577,12 @@ contract LiquidityOrchestrator is
             IOrionVault vault = IOrionVault(vaultAddress);
             IOrionVault.FeeModel memory feeModel = _currentEpoch.feeModel[vaultAddress];
 
+            bool isEncrypted = config.isEncryptedVault(vaultAddress);
+            bool isDecommissioning = config.isDecommissioningVault(vaultAddress);
+
             bytes32 portfolioHash;
             bytes32 intentHash;
-            if (config.isEncryptedVault(vaultAddress)) {
+            if (isEncrypted) {
                 IOrionEncryptedVault encryptedVault = IOrionEncryptedVault(vaultAddress);
                 portfolioHash = keccak256(encryptedVault.getPortfolio());
                 intentHash = keccak256(encryptedVault.getIntent());
@@ -594,6 +597,8 @@ contract LiquidityOrchestrator is
             bytes32 vaultLeaf = keccak256(
                 abi.encode(
                     vaultAddress,
+                    isEncrypted,
+                    isDecommissioning,
                     uint8(feeModel.feeType),
                     feeModel.performanceFee,
                     feeModel.managementFee,
