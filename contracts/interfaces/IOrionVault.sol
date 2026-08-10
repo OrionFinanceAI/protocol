@@ -40,12 +40,6 @@ interface IOrionVault is IERC4626 {
     /// @param newStrategist The new strategist address.
     event StrategistUpdated(address indexed newStrategist);
 
-    /// @notice The fee model has been updated.
-    /// @param mode The new calculation mode.
-    /// @param performanceFee The new performance fee in basis points.
-    /// @param managementFee The new management fee in basis points.
-    event VaultFeeModelUpdated(uint8 indexed mode, uint16 indexed performanceFee, uint16 indexed managementFee);
-
     /// @notice A redemption request has been fulfilled.
     /// @param user The address of the user whose redemption was fulfilled.
     /// @param redeemAmount The amount of assets redeemed by the user.
