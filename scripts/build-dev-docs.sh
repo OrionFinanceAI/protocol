@@ -4,6 +4,9 @@ set -euo pipefail
 echo "→ Generating Solidity API docs (solidity-docgen via scripts/run-docgen.mjs)"
 pnpm docgen
 
+rm -f docs/index.md
+rm -rf docs/test
+
 echo "→ Post processing docs"
 ./scripts/postprocess-docs.sh
 

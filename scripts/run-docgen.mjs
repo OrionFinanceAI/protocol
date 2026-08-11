@@ -113,7 +113,7 @@ await docgen(builds, {
   root,
   sourcesDir,
   outputDir: "docs",
-  pages: "single",
-  exclude: [],
+  pages: "files",
+  exclude: ["test"],
   collapseNewlines: true,
 });
