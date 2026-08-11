@@ -42,6 +42,14 @@ interface IOrionConfig {
     /// @return The guardian address
     function guardian() external view returns (address);
 
+    /// @notice Returns the HPKE recipient public key
+    /// @return The HPKE recipient public key
+    function hpkePublicKey() external view returns (bytes32);
+
+    /// @notice Sets the HPKE recipient public key
+    /// @param _hpkePublicKey X25519 public key as 32 raw octets
+    function setHpkePublicKey(bytes32 _hpkePublicKey) external;
+
     /// @notice Updates the protocol fees
     /// @dev If called while a previous fee change is still in cooldown, the prior scheduled change is cancelled:
     ///      activeProtocolFees() returns the current (old) rates, which are stored as old coefficients, then the new
@@ -64,6 +72,15 @@ interface IOrionConfig {
     /// @dev Can only be called by the contract owner
     /// @param transparentFactory The address of the transparent vault factory
     function setVaultFactory(address transparentFactory) external;
+
+    /// @notice Returns the encrypted vault factory address
+    /// @return The address of the encrypted vault factory
+    function encryptedVaultFactory() external view returns (address);
+
+    /// @notice Sets the encrypted vault factory for the protocol
+    /// @dev Can only be called by the contract owner
+    /// @param encryptedFactory The address of the encrypted vault factory
+    function setEncryptedVaultFactory(address encryptedFactory) external;
 
     /// @notice Sets the price adapter registry for the protocol
     /// @dev Can only be called by the contract owner
@@ -163,6 +180,11 @@ interface IOrionConfig {
     /// @param vault The address of the vault to check
     /// @return True if the address is a registered Orion vault, false otherwise
     function isOrionVault(address vault) external view returns (bool);
+
+    /// @notice Checks if an address is a registered encrypted Orion vault
+    /// @param vault The address of the vault to check
+    /// @return True if the address is an encrypted Orion vault, false otherwise
+    function isEncryptedVault(address vault) external view returns (bool);
 
     /// @notice Checks if an address is a decommissioning Orion vault
     /// @param vault The address of the vault to check

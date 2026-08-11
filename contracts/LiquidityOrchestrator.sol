@@ -13,6 +13,7 @@ import "./interfaces/IPriceAdapterRegistry.sol";
 import "./libraries/EventsLib.sol";
 import "./interfaces/IOrionVault.sol";
 import "./interfaces/IOrionTransparentVault.sol";
+import "./interfaces/IOrionEncryptedVault.sol";
 import "./interfaces/ISP1Verifier.sol";
 import { ErrorsLib } from "./libraries/ErrorsLib.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -127,7 +128,7 @@ contract LiquidityOrchestrator is
 
     /// @notice Struct to hold epoch state data
     struct EpochState {
-        /// @notice Transparent vaults associated to the current epoch
+        /// @notice Vaults in the current epoch (transparent first, then encrypted)
         address[] vaultsEpoch;
         /// @notice Prices of assets in the current epoch [priceAdapterDecimals]
         mapping(address => uint256) pricesEpoch;
@@ -549,10 +550,14 @@ contract LiquidityOrchestrator is
     /// @notice Build vaults list for the epoch
     function _buildVaultsEpoch() internal {
         address[] memory allTransparent = config.getAllOrionVaults(EventsLib.VaultType.Transparent);
+        address[] memory allEncrypted = config.getAllOrionVaults(EventsLib.VaultType.Encrypted);
         delete _currentEpoch.vaultsEpoch;
 
         for (uint16 i = 0; i < allTransparent.length; ++i) {
             _currentEpoch.vaultsEpoch.push(allTransparent[i]);
+        }
+        for (uint16 i = 0; i < allEncrypted.length; ++i) {
+            _currentEpoch.vaultsEpoch.push(allEncrypted[i]);
         }
     }
 
@@ -568,18 +573,32 @@ contract LiquidityOrchestrator is
         }
 
         for (uint16 i = i0; i < i1; ++i) {
-            IOrionTransparentVault vault = IOrionTransparentVault(_currentEpoch.vaultsEpoch[i]);
-            IOrionVault.FeeModel memory feeModel = _currentEpoch.feeModel[_currentEpoch.vaultsEpoch[i]];
+            address vaultAddress = _currentEpoch.vaultsEpoch[i];
+            IOrionVault vault = IOrionVault(vaultAddress);
+            IOrionVault.FeeModel memory feeModel = _currentEpoch.feeModel[vaultAddress];
 
-            (address[] memory portfolioTokens, uint256[] memory portfolioShares) = vault.getPortfolio();
-            (address[] memory intentTokens, uint32[] memory intentWeights) = vault.getIntent();
+            bool isEncrypted = config.isEncryptedVault(vaultAddress);
+            bool isDecommissioning = config.isDecommissioningVault(vaultAddress);
 
-            bytes32 portfolioHash = keccak256(abi.encode(portfolioTokens, portfolioShares));
-            bytes32 intentHash = keccak256(abi.encode(intentTokens, intentWeights));
+            bytes32 portfolioHash;
+            bytes32 intentHash;
+            if (isEncrypted) {
+                IOrionEncryptedVault encryptedVault = IOrionEncryptedVault(vaultAddress);
+                portfolioHash = keccak256(encryptedVault.getPortfolio());
+                intentHash = keccak256(encryptedVault.getIntent());
+            } else {
+                IOrionTransparentVault transparentVault = IOrionTransparentVault(vaultAddress);
+                (address[] memory portfolioTokens, uint256[] memory portfolioShares) = transparentVault.getPortfolio();
+                (address[] memory intentTokens, uint32[] memory intentWeights) = transparentVault.getIntent();
+                portfolioHash = keccak256(abi.encode(portfolioTokens, portfolioShares));
+                intentHash = keccak256(abi.encode(intentTokens, intentWeights));
+            }
 
             bytes32 vaultLeaf = keccak256(
                 abi.encode(
-                    _currentEpoch.vaultsEpoch[i],
+                    vaultAddress,
+                    isEncrypted,
+                    isDecommissioning,
                     uint8(feeModel.feeType),
                     feeModel.performanceFee,
                     feeModel.managementFee,
@@ -908,9 +927,9 @@ contract LiquidityOrchestrator is
     }
 
     /// @notice Handles the vault operations
-    /// @param vaults The vault states
-    /// @dev vaults[] shall match _currentEpoch.vaultsEpoch[] in order
-    function _processMinibatchVaultsOperations(VaultState[] memory vaults) internal {
+    /// @param vaultStates The vault states
+    /// @dev vaultStates[] shall match _currentEpoch.vaultsEpoch[] in order
+    function _processMinibatchVaultsOperations(VaultState[] memory vaultStates) internal {
         address[] memory vaultsEpoch = _currentEpoch.vaultsEpoch;
 
         uint16 i0 = currentMinibatchIndex * minibatchSize;
@@ -927,67 +946,57 @@ contract LiquidityOrchestrator is
         }
 
         for (uint16 i = i0; i < i1; ++i) {
-            address vaultAddress = vaultsEpoch[i];
-            VaultState memory vaultState = vaults[i];
-
-            _processSingleVaultOperations(
-                vaultAddress,
-                vaultState.processRedeem,
-                vaultState.totalAssetsForDeposit,
-                vaultState.totalAssetsForRedeem,
-                vaultState.finalTotalAssets,
-                vaultState.managementFee,
-                vaultState.performanceFee,
-                vaultState.tokens,
-                vaultState.shares
-            );
+            _processSingleVaultOperations(vaultsEpoch[i], vaultStates[i]);
         }
     }
 
     /// @notice Processes deposit and redeem operations for a single vault
     /// @param vaultAddress The vault address
-    /// @param processRedeem When false, redeem fulfillment is skipped even if pending requests exist
-    /// @param totalAssetsForDeposit The total assets for deposit operations
-    /// @param totalAssetsForRedeem The total assets for redeem operations
-    /// @param finalTotalAssets The final total assets for the vault
-    /// @param managementFee The management fee to accrue
-    /// @param performanceFee The performance fee to accrue
-    /// @param tokens The portfolio token addresses
-    /// @param shares The portfolio token number of shares
-    function _processSingleVaultOperations(
-        address vaultAddress,
-        bool processRedeem,
-        uint256 totalAssetsForDeposit,
-        uint256 totalAssetsForRedeem,
-        uint256 finalTotalAssets,
-        uint256 managementFee,
-        uint256 performanceFee,
-        address[] memory tokens,
-        uint256[] memory shares
-    ) internal {
-        IOrionTransparentVault vaultContract = IOrionTransparentVault(vaultAddress);
+    /// @param vaultState Epoch output state for this vault (plaintext portfolio and/or sealed ciphertext)
+    function _processSingleVaultOperations(address vaultAddress, VaultState memory vaultState) internal {
+        IOrionVault vault = IOrionVault(vaultAddress);
 
         uint256 maxFulfillBatchSize = config.maxFulfillBatchSize();
-        uint256 pendingRedeem = vaultContract.pendingRedeem(maxFulfillBatchSize);
-        uint256 pendingDeposit = vaultContract.pendingDeposit(maxFulfillBatchSize);
+        uint256 pendingRedeem = vault.pendingRedeem(maxFulfillBatchSize);
+        uint256 pendingDeposit = vault.pendingDeposit(maxFulfillBatchSize);
 
-        if (processRedeem && pendingRedeem > 0) {
-            vaultContract.fulfillRedeem(totalAssetsForRedeem);
+        if (vaultState.processRedeem && pendingRedeem > 0) {
+            vault.fulfillRedeem(vaultState.totalAssetsForRedeem);
         }
 
         if (pendingDeposit > 0) {
-            vaultContract.fulfillDeposit(totalAssetsForDeposit);
+            vault.fulfillDeposit(vaultState.totalAssetsForDeposit);
         }
 
-        IOrionVault(vaultAddress).accrueVaultFees(managementFee, performanceFee);
-        vaultContract.updateVaultState(tokens, shares, finalTotalAssets);
+        vault.accrueVaultFees(vaultState.managementFee, vaultState.performanceFee);
+
+        bool encrypted = config.isEncryptedVault(vaultAddress);
+        if (encrypted) {
+            IOrionEncryptedVault(vaultAddress).updateVaultState(
+                vaultState.portfolioCiphertext,
+                vaultState.finalTotalAssets
+            );
+        } else {
+            IOrionTransparentVault(vaultAddress).updateVaultState(
+                vaultState.tokens,
+                vaultState.shares,
+                vaultState.finalTotalAssets
+            );
+        }
 
         if (config.isDecommissioningVault(vaultAddress)) {
-            // Finalize only when all queued requests are processed and no non-underlying positions remain open.
+            // Finalize only when all queued requests are processed and the portfolio is liquidated.
             // slither-disable-next-line incorrect-equality
-            bool noRequests = vaultContract.pendingRedeemCount() == 0 && vaultContract.pendingDepositCount() == 0;
-            bool portfolioLiquidated =
-                (tokens.length == 0 && finalTotalAssets == 0) || (tokens.length == 1 && tokens[0] == underlyingAsset);
+            bool noRequests = vault.pendingRedeemCount() == 0 && vault.pendingDepositCount() == 0;
+            bool portfolioLiquidated;
+            if (encrypted) {
+                // Empty encrypted portfolio => liquidation complete.
+                portfolioLiquidated = vaultState.portfolioCiphertext.length == 0;
+            } else {
+                portfolioLiquidated =
+                    (vaultState.tokens.length == 0 && vaultState.finalTotalAssets == 0) ||
+                    (vaultState.tokens.length == 1 && vaultState.tokens[0] == underlyingAsset);
+            }
 
             if (noRequests && portfolioLiquidated) {
                 config.completeVaultDecommissioning(vaultAddress);

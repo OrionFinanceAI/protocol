@@ -1,6 +1,6 @@
 /**
- * Near-100% coverage gap closers for OrionVault / OrionConfig / LiquidityOrchestrator
- * and remaining mid-gap branches. Uses harness + impersonation.
+ * Edge-branch tests for OrionVault, OrionConfig, LiquidityOrchestrator,
+ * adapters, strategies, and registry. Uses harness + impersonation.
  */
 import { expect } from "chai";
 import { ethers, networkHelpers } from "./helpers/hh";
@@ -25,7 +25,7 @@ const PHASE_IDLE = 0;
 const PHASE_PVO = 4;
 const VAULT_TYPE_ENCRYPTED = 1;
 
-describe("Coverage gaps — vault / config / LO", function () {
+describe("OrionVault / OrionConfig / LO edge branches", function () {
   let owner: SignerWithAddress;
   let manager: SignerWithAddress;
   let strategist: SignerWithAddress;
@@ -250,7 +250,17 @@ describe("Coverage gaps — vault / config / LO", function () {
       const vaultAddr = await vault.getAddress();
       await orionConfig.connect(manager).removeOrionVault(vaultAddr);
 
-      await harness.exposed_processSingleVaultOperations(vaultAddr, true, 0n, 0n, 0n, 0n, 0n, [], []);
+      await harness.exposed_processSingleVaultOperations(vaultAddr, {
+        processRedeem: true,
+        totalAssetsForRedeem: 0n,
+        totalAssetsForDeposit: 0n,
+        finalTotalAssets: 0n,
+        managementFee: 0n,
+        performanceFee: 0n,
+        tokens: [],
+        shares: [],
+        portfolioCiphertext: "0x",
+      });
 
       const all = await orionConfig.getAllDecommissionedVaults();
       expect(all).to.include(vaultAddr);
@@ -335,7 +345,17 @@ describe("Coverage gaps — vault / config / LO", function () {
         "VaultDecommissioned",
       );
 
-      await harness.exposed_processSingleVaultOperations(await vault.getAddress(), true, 0n, 0n, 0n, 0n, 0n, [], []);
+      await harness.exposed_processSingleVaultOperations(await vault.getAddress(), {
+        processRedeem: true,
+        totalAssetsForRedeem: 0n,
+        totalAssetsForDeposit: 0n,
+        finalTotalAssets: 0n,
+        managementFee: 0n,
+        performanceFee: 0n,
+        tokens: [],
+        shares: [],
+        portfolioCiphertext: "0x",
+      });
       await expect(vault.connect(user).requestRedeem(1n)).to.be.revertedWithCustomError(vault, "VaultDecommissioned");
     });
 
@@ -379,17 +399,17 @@ describe("Coverage gaps — vault / config / LO", function () {
 
       const shares = await vault.balanceOf(user.address);
       await orionConfig.connect(manager).removeOrionVault(await vault.getAddress());
-      await harness.exposed_processSingleVaultOperations(
-        await vault.getAddress(),
-        true,
-        0n,
-        0n,
-        amount,
-        0n,
-        0n,
-        [await underlying.getAddress()],
-        [0n],
-      );
+      await harness.exposed_processSingleVaultOperations(await vault.getAddress(), {
+        processRedeem: true,
+        totalAssetsForRedeem: 0n,
+        totalAssetsForDeposit: 0n,
+        finalTotalAssets: amount,
+        managementFee: 0n,
+        performanceFee: 0n,
+        tokens: [await underlying.getAddress()],
+        shares: [0n],
+        portfolioCiphertext: "0x",
+      });
       expect(await orionConfig.isDecommissionedVault(await vault.getAddress())).to.equal(true);
 
       // maxRedeem returns full balance when decommissioned
@@ -448,17 +468,17 @@ describe("Coverage gaps — vault / config / LO", function () {
       // Decommission + allowance redeem path (msg.sender != owner)
       await underlying.mint(await harness.getAddress(), amount);
       await orionConfig.connect(manager).removeOrionVault(await vault2.getAddress());
-      await harness.exposed_processSingleVaultOperations(
-        await vault2.getAddress(),
-        true,
-        0n,
-        0n,
-        amount,
-        0n,
-        0n,
-        [await underlying.getAddress()],
-        [0n],
-      );
+      await harness.exposed_processSingleVaultOperations(await vault2.getAddress(), {
+        processRedeem: true,
+        totalAssetsForRedeem: 0n,
+        totalAssetsForDeposit: 0n,
+        finalTotalAssets: amount,
+        managementFee: 0n,
+        performanceFee: 0n,
+        tokens: [await underlying.getAddress()],
+        shares: [0n],
+        portfolioCiphertext: "0x",
+      });
       await vault2.connect(user).approve(stranger.address, shares);
       await vault2.connect(stranger).redeem(shares, stranger.address, user.address);
     });
@@ -709,32 +729,32 @@ describe("Coverage gaps — vault / config / LO", function () {
       await vault.connect(user).approve(await vault.getAddress(), shares);
       await vault.connect(user).requestRedeem(shares);
 
-      await harness.exposed_processSingleVaultOperations(
-        await vault.getAddress(),
-        true,
-        amount,
-        amount,
-        amount,
-        1n,
-        1n,
-        [await underlying.getAddress()],
-        [0n],
-      );
+      await harness.exposed_processSingleVaultOperations(await vault.getAddress(), {
+        processRedeem: true,
+        totalAssetsForRedeem: amount,
+        totalAssetsForDeposit: amount,
+        finalTotalAssets: amount,
+        managementFee: 1n,
+        performanceFee: 1n,
+        tokens: [await underlying.getAddress()],
+        shares: [0n],
+        portfolioCiphertext: "0x",
+      });
       expect(await vault.pendingRedeemCount()).to.equal(0n);
 
       // Deposit-only branch (processRedeem=false, pendingDeposit>0)
       await vault.connect(user).requestDeposit(amount);
-      await harness.exposed_processSingleVaultOperations(
-        await vault.getAddress(),
-        false,
-        amount,
-        0n,
-        amount * 2n,
-        0n,
-        0n,
-        [await underlying.getAddress()],
-        [0n],
-      );
+      await harness.exposed_processSingleVaultOperations(await vault.getAddress(), {
+        processRedeem: false,
+        totalAssetsForRedeem: 0n,
+        totalAssetsForDeposit: amount,
+        finalTotalAssets: amount * 2n,
+        managementFee: 0n,
+        performanceFee: 0n,
+        tokens: [await underlying.getAddress()],
+        shares: [0n],
+        portfolioCiphertext: "0x",
+      });
       expect(await vault.pendingDepositCount()).to.equal(0n);
     });
   });
@@ -758,7 +778,7 @@ describe("Coverage gaps — vault / config / LO", function () {
   });
 });
 
-describe("Coverage gaps — adapters / strategies / registry", function () {
+describe("Adapters / strategies / registry edge branches", function () {
   before(async function () {
     await resetNetwork();
   });

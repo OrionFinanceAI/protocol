@@ -3,7 +3,7 @@ import { expect } from "chai";
 import { ethers } from "./helpers/hh";
 
 import type {
-  LiquidityOrchestratorHarness,
+  LiquidityOrchestratorSlippageHarness,
   MockERC4626Asset,
   MockUnderlyingAsset,
   ERC4626ExecutionAdapter,
@@ -17,7 +17,7 @@ import { resetNetwork } from "./helpers/resetNetwork";
 /**
  * Comprehensive tests for centralized slippage management in LiquidityOrchestrator.
  *
- * Uses LiquidityOrchestratorHarness to directly call the contract's internal
+ * Uses LiquidityOrchestratorSlippageHarness to directly call the contract's internal
  * _calculateMaxWithSlippage and _calculateMinWithSlippage via Solidity (Math.mulDiv),
  * ensuring onchain rounding behavior is validated rather than JS-only arithmetic.
  */
@@ -28,7 +28,7 @@ describe("LiquidityOrchestrator - Centralized Slippage Management", function () 
   let vault2: MockERC4626Asset;
   let executionAdapter: ERC4626ExecutionAdapter;
   let priceAdapter: MockPriceAdapter;
-  let harness: LiquidityOrchestratorHarness;
+  let harness: LiquidityOrchestratorSlippageHarness;
 
   let owner: SignerWithAddress;
   let user: SignerWithAddress;
@@ -74,9 +74,9 @@ describe("LiquidityOrchestrator - Centralized Slippage Management", function () 
 
     const vKey = "0x00dcc994ce74ee9842a9224176ea2aa5115883598b92686e0d764d3908352bb7";
 
-    // --- Deploy LiquidityOrchestratorHarness proxy ---
-    harness = await deployUUPSProxy<LiquidityOrchestratorHarness>(
-      "LiquidityOrchestratorHarness",
+    // --- Deploy LiquidityOrchestratorSlippageHarness proxy ---
+    harness = await deployUUPSProxy<LiquidityOrchestratorSlippageHarness>(
+      "LiquidityOrchestratorSlippageHarness",
       [owner.address, await orionConfig.getAddress(), owner.address, await sp1VerifierGateway.getAddress(), vKey],
       owner,
     );

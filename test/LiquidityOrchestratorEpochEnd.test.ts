@@ -9,7 +9,7 @@ import { expect } from "chai";
 import { ethers } from "./helpers/hh";
 
 import type {
-  LiquidityOrchestratorHarness,
+  LiquidityOrchestratorEpochEndHarness,
   MockERC4626Asset,
   MockUnderlyingAsset,
   MockExecutionAdapter,
@@ -28,7 +28,7 @@ const PHASE_PVO = 4n;
 
 describe("LiquidityOrchestrator epoch-end gating", function () {
   let orionConfig: OrionConfig;
-  let harness: LiquidityOrchestratorHarness;
+  let harness: LiquidityOrchestratorEpochEndHarness;
   let transparentVaultFactory: TransparentVaultFactory;
   let underlyingAsset: MockUnderlyingAsset;
 
@@ -62,6 +62,7 @@ describe("LiquidityOrchestrator epoch-end gating", function () {
       performanceFee: 0n,
       tokens: [] as string[],
       shares: [] as bigint[],
+      portfolioCiphertext: "0x",
     };
   }
 
@@ -98,8 +99,8 @@ describe("LiquidityOrchestrator epoch-end gating", function () {
     await sp1VerifierGateway.addRoute(await sp1Verifier.getAddress());
 
     const vKey = "0x007ccff4696ddd1d62fec2a106aa50309ba0fdee8fc2bcbc9c0b5ea68fe200f3";
-    harness = await deployUUPSProxy<LiquidityOrchestratorHarness>(
-      "LiquidityOrchestratorHarness",
+    harness = await deployUUPSProxy<LiquidityOrchestratorEpochEndHarness>(
+      "LiquidityOrchestratorEpochEndHarness",
       [owner.address, await orionConfig.getAddress(), owner.address, await sp1VerifierGateway.getAddress(), vKey],
       owner,
     );

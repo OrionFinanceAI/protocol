@@ -43,6 +43,7 @@ interface ILiquidityOrchestrator {
         uint256 performanceFee;
         address[] tokens;
         uint256[] shares;
+        bytes portfolioCiphertext;
     }
 
     struct SellLegOrders {
@@ -96,7 +97,7 @@ interface ILiquidityOrchestrator {
     /// @notice Struct representing the full epoch state view
     /// @dev This struct contains all epoch state data in a returnable format
     struct EpochStateView {
-        /// @notice Transparent vaults associated to the current epoch
+        /// @notice Vaults in the current epoch (transparent first, then encrypted)
         address[] vaultsEpoch;
         /// @notice Active netting fee coefficient for current epoch
         uint16 activeNettingFeeCoefficient;
