@@ -216,6 +216,12 @@ interface IOrionConfig {
     /// @return The number of decimals for the token
     function tokenDecimals(address token) external view returns (uint8);
 
+    /// @notice Returns the stored decimals for a whitelisted token
+    /// @dev Alias of `tokenDecimals` for backward-compatible ABI.
+    /// @param token The token address
+    /// @return The number of decimals for the token
+    function getTokenDecimals(address token) external view returns (uint8);
+
     /// @notice Returns the minimum deposit amount
     /// @return The minimum deposit amount in underlying asset units
     function minDepositAmount() external view returns (uint256);

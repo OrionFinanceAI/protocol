@@ -57,6 +57,10 @@ contract MockOrionConfig {
         tokenDecimals[token] = decimals;
     }
 
+    function getTokenDecimals(address token) external view returns (uint8) {
+        return tokenDecimals[token];
+    }
+
     function isWhitelisted(address asset) external view returns (bool) {
         return whitelisted[asset];
     }
