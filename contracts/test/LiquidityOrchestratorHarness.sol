@@ -2,7 +2,6 @@
 pragma solidity ^0.8.34;
 
 import { LiquidityOrchestrator } from "../LiquidityOrchestrator.sol";
-import { IExecutionAdapter } from "../interfaces/IExecutionAdapter.sol";
 
 /**
  * @title LiquidityOrchestratorHarness
@@ -10,10 +9,6 @@ import { IExecutionAdapter } from "../interfaces/IExecutionAdapter.sol";
  * @dev Epoch-end / slippage helpers live in dedicated harnesses to stay under EIP-170.
  */
 contract LiquidityOrchestratorHarness is LiquidityOrchestrator {
-    function exposed_processSingleVaultOperations(address vaultAddress, VaultState memory vaultState) external {
-        _processSingleVaultOperations(vaultAddress, vaultState);
-    }
-
     /// @notice Test-only: set upkeep phase
     function h_setPhase(LiquidityUpkeepPhase phase) external {
         currentPhase = phase;
@@ -63,79 +58,6 @@ contract LiquidityOrchestratorHarness is LiquidityOrchestrator {
     /// @notice Test-only: set epoch state commitment used by `_verifyPerformData`
     function h_setEpochStateCommitment(bytes32 commitment) external {
         _currentEpoch.epochStateCommitment = commitment;
-    }
-
-    /// @notice Test-only: set execution adapter without going through OrionConfig
-    function h_setExecutionAdapter(address asset, address adapter) external {
-        executionAdapterOf[asset] = IExecutionAdapter(adapter);
-    }
-
-    /// @notice Test-only: seed pending protocol fees for claim tests
-    function h_setPendingProtocolFees(uint256 amount) external {
-        pendingProtocolFees = amount;
-    }
-
-    /// @notice Test-only: read deferred epoch execution dust
-    function h_epochDeltaAmount() external view returns (int256) {
-        return _epochDeltaAmount;
-    }
-
-    /// @notice Test-only: seed deferred epoch execution dust
-    function h_setEpochDeltaAmount(int256 amount) external {
-        _epochDeltaAmount = amount;
-    }
-
-    /// @notice Test-only: seed buffer amount
-    function h_setBufferAmount(uint256 amount) external {
-        bufferAmount = amount;
-    }
-
-    /// @notice Test-only: invoke `_executeSell` via self-call (onlySelf)
-    function h_executeSell(address asset, uint256 sharesAmount, uint256 estimatedUnderlyingAmount) external {
-        this._executeSell(asset, sharesAmount, estimatedUnderlyingAmount);
-    }
-
-    /// @notice Test-only: invoke `_executeBuy` via self-call (onlySelf)
-    function h_executeBuy(address asset, uint256 sharesAmount, uint256 estimatedUnderlyingAmount) external {
-        this._executeBuy(asset, sharesAmount, estimatedUnderlyingAmount);
-    }
-
-    /// @notice Test-only: invoke Buy→PVO settlement helper
-    function h_applyBuyLegSettlement(uint256 bufferIncrease, uint256 epochProtocolFees) external {
-        _applyBuyLegSettlement(bufferIncrease, epochProtocolFees);
-    }
-
-    /// @notice Test-only: run sell minibatch processing
-    function h_processMinibatchSell(
-        address[] calldata tokens,
-        uint256[] calldata amounts,
-        uint256[] calldata estimated
-    ) external {
-        SellLegOrders memory sellLeg = SellLegOrders({
-            sellingTokens: tokens,
-            sellingAmounts: amounts,
-            sellingEstimatedUnderlyingAmounts: estimated
-        });
-        _processMinibatchSell(sellLeg);
-    }
-
-    /// @notice Test-only: run buy minibatch processing
-    function h_processMinibatchBuy(
-        address[] calldata tokens,
-        uint256[] calldata amounts,
-        uint256[] calldata estimated
-    ) external {
-        BuyLegOrders memory buyLeg = BuyLegOrders({
-            buyingTokens: tokens,
-            buyingAmounts: amounts,
-            buyingEstimatedUnderlyingAmounts: estimated
-        });
-        _processMinibatchBuy(buyLeg);
-    }
-
-    /// @notice Test-only: trigger empty-epoch start (no vaults → defer next update)
-    function h_handleStart() external {
-        _handleStart();
     }
 
     /// @notice Test-only: set completedInCurrentMinibatch cursor

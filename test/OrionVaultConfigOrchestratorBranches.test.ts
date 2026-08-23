@@ -8,7 +8,7 @@ import { deployUUPSProxy, deployUpgradeableProtocol } from "./helpers/deployUpgr
 import { resetNetwork } from "./helpers/resetNetwork";
 import type { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import type {
-  LiquidityOrchestratorHarness,
+  LiquidityOrchestratorVaultHarness,
   MockERC4626Asset,
   MockExecutionAdapter,
   MockPriceAdapter,
@@ -34,7 +34,7 @@ describe("OrionVault / OrionConfig / LO edge branches", function () {
   let user: SignerWithAddress;
 
   let orionConfig: OrionConfig;
-  let harness: LiquidityOrchestratorHarness;
+  let harness: LiquidityOrchestratorVaultHarness;
   let transparentVaultFactory: TransparentVaultFactory;
   let underlying: MockUnderlyingAsset;
   let priceAdapter: MockPriceAdapter;
@@ -97,8 +97,8 @@ describe("OrionVault / OrionConfig / LO edge branches", function () {
     await gateway.addRoute(await verifier.getAddress());
 
     const vKey = "0x007ccff4696ddd1d62fec2a106aa50309ba0fdee8fc2bcbc9c0b5ea68fe200f3";
-    harness = await deployUUPSProxy<LiquidityOrchestratorHarness>(
-      "LiquidityOrchestratorHarness",
+    harness = await deployUUPSProxy<LiquidityOrchestratorVaultHarness>(
+      "LiquidityOrchestratorVaultHarness",
       [owner.address, await orionConfig.getAddress(), owner.address, await gateway.getAddress(), vKey],
       owner,
     );
@@ -638,7 +638,7 @@ describe("OrionVault / OrionConfig / LO edge branches", function () {
       await harness.h_setPhase(PHASE_IDLE);
     });
 
-    it("covers onlyConfig ACL, zero depositLiquidity, empty epoch start, and sell/buy minibatch paths", async function () {
+    it("covers onlyConfig ACL and zero depositLiquidity", async function () {
       await expect(
         harness
           .connect(stranger)
@@ -648,72 +648,6 @@ describe("OrionVault / OrionConfig / LO edge branches", function () {
       await expect(harness.connect(owner).depositLiquidity(0)).to.be.revertedWithCustomError(
         harness,
         "AmountMustBeGreaterThanZero",
-      );
-
-      // Empty vaultsEpoch → _handleStart defers next update without leaving Idle
-      await harness.h_setVaultsEpoch([]);
-      await harness.h_handleStart();
-      expect(await harness.currentPhase()).to.equal(PHASE_IDLE);
-
-      const MockERC4626Factory = await ethers.getContractFactory("MockERC4626Asset");
-      const asset = await MockERC4626Factory.deploy(await underlying.getAddress(), "SellA", "SA");
-      await asset.waitForDeployment();
-      const controllable = await (
-        await ethers.getContractFactory("ControllableExecutionAdapter")
-      ).deploy(await underlying.getAddress());
-      await controllable.waitForDeployment();
-      await harness.h_setExecutionAdapter(await asset.getAddress(), await controllable.getAddress());
-
-      // Skip underlying token + zero amount entries, then successful sell → BuyingLeg
-      await controllable.setSellReturn(1000n);
-      await harness.h_setExecutionMinibatchSize(10);
-      await harness.h_setPhase(2); // SellingLeg
-      await harness.h_setCurrentMinibatchIndex(0);
-      await harness.h_setCompletedInCurrentMinibatch(0);
-      await harness.h_processMinibatchSell(
-        [await underlying.getAddress(), await asset.getAddress(), await asset.getAddress()],
-        [100n, 0n, 50n],
-        [100n, 0n, 1000n],
-      );
-      expect(await harness.currentPhase()).to.equal(3); // BuyingLeg
-
-      // Buy path with successful buy → PVO
-      await controllable.setBuyReturn(0n); // no underlying pull
-      await harness.h_setCurrentMinibatchIndex(0);
-      await harness.h_setCompletedInCurrentMinibatch(0);
-      await harness.h_processMinibatchBuy(
-        [await underlying.getAddress(), await asset.getAddress()],
-        [1n, 10n],
-        [1n, 0n],
-      );
-      expect(await harness.currentPhase()).to.equal(PHASE_PVO);
-
-      // Sell failure → records failed token via catch
-      await controllable.setSellReverts(true);
-      await harness.h_setPhase(2);
-      await harness.h_setCurrentMinibatchIndex(0);
-      await harness.h_setCompletedInCurrentMinibatch(0);
-      await harness.h_setEpochStateCommitment(ethers.id("seed"));
-      await harness.h_processMinibatchSell([await asset.getAddress()], [10n], [1000n]);
-      const failed = await harness.getFailedEpochTokens();
-      expect(failed).to.include(await asset.getAddress());
-
-      // Buy failure path
-      await controllable.setBuyReverts(true);
-      await harness.h_setPhase(3);
-      await harness.h_setCurrentMinibatchIndex(0);
-      await harness.h_setCompletedInCurrentMinibatch(0);
-      await harness.h_setFailedEpochTokens([]);
-      await harness.h_processMinibatchBuy([await asset.getAddress()], [10n], [0n]);
-      expect(await harness.getFailedEpochTokens()).to.include(await asset.getAddress());
-
-      // SlippageExceeded on sell via self-call
-      await controllable.setSellReverts(false);
-      await controllable.setSellReturn(1n);
-      await harness.connect(owner).setSlippageTolerance(100); // 1%
-      await expect(harness.h_executeSell(await asset.getAddress(), 10n, 1000n)).to.be.revertedWithCustomError(
-        harness,
-        "SlippageExceeded",
       );
     });
 

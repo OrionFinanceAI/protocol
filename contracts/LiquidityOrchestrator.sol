@@ -594,6 +594,10 @@ contract LiquidityOrchestrator is
                 intentHash = keccak256(abi.encode(intentTokens, intentWeights));
             }
 
+            // slither-disable-next-line unused-return
+            (, uint256[] memory redeemShares) = vault.pendingRedeemBatch(maxFulfillBatchSize);
+            bytes32 pendingRedeemsHash = keccak256(abi.encode(redeemShares));
+
             bytes32 vaultLeaf = keccak256(
                 abi.encode(
                     vaultAddress,
@@ -603,7 +607,7 @@ contract LiquidityOrchestrator is
                     feeModel.performanceFee,
                     feeModel.managementFee,
                     feeModel.highWaterMark,
-                    vault.pendingRedeem(maxFulfillBatchSize),
+                    pendingRedeemsHash,
                     vault.pendingDeposit(maxFulfillBatchSize),
                     vault.totalSupply(),
                     vault.totalAssets(),
@@ -639,7 +643,7 @@ contract LiquidityOrchestrator is
         }
     }
 
-    /// @notice Builds the protocol state hash from static epoch parameters
+    /// @notice Builds the protocol state hash from static epoch parameters.
     /// @return The protocol state hash
     function _buildProtocolStateHash() internal view returns (bytes32) {
         return
