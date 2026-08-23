@@ -3,7 +3,7 @@ import { ethers, networkHelpers } from "./helpers/hh";
 import { deployUUPSProxy } from "./helpers/deployUpgradeable";
 import { resetNetwork } from "./helpers/resetNetwork";
 import type {
-  LiquidityOrchestratorHarness,
+  LiquidityOrchestratorBufferHarness,
   MockUnderlyingAsset,
   OrionConfig,
   OrionTransparentVault,
@@ -51,8 +51,8 @@ describe("LiquidityOrchestrator callbacks and protocol fee claims", function () 
     await sp1VerifierGateway.addRoute(await sp1Verifier.getAddress());
 
     const vKey = "0x007ccff4696ddd1d62fec2a106aa50309ba0fdee8fc2bcbc9c0b5ea68fe200f3";
-    const harness = await deployUUPSProxy<LiquidityOrchestratorHarness>(
-      "LiquidityOrchestratorHarness",
+    const harness = await deployUUPSProxy<LiquidityOrchestratorBufferHarness>(
+      "LiquidityOrchestratorBufferHarness",
       [owner.address, await orionConfig.getAddress(), owner.address, await sp1VerifierGateway.getAddress(), vKey],
       owner,
     );

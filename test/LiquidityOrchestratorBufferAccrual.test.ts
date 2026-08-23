@@ -6,7 +6,7 @@ import { resetNetwork } from "./helpers/resetNetwork";
 import type { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import type {
   ControllableExecutionAdapter,
-  LiquidityOrchestratorHarness,
+  LiquidityOrchestratorBufferHarness,
   MockSP1Verifier,
   MockUnderlyingAsset,
   OrionConfig,
@@ -74,7 +74,7 @@ describe("LiquidityOrchestrator – deferred buffer and fee accrual", function (
 
   let owner: SignerWithAddress;
   let automationRegistry: SignerWithAddress;
-  let harness: LiquidityOrchestratorHarness;
+  let harness: LiquidityOrchestratorBufferHarness;
   let underlying: MockUnderlyingAsset;
   let asset: MockUnderlyingAsset;
   let adapter: ControllableExecutionAdapter;
@@ -110,8 +110,8 @@ describe("LiquidityOrchestrator – deferred buffer and fee accrual", function (
     await mockVerifier.waitForDeployment();
 
     const vKey = "0x007ccff4696ddd1d62fec2a106aa50309ba0fdee8fc2bcbc9c0b5ea68fe200f3";
-    harness = await deployUUPSProxy<LiquidityOrchestratorHarness>(
-      "LiquidityOrchestratorHarness",
+    harness = await deployUUPSProxy<LiquidityOrchestratorBufferHarness>(
+      "LiquidityOrchestratorBufferHarness",
       [
         owner.address,
         await orionConfig.getAddress(),

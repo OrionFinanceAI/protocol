@@ -3,7 +3,7 @@ import { expect } from "chai";
 import { ethers } from "./helpers/hh";
 
 import type {
-  LiquidityOrchestratorHarness,
+  LiquidityOrchestratorVaultHarness,
   MockERC4626Asset,
   MockUnderlyingAsset,
   MockExecutionAdapter,
@@ -18,7 +18,7 @@ import { resetNetwork } from "./helpers/resetNetwork";
 
 describe("Vault decommissioning completion", function () {
   let orionConfig: OrionConfig;
-  let harness: LiquidityOrchestratorHarness;
+  let harness: LiquidityOrchestratorVaultHarness;
   let transparentVaultFactory: TransparentVaultFactory;
   let underlyingAsset: MockUnderlyingAsset;
   let mockVaultAsset: MockERC4626Asset;
@@ -95,8 +95,8 @@ describe("Vault decommissioning completion", function () {
     await sp1VerifierGateway.addRoute(await sp1Verifier.getAddress());
 
     const vKey = "0x007ccff4696ddd1d62fec2a106aa50309ba0fdee8fc2bcbc9c0b5ea68fe200f3";
-    harness = await deployUUPSProxy<LiquidityOrchestratorHarness>(
-      "LiquidityOrchestratorHarness",
+    harness = await deployUUPSProxy<LiquidityOrchestratorVaultHarness>(
+      "LiquidityOrchestratorVaultHarness",
       [owner.address, await orionConfig.getAddress(), owner.address, await sp1VerifierGateway.getAddress(), vKey],
       owner,
     );

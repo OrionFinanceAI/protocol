@@ -7,7 +7,7 @@ import { encodePerformPayload, emptyVaultState } from "./helpers/loPerformPayloa
 import type { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import type {
   EncryptedVaultFactory,
-  LiquidityOrchestratorHarness,
+  LiquidityOrchestratorVaultHarness,
   MockExecutionAdapter,
   MockPriceAdapter,
   MockSP1Verifier,
@@ -44,7 +44,7 @@ describe("LiquidityOrchestrator – encrypted vaults", function () {
   let strategist: SignerWithAddress;
 
   let orionConfig: OrionConfig;
-  let harness: LiquidityOrchestratorHarness;
+  let harness: LiquidityOrchestratorVaultHarness;
   let transparentVaultFactory: TransparentVaultFactory;
   let encryptedVaultFactory: EncryptedVaultFactory;
   let underlying: MockUnderlyingAsset;
@@ -128,8 +128,8 @@ describe("LiquidityOrchestrator – encrypted vaults", function () {
     await mockVerifier.waitForDeployment();
 
     const vKey = "0x007ccff4696ddd1d62fec2a106aa50309ba0fdee8fc2bcbc9c0b5ea68fe200f3";
-    harness = await deployUUPSProxy<LiquidityOrchestratorHarness>(
-      "LiquidityOrchestratorHarness",
+    harness = await deployUUPSProxy<LiquidityOrchestratorVaultHarness>(
+      "LiquidityOrchestratorVaultHarness",
       [
         owner.address,
         await orionConfig.getAddress(),
