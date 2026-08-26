@@ -644,28 +644,29 @@ contract LiquidityOrchestrator is
     }
 
     /// @notice Builds the protocol state hash from static epoch parameters.
-    /// @return The protocol state hash
-    function _buildProtocolStateHash() internal view returns (bytes32) {
-        return
-            keccak256(
-                abi.encode(
-                    _currentEpoch.activeNettingFeeCoefficient,
-                    _currentEpoch.activeRsFeeCoefficient,
-                    config.maxFulfillBatchSize(),
-                    targetBufferRatio,
-                    config.priceAdapterDecimals(),
-                    config.strategistIntentDecimals(),
-                    epochDuration,
-                    config.getAllWhitelistedAssets(),
-                    config.getAllTokenDecimals(),
-                    config.riskFreeRate(),
-                    config.decommissioningAssets(),
-                    _failedEpochTokens,
-                    initialEpochBufferAmount,
-                    bufferAmount,
-                    IERC20(underlyingAsset).balanceOf(address(this))
-                )
-            );
+    /// @return protocolStateHash The protocol state hash
+    function _buildProtocolStateHash() internal returns (bytes32 protocolStateHash) {
+        uint256 loBal = IERC20(underlyingAsset).balanceOf(address(this));
+        protocolStateHash = keccak256(
+            abi.encode(
+                _currentEpoch.activeNettingFeeCoefficient,
+                _currentEpoch.activeRsFeeCoefficient,
+                config.maxFulfillBatchSize(),
+                targetBufferRatio,
+                config.priceAdapterDecimals(),
+                config.strategistIntentDecimals(),
+                epochDuration,
+                config.getAllWhitelistedAssets(),
+                config.getAllTokenDecimals(),
+                config.riskFreeRate(),
+                config.decommissioningAssets(),
+                _failedEpochTokens,
+                initialEpochBufferAmount,
+                bufferAmount,
+                loBal
+            )
+        );
+        emit EventsLib.EpochProtocolStateHashed(epochCounter, protocolStateHash, loBal);
     }
 
     /// @notice Aggregates asset leaves using sequential folding

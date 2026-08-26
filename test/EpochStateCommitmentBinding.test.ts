@@ -67,18 +67,48 @@ describe("EpochStateCommitmentBinding", function () {
     await vault.connect(loSigner).fulfillDeposit(amount);
   }
 
-  async function startAndSealCommitment(): Promise<string> {
+  function parseNamedLog(receipt: { logs: readonly { topics: readonly string[]; data: string }[] }, name: string) {
+    return receipt.logs
+      .map((log) => {
+        try {
+          return harness.interface.parseLog(log);
+        } catch {
+          return null;
+        }
+      })
+      .find((parsed) => parsed?.name === name);
+  }
+
+  async function startAndSealCommitment(): Promise<{
+    commitment: string;
+    loBalanceUnderlying: bigint;
+    protocolStateHash: string;
+  }> {
     const epochDuration = await harness.epochDuration();
     await networkHelpers.time.increase(Number(epochDuration) + 1);
     await harness.connect(automationRegistry).performUpkeep("0x", "0x", "0x");
     expect(await harness.currentPhase()).to.equal(PHASE_STATE_COMMITMENT);
-    await expect(harness.connect(automationRegistry).performUpkeep("0x", "0x", "0x")).to.emit(
-      harness,
-      "EpochStateCommitted",
-    );
+
+    const loBalAtSeal = await underlying.balanceOf(await harness.getAddress());
+    const sealTx = await harness.connect(automationRegistry).performUpkeep("0x", "0x", "0x");
+    await expect(sealTx).to.emit(harness, "EpochStateCommitted");
+    await expect(sealTx).to.emit(harness, "EpochProtocolStateHashed");
     expect(await harness.currentPhase()).to.equal(PHASE_SELLING);
+
     const epoch = await harness.getEpochState();
-    return epoch.epochStateCommitment;
+    const receipt = await sealTx.wait();
+    const committedLog = parseNamedLog(receipt!, "EpochStateCommitted");
+    const hashedLog = parseNamedLog(receipt!, "EpochProtocolStateHashed");
+    expect(committedLog).to.not.equal(undefined);
+    expect(hashedLog).to.not.equal(undefined);
+    expect(committedLog!.args.epochStateCommitment).to.equal(epoch.epochStateCommitment);
+    expect(hashedLog!.args.loBalanceUnderlying).to.equal(loBalAtSeal);
+
+    return {
+      commitment: epoch.epochStateCommitment,
+      loBalanceUnderlying: hashedLog!.args.loBalanceUnderlying as bigint,
+      protocolStateHash: hashedLog!.args.protocolStateHash as string,
+    };
   }
 
   before(async function () {
@@ -160,9 +190,9 @@ describe("EpochStateCommitmentBinding", function () {
   describe("protocol state hash", function () {
     it("matches TypeScript golden vector after commitment seal", async function () {
       await createVault("Golden", "GLD");
-      await startAndSealCommitment();
+      const { loBalanceUnderlying, protocolStateHash } = await startAndSealCommitment();
 
-      const onChain = await harness.exposed_buildProtocolStateHash();
+      const onChain = await harness.exposed_buildProtocolStateHash.staticCall();
       const [netting, rs] = await orionConfig.activeProtocolFees();
       const assets = await orionConfig.getAllWhitelistedAssets();
       const tokenDecimals = await orionConfig.getAllTokenDecimals();
@@ -184,10 +214,12 @@ describe("EpochStateCommitmentBinding", function () {
         failedEpochTokens: await harness.getFailedEpochTokens(),
         initialEpochBufferAmount: await harness.initialEpochBufferAmount(),
         bufferAmount: await harness.bufferAmount(),
-        loBalanceUnderlying: await underlying.balanceOf(await harness.getAddress()),
+        loBalanceUnderlying,
       });
 
       expect(onChain).to.equal(expected);
+      expect(protocolStateHash).to.equal(expected);
+      expect(loBalanceUnderlying).to.equal(await underlying.balanceOf(await harness.getAddress()));
     });
 
     it("changes hash when committed decimals fields are flipped (off-chain vectors)", function () {
@@ -238,7 +270,7 @@ describe("EpochStateCommitmentBinding", function () {
       await vaultA.connect(user2).requestRedeem(shares2);
       const [, batchA] = await vaultA.pendingRedeemBatch(await orionConfig.maxFulfillBatchSize());
       const redeemSum = batchA[0] + batchA[1];
-      const commitmentA = await startAndSealCommitment();
+      const { commitment: commitmentA } = await startAndSealCommitment();
 
       await resetNetwork();
       [owner, automationRegistry, manager, strategist, user1, user2] = await ethers.getSigners();
@@ -308,7 +340,7 @@ describe("EpochStateCommitmentBinding", function () {
       await vaultB.connect(user1).approve(await vaultB.getAddress(), redeemSum);
       await vaultB.connect(user1).requestRedeem(redeemSum);
       const [, batchB] = await vaultB.pendingRedeemBatch(await orionConfig.maxFulfillBatchSize());
-      const commitmentB = await startAndSealCommitment();
+      const { commitment: commitmentB } = await startAndSealCommitment();
 
       expect(batchB[0]).to.equal(redeemSum);
       expect(pendingRedeemsHash([...batchA])).to.not.equal(pendingRedeemsHash([...batchB]));
@@ -319,8 +351,11 @@ describe("EpochStateCommitmentBinding", function () {
   describe("loBalanceUnderlying donation desync", function () {
     it("stored commitment unchanged while live protocol hash diverges after donation", async function () {
       await createVault("Donation", "DON");
-      const commitment = await startAndSealCommitment();
-      const hashAtSeal = await harness.exposed_buildProtocolStateHash();
+      const {
+        commitment,
+        loBalanceUnderlying: sealedLoBal,
+        protocolStateHash: hashAtSeal,
+      } = await startAndSealCommitment();
 
       const donor = user2;
       const donation = ethers.parseUnits("1000", 6);
@@ -330,8 +365,65 @@ describe("EpochStateCommitmentBinding", function () {
       const epoch = await harness.getEpochState();
       expect(epoch.epochStateCommitment).to.equal(commitment);
 
-      const hashAfterDonation = await harness.exposed_buildProtocolStateHash();
+      const liveBal = await underlying.balanceOf(await harness.getAddress());
+      expect(liveBal).to.equal(sealedLoBal + donation);
+      expect(liveBal).to.be.gt(sealedLoBal);
+
+      const hashAfterDonation = await harness.exposed_buildProtocolStateHash.staticCall();
       expect(hashAfterDonation).to.not.equal(hashAtSeal);
+    });
+
+    it("recommit emits updated loBalanceUnderlying matching the new commitment hash input", async function () {
+      await createVault("Recommit", "RCM");
+      const { commitment: sealCommitment, loBalanceUnderlying: sealLoBal } = await startAndSealCommitment();
+
+      const donor = user2;
+      const donation = ethers.parseUnits("500", 6);
+      await underlying.mint(donor.address, donation);
+      await underlying.connect(donor).transfer(await harness.getAddress(), donation);
+
+      const loBalAtRecommit = await underlying.balanceOf(await harness.getAddress());
+      expect(loBalAtRecommit).to.equal(sealLoBal + donation);
+
+      const failedToken = await underlying.getAddress();
+      const receipt = await (await harness.exposed_handleMinibatchLegFailure(failedToken)).wait();
+      const hashedLog = parseNamedLog(receipt!, "EpochProtocolStateHashed");
+      const committedLog = parseNamedLog(receipt!, "EpochStateCommitted");
+      expect(hashedLog).to.not.equal(undefined);
+      expect(committedLog).to.not.equal(undefined);
+      expect(hashedLog!.args.loBalanceUnderlying).to.equal(loBalAtRecommit);
+
+      const epoch = await harness.getEpochState();
+      expect(epoch.epochStateCommitment).to.equal(committedLog!.args.epochStateCommitment);
+      expect(epoch.epochStateCommitment).to.not.equal(sealCommitment);
+
+      const failedTokens = await harness.getFailedEpochTokens();
+      expect(failedTokens).to.deep.equal([failedToken]);
+
+      const liveHash = await harness.exposed_buildProtocolStateHash.staticCall();
+      expect(liveHash).to.equal(hashedLog!.args.protocolStateHash);
+
+      const [netting, rs] = await orionConfig.activeProtocolFees();
+      const assets = await orionConfig.getAllWhitelistedAssets();
+      const tokenDecimals = await orionConfig.getAllTokenDecimals();
+      const expectedProtocolHash = hashProtocolState({
+        activeNettingFeeCoefficient: netting,
+        activeRsFeeCoefficient: rs,
+        maxFulfillBatchSize: await orionConfig.maxFulfillBatchSize(),
+        targetBufferRatio: await harness.targetBufferRatio(),
+        priceAdapterDecimals: Number(await orionConfig.priceAdapterDecimals()),
+        strategistIntentDecimals: Number(await orionConfig.strategistIntentDecimals()),
+        epochDuration: await harness.epochDuration(),
+        assets: [...assets],
+        tokenDecimals: tokenDecimals.map((d: bigint) => Number(d)),
+        riskFreeRate: await orionConfig.riskFreeRate(),
+        decommissioningAssets: await orionConfig.decommissioningAssets(),
+        failedEpochTokens: failedTokens,
+        initialEpochBufferAmount: await harness.initialEpochBufferAmount(),
+        bufferAmount: await harness.bufferAmount(),
+        loBalanceUnderlying: loBalAtRecommit,
+      });
+      expect(hashedLog!.args.protocolStateHash).to.equal(expectedProtocolHash);
     });
   });
 });

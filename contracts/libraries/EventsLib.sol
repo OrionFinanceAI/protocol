@@ -157,6 +157,16 @@ library EventsLib {
     /// @param epochStateCommitment The epoch state commitment.
     event EpochStateCommitted(uint256 indexed epochCounter, bytes32 indexed epochStateCommitment);
 
+    /// @notice Protocol state hash built for this epoch.
+    /// @param epochCounter Current epoch.
+    /// @param protocolStateHash Result of `_buildProtocolStateHash`.
+    /// @param loBalanceUnderlying Mid-tx LO.balanceOf(underlying).
+    event EpochProtocolStateHashed(
+        uint256 indexed epochCounter,
+        bytes32 indexed protocolStateHash,
+        uint256 loBalanceUnderlying
+    );
+
     /// @notice The portfolio has been rebalanced.
     /// @param epochCounter The epoch that has just completed.
     /// @param nettedRebalanceVolumeUnderlying Zk-reported netted rebalance volume in underlying (from `StatesStruct`).

@@ -8,8 +8,13 @@ import { LiquidityOrchestrator } from "../LiquidityOrchestrator.sol";
  * @notice Minimal harness for protocol-state commitment golden vectors (EIP-170 sized)
  */
 contract LiquidityOrchestratorCommitmentHarness is LiquidityOrchestrator {
-    /// @notice Test-only: expose protocol state hash for commitment golden vectors
-    function exposed_buildProtocolStateHash() external view returns (bytes32) {
+    /// @notice Test-only: expose protocol state hash (emits EpochProtocolStateHashed)
+    function exposed_buildProtocolStateHash() external returns (bytes32) {
         return _buildProtocolStateHash();
+    }
+
+    /// @notice Test-only: expose minibatch leg-failure recommit path
+    function exposed_handleMinibatchLegFailure(address token) external {
+        _handleMinibatchLegFailure(token);
     }
 }
