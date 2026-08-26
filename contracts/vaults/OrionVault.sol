@@ -448,7 +448,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     }
 
     /// @notice Update the fee model parameters with cooldown protection
-    /// @param feeType The fee type (0=ABSOLUTE, 1=HURDLE, 2=HIGH_WATER_MARK, 3=HURDLE_HWM)
+    /// @param feeType The fee type
     /// @param performanceFee The performance fee
     /// @param managementFee The management fee
     /// @dev Only vault manager can update fee model parameters
