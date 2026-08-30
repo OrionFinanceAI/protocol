@@ -164,13 +164,13 @@ library EventsLib {
     event EpochProtocolStateHashed(
         uint256 indexed epochCounter,
         bytes32 indexed protocolStateHash,
-        uint256 loBalanceUnderlying
+        uint256 indexed loBalanceUnderlying
     );
 
     /// @notice The portfolio has been rebalanced.
     /// @param epochCounter The epoch that has just completed.
     /// @param nettedRebalanceVolumeUnderlying Zk-reported netted rebalance volume in underlying (from `StatesStruct`).
-    event EpochEnd(uint256 indexed epochCounter, uint256 nettedRebalanceVolumeUnderlying);
+    event EpochEnd(uint256 indexed epochCounter, uint256 indexed nettedRebalanceVolumeUnderlying);
 
     /// @notice Sell leg executed during upkeep: vault shares swapped to underlying via the execution adapter.
     /// @param epochCounter Epoch id at execution time (`EpochEnd` increments after the batch that uses this counter).
@@ -244,6 +244,8 @@ library EventsLib {
     /// @param performanceFee The performance fee of the vault.
     /// @param managementFee The management fee of the vault.
     /// @param depositAccessControl The address of the deposit access control contract (address(0) = permissionless).
+    /// @param holderAccessControl The address of the holder access control contract (address(0) = permissionless).
+    /// @param transferAccessControl The address of the transfer access control contract (address(0) = permissionless).
     /// @param vaultType The type of vault that was created (Transparent or Encrypted).
     event OrionVaultCreated(
         address indexed vault,
@@ -255,6 +257,8 @@ library EventsLib {
         uint16 performanceFee,
         uint16 managementFee,
         address depositAccessControl,
+        address holderAccessControl,
+        address transferAccessControl,
         VaultType vaultType
     );
 
