@@ -801,6 +801,7 @@ contract LiquidityOrchestrator is
     }
 
     /// @notice Records a failed minibatch leg and refreshes the epoch commitment without advancing the minibatch index
+    /// @param token The address of the token for which the minibatch leg failed
     function _handleMinibatchLegFailure(address token) internal {
         _failedEpochTokens.push(token);
         _currentEpoch.epochStateCommitment = keccak256(
@@ -810,6 +811,8 @@ contract LiquidityOrchestrator is
     }
 
     /// @notice Applies phase transitions after a minibatch window completes successfully
+    /// @param isSell Whether this was the sell leg of the operation
+    /// @param legFinished Whether the minibatch leg has completed
     function _finalizeMinibatchLeg(bool isSell, bool legFinished) internal {
         if (!legFinished) {
             return;
