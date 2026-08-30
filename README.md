@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="./assets/Orion_Logo_white_horizontal.png" alt="orion" width="75%">
+<img src="https://docs.orionfinance.ai/img/Orion_Logo_white_horizontal.svg" alt="orion" width="75%">
 
  [![Github Actions][gha-badge]][gha] [![Coverage][cov-badge]][cov] [![Hardhat][hardhat-badge]][hardhat] [![CodeRabbit][cr-badge]][cr]
 

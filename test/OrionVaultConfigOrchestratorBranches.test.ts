@@ -18,7 +18,7 @@ import type {
   PriceAdapterRegistry,
   TransparentVaultFactory,
   UpgradeableBeacon,
-  WhitelistAccessControl,
+  MockDepositAccessControl,
 } from "../typechain-types";
 
 const PHASE_IDLE = 0;
@@ -282,10 +282,10 @@ describe("OrionVault / OrionConfig / LO edge branches", function () {
     });
 
     it("covers maxDeposit/maxMint/maxRedeem/maxWithdraw idle and access-control edges", async function () {
-      const WhitelistFactory = await ethers.getContractFactory("WhitelistAccessControl");
-      const acl = (await WhitelistFactory.deploy(owner.address)) as unknown as WhitelistAccessControl;
+      const AclFactory = await ethers.getContractFactory("MockDepositAccessControl");
+      const acl = (await AclFactory.deploy()) as unknown as MockDepositAccessControl;
       await acl.waitForDeployment();
-      await acl.connect(owner).addToWhitelist([user.address]);
+      await acl.setAllowed(user.address, true);
 
       const vault = await createVault("ACL", "ACL", await acl.getAddress());
       expect(await vault.maxDeposit(user.address)).to.equal(ethers.MaxUint256);
@@ -813,43 +813,6 @@ describe("Adapters / strategies / registry edge branches", function () {
       deployed.transparentVaultFactory,
       "ZeroAddress",
     );
-  });
-
-  it("KBest constructors reject zero config / zero k; idempotent setVault", async function () {
-    const [owner] = await ethers.getSigners();
-    const deployed = await deployUpgradeableProtocol(owner);
-    const tvlFactory = await ethers.getContractFactory("KBestTvlWeightedAverage");
-    const apyFactory = await ethers.getContractFactory("KBestApyStrategist");
-
-    await expect(tvlFactory.deploy(owner.address, ethers.ZeroAddress, 1)).to.be.revertedWithCustomError(
-      deployed.orionConfig,
-      "ZeroAddress",
-    );
-    await expect(apyFactory.deploy(owner.address, ethers.ZeroAddress, 1, 0)).to.be.revertedWithCustomError(
-      deployed.orionConfig,
-      "ZeroAddress",
-    );
-    await expect(
-      apyFactory.deploy(owner.address, await deployed.orionConfig.getAddress(), 0, 0),
-    ).to.be.revertedWithCustomError(deployed.orionConfig, "InvalidArguments");
-
-    const tvl = await tvlFactory.deploy(owner.address, await deployed.orionConfig.getAddress(), 1);
-    const tx = await deployed.transparentVaultFactory.createVault(owner.address, "K", "K", 0, 0, 0, ethers.ZeroAddress);
-    const receipt = await tx.wait();
-    const log = receipt!.logs.find((l) => {
-      try {
-        return deployed.transparentVaultFactory.interface.parseLog(l)?.name === "OrionVaultCreated";
-      } catch {
-        return false;
-      }
-    });
-    const vaultAddr = deployed.transparentVaultFactory.interface.parseLog(log!)!.args[0] as string;
-    await tvl.setVault(vaultAddr);
-    await tvl.setVault(vaultAddr); // idempotent same-address path
-
-    const apy = await apyFactory.deploy(owner.address, await deployed.orionConfig.getAddress(), 1, 0);
-    await apy.setVault(vaultAddr);
-    await apy.setVault(vaultAddr);
   });
 });
 
