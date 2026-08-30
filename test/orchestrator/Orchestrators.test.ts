@@ -11,7 +11,7 @@ import type {
   TransparentVaultFactory,
   OrionTransparentVault,
   ERC4626PriceAdapter,
-  KBestTvlWeightedAverage,
+  MockPassiveStrategist,
 } from "../typechain-types";
 import { deployUpgradeableProtocol } from "../helpers/deployUpgradeable";
 import { resetNetwork } from "../helpers/resetNetwork";
@@ -45,7 +45,7 @@ describe("Orchestrators", function () {
   let softHurdleVault: OrionTransparentVault;
   let hardHurdleVault: OrionTransparentVault;
   let hurdleHwmVault: OrionTransparentVault;
-  let kbestTvlPassiveStrategist: KBestTvlWeightedAverage;
+  let mockPassiveStrategist: MockPassiveStrategist;
   let passiveVault: OrionTransparentVault;
 
   let underlyingDecimals: number;
@@ -182,17 +182,14 @@ describe("Orchestrators", function () {
       await orionExecutionAdapter.getAddress(),
     );
 
-    // Deploy KBestTvlWeightedAverage passive strategist with k=1 and contract-specific investment universe
-    const investmentUniverse = [...(await orionConfig.getAllWhitelistedAssets())];
-    const KBestTvlWeightedAverageFactory = await ethers.getContractFactory("KBestTvlWeightedAverage");
-    const kbestTvlPassiveStrategistDeployed = await KBestTvlWeightedAverageFactory.deploy(
+    // Deploy mock passive strategist (100% first whitelisted asset)
+    const MockPassiveStrategistFactory = await ethers.getContractFactory("MockPassiveStrategist");
+    const mockPassiveStrategistDeployed = await MockPassiveStrategistFactory.deploy(
       owner.address,
       await orionConfig.getAddress(),
-      1, // k=1, select top 1 asset for passive strategist
-      investmentUniverse,
     );
-    await kbestTvlPassiveStrategistDeployed.waitForDeployment();
-    kbestTvlPassiveStrategist = kbestTvlPassiveStrategistDeployed as unknown as KBestTvlWeightedAverage;
+    await mockPassiveStrategistDeployed.waitForDeployment();
+    mockPassiveStrategist = mockPassiveStrategistDeployed as unknown as MockPassiveStrategist;
 
     await orionConfig.setProtocolRiskFreeRate(0.0423 * 10_000);
 
@@ -311,8 +308,8 @@ describe("Orchestrators", function () {
       passiveVaultAddress,
     )) as unknown as OrionTransparentVault;
 
-    await passiveVault.connect(owner).updateStrategist(await kbestTvlPassiveStrategist.getAddress());
-    await kbestTvlPassiveStrategist.connect(owner).submitIntent(passiveVault);
+    await passiveVault.connect(owner).updateStrategist(await mockPassiveStrategist.getAddress());
+    await mockPassiveStrategist.connect(owner).submitIntent();
 
     let liquidityOrchestratorBalance = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
     expect(liquidityOrchestratorBalance).to.equal(0);

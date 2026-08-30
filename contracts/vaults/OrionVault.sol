@@ -92,6 +92,12 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     /// @dev When true, intent is overridden to 100% underlying asset
     bool public isDecommissioning;
 
+    /// @custom:storage-location erc7201:orion.storage.PendingUnderlyingClaims
+    struct PendingUnderlyingClaims {
+        mapping(address => uint256) byUser;
+        uint256 total;
+    }
+
     /// @dev Restricts function to only vault manager
     modifier onlyManager() {
         if (msg.sender != manager) revert ErrorsLib.NotAuthorized();
@@ -152,6 +158,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         strategist = strategist_;
         config = config_;
         liquidityOrchestrator = ILiquidityOrchestrator(config_.liquidityOrchestrator());
+        _requireValidDepositAccessControl(depositAccessControl_);
         depositAccessControl = depositAccessControl_;
 
         uint8 underlyingDecimals = IERC20Metadata(address(config_.underlyingAsset())).decimals();
@@ -440,9 +447,20 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         } catch {}
     }
 
+    /// @dev Rejects EOAs and contracts that do not ERC-165 as IOrionAccessControl. address(0) is permissionless.
+    function _requireValidDepositAccessControl(address accessControl) internal view {
+        if (accessControl == address(0)) return;
+        if (accessControl.code.length == 0) revert ErrorsLib.InvalidAddress();
+        try IERC165(accessControl).supportsInterface(type(IOrionAccessControl).interfaceId) returns (bool supported) {
+            if (!supported) revert ErrorsLib.InvalidAddress();
+        } catch {
+            revert ErrorsLib.InvalidAddress();
+        }
+    }
+
     /// @inheritdoc IOrionVault
     function setDepositAccessControl(address newDepositAccessControl) external onlyManager {
-        // No extra checks, manager has right to fully stop deposits
+        _requireValidDepositAccessControl(newDepositAccessControl);
         depositAccessControl = newDepositAccessControl;
         emit DepositAccessControlUpdated(newDepositAccessControl);
     }
@@ -654,10 +672,50 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
             );
             processedShares += userShares;
 
-            liquidityOrchestrator.transferRedemptionFunds(user, underlyingAmount);
-            emit Redeem(user, underlyingAmount, userShares);
+            _payoutOrEscrowRedemption(user, underlyingAmount, userShares);
         }
         _burn(address(this), processedShares);
+    }
+
+    /// @inheritdoc IOrionVault
+    function totalPendingUnderlyingClaims() external view returns (uint256) {
+        return _getPendingUnderlyingClaims().total;
+    }
+
+    /// @inheritdoc IOrionVault
+    function claimUnderlying() external nonReentrant {
+        PendingUnderlyingClaims storage claims = _getPendingUnderlyingClaims();
+        uint256 amount = claims.byUser[msg.sender];
+        if (amount == 0) revert ErrorsLib.InsufficientAmount();
+
+        claims.byUser[msg.sender] = 0;
+        claims.total -= amount;
+
+        IERC20(asset()).safeTransfer(msg.sender, amount);
+        emit RedemptionClaimed(msg.sender, amount);
+    }
+
+    /// @dev Push underlying to the user; on revert, escrow on this vault for later claim.
+    function _payoutOrEscrowRedemption(address user, uint256 underlyingAmount, uint256 userShares) internal {
+        try liquidityOrchestrator.transferRedemptionFunds(user, underlyingAmount) {
+            emit Redeem(user, underlyingAmount, userShares);
+        } catch {
+            PendingUnderlyingClaims storage claims = _getPendingUnderlyingClaims();
+            claims.byUser[user] += underlyingAmount;
+            claims.total += underlyingAmount;
+            liquidityOrchestrator.transferRedemptionFunds(address(this), underlyingAmount);
+            emit RedemptionFailed(user, underlyingAmount, userShares);
+        }
+    }
+
+    function _getPendingUnderlyingClaims() private pure returns (PendingUnderlyingClaims storage $) {
+        // keccak256(abi.encode(uint256(keccak256("orion.storage.PendingUnderlyingClaims")) - 1))
+        // & ~bytes32(uint256(0xff))
+        bytes32 location = 0x29fc56a640cea881fd8a814cfec6cd0729161d0af6008cb1c9766bb32c584b00;
+        // solhint-disable-next-line no-inline-assembly
+        assembly ("memory-safe") {
+            $.slot := location
+        }
     }
 
     /// @dev Storage gap to allow for future upgrades
