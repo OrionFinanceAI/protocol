@@ -61,7 +61,17 @@ describe("LiquidityOrchestrator – config ACL and performUpkeep phases", functi
   async function createVault(name: string, symbol: string): Promise<OrionTransparentVault> {
     const tx = await transparentVaultFactory
       .connect(manager)
-      .createVault(strategist.address, name, symbol, 0, 0, 0, ethers.ZeroAddress);
+      .createVault(
+        strategist.address,
+        name,
+        symbol,
+        0,
+        0,
+        0,
+        ethers.ZeroAddress,
+        ethers.ZeroAddress,
+        ethers.ZeroAddress,
+      );
     const receipt = await tx.wait();
     const log = receipt?.logs.find((l) => {
       try {

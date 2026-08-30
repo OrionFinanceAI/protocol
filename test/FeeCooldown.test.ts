@@ -61,7 +61,17 @@ describe("Fee Cooldown Mechanism", function () {
 
     const vaultTx = await vaultFactory
       .connect(owner)
-      .createVault(strategist.address, "Test Vault", "TV", feeType, performanceFee, managementFee, ethers.ZeroAddress);
+      .createVault(
+        strategist.address,
+        "Test Vault",
+        "TV",
+        feeType,
+        performanceFee,
+        managementFee,
+        ethers.ZeroAddress,
+        ethers.ZeroAddress,
+        ethers.ZeroAddress,
+      );
     const receipt = await vaultTx.wait();
     const vaultCreatedEvent = receipt?.logs.find((log) => {
       try {

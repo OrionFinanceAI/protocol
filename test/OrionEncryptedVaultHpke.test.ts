@@ -53,7 +53,17 @@ describe("OrionEncryptedVault – HPKE intent submit", function () {
   async function createEncryptedVault(name = "HPKE Vault", symbol = "HPV"): Promise<OrionEncryptedVault> {
     const tx = await encryptedVaultFactory
       .connect(manager)
-      .createVault(strategist.address, name, symbol, 0, 0, 0, ethers.ZeroAddress);
+      .createVault(
+        strategist.address,
+        name,
+        symbol,
+        0,
+        0,
+        0,
+        ethers.ZeroAddress,
+        ethers.ZeroAddress,
+        ethers.ZeroAddress,
+      );
     const receipt = await tx.wait();
     const log = receipt?.logs.find((l) => {
       try {

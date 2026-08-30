@@ -38,7 +38,17 @@ describe("OrionEncryptedVault", function () {
   async function createEncryptedVault(name = "Enc Vault", symbol = "EV"): Promise<OrionEncryptedVault> {
     const tx = await encryptedVaultFactory
       .connect(manager)
-      .createVault(strategist.address, name, symbol, 0, 0, 0, ethers.ZeroAddress);
+      .createVault(
+        strategist.address,
+        name,
+        symbol,
+        0,
+        0,
+        0,
+        ethers.ZeroAddress,
+        ethers.ZeroAddress,
+        ethers.ZeroAddress,
+      );
     const receipt = await tx.wait();
     const log = receipt?.logs.find((l) => {
       try {
@@ -179,7 +189,19 @@ describe("OrionEncryptedVault", function () {
         "TransparentVaultFactory",
         await orionConfig.transparentVaultFactory(),
       );
-      await tvFactory.connect(owner).createVault(strategist.address, "TV Idle", "TVI", 0, 0, 0, ethers.ZeroAddress);
+      await tvFactory
+        .connect(owner)
+        .createVault(
+          strategist.address,
+          "TV Idle",
+          "TVI",
+          0,
+          0,
+          0,
+          ethers.ZeroAddress,
+          ethers.ZeroAddress,
+          ethers.ZeroAddress,
+        );
 
       await liquidityOrchestrator.connect(owner).performUpkeep("0x", "0x", "0x");
       expect(await orionConfig.isSystemIdle()).to.equal(false);

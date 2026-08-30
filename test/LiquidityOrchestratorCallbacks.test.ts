@@ -75,7 +75,17 @@ describe("LiquidityOrchestrator callbacks and protocol fee claims", function () 
 
     const tx = await transparentVaultFactory
       .connect(manager)
-      .createVault(strategist.address, "Callback Vault", "CV", 0, 0, 0, ethers.ZeroAddress);
+      .createVault(
+        strategist.address,
+        "Callback Vault",
+        "CV",
+        0,
+        0,
+        0,
+        ethers.ZeroAddress,
+        ethers.ZeroAddress,
+        ethers.ZeroAddress,
+      );
     const receipt = await tx.wait();
     const log = receipt?.logs.find((l) => {
       try {

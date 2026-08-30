@@ -110,6 +110,8 @@ describe("Batch Limit Consistency - Critical Accounting Fix", function () {
       0, // performanceFee
       0, // managementFee
       ethers.ZeroAddress, // depositAccessControl
+      ethers.ZeroAddress, // holderAccessControl
+      ethers.ZeroAddress, // transferAccessControl
     );
 
     const receipt = await tx.wait();
