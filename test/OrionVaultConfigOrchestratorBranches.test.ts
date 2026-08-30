@@ -18,7 +18,7 @@ import type {
   PriceAdapterRegistry,
   TransparentVaultFactory,
   UpgradeableBeacon,
-  MockDepositAccessControl,
+  MockAccessControl,
 } from "../typechain-types";
 
 const PHASE_IDLE = 0;
@@ -44,7 +44,7 @@ describe("OrionVault / OrionConfig / LO edge branches", function () {
   async function createVault(name: string, symbol: string, accessControl = ethers.ZeroAddress) {
     const tx = await transparentVaultFactory
       .connect(manager)
-      .createVault(strategist.address, name, symbol, 0, 0, 0, accessControl);
+      .createVault(strategist.address, name, symbol, 0, 0, 0, accessControl, ethers.ZeroAddress, ethers.ZeroAddress);
     const receipt = await tx.wait();
     const log = receipt!.logs.find((l) => {
       try {
@@ -282,10 +282,10 @@ describe("OrionVault / OrionConfig / LO edge branches", function () {
     });
 
     it("covers maxDeposit/maxMint/maxRedeem/maxWithdraw idle and access-control edges", async function () {
-      const AclFactory = await ethers.getContractFactory("MockDepositAccessControl");
-      const acl = (await AclFactory.deploy()) as unknown as MockDepositAccessControl;
+      const AclFactory = await ethers.getContractFactory("MockAccessControl");
+      const acl = (await AclFactory.deploy()) as unknown as MockAccessControl;
       await acl.waitForDeployment();
-      await acl.setAllowed(user.address, true);
+      await acl.setDepositAllowed(user.address, true);
 
       const vault = await createVault("ACL", "ACL", await acl.getAddress());
       expect(await vault.maxDeposit(user.address)).to.equal(ethers.MaxUint256);
@@ -304,7 +304,7 @@ describe("OrionVault / OrionConfig / LO edge branches", function () {
       expect(await vault.maxRedeem(user.address)).to.equal(0n);
     });
 
-    it("rejects createVault when deposit access control does not ERC-165 as IOrionAccessControl", async function () {
+    it("rejects createVault when deposit access control does not ERC-165 as IOrionDepositAccessControl", async function () {
       const NonAclFactory = await ethers.getContractFactory("MockERC165NonStrategist");
       const nonAcl = await NonAclFactory.deploy();
       await nonAcl.waitForDeployment();
@@ -312,7 +312,61 @@ describe("OrionVault / OrionConfig / LO edge branches", function () {
       await expect(
         transparentVaultFactory
           .connect(manager)
-          .createVault(strategist.address, "Bad", "BAD", 0, 0, 0, await nonAcl.getAddress()),
+          .createVault(
+            strategist.address,
+            "Bad",
+            "BAD",
+            0,
+            0,
+            0,
+            await nonAcl.getAddress(),
+            ethers.ZeroAddress,
+            ethers.ZeroAddress,
+          ),
+      ).to.be.revertedWithCustomError(orionConfig, "InvalidAddress");
+    });
+
+    it("rejects createVault when holder access control does not ERC-165 as IOrionHolderAccessControl", async function () {
+      const NonAclFactory = await ethers.getContractFactory("MockERC165NonStrategist");
+      const nonAcl = await NonAclFactory.deploy();
+      await nonAcl.waitForDeployment();
+
+      await expect(
+        transparentVaultFactory
+          .connect(manager)
+          .createVault(
+            strategist.address,
+            "BadH",
+            "BH",
+            0,
+            0,
+            0,
+            ethers.ZeroAddress,
+            await nonAcl.getAddress(),
+            ethers.ZeroAddress,
+          ),
+      ).to.be.revertedWithCustomError(orionConfig, "InvalidAddress");
+    });
+
+    it("rejects createVault when transfer access control does not ERC-165 as IOrionTransferAccessControl", async function () {
+      const NonAclFactory = await ethers.getContractFactory("MockERC165NonStrategist");
+      const nonAcl = await NonAclFactory.deploy();
+      await nonAcl.waitForDeployment();
+
+      await expect(
+        transparentVaultFactory
+          .connect(manager)
+          .createVault(
+            strategist.address,
+            "BadT",
+            "BT",
+            0,
+            0,
+            0,
+            ethers.ZeroAddress,
+            ethers.ZeroAddress,
+            await nonAcl.getAddress(),
+          ),
       ).to.be.revertedWithCustomError(orionConfig, "InvalidAddress");
     });
 
@@ -444,7 +498,17 @@ describe("OrionVault / OrionConfig / LO edge branches", function () {
       await expect(
         transparentVaultFactory
           .connect(manager)
-          .createVault(strategist.address, "BadFee", "BF", 5, 0, 0, ethers.ZeroAddress),
+          .createVault(
+            strategist.address,
+            "BadFee",
+            "BF",
+            5,
+            0,
+            0,
+            ethers.ZeroAddress,
+            ethers.ZeroAddress,
+            ethers.ZeroAddress,
+          ),
       ).to.be.rejected;
     });
 
@@ -457,7 +521,17 @@ describe("OrionVault / OrionConfig / LO edge branches", function () {
       await expect(
         bigProto.transparentVaultFactory
           .connect(owner)
-          .createVault(strategist.address, "Big", "BIG", 0, 0, 0, ethers.ZeroAddress),
+          .createVault(
+            strategist.address,
+            "Big",
+            "BIG",
+            0,
+            0,
+            0,
+            ethers.ZeroAddress,
+            ethers.ZeroAddress,
+            ethers.ZeroAddress,
+          ),
       ).to.be.rejected;
 
       const vault = await createVault("Max", "MAX");
@@ -846,7 +920,17 @@ describe("OrionVault LO auth and fee claim edges (merged)", function () {
     await orionConfig.connect(owner).addWhitelistedManager(manager.address);
     const tx = await transparentVaultFactory
       .connect(manager)
-      .createVault(strategist.address, "Auth Vault", "AV", 0, 0, 0, ethers.ZeroAddress);
+      .createVault(
+        strategist.address,
+        "Auth Vault",
+        "AV",
+        0,
+        0,
+        0,
+        ethers.ZeroAddress,
+        ethers.ZeroAddress,
+        ethers.ZeroAddress,
+      );
     const receipt = await tx.wait();
     const log = receipt?.logs.find((l) => {
       try {
