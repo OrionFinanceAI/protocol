@@ -9,6 +9,7 @@ import "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import "../interfaces/IOrionConfig.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { EventsLib } from "../libraries/EventsLib.sol";
+import { OrionEncryptedVault } from "../vaults/OrionEncryptedVault.sol";
 
 /**
  * @title EncryptedVaultFactory
@@ -80,19 +81,21 @@ contract EncryptedVaultFactory is Initializable, Ownable2StepUpgradeable, UUPSUp
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         // Encode the initialization call
-        bytes memory initData = abi.encodeWithSignature(
-            "initialize(address,address,address,string,string,uint8,uint16,uint16,address,address,address)",
-            manager,
-            strategist,
-            address(config),
-            name,
-            symbol,
-            feeType,
-            performanceFee,
-            managementFee,
-            depositAccessControl,
-            holderAccessControl,
-            transferAccessControl
+        bytes memory initData = abi.encodeCall(
+            OrionEncryptedVault.initialize,
+            (
+                manager,
+                strategist,
+                config,
+                name,
+                symbol,
+                feeType,
+                performanceFee,
+                managementFee,
+                depositAccessControl,
+                holderAccessControl,
+                transferAccessControl
+            )
         );
 
         // Deploy BeaconProxy pointing to the vault beacon
