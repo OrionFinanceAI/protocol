@@ -1,5 +1,5 @@
 import { expect } from "chai";
-import { ethers } from "./helpers/hh";
+import { ethers, networkHelpers } from "./helpers/hh";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import type {
   OrionConfig,
@@ -131,11 +131,15 @@ describe("Upgrade Tests", function () {
     let vaultBeacon: UpgradeableBeacon;
     let vault1: OrionTransparentVault;
     let vault2: OrionTransparentVault;
+    let liquidityOrchestrator: LiquidityOrchestrator;
+    let underlyingAsset: MockUnderlyingAsset;
 
     beforeEach(async function () {
       const deployed = await deployUpgradeableProtocol(owner);
       vaultFactory = deployed.transparentVaultFactory;
       vaultBeacon = deployed.vaultBeacon;
+      liquidityOrchestrator = deployed.liquidityOrchestrator;
+      underlyingAsset = deployed.underlyingAsset;
 
       // Whitelist vault owner (only if not already whitelisted)
       const isWhitelisted = await deployed.orionConfig.isWhitelistedManager(owner.address);
@@ -293,6 +297,38 @@ describe("Upgrade Tests", function () {
       // Original state should still be intact
       expect(await vault1V2.manager()).to.equal(owner.address);
       expect(await vault1V2.strategist()).to.equal(strategist.address);
+    });
+
+    it("Should preserve sequential vault slots across beacon upgrade", async function () {
+      const loAddress = await liquidityOrchestrator.getAddress();
+      await networkHelpers.impersonateAccount(loAddress);
+      await networkHelpers.setBalance(loAddress, ethers.parseEther("1"));
+      const loSigner = await ethers.getSigner(loAddress);
+
+      const totalAssets = ethers.parseUnits("42", 6);
+      const underlying = await underlyingAsset.getAddress();
+      const shares = ethers.parseUnits("7", 18);
+      await vault1.connect(loSigner).updateVaultState([underlying], [shares], totalAssets);
+      await networkHelpers.stopImpersonatingAccount(loAddress);
+
+      const managerBefore = await vault1.manager();
+      const totalAssetsBefore = await vault1.totalAssets();
+      const decommissioningBefore = await vault1.isDecommissioning();
+      const [tokensBefore, sharesBefore] = await vault1.getPortfolio();
+
+      const VaultV2Factory = await ethers.getContractFactory("OrionTransparentVaultV2");
+      const vaultV2Impl = await VaultV2Factory.deploy();
+      await vaultV2Impl.waitForDeployment();
+      await vaultBeacon.connect(owner).upgradeTo(await vaultV2Impl.getAddress());
+
+      const vault1V2 = VaultV2Factory.attach(await vault1.getAddress()) as unknown as OrionTransparentVaultV2;
+      const [tokensAfter, sharesAfter] = await vault1V2.getPortfolio();
+
+      expect(await vault1V2.manager()).to.equal(managerBefore);
+      expect(await vault1V2.totalAssets()).to.equal(totalAssetsBefore);
+      expect(await vault1V2.isDecommissioning()).to.equal(decommissioningBefore);
+      expect(tokensAfter).to.deep.equal(tokensBefore);
+      expect(sharesAfter).to.deep.equal(sharesBefore);
     });
   });
 
