@@ -162,9 +162,10 @@ interface IOrionVault is IERC4626 {
 
     /// @notice Set deposit access control contract
     /// @param newDepositAccessControl Address of the new access control contract (address(0) = permissionless)
-    /// @dev Only callable by vault manager
+    /// @dev Only callable by vault manager.
+    ///      Non-zero addresses must ERC-165 as IOrionAccessControl.
     ///      It is the FULL responsibility of the vault manager
-    ///      to ensure the deposit access control is capable of performing its duties.
+    ///      to ensure the deposit access control policy is capable of performing its duties.
     function setDepositAccessControl(address newDepositAccessControl) external;
 
     // --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------

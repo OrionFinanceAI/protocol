@@ -304,6 +304,18 @@ describe("OrionVault / OrionConfig / LO edge branches", function () {
       expect(await vault.maxRedeem(user.address)).to.equal(0n);
     });
 
+    it("rejects createVault when deposit access control does not ERC-165 as IOrionAccessControl", async function () {
+      const NonAclFactory = await ethers.getContractFactory("MockERC165NonStrategist");
+      const nonAcl = await NonAclFactory.deploy();
+      await nonAcl.waitForDeployment();
+
+      await expect(
+        transparentVaultFactory
+          .connect(manager)
+          .createVault(strategist.address, "Bad", "BAD", 0, 0, 0, await nonAcl.getAddress()),
+      ).to.be.revertedWithCustomError(orionConfig, "InvalidAddress");
+    });
+
     it("covers deposit/redeem cancel dust floors and decommissioned request reverts", async function () {
       const vault = await createVault("Dust", "DST");
       const amount = ethers.parseUnits("100", 6);

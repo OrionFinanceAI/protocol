@@ -7,6 +7,7 @@ import type {
   MockERC4626Asset,
   MockPriceAdapter,
   MockExecutionAdapter,
+  MockDepositAccessControl,
   OrionConfig,
   LiquidityOrchestrator,
   TransparentVaultFactory,
@@ -762,6 +763,74 @@ describe("OrionConfig & OrionVault", function () {
         await expect(vault.connect(owner).updateStrategist(newStrategist))
           .to.emit(vault, "StrategistUpdated")
           .withArgs(newStrategist);
+      });
+    });
+
+    describe("Deposit Access Control", function () {
+      it("Should allow manager to set a valid ERC-165 access control contract", async function () {
+        const AclFactory = await ethers.getContractFactory("MockDepositAccessControl");
+        const acl = (await AclFactory.deploy()) as unknown as MockDepositAccessControl;
+        await acl.waitForDeployment();
+        const aclAddress = await acl.getAddress();
+
+        await expect(vault.connect(owner).setDepositAccessControl(aclAddress))
+          .to.emit(vault, "DepositAccessControlUpdated")
+          .withArgs(aclAddress);
+        expect(await vault.depositAccessControl()).to.equal(aclAddress);
+      });
+
+      it("Should allow manager to set address(0) for permissionless deposits", async function () {
+        const AclFactory = await ethers.getContractFactory("MockDepositAccessControl");
+        const acl = (await AclFactory.deploy()) as unknown as MockDepositAccessControl;
+        await acl.waitForDeployment();
+        await vault.connect(owner).setDepositAccessControl(await acl.getAddress());
+
+        await expect(vault.connect(owner).setDepositAccessControl(ethers.ZeroAddress))
+          .to.emit(vault, "DepositAccessControlUpdated")
+          .withArgs(ethers.ZeroAddress);
+        expect(await vault.depositAccessControl()).to.equal(ethers.ZeroAddress);
+      });
+
+      it("Should revert when non-manager tries to set deposit access control", async function () {
+        await expect(vault.connect(user).setDepositAccessControl(ethers.ZeroAddress)).to.be.revertedWithCustomError(
+          vault,
+          "NotAuthorized",
+        );
+      });
+
+      it("Should revert when setting an EOA as deposit access control", async function () {
+        await expect(vault.connect(owner).setDepositAccessControl(other.address)).to.be.revertedWithCustomError(
+          vault,
+          "InvalidAddress",
+        );
+      });
+
+      it("Should revert when setting a non-ERC-165 contract as deposit access control", async function () {
+        const NonErc165Factory = await ethers.getContractFactory("MockNonERC165Contract");
+        const nonErc165 = await NonErc165Factory.deploy();
+        await nonErc165.waitForDeployment();
+
+        await expect(
+          vault.connect(owner).setDepositAccessControl(await nonErc165.getAddress()),
+        ).to.be.revertedWithCustomError(vault, "InvalidAddress");
+      });
+
+      it("Should revert when setting an ERC-165 contract that is not IOrionAccessControl", async function () {
+        const NonAclFactory = await ethers.getContractFactory("MockERC165NonStrategist");
+        const nonAcl = await NonAclFactory.deploy();
+        await nonAcl.waitForDeployment();
+
+        await expect(
+          vault.connect(owner).setDepositAccessControl(await nonAcl.getAddress()),
+        ).to.be.revertedWithCustomError(vault, "InvalidAddress");
+      });
+
+      it("Should revert createVault when deposit access control is invalid", async function () {
+        await expect(
+          transparentVaultFactory
+            .connect(owner)
+            .createVault(strategist.address, "Bad ACL", "BAD", 0, 0, 0, other.address),
+        ).to.be.revertedWithCustomError(vault, "InvalidAddress");
       });
     });
 

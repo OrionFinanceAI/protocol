@@ -152,6 +152,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         strategist = strategist_;
         config = config_;
         liquidityOrchestrator = ILiquidityOrchestrator(config_.liquidityOrchestrator());
+        _requireValidDepositAccessControl(depositAccessControl_);
         depositAccessControl = depositAccessControl_;
 
         uint8 underlyingDecimals = IERC20Metadata(address(config_.underlyingAsset())).decimals();
@@ -440,9 +441,20 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         } catch {}
     }
 
+    /// @dev Rejects EOAs and contracts that do not ERC-165 as IOrionAccessControl. address(0) is permissionless.
+    function _requireValidDepositAccessControl(address accessControl) internal view {
+        if (accessControl == address(0)) return;
+        if (accessControl.code.length == 0) revert ErrorsLib.InvalidAddress();
+        try IERC165(accessControl).supportsInterface(type(IOrionAccessControl).interfaceId) returns (bool supported) {
+            if (!supported) revert ErrorsLib.InvalidAddress();
+        } catch {
+            revert ErrorsLib.InvalidAddress();
+        }
+    }
+
     /// @inheritdoc IOrionVault
     function setDepositAccessControl(address newDepositAccessControl) external onlyManager {
-        // No extra checks, manager has right to fully stop deposits
+        _requireValidDepositAccessControl(newDepositAccessControl);
         depositAccessControl = newDepositAccessControl;
         emit DepositAccessControlUpdated(newDepositAccessControl);
     }
