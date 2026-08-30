@@ -56,7 +56,9 @@ contract TransparentVaultFactory is Initializable, Ownable2StepUpgradeable, UUPS
     /// @param feeType The fee type
     /// @param performanceFee The performance fee
     /// @param managementFee The management fee
-    /// @param depositAccessControl The address of the deposit access control contract (address(0) = permissionless)
+    /// @param depositAccessControl Deposit access control (address(0) = permissionless)
+    /// @param holderAccessControl Holder access control (address(0) = permissionless)
+    /// @param transferAccessControl Transfer access control (address(0) = permissionless)
     /// @return vault The address of the new transparent vault
     function createVault(
         address strategist,
@@ -65,19 +67,19 @@ contract TransparentVaultFactory is Initializable, Ownable2StepUpgradeable, UUPS
         uint8 feeType,
         uint16 performanceFee,
         uint16 managementFee,
-        address depositAccessControl
+        address depositAccessControl,
+        address holderAccessControl,
+        address transferAccessControl
     ) external returns (address vault) {
         address manager = msg.sender;
-
         if (bytes(name).length > 26) revert ErrorsLib.InvalidArguments();
         if (bytes(symbol).length > 4) revert ErrorsLib.InvalidArguments();
-
         if (!config.isWhitelistedManager(manager)) revert ErrorsLib.NotAuthorized();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         // Encode the initialization call
         bytes memory initData = abi.encodeWithSignature(
-            "initialize(address,address,address,string,string,uint8,uint16,uint16,address)",
+            "initialize(address,address,address,string,string,uint8,uint16,uint16,address,address,address)",
             manager,
             strategist,
             address(config),
@@ -86,7 +88,9 @@ contract TransparentVaultFactory is Initializable, Ownable2StepUpgradeable, UUPS
             feeType,
             performanceFee,
             managementFee,
-            depositAccessControl
+            depositAccessControl,
+            holderAccessControl,
+            transferAccessControl
         );
 
         // Deploy BeaconProxy pointing to the vault beacon
@@ -104,6 +108,8 @@ contract TransparentVaultFactory is Initializable, Ownable2StepUpgradeable, UUPS
             performanceFee,
             managementFee,
             depositAccessControl,
+            holderAccessControl,
+            transferAccessControl,
             EventsLib.VaultType.Transparent
         );
     }

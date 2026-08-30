@@ -56,7 +56,9 @@ contract EncryptedVaultFactory is Initializable, Ownable2StepUpgradeable, UUPSUp
     /// @param feeType The fee type
     /// @param performanceFee The performance fee
     /// @param managementFee The management fee
-    /// @param depositAccessControl The address of the deposit access control contract (address(0) = permissionless)
+    /// @param depositAccessControl Deposit access control (address(0) = permissionless)
+    /// @param holderAccessControl Holder access control (address(0) = permissionless)
+    /// @param transferAccessControl Transfer access control (address(0) = permissionless)
     /// @return vault The address of the new encrypted vault
     function createVault(
         address strategist,
@@ -65,7 +67,9 @@ contract EncryptedVaultFactory is Initializable, Ownable2StepUpgradeable, UUPSUp
         uint8 feeType,
         uint16 performanceFee,
         uint16 managementFee,
-        address depositAccessControl
+        address depositAccessControl,
+        address holderAccessControl,
+        address transferAccessControl
     ) external returns (address vault) {
         address manager = msg.sender;
 
@@ -77,7 +81,7 @@ contract EncryptedVaultFactory is Initializable, Ownable2StepUpgradeable, UUPSUp
 
         // Encode the initialization call
         bytes memory initData = abi.encodeWithSignature(
-            "initialize(address,address,address,string,string,uint8,uint16,uint16,address)",
+            "initialize(address,address,address,string,string,uint8,uint16,uint16,address,address,address)",
             manager,
             strategist,
             address(config),
@@ -86,7 +90,9 @@ contract EncryptedVaultFactory is Initializable, Ownable2StepUpgradeable, UUPSUp
             feeType,
             performanceFee,
             managementFee,
-            depositAccessControl
+            depositAccessControl,
+            holderAccessControl,
+            transferAccessControl
         );
 
         // Deploy BeaconProxy pointing to the vault beacon
@@ -104,6 +110,8 @@ contract EncryptedVaultFactory is Initializable, Ownable2StepUpgradeable, UUPSUp
             performanceFee,
             managementFee,
             depositAccessControl,
+            holderAccessControl,
+            transferAccessControl,
             EventsLib.VaultType.Encrypted
         );
     }

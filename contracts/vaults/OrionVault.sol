@@ -11,8 +11,9 @@ import "../interfaces/IOrionVault.sol";
 import "../interfaces/ILiquidityOrchestrator.sol";
 import "../interfaces/IOrionAccessControl.sol";
 import "../interfaces/IOrionStrategist.sol";
-import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
+import { EventsLib } from "../libraries/EventsLib.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
@@ -52,6 +53,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     IOrionConfig public config;
     /// @notice Liquidity orchestrator
     ILiquidityOrchestrator public liquidityOrchestrator;
+
     /// @notice Deposit access control contract (address(0) = permissionless)
     address public depositAccessControl;
 
@@ -92,11 +94,17 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     /// @dev When true, intent is overridden to 100% underlying asset
     bool public isDecommissioning;
 
-    /// @custom:storage-location erc7201:orion.storage.PendingUnderlyingClaims
     struct PendingUnderlyingClaims {
         mapping(address => uint256) byUser;
         uint256 total;
     }
+
+    PendingUnderlyingClaims private _pendingUnderlyingClaims;
+
+    /// @notice Holder access control contract (address(0) = permissionless)
+    address public holderAccessControl;
+    /// @notice Transfer access control contract (address(0) = permissionless)
+    address public transferAccessControl;
 
     /// @dev Restricts function to only vault manager
     modifier onlyManager() {
@@ -137,7 +145,9 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     /// @param feeType_ The fee type
     /// @param performanceFee_ The performance fee
     /// @param managementFee_ The management fee
-    /// @param depositAccessControl_ The address of the deposit access control contract (address(0) = permissionless)
+    /// @param depositAccessControl_ Deposit access control (address(0) = permissionless)
+    /// @param holderAccessControl_ Holder access control (address(0) = permissionless)
+    /// @param transferAccessControl_ Transfer access control (address(0) = permissionless)
     // solhint-disable-next-line func-name-mixedcase, use-natspec
     function __OrionVault_init(
         address manager_,
@@ -148,7 +158,9 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         uint8 feeType_,
         uint16 performanceFee_,
         uint16 managementFee_,
-        address depositAccessControl_
+        address depositAccessControl_,
+        address holderAccessControl_,
+        address transferAccessControl_
     ) internal onlyInitializing {
         // Initialize parent contracts
         __ERC20_init(name_, symbol_);
@@ -158,8 +170,13 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         strategist = strategist_;
         config = config_;
         liquidityOrchestrator = ILiquidityOrchestrator(config_.liquidityOrchestrator());
-        _requireValidDepositAccessControl(depositAccessControl_);
+
+        _requireValidAccessControl(depositAccessControl_, type(IOrionDepositAccessControl).interfaceId);
+        _requireValidAccessControl(holderAccessControl_, type(IOrionHolderAccessControl).interfaceId);
+        _requireValidAccessControl(transferAccessControl_, type(IOrionTransferAccessControl).interfaceId);
         depositAccessControl = depositAccessControl_;
+        holderAccessControl = holderAccessControl_;
+        transferAccessControl = transferAccessControl_;
 
         uint8 underlyingDecimals = IERC20Metadata(address(config_.underlyingAsset())).decimals();
         if (underlyingDecimals > SHARE_DECIMALS) revert ErrorsLib.InvalidUnderlyingDecimals();
@@ -233,9 +250,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     function maxDeposit(address receiver) public view override(ERC4626Upgradeable, IERC4626) returns (uint256) {
         if (!config.isSystemIdle()) return 0;
         if (isDecommissioning || config.isDecommissionedVault(address(this))) return 0;
-        if (depositAccessControl != address(0)) {
-            if (!IOrionAccessControl(depositAccessControl).canRequestDeposit(receiver, "")) return 0;
-        }
+        if (!_canRequestDeposit(receiver)) return 0;
         return type(uint256).max;
     }
 
@@ -322,10 +337,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
 
     /// @inheritdoc IOrionVault
     function requestDeposit(uint256 assets) external nonReentrant {
-        if (depositAccessControl != address(0)) {
-            if (!IOrionAccessControl(depositAccessControl).canRequestDeposit(msg.sender, msg.data))
-                revert ErrorsLib.DepositNotAllowed();
-        }
+        _requireCanRequestDeposit(msg.sender);
 
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         if (isDecommissioning || config.isDecommissionedVault(address(this))) revert ErrorsLib.VaultDecommissioned();
@@ -334,8 +346,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         uint256 minDeposit = config.minDepositAmount();
         if (assets < minDeposit) revert ErrorsLib.BelowMinimumDeposit(assets, minDeposit);
 
-        uint256 senderBalance = IERC20(asset()).balanceOf(msg.sender);
-        if (assets > senderBalance) revert ErrorsLib.InsufficientAmount();
+        if (assets > IERC20(asset()).balanceOf(msg.sender)) revert ErrorsLib.InsufficientAmount();
 
         IERC20(asset()).safeTransferFrom(msg.sender, address(liquidityOrchestrator), assets);
 
@@ -437,32 +448,83 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         emit StrategistUpdated(newStrategist);
     }
 
-    /// @dev Tells onchain strategists which vault they manage; skips EOAs and wallets that are not Orion strategists.
+    /// @dev Tells onchain strategists which vault they manage; skips EOAs and non-compliant / non-strategist contracts.
     function _linkStrategistVault(address strategist_) internal {
         if (strategist_.code.length == 0) return;
-        try IERC165(strategist_).supportsInterface(type(IOrionStrategist).interfaceId) returns (bool supported) {
-            if (supported) {
-                IOrionStrategist(strategist_).setVault(address(this));
-            }
-        } catch {}
+        if (ERC165Checker.supportsInterface(strategist_, type(IOrionStrategist).interfaceId)) {
+            IOrionStrategist(strategist_).setVault(address(this));
+        }
     }
 
-    /// @dev Rejects EOAs and contracts that do not ERC-165 as IOrionAccessControl. address(0) is permissionless.
-    function _requireValidDepositAccessControl(address accessControl) internal view {
+    /// @dev Rejects EOAs and contracts that fail ERC-165 compliance and do not support `interfaceId`.
+    function _requireValidAccessControl(address accessControl, bytes4 interfaceId) internal view {
         if (accessControl == address(0)) return;
         if (accessControl.code.length == 0) revert ErrorsLib.InvalidAddress();
-        try IERC165(accessControl).supportsInterface(type(IOrionAccessControl).interfaceId) returns (bool supported) {
-            if (!supported) revert ErrorsLib.InvalidAddress();
-        } catch {
-            revert ErrorsLib.InvalidAddress();
-        }
+        if (!ERC165Checker.supportsInterface(accessControl, interfaceId)) revert ErrorsLib.InvalidAddress();
+    }
+
+    function _depositAccessControlAllows(address account) internal view returns (bool) {
+        return
+            depositAccessControl == address(0) ||
+            IOrionDepositAccessControl(depositAccessControl).canRequestDeposit(account, msg.data);
+    }
+
+    function _holderAccessControlAllows(address account) internal view returns (bool) {
+        return
+            holderAccessControl == address(0) || IOrionHolderAccessControl(holderAccessControl).canHoldShares(account);
+    }
+
+    function _canRequestDeposit(address account) internal view returns (bool) {
+        return _depositAccessControlAllows(account) && _holderAccessControlAllows(account);
+    }
+
+    function _requireCanRequestDeposit(address account) internal view {
+        if (!_depositAccessControlAllows(account)) revert ErrorsLib.DepositNotAllowed();
+        if (!_holderAccessControlAllows(account)) revert ErrorsLib.ShareHoldNotAllowed();
     }
 
     /// @inheritdoc IOrionVault
     function setDepositAccessControl(address newDepositAccessControl) external onlyManager {
-        _requireValidDepositAccessControl(newDepositAccessControl);
+        _requireValidAccessControl(newDepositAccessControl, type(IOrionDepositAccessControl).interfaceId);
         depositAccessControl = newDepositAccessControl;
         emit DepositAccessControlUpdated(newDepositAccessControl);
+    }
+
+    /// @inheritdoc IOrionVault
+    function setHolderAccessControl(address newHolderAccessControl) external onlyManager {
+        _requireValidAccessControl(newHolderAccessControl, type(IOrionHolderAccessControl).interfaceId);
+        holderAccessControl = newHolderAccessControl;
+        emit HolderAccessControlUpdated(newHolderAccessControl);
+    }
+
+    /// @inheritdoc IOrionVault
+    function setTransferAccessControl(address newTransferAccessControl) external onlyManager {
+        _requireValidAccessControl(newTransferAccessControl, type(IOrionTransferAccessControl).interfaceId);
+        transferAccessControl = newTransferAccessControl;
+        emit TransferAccessControlUpdated(newTransferAccessControl);
+    }
+
+    /// @dev Every ERC-20 balance change is routed through `_update`.
+    ///
+    ///      Guard:
+    ///      - `from != address(0)` excludes mint, e.g. `fulfillDeposit`.
+    ///      - `to != address(0)` excludes burn, e.g. `redeem, fulfillRedeem`.
+    ///      - `from != address(this)` excludes vault-as-sender, e.g. `cancelRedeemRequest`.
+    ///      - `to != address(this)` excludes vault-as-recipient, e.g. `requestRedeem`.
+    function _update(address from, address to, uint256 value) internal virtual override {
+        if (from != address(0) && to != address(0) && from != address(this) && to != address(this)) {
+            if (transferAccessControl != address(0)) {
+                if (!IOrionTransferAccessControl(transferAccessControl).canTransferShares(from, msg.data)) {
+                    revert ErrorsLib.ShareTransferNotAllowed();
+                }
+            }
+            if (holderAccessControl != address(0)) {
+                if (!IOrionHolderAccessControl(holderAccessControl).canHoldShares(to)) {
+                    revert ErrorsLib.ShareTransferNotAllowed();
+                }
+            }
+        }
+        super._update(from, to, value);
     }
 
     /// @notice Update the fee model parameters with cooldown protection
@@ -614,7 +676,8 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
             (users[i], amounts[i]) = _depositRequests.at(i);
         }
 
-        // Process requests in batch
+        // Process requests in batch. Re-check canHoldShares so mid-epoch revoke does not mint;
+        // escrow underlying (same claim path as failed redemption) and continue the batch.
         uint256 processedAmount = 0;
         for (uint256 i = 0; i < batchSize; ++i) {
             address user = users[i];
@@ -622,6 +685,16 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
 
             // slither-disable-next-line unused-return
             _depositRequests.remove(user);
+
+            if (holderAccessControl != address(0)) {
+                if (!IOrionHolderAccessControl(holderAccessControl).canHoldShares(user)) {
+                    _pendingUnderlyingClaims.byUser[user] += amount;
+                    _pendingUnderlyingClaims.total += amount;
+                    liquidityOrchestrator.returnDepositFunds(address(this), amount);
+                    emit DepositFulfillmentFailed(user, amount);
+                    continue;
+                }
+            }
 
             uint256 shares = _convertToSharesWithPITTotalAssets(
                 amount,
@@ -679,17 +752,16 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
 
     /// @inheritdoc IOrionVault
     function totalPendingUnderlyingClaims() external view returns (uint256) {
-        return _getPendingUnderlyingClaims().total;
+        return _pendingUnderlyingClaims.total;
     }
 
     /// @inheritdoc IOrionVault
     function claimUnderlying() external nonReentrant {
-        PendingUnderlyingClaims storage claims = _getPendingUnderlyingClaims();
-        uint256 amount = claims.byUser[msg.sender];
+        uint256 amount = _pendingUnderlyingClaims.byUser[msg.sender];
         if (amount == 0) revert ErrorsLib.InsufficientAmount();
 
-        claims.byUser[msg.sender] = 0;
-        claims.total -= amount;
+        _pendingUnderlyingClaims.byUser[msg.sender] = 0;
+        _pendingUnderlyingClaims.total -= amount;
 
         IERC20(asset()).safeTransfer(msg.sender, amount);
         emit RedemptionClaimed(msg.sender, amount);
@@ -700,24 +772,13 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         try liquidityOrchestrator.transferRedemptionFunds(user, underlyingAmount) {
             emit Redeem(user, underlyingAmount, userShares);
         } catch {
-            PendingUnderlyingClaims storage claims = _getPendingUnderlyingClaims();
-            claims.byUser[user] += underlyingAmount;
-            claims.total += underlyingAmount;
+            _pendingUnderlyingClaims.byUser[user] += underlyingAmount;
+            _pendingUnderlyingClaims.total += underlyingAmount;
             liquidityOrchestrator.transferRedemptionFunds(address(this), underlyingAmount);
             emit RedemptionFailed(user, underlyingAmount, userShares);
         }
     }
 
-    function _getPendingUnderlyingClaims() private pure returns (PendingUnderlyingClaims storage $) {
-        // keccak256(abi.encode(uint256(keccak256("orion.storage.PendingUnderlyingClaims")) - 1))
-        // & ~bytes32(uint256(0xff))
-        bytes32 location = 0x29fc56a640cea881fd8a814cfec6cd0729161d0af6008cb1c9766bb32c584b00;
-        // solhint-disable-next-line no-inline-assembly
-        assembly ("memory-safe") {
-            $.slot := location
-        }
-    }
-
     /// @dev Storage gap to allow for future upgrades
-    uint256[50] private __gap;
+    uint256[46] private __gap;
 }

@@ -43,7 +43,9 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
     /// @param feeType_ The fee type
     /// @param performanceFee_ The performance fee
     /// @param managementFee_ The management fee
-    /// @param depositAccessControl_ The address of the deposit access control contract (address(0) = permissionless)
+    /// @param depositAccessControl_ Deposit access control (address(0) = permissionless)
+    /// @param holderAccessControl_ Holder access control (address(0) = permissionless)
+    /// @param transferAccessControl_ Transfer access control (address(0) = permissionless)
     function initialize(
         address manager_,
         address strategist_,
@@ -53,7 +55,9 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
         uint8 feeType_,
         uint16 performanceFee_,
         uint16 managementFee_,
-        address depositAccessControl_
+        address depositAccessControl_,
+        address holderAccessControl_,
+        address transferAccessControl_
     ) public initializer {
         // Call parent initializer
         __OrionVault_init(
@@ -65,7 +69,9 @@ contract OrionTransparentVault is OrionVault, IOrionTransparentVault {
             feeType_,
             performanceFee_,
             managementFee_,
-            depositAccessControl_
+            depositAccessControl_,
+            holderAccessControl_,
+            transferAccessControl_
         );
 
         // slither-disable-next-line unused-return
