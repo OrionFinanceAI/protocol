@@ -56,6 +56,8 @@ describe("OrionVault Accounting", function () {
         performanceFee,
         managementFee,
         ethers.ZeroAddress,
+        ethers.ZeroAddress,
+        ethers.ZeroAddress,
       );
     const receipt = await tx.wait();
     const log = receipt?.logs.find((l) => {

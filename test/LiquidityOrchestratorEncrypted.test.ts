@@ -55,7 +55,17 @@ describe("LiquidityOrchestrator – encrypted vaults", function () {
   async function createTransparentVault(name: string, symbol: string): Promise<OrionTransparentVault> {
     const tx = await transparentVaultFactory
       .connect(manager)
-      .createVault(strategist.address, name, symbol, 0, 0, 0, ethers.ZeroAddress);
+      .createVault(
+        strategist.address,
+        name,
+        symbol,
+        0,
+        0,
+        0,
+        ethers.ZeroAddress,
+        ethers.ZeroAddress,
+        ethers.ZeroAddress,
+      );
     const receipt = await tx.wait();
     const log = receipt?.logs.find((l) => {
       try {
@@ -71,7 +81,17 @@ describe("LiquidityOrchestrator – encrypted vaults", function () {
   async function createEncryptedVault(name: string, symbol: string): Promise<OrionEncryptedVault> {
     const tx = await encryptedVaultFactory
       .connect(manager)
-      .createVault(strategist.address, name, symbol, 0, 0, 0, ethers.ZeroAddress);
+      .createVault(
+        strategist.address,
+        name,
+        symbol,
+        0,
+        0,
+        0,
+        ethers.ZeroAddress,
+        ethers.ZeroAddress,
+        ethers.ZeroAddress,
+      );
     const receipt = await tx.wait();
     const log = receipt?.logs.find((l) => {
       try {

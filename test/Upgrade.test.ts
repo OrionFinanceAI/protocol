@@ -156,6 +156,8 @@ describe("Upgrade Tests", function () {
         0, // performanceFee
         0, // managementFee
         ethers.ZeroAddress, // depositAccessControl
+        ethers.ZeroAddress, // holderAccessControl
+        ethers.ZeroAddress, // transferAccessControl
       );
       const receipt1 = await tx1.wait();
       const vault1Event = receipt1?.logs.find((log) => {
@@ -169,7 +171,17 @@ describe("Upgrade Tests", function () {
 
       const tx2 = await vaultFactory
         .connect(owner)
-        .createVault(strategist.address, "Test Vault 2", "TV2", 0, 0, 0, ethers.ZeroAddress);
+        .createVault(
+          strategist.address,
+          "Test Vault 2",
+          "TV2",
+          0,
+          0,
+          0,
+          ethers.ZeroAddress,
+          ethers.ZeroAddress,
+          ethers.ZeroAddress,
+        );
       const receipt2 = await tx2.wait();
       const vault2Event = receipt2?.logs.find((log) => {
         try {
@@ -383,7 +395,17 @@ describe("Upgrade Tests", function () {
       // Deploy first vault with V1 implementation
       const tx1 = await vaultFactory
         .connect(owner)
-        .createVault(strategist.address, "Vault V1", "VV1", 0, 0, 0, ethers.ZeroAddress);
+        .createVault(
+          strategist.address,
+          "Vault V1",
+          "VV1",
+          0,
+          0,
+          0,
+          ethers.ZeroAddress,
+          ethers.ZeroAddress,
+          ethers.ZeroAddress,
+        );
       const receipt1 = await tx1.wait();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const vault1Address = (receipt1?.logs.find((log: any) => log.fragment?.name === "OrionVaultCreated") as any)
@@ -409,7 +431,17 @@ describe("Upgrade Tests", function () {
       // Deploy second vault with V2 implementation
       const tx2 = await vaultFactory
         .connect(owner)
-        .createVault(strategist.address, "Vault V2", "VV2", 0, 0, 0, ethers.ZeroAddress);
+        .createVault(
+          strategist.address,
+          "Vault V2",
+          "VV2",
+          0,
+          0,
+          0,
+          ethers.ZeroAddress,
+          ethers.ZeroAddress,
+          ethers.ZeroAddress,
+        );
       const receipt2 = await tx2.wait();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const vault2Address = (receipt2?.logs.find((log: any) => log.fragment?.name === "OrionVaultCreated") as any)
@@ -434,7 +466,17 @@ describe("Upgrade Tests", function () {
       // Deploy first vault with V1 implementation
       const tx1 = await vaultFactory
         .connect(owner)
-        .createVault(strategist.address, "Vault 1", "V1", 0, 0, 0, ethers.ZeroAddress);
+        .createVault(
+          strategist.address,
+          "Vault 1",
+          "V1",
+          0,
+          0,
+          0,
+          ethers.ZeroAddress,
+          ethers.ZeroAddress,
+          ethers.ZeroAddress,
+        );
       const receipt1 = await tx1.wait();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const vault1Address = (receipt1?.logs.find((log: any) => log.fragment?.name === "OrionVaultCreated") as any)
@@ -451,7 +493,17 @@ describe("Upgrade Tests", function () {
       // Deploy second vault (should use V2 via upgraded beacon)
       const tx2 = await vaultFactory
         .connect(owner)
-        .createVault(strategist.address, "Vault 2", "V2", 0, 0, 0, ethers.ZeroAddress);
+        .createVault(
+          strategist.address,
+          "Vault 2",
+          "V2",
+          0,
+          0,
+          0,
+          ethers.ZeroAddress,
+          ethers.ZeroAddress,
+          ethers.ZeroAddress,
+        );
       const receipt2 = await tx2.wait();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const vault2Address = (receipt2?.logs.find((log: any) => log.fragment?.name === "OrionVaultCreated") as any)
@@ -481,7 +533,17 @@ describe("Upgrade Tests", function () {
       // Deploy first vault with original factory and V1 beacon
       const tx1 = await vaultFactory
         .connect(owner)
-        .createVault(strategist.address, "Pre-upgrade Vault", "PRE", 0, 0, 0, ethers.ZeroAddress);
+        .createVault(
+          strategist.address,
+          "Pre-upgrade Vault",
+          "PRE",
+          0,
+          0,
+          0,
+          ethers.ZeroAddress,
+          ethers.ZeroAddress,
+          ethers.ZeroAddress,
+        );
       const receipt1 = await tx1.wait();
       const vault1Event = receipt1?.logs.find((log) => {
         try {
@@ -520,7 +582,17 @@ describe("Upgrade Tests", function () {
       // Deploy second vault with upgraded factory and V2 beacon
       const tx2 = await upgradedFactory
         .connect(owner)
-        .createVault(strategist.address, "Post-upgrade Vault", "POST", 0, 0, 0, ethers.ZeroAddress);
+        .createVault(
+          strategist.address,
+          "Post-upgrade Vault",
+          "POST",
+          0,
+          0,
+          0,
+          ethers.ZeroAddress,
+          ethers.ZeroAddress,
+          ethers.ZeroAddress,
+        );
       const receipt2 = await tx2.wait();
       const vault2Event = receipt2?.logs.find((log) => {
         try {

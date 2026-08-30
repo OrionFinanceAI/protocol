@@ -45,7 +45,17 @@ describe("Redemption recipient denylist", function () {
   async function createVault(): Promise<OrionTransparentVault> {
     const tx = await transparentVaultFactory
       .connect(owner)
-      .createVault(strategist.address, "Denylist Vault", "DV", 0, 0, 0, ethers.ZeroAddress);
+      .createVault(
+        strategist.address,
+        "Denylist Vault",
+        "DV",
+        0,
+        0,
+        0,
+        ethers.ZeroAddress,
+        ethers.ZeroAddress,
+        ethers.ZeroAddress,
+      );
     const receipt = await tx.wait();
     const log = receipt?.logs.find((l) => {
       try {

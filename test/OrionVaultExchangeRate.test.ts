@@ -37,6 +37,8 @@ describe("OrionVault Exchange Rate Tests", function () {
       0, // performanceFee
       0, // managementFee
       ethers.ZeroAddress, // depositAccessControl
+      ethers.ZeroAddress, // holderAccessControl
+      ethers.ZeroAddress, // transferAccessControl
     );
 
     const receipt = await tx.wait();

@@ -75,6 +75,12 @@ library ErrorsLib {
     /// @notice Deposit not allowed due to access control restrictions.
     error DepositNotAllowed();
 
+    /// @notice Holding shares is not allowed due to access control restrictions.
+    error ShareHoldNotAllowed();
+
+    /// @notice Share transfer not allowed due to access control restrictions.
+    error ShareTransferNotAllowed();
+
     /// @notice Slippage exceeds the configured tolerance.
     /// @param asset The asset address where slippage was detected.
     /// @param actual The actual value observed.

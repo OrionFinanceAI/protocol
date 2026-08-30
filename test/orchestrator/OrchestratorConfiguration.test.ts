@@ -256,7 +256,17 @@ describe("Orchestrator Configuration", function () {
 
     const absoluteVaultTx = await transparentVaultFactory
       .connect(owner)
-      .createVault(strategist.address, "Absolute Fee Vault", "AFV", 0, 500, 50, ethers.ZeroAddress);
+      .createVault(
+        strategist.address,
+        "Absolute Fee Vault",
+        "AFV",
+        0,
+        500,
+        50,
+        ethers.ZeroAddress,
+        ethers.ZeroAddress,
+        ethers.ZeroAddress,
+      );
     const absoluteVaultReceipt = await absoluteVaultTx.wait();
     const absoluteVaultEvent = absoluteVaultReceipt?.logs.find((log) => {
       try {
@@ -275,7 +285,17 @@ describe("Orchestrator Configuration", function () {
 
     const softHurdleVaultTx = await transparentVaultFactory
       .connect(owner)
-      .createVault(strategist.address, "Soft Hurdle Vault", "SHV", 1, 1200, 80, ethers.ZeroAddress);
+      .createVault(
+        strategist.address,
+        "Soft Hurdle Vault",
+        "SHV",
+        1,
+        1200,
+        80,
+        ethers.ZeroAddress,
+        ethers.ZeroAddress,
+        ethers.ZeroAddress,
+      );
     const softHurdleVaultReceipt = await softHurdleVaultTx.wait();
     const softHurdleVaultEvent = softHurdleVaultReceipt?.logs.find((log) => {
       try {
@@ -294,7 +314,17 @@ describe("Orchestrator Configuration", function () {
 
     const hardHurdleVaultTx = await transparentVaultFactory
       .connect(owner)
-      .createVault(strategist.address, "Hard Hurdle Vault", "HHV", 2, 1500, 200, ethers.ZeroAddress);
+      .createVault(
+        strategist.address,
+        "Hard Hurdle Vault",
+        "HHV",
+        2,
+        1500,
+        200,
+        ethers.ZeroAddress,
+        ethers.ZeroAddress,
+        ethers.ZeroAddress,
+      );
     const hardHurdleVaultReceipt = await hardHurdleVaultTx.wait();
     const hardHurdleVaultEvent = hardHurdleVaultReceipt?.logs.find((log) => {
       try {
@@ -313,7 +343,17 @@ describe("Orchestrator Configuration", function () {
 
     const highWaterMarkVaultTx = await transparentVaultFactory
       .connect(owner)
-      .createVault(strategist.address, "High Water Mark Vault", "HWMV", 3, 800, 150, ethers.ZeroAddress);
+      .createVault(
+        strategist.address,
+        "High Water Mark Vault",
+        "HWMV",
+        3,
+        800,
+        150,
+        ethers.ZeroAddress,
+        ethers.ZeroAddress,
+        ethers.ZeroAddress,
+      );
     const highWaterMarkVaultReceipt = await highWaterMarkVaultTx.wait();
     const highWaterMarkVaultEvent = highWaterMarkVaultReceipt?.logs.find((log) => {
       try {
@@ -332,7 +372,17 @@ describe("Orchestrator Configuration", function () {
 
     const hurdleHwmVaultTx = await transparentVaultFactory
       .connect(owner)
-      .createVault(strategist.address, "Hurdle HWM Vault", "HHWM", 4, 2000, 250, ethers.ZeroAddress);
+      .createVault(
+        strategist.address,
+        "Hurdle HWM Vault",
+        "HHWM",
+        4,
+        2000,
+        250,
+        ethers.ZeroAddress,
+        ethers.ZeroAddress,
+        ethers.ZeroAddress,
+      );
     const hurdleHwmVaultReceipt = await hurdleHwmVaultTx.wait();
     const hurdleHwmVaultEvent = hurdleHwmVaultReceipt?.logs.find((log) => {
       try {
@@ -352,7 +402,17 @@ describe("Orchestrator Configuration", function () {
     // Create passive vault with kbestTVL passive strategist (no strategist intents)
     const passiveVaultTx = await transparentVaultFactory
       .connect(owner)
-      .createVault(strategist.address, "Passive KBest TVL Vault", "PKTV", 0, 0, 0, ethers.ZeroAddress);
+      .createVault(
+        strategist.address,
+        "Passive KBest TVL Vault",
+        "PKTV",
+        0,
+        0,
+        0,
+        ethers.ZeroAddress,
+        ethers.ZeroAddress,
+        ethers.ZeroAddress,
+      );
     const passiveVaultReceipt = await passiveVaultTx.wait();
     const passiveVaultEvent = passiveVaultReceipt?.logs.find((log) => {
       try {

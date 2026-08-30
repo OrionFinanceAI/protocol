@@ -95,7 +95,17 @@ describe("TransparentVault - Strategist Pipeline", function () {
     it("Should create a transparent vault with correct parameters", async function () {
       const tx = await transparentVaultFactory
         .connect(owner)
-        .createVault(strategist.address, "Test Vault", "TV", 0, 0, 0, ethers.ZeroAddress);
+        .createVault(
+          strategist.address,
+          "Test Vault",
+          "TV",
+          0,
+          0,
+          0,
+          ethers.ZeroAddress,
+          ethers.ZeroAddress,
+          ethers.ZeroAddress,
+        );
       const receipt = await tx.wait();
 
       // Find the vault creation event
@@ -131,7 +141,17 @@ describe("TransparentVault - Strategist Pipeline", function () {
       await expect(
         transparentVaultFactory
           .connect(owner)
-          .createVault(strategist.address, longName, "TV", 0, 0, 0, ethers.ZeroAddress),
+          .createVault(
+            strategist.address,
+            longName,
+            "TV",
+            0,
+            0,
+            0,
+            ethers.ZeroAddress,
+            ethers.ZeroAddress,
+            ethers.ZeroAddress,
+          ),
       ).to.be.revertedWithCustomError(transparentVaultFactory, "InvalidArguments");
     });
 
@@ -140,7 +160,17 @@ describe("TransparentVault - Strategist Pipeline", function () {
       await expect(
         transparentVaultFactory
           .connect(owner)
-          .createVault(strategist.address, "Test Vault", longSymbol, 0, 0, 0, ethers.ZeroAddress),
+          .createVault(
+            strategist.address,
+            "Test Vault",
+            longSymbol,
+            0,
+            0,
+            0,
+            ethers.ZeroAddress,
+            ethers.ZeroAddress,
+            ethers.ZeroAddress,
+          ),
       ).to.be.revertedWithCustomError(transparentVaultFactory, "InvalidArguments");
     });
 
@@ -148,7 +178,17 @@ describe("TransparentVault - Strategist Pipeline", function () {
       await expect(
         transparentVaultFactory
           .connect(other)
-          .createVault(strategist.address, "Test Vault", "TV", 0, 0, 0, ethers.ZeroAddress),
+          .createVault(
+            strategist.address,
+            "Test Vault",
+            "TV",
+            0,
+            0,
+            0,
+            ethers.ZeroAddress,
+            ethers.ZeroAddress,
+            ethers.ZeroAddress,
+          ),
       ).to.be.revertedWithCustomError(transparentVaultFactory, "NotAuthorized");
     });
 
@@ -180,7 +220,17 @@ describe("TransparentVault - Strategist Pipeline", function () {
       // Create a vault first
       const tx = await transparentVaultFactory
         .connect(owner)
-        .createVault(strategist.address, "Test Vault", "TV", 0, 0, 0, ethers.ZeroAddress);
+        .createVault(
+          strategist.address,
+          "Test Vault",
+          "TV",
+          0,
+          0,
+          0,
+          ethers.ZeroAddress,
+          ethers.ZeroAddress,
+          ethers.ZeroAddress,
+        );
       const receipt = await tx.wait();
       const event = receipt?.logs.find((log) => {
         try {
@@ -341,7 +391,17 @@ describe("TransparentVault - Strategist Pipeline", function () {
       // 1. Create vault
       const tx = await transparentVaultFactory
         .connect(owner)
-        .createVault(strategist.address, "Integration Test Vault", "ITV", 0, 0, 0, ethers.ZeroAddress);
+        .createVault(
+          strategist.address,
+          "Integration Test Vault",
+          "ITV",
+          0,
+          0,
+          0,
+          ethers.ZeroAddress,
+          ethers.ZeroAddress,
+          ethers.ZeroAddress,
+        );
       const receipt = await tx.wait();
       const event = receipt?.logs.find((log) => {
         try {

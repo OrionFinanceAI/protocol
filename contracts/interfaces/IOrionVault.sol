@@ -68,8 +68,21 @@ interface IOrionVault is IERC4626 {
     event VaultFeesClaimed(address indexed manager, uint256 indexed feeAmount);
 
     /// @notice The deposit access control contract has been updated.
-    /// @param newDepositAccessControl The new deposit access control contract address (address(0) = permissionless).
+    /// @param newDepositAccessControl The new controller (address(0) = permissionless).
     event DepositAccessControlUpdated(address indexed newDepositAccessControl);
+
+    /// @notice The holder access control contract has been updated.
+    /// @param newHolderAccessControl The new controller (address(0) = permissionless).
+    event HolderAccessControlUpdated(address indexed newHolderAccessControl);
+
+    /// @notice The transfer access control contract has been updated.
+    /// @param newTransferAccessControl The new controller (address(0) = permissionless).
+    event TransferAccessControlUpdated(address indexed newTransferAccessControl);
+
+    /// @notice Deposit fulfillment skipped because the user may not hold shares; underlying escrowed.
+    /// @param user The address whose deposit could not be fulfilled into shares.
+    /// @param amount The underlying amount escrowed for later claim.
+    event DepositFulfillmentFailed(address indexed user, uint256 indexed amount);
 
     // --------- ENUMS AND STRUCTS ---------
 
@@ -151,8 +164,9 @@ interface IOrionVault is IERC4626 {
     /// @param shares The amount of share tokens to recover.
     function cancelRedeemRequest(uint256 shares) external;
 
-    /// @notice Claim underlying funds from a previously failed redemption transfer.
-    /// @dev Called by the user after the transfer blocker has been resolved.
+    /// @notice Claim underlying funds from a previously failed redemption transfer
+    ///      or a deposit fulfillment that could not mint shares.
+    /// @dev Called by the user after the transfer blocker / eligibility issue has been resolved.
     function claimUnderlying() external;
 
     // --------- MANAGER AND STRATEGIST FUNCTIONS ---------
@@ -177,11 +191,21 @@ interface IOrionVault is IERC4626 {
 
     /// @notice Set deposit access control contract
     /// @param newDepositAccessControl Address of the new access control contract (address(0) = permissionless)
-    /// @dev Only callable by vault manager.
-    ///      Non-zero addresses must ERC-165 as IOrionAccessControl.
-    ///      It is the FULL responsibility of the vault manager
-    ///      to ensure the deposit access control policy is capable of performing its duties.
+    /// @dev Only callable by vault manager. Non-zero addresses must ERC-165 as
+    ///      IOrionDepositAccessControl.
     function setDepositAccessControl(address newDepositAccessControl) external;
+
+    /// @notice Set holder access control contract
+    /// @param newHolderAccessControl Address of the new access control contract (address(0) = permissionless)
+    /// @dev Only callable by vault manager. Non-zero addresses must ERC-165 as
+    ///      IOrionHolderAccessControl.
+    function setHolderAccessControl(address newHolderAccessControl) external;
+
+    /// @notice Set transfer access control contract
+    /// @param newTransferAccessControl Address of the new access control contract (address(0) = permissionless)
+    /// @dev Only callable by vault manager. Non-zero addresses must ERC-165 as
+    ///      IOrionTransferAccessControl.
+    function setTransferAccessControl(address newTransferAccessControl) external;
 
     // --------- LIQUIDITY ORCHESTRATOR FUNCTIONS ---------
 

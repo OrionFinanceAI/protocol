@@ -45,7 +45,17 @@ describe("Orchestrators - zero deposits and zero intents", function () {
     // Create transparent vault (no intent submitted)
     const tx = await transparentVaultFactory
       .connect(owner)
-      .createVault(strategist.address, "ZeroState TV", "ZTV", 0, 0, 0, ethers.ZeroAddress);
+      .createVault(
+        strategist.address,
+        "ZeroState TV",
+        "ZTV",
+        0,
+        0,
+        0,
+        ethers.ZeroAddress,
+        ethers.ZeroAddress,
+        ethers.ZeroAddress,
+      );
     const rcpt = await tx.wait();
     const ev = rcpt?.logs.find((log) => {
       try {

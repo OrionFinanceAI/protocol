@@ -71,6 +71,8 @@ describe("Manager Removal - Automatic Decommissioning", function () {
       100, // 1% performance fee
       10, // 0.1% management fee
       ethers.ZeroAddress, // depositAccessControl
+      ethers.ZeroAddress, // holderAccessControl
+      ethers.ZeroAddress, // transferAccessControl
     );
     const receipt = await vaultTx.wait();
     const vaultCreatedEvent = receipt?.logs.find((log) => {

@@ -187,24 +187,66 @@ describe("EncryptedVaultFactory / Config / LO edge branches", function () {
       await expect(
         encryptedVaultFactory
           .connect(manager)
-          .createVault(strategist.address, longName, "EV", 0, 0, 0, ethers.ZeroAddress),
+          .createVault(
+            strategist.address,
+            longName,
+            "EV",
+            0,
+            0,
+            0,
+            ethers.ZeroAddress,
+            ethers.ZeroAddress,
+            ethers.ZeroAddress,
+          ),
       ).to.be.revertedWithCustomError(encryptedVaultFactory, "InvalidArguments");
 
       await expect(
         encryptedVaultFactory
           .connect(manager)
-          .createVault(strategist.address, "Ok", "LONGG", 0, 0, 0, ethers.ZeroAddress),
+          .createVault(
+            strategist.address,
+            "Ok",
+            "LONGG",
+            0,
+            0,
+            0,
+            ethers.ZeroAddress,
+            ethers.ZeroAddress,
+            ethers.ZeroAddress,
+          ),
       ).to.be.revertedWithCustomError(encryptedVaultFactory, "InvalidArguments");
 
       await expect(
         encryptedVaultFactory
           .connect(stranger)
-          .createVault(strategist.address, "Ok", "EV", 0, 0, 0, ethers.ZeroAddress),
+          .createVault(
+            strategist.address,
+            "Ok",
+            "EV",
+            0,
+            0,
+            0,
+            ethers.ZeroAddress,
+            ethers.ZeroAddress,
+            ethers.ZeroAddress,
+          ),
       ).to.be.revertedWithCustomError(encryptedVaultFactory, "NotAuthorized");
 
       await harness.h_setPhase(PHASE_PVO);
       await expect(
-        encryptedVaultFactory.connect(manager).createVault(strategist.address, "Ok", "EV", 0, 0, 0, ethers.ZeroAddress),
+        encryptedVaultFactory
+          .connect(manager)
+          .createVault(
+            strategist.address,
+            "Ok",
+            "EV",
+            0,
+            0,
+            0,
+            ethers.ZeroAddress,
+            ethers.ZeroAddress,
+            ethers.ZeroAddress,
+          ),
       ).to.be.revertedWithCustomError(encryptedVaultFactory, "SystemNotIdle");
       await harness.h_setPhase(PHASE_IDLE);
     });
@@ -321,7 +363,17 @@ describe("EncryptedVaultFactory / Config / LO edge branches", function () {
       // Neither-set InvalidAddress at complete is unreachable via the public API.
       const tx = await encryptedVaultFactory
         .connect(manager)
-        .createVault(strategist.address, "Dual", "DU", 0, 0, 0, ethers.ZeroAddress);
+        .createVault(
+          strategist.address,
+          "Dual",
+          "DU",
+          0,
+          0,
+          0,
+          ethers.ZeroAddress,
+          ethers.ZeroAddress,
+          ethers.ZeroAddress,
+        );
       const receipt = await tx.wait();
       const log = receipt?.logs.find((l) => {
         try {
@@ -352,7 +404,7 @@ describe("EncryptedVaultFactory / Config / LO edge branches", function () {
     async function createEncryptedVault() {
       const tx = await encryptedVaultFactory
         .connect(manager)
-        .createVault(strategist.address, "E", "E", 0, 0, 0, ethers.ZeroAddress);
+        .createVault(strategist.address, "E", "E", 0, 0, 0, ethers.ZeroAddress, ethers.ZeroAddress, ethers.ZeroAddress);
       const receipt = await tx.wait();
       const log = receipt?.logs.find((l) => {
         try {

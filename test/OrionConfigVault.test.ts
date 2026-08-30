@@ -7,7 +7,7 @@ import type {
   MockERC4626Asset,
   MockPriceAdapter,
   MockExecutionAdapter,
-  MockDepositAccessControl,
+  MockAccessControl,
   OrionConfig,
   LiquidityOrchestrator,
   TransparentVaultFactory,
@@ -95,7 +95,17 @@ describe("OrionConfig & OrionVault", function () {
     // Create a vault for testing
     const tx = await transparentVaultFactory
       .connect(owner)
-      .createVault(strategist.address, "Test Vault", "TV", 0, 0, 0, ethers.ZeroAddress);
+      .createVault(
+        strategist.address,
+        "Test Vault",
+        "TV",
+        0,
+        0,
+        0,
+        ethers.ZeroAddress,
+        ethers.ZeroAddress,
+        ethers.ZeroAddress,
+      );
     const receipt = await tx.wait();
     const event = receipt?.logs.find((log) => {
       try {
@@ -764,12 +774,22 @@ describe("OrionConfig & OrionVault", function () {
           .to.emit(vault, "StrategistUpdated")
           .withArgs(newStrategist);
       });
+
+      it("Should not call setVault on a contract that claims support for 0xffffffff", async function () {
+        const AlwaysTrueFactory = await ethers.getContractFactory("MockAlwaysTrueERC165");
+        const alwaysTrue = await AlwaysTrueFactory.deploy();
+        await alwaysTrue.waitForDeployment();
+
+        await expect(vault.connect(owner).updateStrategist(await alwaysTrue.getAddress())).to.not.be.rejected;
+        expect(await alwaysTrue.vaultLinked()).to.equal(false);
+        expect(await vault.strategist()).to.equal(await alwaysTrue.getAddress());
+      });
     });
 
     describe("Deposit Access Control", function () {
       it("Should allow manager to set a valid ERC-165 access control contract", async function () {
-        const AclFactory = await ethers.getContractFactory("MockDepositAccessControl");
-        const acl = (await AclFactory.deploy()) as unknown as MockDepositAccessControl;
+        const AclFactory = await ethers.getContractFactory("MockAccessControl");
+        const acl = (await AclFactory.deploy()) as unknown as MockAccessControl;
         await acl.waitForDeployment();
         const aclAddress = await acl.getAddress();
 
@@ -780,8 +800,8 @@ describe("OrionConfig & OrionVault", function () {
       });
 
       it("Should allow manager to set address(0) for permissionless deposits", async function () {
-        const AclFactory = await ethers.getContractFactory("MockDepositAccessControl");
-        const acl = (await AclFactory.deploy()) as unknown as MockDepositAccessControl;
+        const AclFactory = await ethers.getContractFactory("MockAccessControl");
+        const acl = (await AclFactory.deploy()) as unknown as MockAccessControl;
         await acl.waitForDeployment();
         await vault.connect(owner).setDepositAccessControl(await acl.getAddress());
 
@@ -815,7 +835,7 @@ describe("OrionConfig & OrionVault", function () {
         ).to.be.revertedWithCustomError(vault, "InvalidAddress");
       });
 
-      it("Should revert when setting an ERC-165 contract that is not IOrionAccessControl", async function () {
+      it("Should revert when setting an ERC-165 contract that is not IOrionDepositAccessControl", async function () {
         const NonAclFactory = await ethers.getContractFactory("MockERC165NonStrategist");
         const nonAcl = await NonAclFactory.deploy();
         await nonAcl.waitForDeployment();
@@ -825,11 +845,31 @@ describe("OrionConfig & OrionVault", function () {
         ).to.be.revertedWithCustomError(vault, "InvalidAddress");
       });
 
+      it("Should revert when setting a contract that claims support for 0xffffffff", async function () {
+        const AlwaysTrueFactory = await ethers.getContractFactory("MockAlwaysTrueERC165");
+        const alwaysTrue = await AlwaysTrueFactory.deploy();
+        await alwaysTrue.waitForDeployment();
+
+        await expect(
+          vault.connect(owner).setDepositAccessControl(await alwaysTrue.getAddress()),
+        ).to.be.revertedWithCustomError(vault, "InvalidAddress");
+      });
+
       it("Should revert createVault when deposit access control is invalid", async function () {
         await expect(
           transparentVaultFactory
             .connect(owner)
-            .createVault(strategist.address, "Bad ACL", "BAD", 0, 0, 0, other.address),
+            .createVault(
+              strategist.address,
+              "Bad ACL",
+              "BAD",
+              0,
+              0,
+              0,
+              other.address,
+              ethers.ZeroAddress,
+              ethers.ZeroAddress,
+            ),
         ).to.be.revertedWithCustomError(vault, "InvalidAddress");
       });
     });
