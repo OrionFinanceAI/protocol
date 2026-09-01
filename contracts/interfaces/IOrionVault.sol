@@ -16,8 +16,8 @@ interface IOrionVault is IERC4626 {
 
     // --------- EVENTS ---------
 
-    /// @notice A deposit request has been made by a user.
-    /// @param sender The address of the user making the deposit request.
+    /// @notice A deposit request has been queued for a beneficiary.
+    /// @param sender The address credited in the deposit queue and on fulfill.
     /// @param assets The amount of assets being deposited.
     event DepositRequest(address indexed sender, uint256 indexed assets);
 
@@ -143,6 +143,11 @@ interface IOrionVault is IERC4626 {
     ///      is transferred to the liquidity orchestrator for centralized liquidity management.
     /// @param assets The amount of the underlying asset to deposit.
     function requestDeposit(uint256 assets) external;
+
+    /// @notice Submit an async deposit request on behalf of `beneficiary`.
+    /// @param beneficiary The LP whose pending deposit balance and eventual shares are credited.
+    /// @param assets The amount of underlying to deposit.
+    function requestDepositFor(address beneficiary, uint256 assets) external;
 
     /// @notice Cancel a previously submitted deposit request.
     /// @dev Allows LPs to withdraw their funds before any share tokens are minted.
