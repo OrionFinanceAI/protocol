@@ -127,6 +127,7 @@ describe("Redemption recipient denylist", function () {
 
     const claimed = await vault.totalPendingUnderlyingClaims();
     expect(claimed).to.be.gt(0n);
+    expect(await vault.pendingUnderlyingClaim(user.address)).to.equal(claimed);
     expect(await underlyingAsset.balanceOf(await vault.getAddress())).to.equal(claimed);
 
     await expect(vault.connect(user).claimUnderlying()).to.be.revertedWithCustomError(
@@ -141,6 +142,7 @@ describe("Redemption recipient denylist", function () {
       .withArgs(user.address, claimed);
     expect(await underlyingAsset.balanceOf(user.address)).to.equal(before + claimed);
     expect(await vault.totalPendingUnderlyingClaims()).to.equal(0n);
+    expect(await vault.pendingUnderlyingClaim(user.address)).to.equal(0n);
     await expect(vault.connect(user).claimUnderlying()).to.be.revertedWithCustomError(vault, "InsufficientAmount");
   });
 

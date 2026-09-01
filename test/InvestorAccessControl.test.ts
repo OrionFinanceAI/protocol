@@ -287,11 +287,14 @@ describe("Investor access-control gates", function () {
       expect(await vault.balanceOf(listed.address)).to.equal(0n);
       expect(await vault.balanceOf(other.address)).to.equal(expectedOtherShares);
       expect(await vault.totalPendingUnderlyingClaims()).to.equal(assets);
+      expect(await vault.pendingUnderlyingClaim(listed.address)).to.equal(assets);
+      expect(await vault.pendingUnderlyingClaim(other.address)).to.equal(0n);
 
       const before = await underlyingAsset.balanceOf(listed.address);
       await vault.connect(listed).claimUnderlying();
       expect(await underlyingAsset.balanceOf(listed.address)).to.equal(before + assets);
       expect(await vault.totalPendingUnderlyingClaims()).to.equal(0n);
+      expect(await vault.pendingUnderlyingClaim(listed.address)).to.equal(0n);
     });
   });
 
@@ -309,6 +312,98 @@ describe("Investor access-control gates", function () {
 
       await fundAndApprove(listed, assets);
       await expect(vault.connect(listed).requestDeposit(assets)).to.emit(vault, "DepositRequest");
+    });
+  });
+
+  describe("requestDepositFor (deposit-on-behalf)", function () {
+    beforeEach(async function () {
+      const aclAddress = await acl.getAddress();
+      vault = await createVault(aclAddress, aclAddress, ethers.ZeroAddress);
+    });
+
+    async function fundAndApproveRouter(router: SignerWithAddress, assets: bigint): Promise<void> {
+      await underlyingAsset.mint(router.address, assets);
+      await underlyingAsset.connect(router).approve(await vault.getAddress(), assets);
+    }
+
+    it("credits listed beneficiary and mints shares on fulfill", async function () {
+      const assets = parseUnderlying("100");
+      await fundAndApproveRouter(stranger, assets);
+
+      await expect(vault.connect(stranger).requestDepositFor(listed.address, assets))
+        .to.emit(vault, "DepositRequest")
+        .withArgs(listed.address, assets);
+
+      const loSigner = await impersonateLo();
+      await vault.connect(loSigner).fulfillDeposit(assets);
+
+      expect(await vault.balanceOf(listed.address)).to.be.gt(0n);
+      expect(await vault.balanceOf(stranger.address)).to.equal(0n);
+    });
+
+    it("reverts when beneficiary fails deposit gate", async function () {
+      const assets = parseUnderlying("50");
+      await fundAndApproveRouter(stranger, assets);
+
+      await expect(vault.connect(stranger).requestDepositFor(stranger.address, assets)).to.be.revertedWithCustomError(
+        vault,
+        "DepositNotAllowed",
+      );
+    });
+
+    it("reverts when beneficiary fails holder gate", async function () {
+      await acl.setHolderAllowed(listed.address, false);
+
+      const assets = parseUnderlying("50");
+      await fundAndApproveRouter(stranger, assets);
+
+      await expect(vault.connect(stranger).requestDepositFor(listed.address, assets)).to.be.revertedWithCustomError(
+        vault,
+        "ShareHoldNotAllowed",
+      );
+    });
+
+    it("reverts when router has insufficient balance", async function () {
+      const assets = parseUnderlying("50");
+      await underlyingAsset.connect(stranger).approve(await vault.getAddress(), assets);
+
+      await expect(vault.connect(stranger).requestDepositFor(listed.address, assets)).to.be.revertedWithCustomError(
+        vault,
+        "InsufficientAmount",
+      );
+    });
+
+    it("reverts for zero beneficiary", async function () {
+      const assets = parseUnderlying("50");
+      await fundAndApproveRouter(stranger, assets);
+
+      await expect(vault.connect(stranger).requestDepositFor(ethers.ZeroAddress, assets)).to.be.revertedWithCustomError(
+        vault,
+        "ZeroAddress",
+      );
+    });
+
+    it("allows requestDepositFor(msg.sender) as a uniform router path", async function () {
+      const assets = parseUnderlying("50");
+      await fundAndApprove(listed, assets);
+
+      await expect(vault.connect(listed).requestDepositFor(listed.address, assets)).to.emit(vault, "DepositRequest");
+    });
+
+    it("returns cancelled underlying to beneficiary only, not the paying router", async function () {
+      const assets = parseUnderlying("100");
+      await fundAndApproveRouter(stranger, assets);
+
+      const routerBefore = await underlyingAsset.balanceOf(stranger.address);
+      const userBefore = await underlyingAsset.balanceOf(listed.address);
+
+      await vault.connect(stranger).requestDepositFor(listed.address, assets);
+      expect(await underlyingAsset.balanceOf(stranger.address)).to.equal(routerBefore - assets);
+
+      await vault.connect(listed).cancelDepositRequest(assets);
+
+      expect(await underlyingAsset.balanceOf(listed.address)).to.equal(userBefore + assets);
+      expect(await underlyingAsset.balanceOf(stranger.address)).to.equal(routerBefore - assets);
     });
   });
 });

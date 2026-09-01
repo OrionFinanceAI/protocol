@@ -337,7 +337,20 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
 
     /// @inheritdoc IOrionVault
     function requestDeposit(uint256 assets) external nonReentrant {
-        _requireCanRequestDeposit(msg.sender);
+        _requestDeposit(msg.sender, assets);
+    }
+
+    /// @inheritdoc IOrionVault
+    function requestDepositFor(address beneficiary, uint256 assets) external nonReentrant {
+        if (beneficiary == address(0)) revert ErrorsLib.ZeroAddress();
+        _requestDeposit(beneficiary, assets);
+    }
+
+    /// @dev Assets are pulled from msg.sender (e.g., router/depositor), but the deposit queue and
+    /// eventual shares credit `beneficiary`. Deposit and holder access control lists are
+    /// evaluated solely against `beneficiary`, not msg.sender.
+    function _requestDeposit(address beneficiary, uint256 assets) internal {
+        _requireCanRequestDeposit(beneficiary);
 
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         if (isDecommissioning || config.isDecommissionedVault(address(this))) revert ErrorsLib.VaultDecommissioned();
@@ -351,11 +364,11 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         IERC20(asset()).safeTransferFrom(msg.sender, address(liquidityOrchestrator), assets);
 
         // slither-disable-next-line unused-return
-        (, uint256 currentAmount) = _depositRequests.tryGet(msg.sender);
+        (, uint256 currentAmount) = _depositRequests.tryGet(beneficiary);
         // slither-disable-next-line unused-return
-        _depositRequests.set(msg.sender, currentAmount + assets);
+        _depositRequests.set(beneficiary, currentAmount + assets);
 
-        emit DepositRequest(msg.sender, assets);
+        emit DepositRequest(beneficiary, assets);
     }
 
     /// @inheritdoc IOrionVault
@@ -753,6 +766,11 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     /// @inheritdoc IOrionVault
     function totalPendingUnderlyingClaims() external view returns (uint256) {
         return _pendingUnderlyingClaims.total;
+    }
+
+    /// @inheritdoc IOrionVault
+    function pendingUnderlyingClaim(address account) external view returns (uint256) {
+        return _pendingUnderlyingClaims.byUser[account];
     }
 
     /// @inheritdoc IOrionVault

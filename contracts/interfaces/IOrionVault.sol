@@ -16,8 +16,8 @@ interface IOrionVault is IERC4626 {
 
     // --------- EVENTS ---------
 
-    /// @notice A deposit request has been made by a user.
-    /// @param sender The address of the user making the deposit request.
+    /// @notice A deposit request has been queued for a beneficiary.
+    /// @param sender The address credited in the deposit queue and on fulfill.
     /// @param assets The amount of assets being deposited.
     event DepositRequest(address indexed sender, uint256 indexed assets);
 
@@ -144,6 +144,11 @@ interface IOrionVault is IERC4626 {
     /// @param assets The amount of the underlying asset to deposit.
     function requestDeposit(uint256 assets) external;
 
+    /// @notice Submit an async deposit request on behalf of `beneficiary`.
+    /// @param beneficiary The LP whose pending deposit balance and eventual shares are credited.
+    /// @param assets The amount of underlying to deposit.
+    function requestDepositFor(address beneficiary, uint256 assets) external;
+
     /// @notice Cancel a previously submitted deposit request.
     /// @dev Allows LPs to withdraw their funds before any share tokens are minted.
     ///      The request must still have enough balance remaining to cover the cancellation.
@@ -242,6 +247,11 @@ interface IOrionVault is IERC4626 {
     /// @notice Total underlying assets owed to users whose redemption transfer failed
     /// @return total Sum of all pending underlying claims across all users
     function totalPendingUnderlyingClaims() external view returns (uint256 total);
+
+    /// @notice Underlying escrowed for `account` from a failed redemption payout or deposit fulfillment.
+    /// @param account The address to query.
+    /// @return amount Underlying asset units held in vault escrow for this account.
+    function pendingUnderlyingClaim(address account) external view returns (uint256 amount);
 
     /// @notice Process all pending deposit requests and mint shares to depositors
     /// @param depositTotalAssets The total assets associated with the deposit requests
