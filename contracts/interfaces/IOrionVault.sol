@@ -248,6 +248,11 @@ interface IOrionVault is IERC4626 {
     /// @return total Sum of all pending underlying claims across all users
     function totalPendingUnderlyingClaims() external view returns (uint256 total);
 
+    /// @notice Underlying escrowed for `account` from a failed redemption payout or deposit fulfillment.
+    /// @param account The address to query.
+    /// @return amount Underlying asset units held in vault escrow for this account.
+    function pendingUnderlyingClaim(address account) external view returns (uint256 amount);
+
     /// @notice Process all pending deposit requests and mint shares to depositors
     /// @param depositTotalAssets The total assets associated with the deposit requests
     function fulfillDeposit(uint256 depositTotalAssets) external;

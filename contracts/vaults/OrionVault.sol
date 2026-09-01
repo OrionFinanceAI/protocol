@@ -769,6 +769,11 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     }
 
     /// @inheritdoc IOrionVault
+    function pendingUnderlyingClaim(address account) external view returns (uint256) {
+        return _pendingUnderlyingClaims.byUser[account];
+    }
+
+    /// @inheritdoc IOrionVault
     function claimUnderlying() external nonReentrant {
         uint256 amount = _pendingUnderlyingClaims.byUser[msg.sender];
         if (amount == 0) revert ErrorsLib.InsufficientAmount();

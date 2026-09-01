@@ -287,11 +287,14 @@ describe("Investor access-control gates", function () {
       expect(await vault.balanceOf(listed.address)).to.equal(0n);
       expect(await vault.balanceOf(other.address)).to.equal(expectedOtherShares);
       expect(await vault.totalPendingUnderlyingClaims()).to.equal(assets);
+      expect(await vault.pendingUnderlyingClaim(listed.address)).to.equal(assets);
+      expect(await vault.pendingUnderlyingClaim(other.address)).to.equal(0n);
 
       const before = await underlyingAsset.balanceOf(listed.address);
       await vault.connect(listed).claimUnderlying();
       expect(await underlyingAsset.balanceOf(listed.address)).to.equal(before + assets);
       expect(await vault.totalPendingUnderlyingClaims()).to.equal(0n);
+      expect(await vault.pendingUnderlyingClaim(listed.address)).to.equal(0n);
     });
   });
 
