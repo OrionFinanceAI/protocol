@@ -291,6 +291,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         if (!this.isWhitelisted(asset)) {
+            _requireFeasibilityDomain(this.orionVaultsLength(), whitelistedAssets.length() + 1);
             // slither-disable-next-line unused-return
             whitelistedAssets.add(asset);
         }
@@ -324,6 +325,11 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     /// @inheritdoc IOrionConfig
     function whitelistedAssetsLength() external view returns (uint16) {
         return uint16(whitelistedAssets.length());
+    }
+
+    /// @inheritdoc IOrionConfig
+    function orionVaultsLength() external view returns (uint256) {
+        return transparentVaults.length() + encryptedVaults.length();
     }
 
     /// @inheritdoc IOrionConfig
@@ -464,6 +470,8 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     function addOrionVault(address vault, EventsLib.VaultType vaultType) external onlyFactories {
         if (vault == address(0)) revert ErrorsLib.ZeroAddress();
 
+        _requireFeasibilityDomain(this.orionVaultsLength() + 1, whitelistedAssets.length());
+
         bool inserted;
         if (vaultType == EventsLib.VaultType.Encrypted) {
             inserted = encryptedVaults.add(vault);
@@ -595,6 +603,23 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
             if (msg.sender != upgradeTimelock) revert ErrorsLib.NotAuthorized();
         } else {
             if (msg.sender != owner()) revert ErrorsLib.NotAuthorized();
+        }
+    }
+
+    /**
+     * @notice Reverts if post-state (vaults, assets) would exceed the gas feasibility domain.
+     */
+    function _requireFeasibilityDomain(uint256 vaults, uint256 assets) internal pure {
+        uint256 gasA = 166067;
+        uint256 gasB = 63265;
+        uint256 gasC = 42182;
+        uint256 eip7825TxGasLimit = 16_777_216; // 2**24
+        uint256 utilizationBps = 8000; // 80%
+
+        uint256 gasHat = gasA + gasB * vaults + gasC * assets;
+        uint256 limit = (eip7825TxGasLimit * utilizationBps) / 10_000;
+        if (gasHat > limit) {
+            revert ErrorsLib.FeasibilityDomainExceeded(vaults, assets);
         }
     }
 

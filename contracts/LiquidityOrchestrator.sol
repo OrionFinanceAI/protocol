@@ -91,7 +91,7 @@ contract LiquidityOrchestrator is
     LiquidityUpkeepPhase public currentPhase;
 
     /// @notice Current minibatch index
-    uint8 public currentMinibatchIndex;
+    uint16 public currentMinibatchIndex;
 
     /// @notice Target buffer ratio
     uint256 public targetBufferRatio;
@@ -506,7 +506,7 @@ contract LiquidityOrchestrator is
 
     /// @notice Handles the start of the upkeep
     /// @dev No need to delete prices as they are either overwritten or associated with
-    /// non-whitelisted assets.
+    ///      non-whitelisted assets.
     function _handleStart() internal {
         _buildVaultsEpoch();
 

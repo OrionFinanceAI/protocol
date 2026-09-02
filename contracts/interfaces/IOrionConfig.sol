@@ -108,6 +108,10 @@ interface IOrionConfig {
     /// @return The count of whitelisted assets
     function whitelistedAssetsLength() external view returns (uint16);
 
+    /// @notice Returns the total number of registered Orion vaults (transparent + encrypted)
+    /// @return The count of active Orion vaults
+    function orionVaultsLength() external view returns (uint256);
+
     /// @notice Returns all whitelisted assets
     /// @return An array of whitelisted asset addresses
     function getAllWhitelistedAssets() external view returns (address[] memory);

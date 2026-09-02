@@ -15,7 +15,7 @@ contract LiquidityOrchestratorHarness is LiquidityOrchestrator {
     }
 
     /// @notice Test-only: set PVO/sell/buy minibatch index
-    function h_setCurrentMinibatchIndex(uint8 index) external {
+    function h_setCurrentMinibatchIndex(uint16 index) external {
         currentMinibatchIndex = index;
     }
 
