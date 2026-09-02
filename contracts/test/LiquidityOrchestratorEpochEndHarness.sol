@@ -13,7 +13,7 @@ contract LiquidityOrchestratorEpochEndHarness is LiquidityOrchestrator {
         currentPhase = phase;
     }
 
-    function h_setCurrentMinibatchIndex(uint8 index) external {
+    function h_setCurrentMinibatchIndex(uint16 index) external {
         currentMinibatchIndex = index;
     }
 
@@ -39,17 +39,15 @@ contract LiquidityOrchestratorEpochEndHarness is LiquidityOrchestrator {
 
     /**
      * @notice Test-only: advance PVO minibatch index using the same completion predicate as
-     *         `_processMinibatchVaultsOperations`, without vault I/O (avoids gas caps for wrap tests).
+     *         `_processMinibatchVaultsOperations`, without vault I/O (avoids gas caps for index tests).
      */
     function h_advancePvoIndexLikeProcessMinibatch(
         uint256 vaultsEpochLength,
         uint256 nettedRebalanceVolumeUnderlying
     ) external {
-        uint16 i0 = uint16(currentMinibatchIndex) * uint16(minibatchSize);
+        uint16 i0 = currentMinibatchIndex * uint16(minibatchSize);
         uint16 i1 = i0 + uint16(minibatchSize);
-        unchecked {
-            ++currentMinibatchIndex;
-        }
+        ++currentMinibatchIndex;
 
         if (i1 > vaultsEpochLength || i1 == vaultsEpochLength) {
             currentPhase = LiquidityUpkeepPhase.Idle;

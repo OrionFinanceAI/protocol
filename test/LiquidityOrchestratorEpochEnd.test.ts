@@ -1,8 +1,9 @@
 /**
  * LiquidityOrchestrator epoch-end gating after ProcessVaultOperations.
  *
- * Epoch-end must run only when PVO transitions to Idle — not when uint8
- * currentMinibatchIndex wraps to 0 mid-PVO.
+ * Epoch-end must run only when PVO transitions to Idle — not when the minibatch
+ * index advances without completing the vault list (including past the former
+ * uint8 boundary at 255).
  */
 import type { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
@@ -198,20 +199,20 @@ describe("LiquidityOrchestrator epoch-end gating", function () {
     expect(await harness.epochCounter()).to.equal(epochBefore);
   });
 
-  it("uint8 currentMinibatchIndex wrap does not trigger EpochEnd while still in PVO", async function () {
-    // Full 257-vault PVO exceeds the Hardhat gas cap; this mirrors the exact completion predicate
-    // from `_processMinibatchVaultsOperations` (i0/i1 vs length, uint8 ++wrap) then the Idle gate.
+  it("uint16 currentMinibatchIndex advances past 255 without EpochEnd while still in PVO", async function () {
+    // Full high-V PVO exceeds the Hardhat gas cap; this mirrors the completion predicate
+    // from `_processMinibatchVaultsOperations` (i0/i1 vs length, checked uint16 ++) then the Idle gate.
+    // Formerly uint8 would Panic at ++ from 255; uint16 continues and must not false-trigger EpochEnd.
     await harness.h_setMinibatchSize(1);
     await harness.h_setCurrentMinibatchIndex(255);
     await harness.h_setPhase(PHASE_PVO);
 
     const epochBefore = await harness.epochCounter();
 
-    await expect(harness.h_advancePvoIndexLikeProcessMinibatch(257, 0n)).to.not.emit(harness, "EpochEnd");
+    await expect(harness.h_advancePvoIndexLikeProcessMinibatch(300, 0n)).to.not.emit(harness, "EpochEnd");
 
-    // Index wraps 255 → 0; phase must remain PVO (old gate would have fired EpochEnd here)
     expect(await harness.currentPhase()).to.equal(PHASE_PVO);
-    expect(await harness.currentMinibatchIndex()).to.equal(0n);
+    expect(await harness.currentMinibatchIndex()).to.equal(256n);
     expect(await harness.epochCounter()).to.equal(epochBefore);
   });
 });

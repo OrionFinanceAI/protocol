@@ -24,7 +24,7 @@ contract LiquidityOrchestratorVaultHarness is LiquidityOrchestrator {
         minibatchSize = size;
     }
 
-    function h_setCurrentMinibatchIndex(uint8 index) external {
+    function h_setCurrentMinibatchIndex(uint16 index) external {
         currentMinibatchIndex = index;
     }
 

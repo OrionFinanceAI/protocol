@@ -90,8 +90,8 @@ contract LiquidityOrchestrator is
     /// @notice Upkeep phase
     LiquidityUpkeepPhase public currentPhase;
 
-    /// @notice Current minibatch index
-    uint8 public currentMinibatchIndex;
+    /// @custom:oz-renamed-from currentMinibatchIndex
+    uint8 private __deprecatedCurrentMinibatchIndex;
 
     /// @notice Target buffer ratio
     uint256 public targetBufferRatio;
@@ -159,6 +159,9 @@ contract LiquidityOrchestrator is
 
     /// @notice On-chain resume cursor for the active sell/buy minibatch window.
     uint16 public completedInCurrentMinibatch;
+
+    /// @notice Current minibatch index
+    uint16 public currentMinibatchIndex;
 
     /* -------------------------------------------------------------------------- */
     /*                                MODIFIERS                                   */
@@ -506,7 +509,7 @@ contract LiquidityOrchestrator is
 
     /// @notice Handles the start of the upkeep
     /// @dev No need to delete prices as they are either overwritten or associated with
-    /// non-whitelisted assets.
+    ///      non-whitelisted assets.
     function _handleStart() internal {
         _buildVaultsEpoch();
 
