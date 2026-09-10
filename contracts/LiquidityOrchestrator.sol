@@ -259,23 +259,23 @@ contract LiquidityOrchestrator is
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function updateExecutionMinibatchSize(uint8 _executionMinibatchSize) external onlyOwnerOrGuardian {
+    function updateExecutionMinibatchSize(uint8 _executionMinibatchSize) external onlyOwner {
         if (_executionMinibatchSize == 0) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         executionMinibatchSize = _executionMinibatchSize;
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function updateMinibatchSize(uint8 _minibatchSize) external onlyOwnerOrGuardian {
+    function updateMinibatchSize(uint8 _minibatchSize) external onlyOwner {
         if (_minibatchSize == 0) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         minibatchSize = _minibatchSize;
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function updateCommitmentMinibatchSize(uint8 _commitmentMinibatchSize) external onlyOwnerOrGuardian {
+    function updateCommitmentMinibatchSize(uint8 _commitmentMinibatchSize) external onlyOwner {
         if (_commitmentMinibatchSize == 0) revert ErrorsLib.InvalidArguments();
-        if (commitmentMinibatchSize != 0 && !config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
+        if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         commitmentMinibatchSize = _commitmentMinibatchSize;
     }
 

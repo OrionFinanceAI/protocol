@@ -637,7 +637,15 @@ describe("OrionVault / OrionConfig / LO edge branches", function () {
 
       await harness.connect(guardian).updateEpochDuration(3600);
       await harness.connect(owner).updateExecutionMinibatchSize(2);
-      await harness.connect(guardian).updateMinibatchSize(2);
+      await expect(harness.connect(guardian).updateMinibatchSize(2)).to.be.revertedWithCustomError(
+        harness,
+        "OwnableUnauthorizedAccount",
+      );
+      await expect(harness.connect(guardian).updateExecutionMinibatchSize(2)).to.be.revertedWithCustomError(
+        harness,
+        "OwnableUnauthorizedAccount",
+      );
+      await harness.connect(owner).updateMinibatchSize(2);
       await harness.connect(owner).setTargetBufferRatio(50);
     });
 
