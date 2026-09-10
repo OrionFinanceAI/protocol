@@ -118,6 +118,7 @@ jobs:
           severity: "CRITICAL,HIGH"
           exit-code: "1"
           skip-dirs: "node_modules,artifacts,cache,coverage,.venv,typechain-types"
+          trivyignores: ".trivyignore.yaml"
 
   publish-abis:
     name: "Publish Contract ABIs"
