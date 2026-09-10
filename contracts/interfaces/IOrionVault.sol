@@ -230,6 +230,11 @@ interface IOrionVault is IERC4626 {
     /// @return The number of unique users with non-zero pending deposit requests.
     function pendingDepositCount() external view returns (uint256);
 
+    /// @notice Pending deposit assets queued for `account`
+    /// @param account The address to query
+    /// @return amount Underlying asset units in the deposit request queue for this account (0 if none)
+    function pendingDepositOf(address account) external view returns (uint256 amount);
+
     /// @notice Get the number of pending redeem queue entries.
     /// @return The number of unique users with non-zero pending redeem requests.
     function pendingRedeemCount() external view returns (uint256);

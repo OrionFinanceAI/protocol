@@ -642,6 +642,12 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     }
 
     /// @inheritdoc IOrionVault
+    function pendingDepositOf(address account) external view returns (uint256 amount) {
+        // slither-disable-next-line unused-return
+        (, amount) = _depositRequests.tryGet(account);
+    }
+
+    /// @inheritdoc IOrionVault
     function pendingRedeemCount() external view returns (uint256) {
         return _redeemRequests.length();
     }
