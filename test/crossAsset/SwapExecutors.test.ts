@@ -19,7 +19,6 @@ import type {
 } from "../../typechain-types";
 
 describe("UniswapV3ExecutionAdapter - Unit Tests", function () {
-  let owner: SignerWithAddress;
   let guardian: SignerWithAddress;
   let user: SignerWithAddress;
 
@@ -38,7 +37,7 @@ describe("UniswapV3ExecutionAdapter - Unit Tests", function () {
   const MOCK_POOL = "0x0000000000000000000000000000000000000001";
 
   before(async function () {
-    [owner, guardian, user] = await ethers.getSigners();
+    [, guardian, user] = await ethers.getSigners();
 
     // Deploy mock tokens
     const MockERC20 = await ethers.getContractFactory("MockUnderlyingAsset");
@@ -74,7 +73,6 @@ describe("UniswapV3ExecutionAdapter - Unit Tests", function () {
       await config.getAddress(),
     )) as unknown as UniswapV3ExecutionAdapter;
 
-    // Register fee tier for WETH (config owner == fixture deployer)
     await adapter.setAssetFee(await weth.getAddress(), FEE_TIER);
   });
 

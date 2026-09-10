@@ -1,0 +1,9 @@
+# Transitive via @uniswap/v3-periphery → @openzeppelin/contracts@3.4.2-solc-0.7
+# Orion does not import or deploy that package (only Uniswap interfaces; runtime uses on-chain router/quoter).
+# Direct OZ dependency is @openzeppelin/contracts@5.6.1.
+
+# FP: 3.4.2-solc-0.7 is the patched release for TimelockController (GHSA-fg47-3c2x-m2wr).
+CVE-2021-39167 exp:2027-03-10
+
+# Accepted: Initializable issue in unused transitive OZ 0.7 sources; not linked into Orion artifacts.
+CVE-2021-46320 exp:2027-03-10

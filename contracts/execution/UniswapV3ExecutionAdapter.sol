@@ -59,12 +59,7 @@ contract UniswapV3ExecutionAdapter is IExecutionAdapter {
      * @param quoterAddress Uniswap V3 QuoterV2 address
      * @param configAddress OrionConfig contract address
      */
-    constructor(
-        address factoryAddress,
-        address swapRouterAddress,
-        address quoterAddress,
-        address configAddress
-    ) {
+    constructor(address factoryAddress, address swapRouterAddress, address quoterAddress, address configAddress) {
         if (factoryAddress == address(0)) revert ErrorsLib.ZeroAddress();
         if (swapRouterAddress == address(0)) revert ErrorsLib.ZeroAddress();
         if (quoterAddress == address(0)) revert ErrorsLib.ZeroAddress();

@@ -107,7 +107,7 @@ jobs:
       contents: read
     steps:
       - name: "Check out the repo"
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: "Run Trivy filesystem scan"
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
@@ -116,7 +116,6 @@ jobs:
           scan-ref: "."
           scanners: "vuln,secret"
           severity: "CRITICAL,HIGH"
-          ignore-unfixed: "true"
           exit-code: "1"
           skip-dirs: "node_modules,artifacts,cache,coverage,.venv,typechain-types"
 
