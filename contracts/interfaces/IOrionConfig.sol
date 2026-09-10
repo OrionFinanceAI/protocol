@@ -258,7 +258,7 @@ interface IOrionConfig {
     function maxFulfillBatchSize() external view returns (uint256);
 
     /// @notice Sets the maximum fulfill batch size
-    /// @dev Can be called by the contract owner or guardian
+    /// @dev Owner only. Requires the system to be idle.
     /// @param size The new maximum fulfill batch size
     function setMaxFulfillBatchSize(uint256 size) external;
 }

@@ -10,7 +10,7 @@ import { IUniswapV3Factory } from "@uniswap/v3-core/contracts/interfaces/IUniswa
 import { IExecutionAdapter } from "../interfaces/IExecutionAdapter.sol";
 import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
 import { ILiquidityOrchestrator } from "../interfaces/ILiquidityOrchestrator.sol";
-import "@openzeppelin/contracts/access/Ownable2Step.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title UniswapV3ExecutionAdapter
@@ -22,7 +22,7 @@ import "@openzeppelin/contracts/access/Ownable2Step.sol";
  *
  * @custom:security-contact security@orionfinance.ai
  */
-contract UniswapV3ExecutionAdapter is IExecutionAdapter, Ownable2Step {
+contract UniswapV3ExecutionAdapter is IExecutionAdapter {
     using SafeERC20 for IERC20;
 
     /// @notice Uniswap V3 Factory contract
@@ -46,30 +46,25 @@ contract UniswapV3ExecutionAdapter is IExecutionAdapter, Ownable2Step {
     /// @notice asset => Uniswap V3 pool fee tier
     mapping(address => uint24) public assetFee;
 
-    /// @dev Restricts function to only owner or guardian
-    modifier onlyOwnerOrGuardian() {
-        if (msg.sender != owner() && msg.sender != CONFIG.guardian()) {
-            revert ErrorsLib.NotAuthorized();
-        }
+    /// @dev Restricts function to the protocol admin
+    modifier onlyConfigOwner() {
+        if (msg.sender != Ownable(address(CONFIG)).owner()) revert ErrorsLib.NotAuthorized();
         _;
     }
 
     /**
      * @notice Constructor
-     * @param initialOwner_ The address of the initial owner
      * @param factoryAddress Uniswap V3 Factory address
      * @param swapRouterAddress Uniswap V3 SwapRouter address
      * @param quoterAddress Uniswap V3 QuoterV2 address
      * @param configAddress OrionConfig contract address
      */
     constructor(
-        address initialOwner_,
         address factoryAddress,
         address swapRouterAddress,
         address quoterAddress,
         address configAddress
-    ) Ownable(initialOwner_) {
-        if (initialOwner_ == address(0)) revert ErrorsLib.ZeroAddress();
+    ) {
         if (factoryAddress == address(0)) revert ErrorsLib.ZeroAddress();
         if (swapRouterAddress == address(0)) revert ErrorsLib.ZeroAddress();
         if (quoterAddress == address(0)) revert ErrorsLib.ZeroAddress();
@@ -86,7 +81,7 @@ contract UniswapV3ExecutionAdapter is IExecutionAdapter, Ownable2Step {
     /// @notice Sets the fee tier for a given asset
     /// @param asset The address of the asset
     /// @param fee The fee tier to set
-    function setAssetFee(address asset, uint24 fee) external onlyOwnerOrGuardian {
+    function setAssetFee(address asset, uint24 fee) external onlyConfigOwner {
         if (asset == address(0)) revert ErrorsLib.ZeroAddress();
         if (!CONFIG.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 

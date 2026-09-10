@@ -1111,7 +1111,7 @@ describe("OrionConfig bootstrap and guardian ACL (merged)", function () {
     );
   });
 
-  it("Should allow guardian and owner, reject stranger and zero values", async function () {
+  it("Should allow guardian for min deposit, owner-only for max fulfill batch size", async function () {
     const { orionConfig, owner, guardian, stranger } = await networkHelpers.loadFixture(deployConfigWithLo);
     await orionConfig.connect(owner).setGuardian(guardian.address);
     await expect(orionConfig.connect(stranger).setMinDepositAmount(1)).to.be.revertedWithCustomError(
@@ -1120,13 +1120,17 @@ describe("OrionConfig bootstrap and guardian ACL (merged)", function () {
     );
     await expect(orionConfig.connect(stranger).setMaxFulfillBatchSize(1)).to.be.revertedWithCustomError(
       orionConfig,
-      "NotAuthorized",
+      "OwnableUnauthorizedAccount",
+    );
+    await expect(orionConfig.connect(guardian).setMaxFulfillBatchSize(1)).to.be.revertedWithCustomError(
+      orionConfig,
+      "OwnableUnauthorizedAccount",
     );
     await expect(orionConfig.connect(guardian).setMinDepositAmount(0)).to.be.revertedWithCustomError(
       orionConfig,
       "InvalidArguments",
     );
-    await expect(orionConfig.connect(guardian).setMaxFulfillBatchSize(0)).to.be.revertedWithCustomError(
+    await expect(orionConfig.connect(owner).setMaxFulfillBatchSize(0)).to.be.revertedWithCustomError(
       orionConfig,
       "InvalidArguments",
     );

@@ -73,6 +73,10 @@ contract MockOrionConfig {
         guardian = _guardian;
     }
 
+    function owner() external view returns (address) {
+        return admin;
+    }
+
     function isSystemIdle() external view returns (bool) {
         return systemIdle;
     }

@@ -68,14 +68,13 @@ describe("UniswapV3ExecutionAdapter - Unit Tests", function () {
     // Deploy adapter under test
     const AdapterFactory = await ethers.getContractFactory("UniswapV3ExecutionAdapter");
     adapter = (await AdapterFactory.deploy(
-      owner.address,
       await mockFactory.getAddress(),
       await mockRouter.getAddress(),
       await mockQuoter.getAddress(),
       await config.getAddress(),
     )) as unknown as UniswapV3ExecutionAdapter;
 
-    // Register fee tier for WETH
+    // Register fee tier for WETH (config owner == fixture deployer)
     await adapter.setAssetFee(await weth.getAddress(), FEE_TIER);
   });
 
@@ -90,11 +89,8 @@ describe("UniswapV3ExecutionAdapter - Unit Tests", function () {
 
     it("Should revert constructor with zero addresses", async function () {
       const AdapterFactory = await ethers.getContractFactory("UniswapV3ExecutionAdapter");
-      // Zero owner is rejected by OpenZeppelin Ownable first (OwnableInvalidOwner), before
-      // ErrorsLib.ZeroAddress. Use a zero factory to assert our custom error.
       await expect(
         AdapterFactory.deploy(
-          owner.address,
           ethers.ZeroAddress,
           await mockRouter.getAddress(),
           await mockQuoter.getAddress(),
@@ -104,7 +100,6 @@ describe("UniswapV3ExecutionAdapter - Unit Tests", function () {
 
       await expect(
         AdapterFactory.deploy(
-          owner.address,
           await mockFactory.getAddress(),
           ethers.ZeroAddress,
           await mockQuoter.getAddress(),
@@ -114,7 +109,6 @@ describe("UniswapV3ExecutionAdapter - Unit Tests", function () {
 
       await expect(
         AdapterFactory.deploy(
-          owner.address,
           await mockFactory.getAddress(),
           await mockRouter.getAddress(),
           ethers.ZeroAddress,
@@ -124,42 +118,32 @@ describe("UniswapV3ExecutionAdapter - Unit Tests", function () {
 
       await expect(
         AdapterFactory.deploy(
-          owner.address,
           await mockFactory.getAddress(),
           await mockRouter.getAddress(),
           await mockQuoter.getAddress(),
           ethers.ZeroAddress,
         ),
       ).to.be.revertedWithCustomError(adapter, "ZeroAddress");
-
-      await expect(
-        AdapterFactory.deploy(
-          ethers.ZeroAddress,
-          await mockFactory.getAddress(),
-          await mockRouter.getAddress(),
-          await mockQuoter.getAddress(),
-          await config.getAddress(),
-        ),
-      ).to.be.revertedWithCustomError(adapter, "OwnableInvalidOwner");
     });
   });
 
   describe("setAssetFee", function () {
-    it("Should allow owner to set fee tier", async function () {
+    it("Should allow config owner to set fee tier", async function () {
       const fee = await adapter.assetFee(await weth.getAddress());
       expect(fee).to.equal(FEE_TIER);
     });
 
-    it("Should allow guardian to set fee tier", async function () {
+    it("Should reject guardian from setting fee tier", async function () {
       const MockERC20 = await ethers.getContractFactory("MockUnderlyingAsset");
       const newToken = await MockERC20.deploy(18);
       await mockFactory.setPool(await newToken.getAddress(), await usdc.getAddress(), 500, MOCK_POOL);
 
-      await adapter.connect(guardian).setAssetFee(await newToken.getAddress(), 500);
-      expect(await adapter.assetFee(await newToken.getAddress())).to.equal(500);
+      await expect(
+        adapter.connect(guardian).setAssetFee(await newToken.getAddress(), 500),
+      ).to.be.revertedWithCustomError(adapter, "NotAuthorized");
     });
 
-    it("Should revert when called by non-owner/non-guardian", async function () {
+    it("Should revert when called by non-config-owner", async function () {
       await expect(adapter.connect(user).setAssetFee(await weth.getAddress(), FEE_TIER)).to.be.revertedWithCustomError(
         adapter,
         "NotAuthorized",

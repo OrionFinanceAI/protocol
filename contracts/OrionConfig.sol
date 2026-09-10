@@ -257,8 +257,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     }
 
     /// @inheritdoc IOrionConfig
-    function setMaxFulfillBatchSize(uint256 size) external {
-        if (msg.sender != guardian && msg.sender != owner()) revert ErrorsLib.NotAuthorized();
+    function setMaxFulfillBatchSize(uint256 size) external onlyOwner {
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         if (size == 0) revert ErrorsLib.InvalidArguments();
 
