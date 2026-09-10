@@ -82,7 +82,7 @@ export async function deployUpgradeableProtocol(
   // 2. Deploy PriceAdapterRegistry proxy and set in config
   const priceAdapterRegistry = await deployUUPSProxy<PriceAdapterRegistry>(
     "PriceAdapterRegistry",
-    [owner.address, await orionConfig.getAddress()],
+    [await orionConfig.getAddress()],
     owner,
   );
 
@@ -104,7 +104,7 @@ export async function deployUpgradeableProtocol(
 
   const liquidityOrchestrator = await deployUUPSProxy<LiquidityOrchestrator>(
     "LiquidityOrchestrator",
-    [owner.address, await orionConfig.getAddress(), automationReg.address, await sp1VerifierGateway.getAddress(), vKey],
+    [await orionConfig.getAddress(), automationReg.address, await sp1VerifierGateway.getAddress(), vKey],
     owner,
   );
 
@@ -126,7 +126,7 @@ export async function deployUpgradeableProtocol(
   // 6. Deploy TransparentVaultFactory proxy
   const transparentVaultFactory = await deployUUPSProxy<TransparentVaultFactory>(
     "TransparentVaultFactory",
-    [owner.address, await orionConfig.getAddress(), await vaultBeacon.getAddress()],
+    [await orionConfig.getAddress(), await vaultBeacon.getAddress()],
     owner,
   );
 

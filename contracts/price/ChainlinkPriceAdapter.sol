@@ -2,9 +2,10 @@
 pragma solidity ^0.8.34;
 
 import { IPriceAdapter } from "../interfaces/IPriceAdapter.sol";
+import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
-import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
@@ -16,7 +17,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
  *
  * @custom:security-contact security@orionfinance.ai
  */
-contract ChainlinkPriceAdapter is IPriceAdapter, Ownable2Step {
+contract ChainlinkPriceAdapter is IPriceAdapter {
     /**
      * @notice Per-asset feed configuration.
      * @param feed Chainlink base aggregator.
@@ -38,6 +39,9 @@ contract ChainlinkPriceAdapter is IPriceAdapter, Ownable2Step {
         uint256 scaleFactor;
     }
 
+    /// @notice Orion Config contract
+    IOrionConfig public immutable CONFIG;
+
     /// @notice Per-asset feed configuration store.
     mapping(address => FeedConfig) public feedConfigOf;
 
@@ -49,6 +53,12 @@ contract ChainlinkPriceAdapter is IPriceAdapter, Ownable2Step {
 
     /// @notice Precision of the cross-rate output when a quoteFeed is configured.
     uint8 public constant PRICE_DECIMALS = 18;
+
+    /// @dev Restricts function to protocol admin
+    modifier onlyAdmin() {
+        if (msg.sender != Ownable(address(CONFIG)).owner()) revert ErrorsLib.NotAuthorized();
+        _;
+    }
 
     /// @notice Emitted when a Chainlink feed is configured for an asset
     /// @param asset The asset address
@@ -73,7 +83,11 @@ contract ChainlinkPriceAdapter is IPriceAdapter, Ownable2Step {
     /// @param fallbackAdapter The fallback price adapter, or address(0) to disable.
     event FallbackAdapterSet(address indexed asset, address indexed fallbackAdapter);
 
-    constructor() Ownable(msg.sender) {}
+    /// @param configAddress OrionConfig contract address
+    constructor(address configAddress) {
+        if (configAddress == address(0)) revert ErrorsLib.ZeroAddress();
+        CONFIG = IOrionConfig(configAddress);
+    }
 
     /**
      * @notice Configure Chainlink feed for an asset.
@@ -96,7 +110,7 @@ contract ChainlinkPriceAdapter is IPriceAdapter, Ownable2Step {
         uint256 _minPrice,
         uint256 _maxPrice,
         address quoteFeed
-    ) external onlyOwner {
+    ) external onlyAdmin {
         if (asset == address(0) || feed == address(0)) revert ErrorsLib.ZeroAddress();
         if (_maxStaleness == 0) revert ErrorsLib.InvalidArguments();
         if (_maxPrice == 0) revert ErrorsLib.InvalidArguments();
@@ -140,7 +154,7 @@ contract ChainlinkPriceAdapter is IPriceAdapter, Ownable2Step {
     /// @dev Intended for UniswapV3PoolPriceAdapter. Other Chainlink validation errors still revert.
     /// @param asset The asset address.
     /// @param fallbackAdapter The fallback adapter, or address(0) to disable.
-    function setFallbackAdapter(address asset, IPriceAdapter fallbackAdapter) external onlyOwner {
+    function setFallbackAdapter(address asset, IPriceAdapter fallbackAdapter) external onlyAdmin {
         if (asset == address(0)) revert ErrorsLib.ZeroAddress();
         if (address(fallbackAdapter) == address(this)) revert ErrorsLib.InvalidArguments();
 

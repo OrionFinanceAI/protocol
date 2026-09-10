@@ -28,8 +28,15 @@ describe("ChainlinkPriceAdapter — unit tests", function () {
   const QUOTE_ANSWER = 1_00010000n; // $1.0001 in 8-dec fixed-point
 
   beforeEach(async function () {
+    const TokenF = await ethers.getContractFactory("MockUnderlyingAsset");
+    const usdc = await TokenF.deploy(6);
+    await usdc.waitForDeployment();
+    const ConfigF = await ethers.getContractFactory("MockOrionConfig");
+    const config = await ConfigF.deploy(await usdc.getAddress());
+    await config.waitForDeployment();
+
     const AdapterF = await ethers.getContractFactory("ChainlinkPriceAdapter");
-    adapter = (await AdapterF.deploy()) as unknown as ChainlinkPriceAdapter;
+    adapter = (await AdapterF.deploy(await config.getAddress())) as unknown as ChainlinkPriceAdapter;
     await adapter.waitForDeployment();
 
     const FeedF = await ethers.getContractFactory("MockChainlinkFeed");
@@ -183,7 +190,7 @@ describe("ChainlinkPriceAdapter — unit tests", function () {
         adapter
           .connect(nonOwner)
           .configureFeed(asset, await baseFeed.getAddress(), false, STALENESS, 1, MAX_PRICE, ethers.ZeroAddress),
-      ).to.be.revertedWithCustomError(adapter, "OwnableUnauthorizedAccount");
+      ).to.be.revertedWithCustomError(adapter, "NotAuthorized");
     });
   });
 
@@ -209,7 +216,7 @@ describe("ChainlinkPriceAdapter — unit tests", function () {
       const [, nonOwner] = await ethers.getSigners();
       await expect(
         adapter.connect(nonOwner).setFallbackAdapter(asset, await fallbackAdapter.getAddress()),
-      ).to.be.revertedWithCustomError(adapter, "OwnableUnauthorizedAccount");
+      ).to.be.revertedWithCustomError(adapter, "NotAuthorized");
     });
 
     it("rejects self as fallback adapter", async function () {

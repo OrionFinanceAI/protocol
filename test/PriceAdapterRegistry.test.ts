@@ -87,22 +87,13 @@ describe("PriceAdapterRegistry", function () {
   });
 
   describe("initialize", function () {
-    it("should reject zero owner or config on initialize via proxy", async function () {
+    it("should reject zero config on initialize via proxy", async function () {
       const Impl = await ethers.getContractFactory("PriceAdapterRegistry");
       const impl = await Impl.deploy();
       await impl.waitForDeployment();
 
       const Proxy = await ethers.getContractFactory("OrionERC1967Proxy");
-      const initBadOwner = Impl.interface.encodeFunctionData("initialize", [
-        ethers.ZeroAddress,
-        await orionConfig.getAddress(),
-      ]);
-      await expect(Proxy.deploy(await impl.getAddress(), initBadOwner)).to.be.revertedWithCustomError(
-        priceAdapterRegistry,
-        "ZeroAddress",
-      );
-
-      const initBadConfig = Impl.interface.encodeFunctionData("initialize", [owner.address, ethers.ZeroAddress]);
+      const initBadConfig = Impl.interface.encodeFunctionData("initialize", [ethers.ZeroAddress]);
       await expect(Proxy.deploy(await impl.getAddress(), initBadConfig)).to.be.revertedWithCustomError(
         priceAdapterRegistry,
         "ZeroAddress",

@@ -100,7 +100,7 @@ describe("LiquidityOrchestrator – deferred buffer and fee accrual", function (
 
     const registry = await deployUUPSProxy<PriceAdapterRegistry>(
       "PriceAdapterRegistry",
-      [owner.address, await orionConfig.getAddress()],
+      [await orionConfig.getAddress()],
       owner,
     );
     await orionConfig.setPriceAdapterRegistry(await registry.getAddress());
@@ -112,13 +112,7 @@ describe("LiquidityOrchestrator – deferred buffer and fee accrual", function (
     const vKey = "0x007ccff4696ddd1d62fec2a106aa50309ba0fdee8fc2bcbc9c0b5ea68fe200f3";
     harness = await deployUUPSProxy<LiquidityOrchestratorBufferHarness>(
       "LiquidityOrchestratorBufferHarness",
-      [
-        owner.address,
-        await orionConfig.getAddress(),
-        automationRegistry.address,
-        await mockVerifier.getAddress(),
-        vKey,
-      ],
+      [await orionConfig.getAddress(), automationRegistry.address, await mockVerifier.getAddress(), vKey],
       owner,
     );
     await orionConfig.setLiquidityOrchestrator(await harness.getAddress());

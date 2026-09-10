@@ -57,7 +57,7 @@ describe("LiquidityOrchestrator - Centralized Slippage Management", function () 
     // --- Deploy PriceAdapterRegistry proxy ---
     const priceAdapterRegistry = await deployUUPSProxy<PriceAdapterRegistry>(
       "PriceAdapterRegistry",
-      [owner.address, await orionConfig.getAddress()],
+      [await orionConfig.getAddress()],
       owner,
     );
     await orionConfig.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
@@ -77,7 +77,7 @@ describe("LiquidityOrchestrator - Centralized Slippage Management", function () 
     // --- Deploy LiquidityOrchestratorSlippageHarness proxy ---
     harness = await deployUUPSProxy<LiquidityOrchestratorSlippageHarness>(
       "LiquidityOrchestratorSlippageHarness",
-      [owner.address, await orionConfig.getAddress(), owner.address, await sp1VerifierGateway.getAddress(), vKey],
+      [await orionConfig.getAddress(), owner.address, await sp1VerifierGateway.getAddress(), vKey],
       owner,
     );
 
@@ -132,7 +132,7 @@ describe("LiquidityOrchestrator - Centralized Slippage Management", function () 
 
     const transparentVaultFactory = await deployUUPSProxy(
       "TransparentVaultFactory",
-      [owner.address, await orionConfig.getAddress(), await vaultBeacon.getAddress()],
+      [await orionConfig.getAddress(), await vaultBeacon.getAddress()],
       owner,
     );
     await orionConfig.setVaultFactory(await transparentVaultFactory.getAddress());

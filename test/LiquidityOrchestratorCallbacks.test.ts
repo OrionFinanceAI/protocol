@@ -37,7 +37,7 @@ describe("LiquidityOrchestrator callbacks and protocol fee claims", function () 
 
     const priceAdapterRegistry = await deployUUPSProxy<PriceAdapterRegistry>(
       "PriceAdapterRegistry",
-      [owner.address, await orionConfig.getAddress()],
+      [await orionConfig.getAddress()],
       owner,
     );
     await orionConfig.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
@@ -53,7 +53,7 @@ describe("LiquidityOrchestrator callbacks and protocol fee claims", function () 
     const vKey = "0x007ccff4696ddd1d62fec2a106aa50309ba0fdee8fc2bcbc9c0b5ea68fe200f3";
     const harness = await deployUUPSProxy<LiquidityOrchestratorBufferHarness>(
       "LiquidityOrchestratorBufferHarness",
-      [owner.address, await orionConfig.getAddress(), owner.address, await sp1VerifierGateway.getAddress(), vKey],
+      [await orionConfig.getAddress(), owner.address, await sp1VerifierGateway.getAddress(), vKey],
       owner,
     );
     await orionConfig.setLiquidityOrchestrator(await harness.getAddress());
@@ -67,7 +67,7 @@ describe("LiquidityOrchestrator callbacks and protocol fee claims", function () 
 
     const transparentVaultFactory = await deployUUPSProxy<TransparentVaultFactory>(
       "TransparentVaultFactory",
-      [owner.address, await orionConfig.getAddress(), await vaultBeacon.getAddress()],
+      [await orionConfig.getAddress(), await vaultBeacon.getAddress()],
       owner,
     );
     await orionConfig.setVaultFactory(await transparentVaultFactory.getAddress());
@@ -119,7 +119,7 @@ describe("LiquidityOrchestrator callbacks and protocol fee claims", function () 
 
       await expect(harness.connect(stranger).claimProtocolFees(1)).to.be.revertedWithCustomError(
         harness,
-        "OwnableUnauthorizedAccount",
+        "NotAuthorized",
       );
 
       await expect(harness.connect(owner).claimProtocolFees(0)).to.be.revertedWithCustomError(

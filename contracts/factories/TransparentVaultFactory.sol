@@ -3,10 +3,10 @@ pragma solidity ^0.8.34;
 
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
 import "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import "../interfaces/IOrionConfig.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { EventsLib } from "../libraries/EventsLib.sol";
 import { OrionTransparentVault } from "../vaults/OrionTransparentVault.sol";
@@ -18,7 +18,7 @@ import { OrionTransparentVault } from "../vaults/OrionTransparentVault.sol";
  * @dev This contract deploys BeaconProxy instances that point to a shared transparent vault implementation.
  * @custom:security-contact security@orionfinance.ai
  */
-contract TransparentVaultFactory is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable {
+contract TransparentVaultFactory is Initializable, UUPSUpgradeable {
     /// @notice Orion Config contract address
     IOrionConfig public config;
 
@@ -28,6 +28,12 @@ contract TransparentVaultFactory is Initializable, Ownable2StepUpgradeable, UUPS
     /// @notice Address of the upgrade timelock that must authorise all implementation upgrades
     address public upgradeTimelock;
 
+    /// @dev Restricts function to protocol admin
+    modifier onlyAdmin() {
+        if (msg.sender != Ownable(address(config)).owner()) revert ErrorsLib.NotAuthorized();
+        _;
+    }
+
     /// @notice Constructor that disables initializers for the implementation contract
     /// @custom:oz-upgrades-unsafe-allow constructor
     // solhint-disable-next-line use-natspec
@@ -36,15 +42,10 @@ contract TransparentVaultFactory is Initializable, Ownable2StepUpgradeable, UUPS
     }
 
     /// @notice Initialize the contract
-    /// @param initialOwner The address of the initial owner
     /// @param configAddress The address of the OrionConfig contract
     /// @param vaultBeaconAddress The address of the UpgradeableBeacon for vaults
-    function initialize(address initialOwner, address configAddress, address vaultBeaconAddress) public initializer {
-        if (initialOwner == address(0)) revert ErrorsLib.ZeroAddress();
+    function initialize(address configAddress, address vaultBeaconAddress) public initializer {
         if (configAddress == address(0) || vaultBeaconAddress == address(0)) revert ErrorsLib.ZeroAddress();
-
-        __Ownable_init(initialOwner);
-        __Ownable2Step_init();
 
         config = IOrionConfig(configAddress);
         vaultBeacon = UpgradeableBeacon(vaultBeaconAddress);
@@ -119,19 +120,19 @@ contract TransparentVaultFactory is Initializable, Ownable2StepUpgradeable, UUPS
 
     /// @notice Updates the vault beacon address
     /// @param newVaultBeacon The new UpgradeableBeacon address
-    function setVaultBeacon(address newVaultBeacon) external onlyOwner {
+    function setVaultBeacon(address newVaultBeacon) external onlyAdmin {
         if (newVaultBeacon == address(0)) revert ErrorsLib.ZeroAddress();
         vaultBeacon = UpgradeableBeacon(newVaultBeacon);
         emit EventsLib.VaultBeaconUpdated(newVaultBeacon);
     }
 
     /// @notice Sets the upgrade timelock address.
-    /// @dev If no timelock is set yet, only the owner may call this. Once a timelock is active,
-    ///      only the timelock itself may replace it, preventing the owner from bypassing the delay.
+    /// @dev If no timelock is set yet, only the protocol admin may call this. Once a timelock is active,
+    ///      only the timelock itself may replace it, preventing the admin from bypassing the delay.
     /// @param newTimelock The new timelock address (e.g. OpenZeppelin TimelockController); address(0) not permitted
     function setUpgradeTimelock(address newTimelock) external {
         if (upgradeTimelock == address(0)) {
-            if (msg.sender != owner()) revert ErrorsLib.NotAuthorized();
+            if (msg.sender != Ownable(address(config)).owner()) revert ErrorsLib.NotAuthorized();
         } else {
             if (msg.sender != upgradeTimelock) revert ErrorsLib.NotAuthorized();
         }
@@ -141,14 +142,14 @@ contract TransparentVaultFactory is Initializable, Ownable2StepUpgradeable, UUPS
     }
 
     /// @notice Authorizes an upgrade to a new implementation
-    /// @dev Requires the caller to be the upgrade timelock (if set) or the owner (during initial
+    /// @dev Requires the caller to be the upgrade timelock (if set) or the protocol admin (during initial
     ///      bootstrapping before a timelock has been configured).
     // solhint-disable-next-line use-natspec
-    function _authorizeUpgrade(address) internal override {
+    function _authorizeUpgrade(address) internal view override {
         if (upgradeTimelock != address(0)) {
             if (msg.sender != upgradeTimelock) revert ErrorsLib.NotAuthorized();
         } else {
-            if (msg.sender != owner()) revert ErrorsLib.NotAuthorized();
+            if (msg.sender != Ownable(address(config)).owner()) revert ErrorsLib.NotAuthorized();
         }
     }
 

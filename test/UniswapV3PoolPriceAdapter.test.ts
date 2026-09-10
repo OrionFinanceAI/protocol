@@ -4,13 +4,13 @@
 
 import { expect } from "chai";
 import { ethers } from "./helpers/hh";
-import type { MockUnderlyingAsset, UniswapV3PoolPriceAdapter } from "../typechain-types";
+import type { MockUnderlyingAsset, MockOrionConfig, UniswapV3PoolPriceAdapter } from "../typechain-types";
 
 const TWAP = 300;
 const SQRT_OK = 1n << 96n; // ~1.0 price
 
 describe("UniswapV3PoolPriceAdapter — unit tests", function () {
-  let owner: Awaited<ReturnType<typeof ethers.getSigners>>[0];
+  let config: MockOrionConfig;
   let usdc: MockUnderlyingAsset;
   let asset: MockUnderlyingAsset;
   let adapter: UniswapV3PoolPriceAdapter;
@@ -30,17 +30,20 @@ describe("UniswapV3PoolPriceAdapter — unit tests", function () {
   }
 
   beforeEach(async function () {
-    [owner] = await ethers.getSigners();
     const TokenF = await ethers.getContractFactory("MockUnderlyingAsset");
     usdc = (await TokenF.deploy(6)) as unknown as MockUnderlyingAsset;
     asset = (await TokenF.deploy(18)) as unknown as MockUnderlyingAsset;
     await usdc.waitForDeployment();
     await asset.waitForDeployment();
 
+    const ConfigF = await ethers.getContractFactory("MockOrionConfig");
+    config = (await ConfigF.deploy(await usdc.getAddress())) as unknown as MockOrionConfig;
+    await config.waitForDeployment();
+
     const AdapterF = await ethers.getContractFactory("UniswapV3PoolPriceAdapter");
     adapter = (await AdapterF.deploy(
+      await config.getAddress(),
       await usdc.getAddress(),
-      owner.address,
       TWAP,
       0, // min liquidity skip
       0, // min cardinality skip
@@ -52,18 +55,16 @@ describe("UniswapV3PoolPriceAdapter — unit tests", function () {
   describe("constructor", function () {
     it("should reject zero USDC", async function () {
       const AdapterF = await ethers.getContractFactory("UniswapV3PoolPriceAdapter");
-      await expect(AdapterF.deploy(ethers.ZeroAddress, owner.address, TWAP, 0, 0, 0)).to.be.revertedWithCustomError(
-        adapter,
-        "ZeroAddress",
-      );
+      await expect(
+        AdapterF.deploy(await config.getAddress(), ethers.ZeroAddress, TWAP, 0, 0, 0),
+      ).to.be.revertedWithCustomError(adapter, "ZeroAddress");
     });
 
     it("should reject TWAP window below minimum", async function () {
       const AdapterF = await ethers.getContractFactory("UniswapV3PoolPriceAdapter");
-      await expect(AdapterF.deploy(await usdc.getAddress(), owner.address, 1, 0, 0, 0)).to.be.revertedWithCustomError(
-        adapter,
-        "InvalidArguments",
-      );
+      await expect(
+        AdapterF.deploy(await config.getAddress(), await usdc.getAddress(), 1, 0, 0, 0),
+      ).to.be.revertedWithCustomError(adapter, "InvalidArguments");
     });
   });
 
@@ -176,8 +177,8 @@ describe("UniswapV3PoolPriceAdapter — unit tests", function () {
     it("should reject stale observations when staleness is configured", async function () {
       const AdapterF = await ethers.getContractFactory("UniswapV3PoolPriceAdapter");
       const staleAdapter = (await AdapterF.deploy(
+        await config.getAddress(),
         await usdc.getAddress(),
-        owner.address,
         TWAP,
         0,
         0,

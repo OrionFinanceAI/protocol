@@ -138,7 +138,7 @@ describe("LiquidityOrchestrator – encrypted vaults", function () {
 
     const priceAdapterRegistry = await deployUUPSProxy<PriceAdapterRegistry>(
       "PriceAdapterRegistry",
-      [owner.address, await orionConfig.getAddress()],
+      [await orionConfig.getAddress()],
       owner,
     );
     await orionConfig.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
@@ -150,13 +150,7 @@ describe("LiquidityOrchestrator – encrypted vaults", function () {
     const vKey = "0x007ccff4696ddd1d62fec2a106aa50309ba0fdee8fc2bcbc9c0b5ea68fe200f3";
     harness = await deployUUPSProxy<LiquidityOrchestratorVaultHarness>(
       "LiquidityOrchestratorVaultHarness",
-      [
-        owner.address,
-        await orionConfig.getAddress(),
-        automationRegistry.address,
-        await mockVerifier.getAddress(),
-        vKey,
-      ],
+      [await orionConfig.getAddress(), automationRegistry.address, await mockVerifier.getAddress(), vKey],
       owner,
     );
     await orionConfig.setLiquidityOrchestrator(await harness.getAddress());
@@ -173,7 +167,7 @@ describe("LiquidityOrchestrator – encrypted vaults", function () {
 
     transparentVaultFactory = await deployUUPSProxy<TransparentVaultFactory>(
       "TransparentVaultFactory",
-      [owner.address, await orionConfig.getAddress(), await transparentBeacon.getAddress()],
+      [await orionConfig.getAddress(), await transparentBeacon.getAddress()],
       owner,
     );
     await orionConfig.setVaultFactory(await transparentVaultFactory.getAddress());
@@ -189,7 +183,7 @@ describe("LiquidityOrchestrator – encrypted vaults", function () {
 
     encryptedVaultFactory = await deployUUPSProxy<EncryptedVaultFactory>(
       "EncryptedVaultFactory",
-      [owner.address, await orionConfig.getAddress(), await encryptedBeacon.getAddress()],
+      [await orionConfig.getAddress(), await encryptedBeacon.getAddress()],
       owner,
     );
     await orionConfig.setEncryptedVaultFactory(await encryptedVaultFactory.getAddress());

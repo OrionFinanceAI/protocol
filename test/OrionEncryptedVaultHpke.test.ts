@@ -121,7 +121,7 @@ describe("OrionEncryptedVault – HPKE intent submit", function () {
 
     encryptedVaultFactory = await deployUUPSProxy<EncryptedVaultFactory>(
       "EncryptedVaultFactory",
-      [owner.address, await orionConfig.getAddress(), await vaultBeacon.getAddress()],
+      [await orionConfig.getAddress(), await vaultBeacon.getAddress()],
       owner,
     );
     await orionConfig.setEncryptedVaultFactory(await encryptedVaultFactory.getAddress());

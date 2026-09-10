@@ -72,7 +72,7 @@ describe("EncryptedVaultFactory / Config / LO edge branches", function () {
 
     const priceAdapterRegistry = await deployUUPSProxy<PriceAdapterRegistry>(
       "PriceAdapterRegistry",
-      [owner.address, await orionConfig.getAddress()],
+      [await orionConfig.getAddress()],
       owner,
     );
     await orionConfig.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
@@ -84,13 +84,7 @@ describe("EncryptedVaultFactory / Config / LO edge branches", function () {
     const vKey = "0x007ccff4696ddd1d62fec2a106aa50309ba0fdee8fc2bcbc9c0b5ea68fe200f3";
     harness = await deployUUPSProxy<LiquidityOrchestratorHarness>(
       "LiquidityOrchestratorHarness",
-      [
-        owner.address,
-        await orionConfig.getAddress(),
-        automationRegistry.address,
-        await mockVerifier.getAddress(),
-        vKey,
-      ],
+      [await orionConfig.getAddress(), automationRegistry.address, await mockVerifier.getAddress(), vKey],
       owner,
     );
     await orionConfig.setLiquidityOrchestrator(await harness.getAddress());
@@ -107,7 +101,7 @@ describe("EncryptedVaultFactory / Config / LO edge branches", function () {
 
     transparentVaultFactory = await deployUUPSProxy<TransparentVaultFactory>(
       "TransparentVaultFactory",
-      [owner.address, await orionConfig.getAddress(), await transparentBeacon.getAddress()],
+      [await orionConfig.getAddress(), await transparentBeacon.getAddress()],
       owner,
     );
     await orionConfig.setVaultFactory(await transparentVaultFactory.getAddress());
@@ -123,7 +117,7 @@ describe("EncryptedVaultFactory / Config / LO edge branches", function () {
 
     encryptedVaultFactory = await deployUUPSProxy<EncryptedVaultFactory>(
       "EncryptedVaultFactory",
-      [owner.address, await orionConfig.getAddress(), await vaultBeacon.getAddress()],
+      [await orionConfig.getAddress(), await vaultBeacon.getAddress()],
       owner,
     );
     await orionConfig.setEncryptedVaultFactory(await encryptedVaultFactory.getAddress());
@@ -145,24 +139,13 @@ describe("EncryptedVaultFactory / Config / LO edge branches", function () {
   });
 
   describe("EncryptedVaultFactory", function () {
-    it("initialize rejects zero owner / config / beacon", async function () {
+    it("initialize rejects zero config / beacon", async function () {
       const Impl = await ethers.getContractFactory("EncryptedVaultFactory");
       const impl = await Impl.deploy();
       await impl.waitForDeployment();
       const Proxy = await ethers.getContractFactory("OrionERC1967Proxy");
 
-      const badOwner = Impl.interface.encodeFunctionData("initialize", [
-        ethers.ZeroAddress,
-        await orionConfig.getAddress(),
-        await vaultBeacon.getAddress(),
-      ]);
-      await expect(Proxy.deploy(await impl.getAddress(), badOwner)).to.be.revertedWithCustomError(
-        encryptedVaultFactory,
-        "ZeroAddress",
-      );
-
       const badConfig = Impl.interface.encodeFunctionData("initialize", [
-        owner.address,
         ethers.ZeroAddress,
         await vaultBeacon.getAddress(),
       ]);
@@ -172,7 +155,6 @@ describe("EncryptedVaultFactory / Config / LO edge branches", function () {
       );
 
       const badBeacon = Impl.interface.encodeFunctionData("initialize", [
-        owner.address,
         await orionConfig.getAddress(),
         ethers.ZeroAddress,
       ]);

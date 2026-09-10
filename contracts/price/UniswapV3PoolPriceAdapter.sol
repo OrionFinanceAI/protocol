@@ -2,8 +2,9 @@
 pragma solidity ^0.8.34;
 
 import "../interfaces/IPriceAdapter.sol";
+import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import { Ownable2Step, Ownable } from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { TickMath } from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
@@ -25,7 +26,7 @@ import { IUniswapV3Pool } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3
  * @custom:security-contact security@orionfinance.ai
  */
 
-contract UniswapV3PoolPriceAdapter is IPriceAdapter, Ownable2Step {
+contract UniswapV3PoolPriceAdapter is IPriceAdapter {
     using Math for uint256;
 
     /// @notice Minimum allowed TWAP window to avoid effectively-spot pricing.
@@ -64,6 +65,9 @@ contract UniswapV3PoolPriceAdapter is IPriceAdapter, Ownable2Step {
     /// @notice Extra price precision digits (matches ERC4626PriceAdapter for registry normalization).
     uint8 public constant PRICE_DECIMALS = 10;
 
+    /// @notice Orion Config contract
+    IOrionConfig public immutable CONFIG;
+
     /// @notice Protocol underlying (USDC).
     address public immutable USDC;
 
@@ -93,23 +97,31 @@ contract UniswapV3PoolPriceAdapter is IPriceAdapter, Ownable2Step {
     /// @param pool Uniswap V3 pool registered for the asset.
     event PoolSet(address indexed asset, address indexed pool);
 
+    /// @dev Restricts function to protocol admin
+    modifier onlyAdmin() {
+        if (msg.sender != Ownable(address(CONFIG)).owner()) revert ErrorsLib.NotAuthorized();
+        _;
+    }
+
     /// @notice Constructor
+    /// @param configAddress OrionConfig contract address
     /// @param usdc Protocol underlying (USDC)
-    /// @param initialOwner Ownable owner for setPool
     /// @param twapObserveSeconds_ TWAP window in seconds; must be >= MIN_TWAP_WINDOW
     /// @param minPoolLiquidity_ Minimum in-range liquidity; 0 skips
     /// @param minObservationCardinality_ Minimum observation cardinality at setPool; 0 skips
     /// @param maxObservationStalenessSeconds_ Max age of latest observation; 0 skips staleness guard
     constructor(
+        address configAddress,
         address usdc,
-        address initialOwner,
         uint32 twapObserveSeconds_,
         uint128 minPoolLiquidity_,
         uint16 minObservationCardinality_,
         uint32 maxObservationStalenessSeconds_
-    ) Ownable(initialOwner) {
+    ) {
+        if (configAddress == address(0)) revert ErrorsLib.ZeroAddress();
         if (usdc == address(0)) revert ErrorsLib.ZeroAddress();
         if (twapObserveSeconds_ < MIN_TWAP_WINDOW) revert ErrorsLib.InvalidArguments();
+        CONFIG = IOrionConfig(configAddress);
         USDC = usdc;
         USDC_DECIMALS = IERC20Metadata(usdc).decimals();
         TWAP_OBSERVE_SECONDS = twapObserveSeconds_;
@@ -122,7 +134,7 @@ contract UniswapV3PoolPriceAdapter is IPriceAdapter, Ownable2Step {
     /// @dev Pool tokens must be asset and USDC in either order. Probes observe TWAP horizon and staleness.
     /// @param asset ERC20 to price (not USDC)
     /// @param pool Uniswap V3 pool address
-    function setPool(address asset, address pool) external onlyOwner {
+    function setPool(address asset, address pool) external onlyAdmin {
         if (asset == address(0) || pool == address(0)) revert ErrorsLib.ZeroAddress();
         if (asset == USDC) revert ErrorsLib.InvalidAdapter(asset);
 

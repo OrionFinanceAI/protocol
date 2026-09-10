@@ -141,7 +141,7 @@ describe("EpochStateCommitmentBinding", function () {
 
     const priceAdapterRegistry = await deployUUPSProxy<PriceAdapterRegistry>(
       "PriceAdapterRegistry",
-      [owner.address, await orionConfig.getAddress()],
+      [await orionConfig.getAddress()],
       owner,
     );
     await orionConfig.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
@@ -153,13 +153,7 @@ describe("EpochStateCommitmentBinding", function () {
     const vKey = "0x007ccff4696ddd1d62fec2a106aa50309ba0fdee8fc2bcbc9c0b5ea68fe200f3";
     harness = await deployUUPSProxy<LiquidityOrchestratorCommitmentHarness>(
       "LiquidityOrchestratorCommitmentHarness",
-      [
-        owner.address,
-        await orionConfig.getAddress(),
-        automationRegistry.address,
-        await mockVerifier.getAddress(),
-        vKey,
-      ],
+      [await orionConfig.getAddress(), automationRegistry.address, await mockVerifier.getAddress(), vKey],
       owner,
     );
     await orionConfig.setLiquidityOrchestrator(await harness.getAddress());
@@ -176,7 +170,7 @@ describe("EpochStateCommitmentBinding", function () {
 
     transparentVaultFactory = await deployUUPSProxy<TransparentVaultFactory>(
       "TransparentVaultFactory",
-      [owner.address, await orionConfig.getAddress(), await vaultBeacon.getAddress()],
+      [await orionConfig.getAddress(), await vaultBeacon.getAddress()],
       owner,
     );
     await orionConfig.setVaultFactory(await transparentVaultFactory.getAddress());
@@ -294,7 +288,7 @@ describe("EpochStateCommitmentBinding", function () {
       );
       const priceAdapterRegistry = await deployUUPSProxy<PriceAdapterRegistry>(
         "PriceAdapterRegistry",
-        [owner.address, await orionConfig.getAddress()],
+        [await orionConfig.getAddress()],
         owner,
       );
       await orionConfig.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
@@ -305,13 +299,7 @@ describe("EpochStateCommitmentBinding", function () {
       const vKey = "0x007ccff4696ddd1d62fec2a106aa50309ba0fdee8fc2bcbc9c0b5ea68fe200f3";
       harness = await deployUUPSProxy<LiquidityOrchestratorCommitmentHarness>(
         "LiquidityOrchestratorCommitmentHarness",
-        [
-          owner.address,
-          await orionConfig.getAddress(),
-          automationRegistry.address,
-          await mockVerifier.getAddress(),
-          vKey,
-        ],
+        [await orionConfig.getAddress(), automationRegistry.address, await mockVerifier.getAddress(), vKey],
         owner,
       );
       await orionConfig.setLiquidityOrchestrator(await harness.getAddress());
@@ -322,7 +310,7 @@ describe("EpochStateCommitmentBinding", function () {
       ).deploy(await vaultImpl.getAddress(), owner.address)) as unknown as UpgradeableBeacon;
       transparentVaultFactory = await deployUUPSProxy<TransparentVaultFactory>(
         "TransparentVaultFactory",
-        [owner.address, await orionConfig.getAddress(), await vaultBeacon.getAddress()],
+        [await orionConfig.getAddress(), await vaultBeacon.getAddress()],
         owner,
       );
       await orionConfig.setVaultFactory(await transparentVaultFactory.getAddress());

@@ -250,7 +250,7 @@ describe("Protocol Pause Functionality", function () {
     it("should prevent guardian from unpausing (only owner)", async function () {
       await expect(liquidityOrchestrator.connect(guardian).unpause()).to.be.revertedWithCustomError(
         liquidityOrchestrator,
-        "OwnableUnauthorizedAccount",
+        "NotAuthorized",
       );
 
       // Verify everything is still paused
@@ -260,7 +260,7 @@ describe("Protocol Pause Functionality", function () {
     it("should prevent non-owner from unpausing", async function () {
       await expect(liquidityOrchestrator.connect(user1).unpause()).to.be.revertedWithCustomError(
         liquidityOrchestrator,
-        "OwnableUnauthorizedAccount",
+        "NotAuthorized",
       );
 
       // Verify everything is still paused
