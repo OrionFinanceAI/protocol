@@ -103,7 +103,7 @@ describe("LiquidityOrchestrator – config ACL and performUpkeep phases", functi
 
     const priceAdapterRegistry = await deployUUPSProxy<PriceAdapterRegistry>(
       "PriceAdapterRegistry",
-      [owner.address, await orionConfig.getAddress()],
+      [await orionConfig.getAddress()],
       owner,
     );
     await orionConfig.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
@@ -115,13 +115,7 @@ describe("LiquidityOrchestrator – config ACL and performUpkeep phases", functi
     const vKey = "0x007ccff4696ddd1d62fec2a106aa50309ba0fdee8fc2bcbc9c0b5ea68fe200f3";
     harness = await deployUUPSProxy<LiquidityOrchestratorHarness>(
       "LiquidityOrchestratorHarness",
-      [
-        owner.address,
-        await orionConfig.getAddress(),
-        automationRegistry.address,
-        await mockVerifier.getAddress(),
-        vKey,
-      ],
+      [await orionConfig.getAddress(), automationRegistry.address, await mockVerifier.getAddress(), vKey],
       owner,
     );
     await orionConfig.setLiquidityOrchestrator(await harness.getAddress());
@@ -139,7 +133,7 @@ describe("LiquidityOrchestrator – config ACL and performUpkeep phases", functi
 
     transparentVaultFactory = await deployUUPSProxy<TransparentVaultFactory>(
       "TransparentVaultFactory",
-      [owner.address, await orionConfig.getAddress(), await vaultBeacon.getAddress()],
+      [await orionConfig.getAddress(), await vaultBeacon.getAddress()],
       owner,
     );
     await orionConfig.setVaultFactory(await transparentVaultFactory.getAddress());
@@ -169,11 +163,11 @@ describe("LiquidityOrchestrator – config ACL and performUpkeep phases", functi
       );
       await expect(harness.connect(stranger).updateCommitmentMinibatchSize(2)).to.be.revertedWithCustomError(
         harness,
-        "OwnableUnauthorizedAccount",
+        "NotAuthorized",
       );
       await expect(harness.connect(guardian).updateCommitmentMinibatchSize(2)).to.be.revertedWithCustomError(
         harness,
-        "OwnableUnauthorizedAccount",
+        "NotAuthorized",
       );
     });
 
@@ -212,11 +206,11 @@ describe("LiquidityOrchestrator – config ACL and performUpkeep phases", functi
       );
       await expect(harness.connect(guardian).updateVerifier(await next.getAddress())).to.be.revertedWithCustomError(
         harness,
-        "OwnableUnauthorizedAccount",
+        "NotAuthorized",
       );
       await expect(harness.connect(stranger).updateVerifier(await next.getAddress())).to.be.revertedWithCustomError(
         harness,
-        "OwnableUnauthorizedAccount",
+        "NotAuthorized",
       );
     });
 
@@ -231,7 +225,7 @@ describe("LiquidityOrchestrator – config ACL and performUpkeep phases", functi
       );
       await expect(harness.connect(guardian).updateVKey(newKey)).to.be.revertedWithCustomError(
         harness,
-        "OwnableUnauthorizedAccount",
+        "NotAuthorized",
       );
     });
   });

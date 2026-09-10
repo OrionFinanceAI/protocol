@@ -9,8 +9,8 @@ import { IQuoterV2 } from "@uniswap/v3-periphery/contracts/interfaces/IQuoterV2.
 import { IUniswapV3Factory } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import { IExecutionAdapter } from "../interfaces/IExecutionAdapter.sol";
 import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
-import { ILiquidityOrchestrator } from "../interfaces/ILiquidityOrchestrator.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { ILiquidityOrchestrator } from "../interfaces/ILiquidityOrchestrator.sol";
 
 /**
  * @title UniswapV3ExecutionAdapter
@@ -47,7 +47,7 @@ contract UniswapV3ExecutionAdapter is IExecutionAdapter {
     mapping(address => uint24) public assetFee;
 
     /// @dev Restricts function to the protocol admin
-    modifier onlyConfigOwner() {
+    modifier onlyAdmin() {
         if (msg.sender != Ownable(address(CONFIG)).owner()) revert ErrorsLib.NotAuthorized();
         _;
     }
@@ -76,7 +76,7 @@ contract UniswapV3ExecutionAdapter is IExecutionAdapter {
     /// @notice Sets the fee tier for a given asset
     /// @param asset The address of the asset
     /// @param fee The fee tier to set
-    function setAssetFee(address asset, uint24 fee) external onlyConfigOwner {
+    function setAssetFee(address asset, uint24 fee) external onlyAdmin {
         if (asset == address(0)) revert ErrorsLib.ZeroAddress();
         if (!CONFIG.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 

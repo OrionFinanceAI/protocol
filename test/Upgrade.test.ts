@@ -667,7 +667,7 @@ describe("Upgrade Tests", function () {
       // Call upgradeToAndCall directly, executing _authorizeUpgrade
       await priceAdapterRegistry.connect(owner).upgradeToAndCall(await newImpl.getAddress(), "0x");
 
-      expect(await priceAdapterRegistry.owner()).to.equal(owner.address);
+      expect(await orionConfig.owner()).to.equal(owner.address);
     });
 
     it("Should cover PriceAdapterRegistry._authorizeUpgrade revert on non-owner", async function () {
@@ -688,7 +688,7 @@ describe("Upgrade Tests", function () {
       // Call upgradeToAndCall directly, executing _authorizeUpgrade
       await liquidityOrchestrator.connect(owner).upgradeToAndCall(await newImpl.getAddress(), "0x");
 
-      expect(await liquidityOrchestrator.owner()).to.equal(owner.address);
+      expect(await orionConfig.owner()).to.equal(owner.address);
     });
 
     it("Should cover LiquidityOrchestrator._authorizeUpgrade revert on non-owner", async function () {
@@ -709,7 +709,7 @@ describe("Upgrade Tests", function () {
       // Call upgradeToAndCall directly, executing _authorizeUpgrade
       await transparentVaultFactory.connect(owner).upgradeToAndCall(await newImpl.getAddress(), "0x");
 
-      expect(await transparentVaultFactory.owner()).to.equal(owner.address);
+      expect(await orionConfig.owner()).to.equal(owner.address);
     });
 
     it("Should cover TransparentVaultFactory._authorizeUpgrade revert on non-owner", async function () {

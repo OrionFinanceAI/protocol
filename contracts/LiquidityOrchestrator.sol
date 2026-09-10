@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.34;
 
-import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import { ReentrancyGuardTransient } from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
@@ -9,6 +8,7 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "./interfaces/ILiquidityOrchestrator.sol";
 import "./interfaces/IOrionConfig.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import "./interfaces/IPriceAdapterRegistry.sol";
 import "./libraries/EventsLib.sol";
 import "./interfaces/IOrionVault.sol";
@@ -34,7 +34,6 @@ import "@openzeppelin/contracts/utils/math/SafeCast.sol";
  */
 contract LiquidityOrchestrator is
     Initializable,
-    Ownable2StepUpgradeable,
     ReentrancyGuardTransient,
     PausableUpgradeable,
     UUPSUpgradeable,
@@ -167,9 +166,15 @@ contract LiquidityOrchestrator is
     /*                                MODIFIERS                                   */
     /* -------------------------------------------------------------------------- */
 
-    /// @dev Restricts function to only owner or automation registry
+    /// @dev Restricts function to protocol admin
+    modifier onlyAdmin() {
+        if (msg.sender != Ownable(address(config)).owner()) revert ErrorsLib.NotAuthorized();
+        _;
+    }
+
+    /// @dev Restricts function to protocol admin or automation registry
     modifier onlyAuthorizedTrigger() {
-        if (msg.sender != owner() && msg.sender != automationRegistry) {
+        if (msg.sender != Ownable(address(config)).owner() && msg.sender != automationRegistry) {
             revert ErrorsLib.NotAuthorized();
         }
         _;
@@ -181,9 +186,9 @@ contract LiquidityOrchestrator is
         _;
     }
 
-    /// @dev Restricts function to only owner or guardian
-    modifier onlyOwnerOrGuardian() {
-        if (msg.sender != owner() && msg.sender != config.guardian()) {
+    /// @dev Restricts function to protocol admin or guardian
+    modifier onlyAdminOrGuardian() {
+        if (msg.sender != Ownable(address(config)).owner() && msg.sender != config.guardian()) {
             revert ErrorsLib.NotAuthorized();
         }
         _;
@@ -204,26 +209,21 @@ contract LiquidityOrchestrator is
     }
 
     /// @notice Initializes the contract
-    /// @param initialOwner The address of the initial owner
     /// @param config_ The address of the OrionConfig contract
     /// @param automationRegistry_ The address of the Chainlink Automation Registry
     /// @param verifier_ The address of the SP1 verifier contract
     /// @param vKey_ The verification key for the Orion Internal State Orchestrator
     function initialize(
-        address initialOwner,
         address config_,
         address automationRegistry_,
         address verifier_,
         bytes32 vKey_
     ) public initializer {
-        if (initialOwner == address(0)) revert ErrorsLib.ZeroAddress();
         if (config_ == address(0)) revert ErrorsLib.ZeroAddress();
         if (automationRegistry_ == address(0)) revert ErrorsLib.ZeroAddress();
         if (verifier_ == address(0)) revert ErrorsLib.ZeroAddress();
         if (vKey_ == bytes32(0)) revert ErrorsLib.InvalidArguments();
 
-        __Ownable_init(initialOwner);
-        __Ownable2Step_init();
         __Pausable_init();
 
         config = IOrionConfig(config_);
@@ -246,11 +246,11 @@ contract LiquidityOrchestrator is
     }
 
     /* -------------------------------------------------------------------------- */
-    /*                                OWNER FUNCTIONS                             */
+    /*                                ADMIN FUNCTIONS                             */
     /* -------------------------------------------------------------------------- */
 
     /// @inheritdoc ILiquidityOrchestrator
-    function updateEpochDuration(uint32 newEpochDuration) external onlyOwnerOrGuardian {
+    function updateEpochDuration(uint32 newEpochDuration) external onlyAdminOrGuardian {
         if (newEpochDuration == 0) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
@@ -259,28 +259,28 @@ contract LiquidityOrchestrator is
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function updateExecutionMinibatchSize(uint8 _executionMinibatchSize) external onlyOwner {
+    function updateExecutionMinibatchSize(uint8 _executionMinibatchSize) external onlyAdmin {
         if (_executionMinibatchSize == 0) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         executionMinibatchSize = _executionMinibatchSize;
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function updateMinibatchSize(uint8 _minibatchSize) external onlyOwner {
+    function updateMinibatchSize(uint8 _minibatchSize) external onlyAdmin {
         if (_minibatchSize == 0) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         minibatchSize = _minibatchSize;
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function updateCommitmentMinibatchSize(uint8 _commitmentMinibatchSize) external onlyOwner {
+    function updateCommitmentMinibatchSize(uint8 _commitmentMinibatchSize) external onlyAdmin {
         if (_commitmentMinibatchSize == 0) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         commitmentMinibatchSize = _commitmentMinibatchSize;
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function updateAutomationRegistry(address newAutomationRegistry) external onlyOwner {
+    function updateAutomationRegistry(address newAutomationRegistry) external onlyAdmin {
         if (newAutomationRegistry == address(0)) revert ErrorsLib.ZeroAddress();
 
         automationRegistry = newAutomationRegistry;
@@ -288,21 +288,21 @@ contract LiquidityOrchestrator is
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function updateVerifier(address newVerifier) external onlyOwner {
+    function updateVerifier(address newVerifier) external onlyAdmin {
         if (newVerifier == address(0)) revert ErrorsLib.ZeroAddress();
         verifier = ISP1Verifier(newVerifier);
         emit EventsLib.SP1VerifierUpdated(newVerifier);
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function updateVKey(bytes32 newvKey) external onlyOwner {
+    function updateVKey(bytes32 newvKey) external onlyAdmin {
         if (newvKey == bytes32(0)) revert ErrorsLib.InvalidArguments();
         vKey = newvKey;
         emit EventsLib.VKeyUpdated(newvKey);
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function setTargetBufferRatio(uint256 _targetBufferRatio) external onlyOwner {
+    function setTargetBufferRatio(uint256 _targetBufferRatio) external onlyAdmin {
         if (_targetBufferRatio == 0) revert ErrorsLib.InvalidArguments();
         // 5%
         if (_targetBufferRatio > 500) revert ErrorsLib.InvalidArguments();
@@ -311,7 +311,7 @@ contract LiquidityOrchestrator is
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function setSlippageTolerance(uint256 _slippageTolerance) external onlyOwner {
+    function setSlippageTolerance(uint256 _slippageTolerance) external onlyAdmin {
         if (_slippageTolerance > BASIS_POINTS_FACTOR) revert ErrorsLib.InvalidArguments();
         slippageTolerance = _slippageTolerance;
     }
@@ -331,7 +331,7 @@ contract LiquidityOrchestrator is
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function withdrawLiquidity(uint256 amount) external onlyOwner {
+    function withdrawLiquidity(uint256 amount) external onlyAdmin {
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
         if (currentPhase != LiquidityUpkeepPhase.Idle) revert ErrorsLib.SystemNotIdle();
 
@@ -348,7 +348,7 @@ contract LiquidityOrchestrator is
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function claimProtocolFees(uint256 amount) external onlyOwner {
+    function claimProtocolFees(uint256 amount) external onlyAdmin {
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
 
         if (amount > pendingProtocolFees) revert ErrorsLib.InsufficientAmount();
@@ -396,13 +396,13 @@ contract LiquidityOrchestrator is
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function pause() external onlyOwnerOrGuardian {
+    function pause() external onlyAdminOrGuardian {
         _pause();
         emit EventsLib.ProtocolPaused(msg.sender);
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function unpause() external onlyOwner {
+    function unpause() external onlyAdmin {
         _unpause();
         emit EventsLib.ProtocolUnpaused(msg.sender);
     }
@@ -1016,12 +1016,12 @@ contract LiquidityOrchestrator is
     }
 
     /// @notice Sets the upgrade timelock address.
-    /// @dev If no timelock is set yet, only the owner may call this. Once a timelock is active,
-    ///      only the timelock itself may replace it, preventing the owner from bypassing the delay.
+    /// @dev If no timelock is set yet, only the protocol admin may call this. Once a timelock is active,
+    ///      only the timelock itself may replace it, preventing the admin from bypassing the delay.
     /// @param newTimelock The new timelock address (e.g. OpenZeppelin TimelockController); address(0) not permitted
     function setUpgradeTimelock(address newTimelock) external {
         if (upgradeTimelock == address(0)) {
-            if (msg.sender != owner()) revert ErrorsLib.NotAuthorized();
+            if (msg.sender != Ownable(address(config)).owner()) revert ErrorsLib.NotAuthorized();
         } else {
             if (msg.sender != upgradeTimelock) revert ErrorsLib.NotAuthorized();
         }
@@ -1031,14 +1031,14 @@ contract LiquidityOrchestrator is
     }
 
     /// @notice Authorizes an upgrade to a new implementation
-    /// @dev Requires the caller to be the upgrade timelock (if set) or the owner (during initial
+    /// @dev Requires the caller to be the upgrade timelock (if set) or the protocol admin (during initial
     ///      bootstrapping before a timelock has been configured).
     // solhint-disable-next-line use-natspec
     function _authorizeUpgrade(address) internal view override {
         if (upgradeTimelock != address(0)) {
             if (msg.sender != upgradeTimelock) revert ErrorsLib.NotAuthorized();
         } else {
-            if (msg.sender != owner()) revert ErrorsLib.NotAuthorized();
+            if (msg.sender != Ownable(address(config)).owner()) revert ErrorsLib.NotAuthorized();
         }
     }
 

@@ -83,7 +83,7 @@ describe("OrionVault / OrionConfig / LO edge branches", function () {
 
     priceAdapterRegistry = await deployUUPSProxy<PriceAdapterRegistry>(
       "PriceAdapterRegistry",
-      [owner.address, await orionConfig.getAddress()],
+      [await orionConfig.getAddress()],
       owner,
     );
     await orionConfig.setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
@@ -99,7 +99,7 @@ describe("OrionVault / OrionConfig / LO edge branches", function () {
     const vKey = "0x007ccff4696ddd1d62fec2a106aa50309ba0fdee8fc2bcbc9c0b5ea68fe200f3";
     harness = await deployUUPSProxy<LiquidityOrchestratorVaultHarness>(
       "LiquidityOrchestratorVaultHarness",
-      [owner.address, await orionConfig.getAddress(), owner.address, await gateway.getAddress(), vKey],
+      [await orionConfig.getAddress(), owner.address, await gateway.getAddress(), vKey],
       owner,
     );
     await orionConfig.setLiquidityOrchestrator(await harness.getAddress());
@@ -116,7 +116,7 @@ describe("OrionVault / OrionConfig / LO edge branches", function () {
 
     transparentVaultFactory = await deployUUPSProxy<TransparentVaultFactory>(
       "TransparentVaultFactory",
-      [owner.address, await orionConfig.getAddress(), await vaultBeacon.getAddress()],
+      [await orionConfig.getAddress(), await vaultBeacon.getAddress()],
       owner,
     );
     await orionConfig.setVaultFactory(await transparentVaultFactory.getAddress());
@@ -580,11 +580,10 @@ describe("OrionVault / OrionConfig / LO edge branches", function () {
       const gateway = await harness.verifier();
 
       const cases = [
-        [ethers.ZeroAddress, await orionConfig.getAddress(), owner.address, gateway, vKey],
-        [owner.address, ethers.ZeroAddress, owner.address, gateway, vKey],
-        [owner.address, await orionConfig.getAddress(), ethers.ZeroAddress, gateway, vKey],
-        [owner.address, await orionConfig.getAddress(), owner.address, ethers.ZeroAddress, vKey],
-        [owner.address, await orionConfig.getAddress(), owner.address, gateway, ethers.ZeroHash],
+        [ethers.ZeroAddress, owner.address, gateway, vKey],
+        [await orionConfig.getAddress(), ethers.ZeroAddress, gateway, vKey],
+        [await orionConfig.getAddress(), owner.address, ethers.ZeroAddress, vKey],
+        [await orionConfig.getAddress(), owner.address, gateway, ethers.ZeroHash],
       ];
       for (const args of cases) {
         const data = Impl.interface.encodeFunctionData("initialize", args);
@@ -639,11 +638,11 @@ describe("OrionVault / OrionConfig / LO edge branches", function () {
       await harness.connect(owner).updateExecutionMinibatchSize(2);
       await expect(harness.connect(guardian).updateMinibatchSize(2)).to.be.revertedWithCustomError(
         harness,
-        "OwnableUnauthorizedAccount",
+        "NotAuthorized",
       );
       await expect(harness.connect(guardian).updateExecutionMinibatchSize(2)).to.be.revertedWithCustomError(
         harness,
-        "OwnableUnauthorizedAccount",
+        "NotAuthorized",
       );
       await harness.connect(owner).updateMinibatchSize(2);
       await harness.connect(owner).setTargetBufferRatio(50);
@@ -843,7 +842,10 @@ describe("Adapters / strategies / registry edge branches", function () {
   });
 
   it("ChainlinkPriceAdapter rejects scaleFactor==0 when base decimals dominate", async function () {
-    const adapter = await (await ethers.getContractFactory("ChainlinkPriceAdapter")).deploy();
+    const usdc = await (await ethers.getContractFactory("MockUnderlyingAsset")).deploy(6);
+    const MockConfig = await ethers.getContractFactory("MockOrionConfig");
+    const config = await MockConfig.deploy(await usdc.getAddress());
+    const adapter = await (await ethers.getContractFactory("ChainlinkPriceAdapter")).deploy(await config.getAddress());
     // 10^(0+18)/10^77 truncates to 0 without overflowing 10**exp (max safe ~77)
     const base = await (await ethers.getContractFactory("MockChainlinkFeed")).deploy(77, 1n);
     const quote = await (await ethers.getContractFactory("MockChainlinkFeed")).deploy(0, 1n);
@@ -890,7 +892,6 @@ describe("Adapters / strategies / registry edge branches", function () {
     await impl.waitForDeployment();
     const Proxy = await ethers.getContractFactory("OrionERC1967Proxy");
     const badConfig = Impl.interface.encodeFunctionData("initialize", [
-      owner.address,
       ethers.ZeroAddress,
       await deployed.vaultBeacon.getAddress(),
     ]);
@@ -899,7 +900,6 @@ describe("Adapters / strategies / registry edge branches", function () {
       "ZeroAddress",
     );
     const badBeacon = Impl.interface.encodeFunctionData("initialize", [
-      owner.address,
       await deployed.orionConfig.getAddress(),
       ethers.ZeroAddress,
     ]);
@@ -1045,7 +1045,7 @@ describe("OrionConfig bootstrap and guardian ACL (merged)", function () {
     const { orionConfig, owner } = fixture;
     const priceAdapterRegistry = await deployUUPSProxy<PriceAdapterRegistry>(
       "PriceAdapterRegistry",
-      [owner.address, await orionConfig.getAddress()],
+      [await orionConfig.getAddress()],
       owner,
     );
     await orionConfig.connect(owner).setPriceAdapterRegistry(await priceAdapterRegistry.getAddress());
@@ -1059,7 +1059,7 @@ describe("OrionConfig bootstrap and guardian ACL (merged)", function () {
     const vKey = "0x007ccff4696ddd1d62fec2a106aa50309ba0fdee8fc2bcbc9c0b5ea68fe200f3";
     const lo = await deployUUPSProxy(
       "LiquidityOrchestrator",
-      [owner.address, await orionConfig.getAddress(), owner.address, await gateway.getAddress(), vKey],
+      [await orionConfig.getAddress(), owner.address, await gateway.getAddress(), vKey],
       owner,
     );
     await orionConfig.connect(owner).setLiquidityOrchestrator(await lo.getAddress());
@@ -1109,7 +1109,7 @@ describe("OrionConfig bootstrap and guardian ACL (merged)", function () {
     await vaultBeacon.waitForDeployment();
     const factory = await deployUUPSProxy(
       "TransparentVaultFactory",
-      [owner.address, await orionConfig.getAddress(), await vaultBeacon.getAddress()],
+      [await orionConfig.getAddress(), await vaultBeacon.getAddress()],
       owner,
     );
     await orionConfig.connect(owner).setVaultFactory(await factory.getAddress());

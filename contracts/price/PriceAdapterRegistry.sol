@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.34;
 
-import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "../interfaces/IPriceAdapterRegistry.sol";
@@ -10,6 +9,7 @@ import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { EventsLib } from "../libraries/EventsLib.sol";
 import { UtilitiesLib } from "../libraries/UtilitiesLib.sol";
 import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title PriceAdapterRegistry
@@ -18,7 +18,7 @@ import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
  * @dev This contract allows the configuration of price adapters for various assets in the investment universe.
  * @custom:security-contact security@orionfinance.ai
  */
-contract PriceAdapterRegistry is Initializable, IPriceAdapterRegistry, Ownable2StepUpgradeable, UUPSUpgradeable {
+contract PriceAdapterRegistry is Initializable, IPriceAdapterRegistry, UUPSUpgradeable {
     /// @notice Orion Config contract address
     address public configAddress;
 
@@ -46,14 +46,9 @@ contract PriceAdapterRegistry is Initializable, IPriceAdapterRegistry, Ownable2S
     }
 
     /// @notice Initializer function (replaces constructor)
-    /// @param initialOwner_ The address of the initial owner
     /// @param configAddress_ The address of the OrionConfig contract
-    function initialize(address initialOwner_, address configAddress_) public initializer {
-        if (initialOwner_ == address(0)) revert ErrorsLib.ZeroAddress();
+    function initialize(address configAddress_) public initializer {
         if (configAddress_ == address(0)) revert ErrorsLib.ZeroAddress();
-
-        __Ownable_init(initialOwner_);
-        __Ownable2Step_init();
 
         configAddress = configAddress_;
         underlyingAsset = address(IOrionConfig(configAddress).underlyingAsset());
@@ -87,12 +82,12 @@ contract PriceAdapterRegistry is Initializable, IPriceAdapterRegistry, Ownable2S
     }
 
     /// @notice Sets the upgrade timelock address.
-    /// @dev If no timelock is set yet, only the owner may call this. Once a timelock is active,
-    ///      only the timelock itself may replace it, preventing the owner from bypassing the delay.
+    /// @dev If no timelock is set yet, only the protocol admin may call this. Once a timelock is active,
+    ///      only the timelock itself may replace it, preventing the admin from bypassing the delay.
     /// @param newTimelock The new timelock address (e.g. OpenZeppelin TimelockController); address(0) not permitted
     function setUpgradeTimelock(address newTimelock) external {
         if (upgradeTimelock == address(0)) {
-            if (msg.sender != owner()) revert ErrorsLib.NotAuthorized();
+            if (msg.sender != Ownable(configAddress).owner()) revert ErrorsLib.NotAuthorized();
         } else {
             if (msg.sender != upgradeTimelock) revert ErrorsLib.NotAuthorized();
         }
@@ -102,14 +97,14 @@ contract PriceAdapterRegistry is Initializable, IPriceAdapterRegistry, Ownable2S
     }
 
     /// @notice Authorizes an upgrade to a new implementation
-    /// @dev Requires the caller to be the upgrade timelock (if set) or the owner (during initial
+    /// @dev Requires the caller to be the upgrade timelock (if set) or the protocol admin (during initial
     ///      bootstrapping before a timelock has been configured).
     // solhint-disable-next-line use-natspec
-    function _authorizeUpgrade(address) internal override {
+    function _authorizeUpgrade(address) internal view override {
         if (upgradeTimelock != address(0)) {
             if (msg.sender != upgradeTimelock) revert ErrorsLib.NotAuthorized();
         } else {
-            if (msg.sender != owner()) revert ErrorsLib.NotAuthorized();
+            if (msg.sender != Ownable(configAddress).owner()) revert ErrorsLib.NotAuthorized();
         }
     }
 

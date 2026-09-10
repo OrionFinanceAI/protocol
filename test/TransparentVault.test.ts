@@ -203,12 +203,11 @@ describe("TransparentVault - Strategist Pipeline", function () {
       const impl = await Impl.deploy();
       await impl.waitForDeployment();
       const Proxy = await ethers.getContractFactory("OrionERC1967Proxy");
-      const badOwner = Impl.interface.encodeFunctionData("initialize", [
+      const badInit = Impl.interface.encodeFunctionData("initialize", [
         ethers.ZeroAddress,
-        await orionConfig.getAddress(),
         await transparentVaultFactory.vaultBeacon(),
       ]);
-      await expect(Proxy.deploy(await impl.getAddress(), badOwner)).to.be.revertedWithCustomError(
+      await expect(Proxy.deploy(await impl.getAddress(), badInit)).to.be.revertedWithCustomError(
         transparentVaultFactory,
         "ZeroAddress",
       );
