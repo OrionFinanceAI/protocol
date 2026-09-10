@@ -403,8 +403,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     }
 
     /// @inheritdoc IOrionConfig
-    function addWhitelistedManager(address manager) external {
-        if (msg.sender != guardian && msg.sender != owner()) revert ErrorsLib.NotAuthorized();
+    function addWhitelistedManager(address manager) external onlyOwner {
         bool inserted = whitelistedManager.add(manager);
         if (!inserted) revert ErrorsLib.AlreadyRegistered();
         emit EventsLib.ManagerAdded(manager);

@@ -28,7 +28,11 @@ let mockExecutionAdapter1: MockExecutionAdapter;
 let mockExecutionAdapter2: MockExecutionAdapter;
 let vault: OrionTransparentVault;
 
-let owner: SignerWithAddress, strategist: SignerWithAddress, other: SignerWithAddress, user: SignerWithAddress;
+let owner: SignerWithAddress,
+  strategist: SignerWithAddress,
+  other: SignerWithAddress,
+  user: SignerWithAddress,
+  guardian: SignerWithAddress;
 
 describe("OrionConfig & OrionVault", function () {
   before(async function () {
@@ -36,7 +40,7 @@ describe("OrionConfig & OrionVault", function () {
   });
 
   beforeEach(async function () {
-    [owner, strategist, other, user] = await ethers.getSigners();
+    [owner, strategist, other, user, guardian] = await ethers.getSigners();
 
     const deployed = await deployUpgradeableProtocol(owner);
 
@@ -409,6 +413,10 @@ describe("OrionConfig & OrionVault", function () {
     });
 
     describe("addWhitelistedManager", function () {
+      beforeEach(async function () {
+        await orionConfig.connect(owner).setGuardian(guardian.address);
+      });
+
       it("Should successfully add a whitelisted manager", async function () {
         const newManager = other.address;
 
@@ -432,7 +440,16 @@ describe("OrionConfig & OrionVault", function () {
 
         await expect(orionConfig.connect(user).addWhitelistedManager(newManager)).to.be.revertedWithCustomError(
           orionConfig,
-          "NotAuthorized",
+          "OwnableUnauthorizedAccount",
+        );
+      });
+
+      it("Should revert when called by guardian", async function () {
+        const newManager = other.address;
+
+        await expect(orionConfig.connect(guardian).addWhitelistedManager(newManager)).to.be.revertedWithCustomError(
+          orionConfig,
+          "OwnableUnauthorizedAccount",
         );
       });
     });
