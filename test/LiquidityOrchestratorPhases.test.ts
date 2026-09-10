@@ -162,18 +162,22 @@ describe("LiquidityOrchestrator – config ACL and performUpkeep phases", functi
   });
 
   describe("1. updateCommitmentMinibatchSize", function () {
-    it("rejects zero and non-owner/non-guardian", async function () {
+    it("rejects zero and non-owner", async function () {
       await expect(harness.connect(owner).updateCommitmentMinibatchSize(0)).to.be.revertedWithCustomError(
         harness,
         "InvalidArguments",
       );
       await expect(harness.connect(stranger).updateCommitmentMinibatchSize(2)).to.be.revertedWithCustomError(
         harness,
-        "NotAuthorized",
+        "OwnableUnauthorizedAccount",
+      );
+      await expect(harness.connect(guardian).updateCommitmentMinibatchSize(2)).to.be.revertedWithCustomError(
+        harness,
+        "OwnableUnauthorizedAccount",
       );
     });
 
-    it("requires Idle once size is non-zero; owner and guardian can update when Idle", async function () {
+    it("requires Idle; owner can update when Idle", async function () {
       expect(await harness.commitmentMinibatchSize()).to.equal(1n);
 
       await harness.h_setPhase(PHASE_PVO);
@@ -186,15 +190,8 @@ describe("LiquidityOrchestrator – config ACL and performUpkeep phases", functi
       await harness.connect(owner).updateCommitmentMinibatchSize(3);
       expect(await harness.commitmentMinibatchSize()).to.equal(3n);
 
-      await harness.connect(guardian).updateCommitmentMinibatchSize(4);
+      await harness.connect(owner).updateCommitmentMinibatchSize(4);
       expect(await harness.commitmentMinibatchSize()).to.equal(4n);
-    });
-
-    it("allows bootstrap update while non-Idle if current size is still zero", async function () {
-      await harness.h_setCommitmentMinibatchSize(0);
-      await harness.h_setPhase(PHASE_PVO);
-      await harness.connect(owner).updateCommitmentMinibatchSize(2);
-      expect(await harness.commitmentMinibatchSize()).to.equal(2n);
     });
   });
 

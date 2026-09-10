@@ -637,7 +637,15 @@ describe("OrionVault / OrionConfig / LO edge branches", function () {
 
       await harness.connect(guardian).updateEpochDuration(3600);
       await harness.connect(owner).updateExecutionMinibatchSize(2);
-      await harness.connect(guardian).updateMinibatchSize(2);
+      await expect(harness.connect(guardian).updateMinibatchSize(2)).to.be.revertedWithCustomError(
+        harness,
+        "OwnableUnauthorizedAccount",
+      );
+      await expect(harness.connect(guardian).updateExecutionMinibatchSize(2)).to.be.revertedWithCustomError(
+        harness,
+        "OwnableUnauthorizedAccount",
+      );
+      await harness.connect(owner).updateMinibatchSize(2);
       await harness.connect(owner).setTargetBufferRatio(50);
     });
 
@@ -1111,7 +1119,7 @@ describe("OrionConfig bootstrap and guardian ACL (merged)", function () {
     );
   });
 
-  it("Should allow guardian and owner, reject stranger and zero values", async function () {
+  it("Should allow guardian for min deposit, owner-only for max fulfill batch size", async function () {
     const { orionConfig, owner, guardian, stranger } = await networkHelpers.loadFixture(deployConfigWithLo);
     await orionConfig.connect(owner).setGuardian(guardian.address);
     await expect(orionConfig.connect(stranger).setMinDepositAmount(1)).to.be.revertedWithCustomError(
@@ -1120,13 +1128,17 @@ describe("OrionConfig bootstrap and guardian ACL (merged)", function () {
     );
     await expect(orionConfig.connect(stranger).setMaxFulfillBatchSize(1)).to.be.revertedWithCustomError(
       orionConfig,
-      "NotAuthorized",
+      "OwnableUnauthorizedAccount",
+    );
+    await expect(orionConfig.connect(guardian).setMaxFulfillBatchSize(1)).to.be.revertedWithCustomError(
+      orionConfig,
+      "OwnableUnauthorizedAccount",
     );
     await expect(orionConfig.connect(guardian).setMinDepositAmount(0)).to.be.revertedWithCustomError(
       orionConfig,
       "InvalidArguments",
     );
-    await expect(orionConfig.connect(guardian).setMaxFulfillBatchSize(0)).to.be.revertedWithCustomError(
+    await expect(orionConfig.connect(owner).setMaxFulfillBatchSize(0)).to.be.revertedWithCustomError(
       orionConfig,
       "InvalidArguments",
     );

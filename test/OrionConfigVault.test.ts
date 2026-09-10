@@ -28,7 +28,11 @@ let mockExecutionAdapter1: MockExecutionAdapter;
 let mockExecutionAdapter2: MockExecutionAdapter;
 let vault: OrionTransparentVault;
 
-let owner: SignerWithAddress, strategist: SignerWithAddress, other: SignerWithAddress, user: SignerWithAddress;
+let owner: SignerWithAddress,
+  strategist: SignerWithAddress,
+  other: SignerWithAddress,
+  user: SignerWithAddress,
+  guardian: SignerWithAddress;
 
 describe("OrionConfig & OrionVault", function () {
   before(async function () {
@@ -36,7 +40,7 @@ describe("OrionConfig & OrionVault", function () {
   });
 
   beforeEach(async function () {
-    [owner, strategist, other, user] = await ethers.getSigners();
+    [owner, strategist, other, user, guardian] = await ethers.getSigners();
 
     const deployed = await deployUpgradeableProtocol(owner);
 
@@ -409,6 +413,10 @@ describe("OrionConfig & OrionVault", function () {
     });
 
     describe("addWhitelistedManager", function () {
+      beforeEach(async function () {
+        await orionConfig.connect(owner).setGuardian(guardian.address);
+      });
+
       it("Should successfully add a whitelisted manager", async function () {
         const newManager = other.address;
 
@@ -432,7 +440,16 @@ describe("OrionConfig & OrionVault", function () {
 
         await expect(orionConfig.connect(user).addWhitelistedManager(newManager)).to.be.revertedWithCustomError(
           orionConfig,
-          "NotAuthorized",
+          "OwnableUnauthorizedAccount",
+        );
+      });
+
+      it("Should revert when called by guardian", async function () {
+        const newManager = other.address;
+
+        await expect(orionConfig.connect(guardian).addWhitelistedManager(newManager)).to.be.revertedWithCustomError(
+          orionConfig,
+          "OwnableUnauthorizedAccount",
         );
       });
     });
@@ -579,6 +596,70 @@ describe("OrionConfig & OrionVault", function () {
         // Verify remaining amount
         const pendingDeposits = await vault.pendingDeposit(await orionConfig.maxFulfillBatchSize());
         expect(pendingDeposits).to.equal(remainingAmount);
+      });
+    });
+
+    describe("pendingDepositOf", function () {
+      it("Should return zero for an account with no pending deposit", async function () {
+        expect(await vault.pendingDepositOf(user.address)).to.equal(0);
+        expect(await vault.pendingDepositOf(other.address)).to.equal(0);
+      });
+
+      it("Should accumulate pending deposits for the requester", async function () {
+        const first = ethers.parseUnits("100", 6);
+        const second = ethers.parseUnits("50", 6);
+
+        await vault.connect(user).requestDeposit(first);
+        expect(await vault.pendingDepositOf(user.address)).to.equal(first);
+
+        await vault.connect(user).requestDeposit(second);
+        expect(await vault.pendingDepositOf(user.address)).to.equal(first + second);
+        expect(await vault.pendingDepositOf(other.address)).to.equal(0);
+      });
+
+      it("Should attribute requestDepositFor pending amount to the beneficiary", async function () {
+        const depositAmount = ethers.parseUnits("75", 6);
+
+        await underlyingAsset.mint(other.address, depositAmount);
+        await underlyingAsset.connect(other).approve(await vault.getAddress(), depositAmount);
+
+        await vault.connect(other).requestDepositFor(user.address, depositAmount);
+
+        expect(await vault.pendingDepositOf(user.address)).to.equal(depositAmount);
+        expect(await vault.pendingDepositOf(other.address)).to.equal(0);
+      });
+
+      it("Should reduce and clear pending amount on cancel", async function () {
+        const depositAmount = ethers.parseUnits("100", 6);
+        const cancelAmount = ethers.parseUnits("40", 6);
+
+        await vault.connect(user).requestDeposit(depositAmount);
+        await vault.connect(user).cancelDepositRequest(cancelAmount);
+        expect(await vault.pendingDepositOf(user.address)).to.equal(depositAmount - cancelAmount);
+
+        await vault.connect(user).cancelDepositRequest(depositAmount - cancelAmount);
+        expect(await vault.pendingDepositOf(user.address)).to.equal(0);
+      });
+
+      it("Should clear pending amount after fulfillDeposit", async function () {
+        const depositAmount = ethers.parseUnits("100", 6);
+
+        await vault.connect(user).requestDeposit(depositAmount);
+        expect(await vault.pendingDepositOf(user.address)).to.equal(depositAmount);
+
+        await underlyingAsset.mint(owner.address, depositAmount);
+        await underlyingAsset.connect(owner).approve(await liquidityOrchestrator.getAddress(), depositAmount);
+        await liquidityOrchestrator.connect(owner).depositLiquidity(depositAmount);
+
+        const loAddress = await liquidityOrchestrator.getAddress();
+        await networkHelpers.impersonateAccount(loAddress);
+        await networkHelpers.setBalance(loAddress, ethers.parseEther("1"));
+        const loSigner = await ethers.getSigner(loAddress);
+
+        await vault.connect(loSigner).fulfillDeposit(depositAmount);
+        await ethers.provider.send("hardhat_stopImpersonatingAccount", [loAddress]);
+
+        expect(await vault.pendingDepositOf(user.address)).to.equal(0);
       });
     });
 

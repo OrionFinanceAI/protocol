@@ -37,11 +37,6 @@ contract LiquidityOrchestratorHarness is LiquidityOrchestrator {
         }
     }
 
-    /// @notice Test-only: seed commitment minibatch size (bypasses ACL / Idle)
-    function h_setCommitmentMinibatchSize(uint8 size) external {
-        commitmentMinibatchSize = size;
-    }
-
     /// @notice Test-only: read commitment batch cursor
     function h_commitmentBatchIndex() external view returns (uint16) {
         return _commitmentBatchIndex;

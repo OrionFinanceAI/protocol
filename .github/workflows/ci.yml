@@ -2,9 +2,9 @@ name: "CI"
 
 on:
   pull_request:
-    branches: [main, fhevm]
+    branches: [main]
   push:
-    branches: [main, fhevm]
+    branches: [main]
 
 jobs:
   ci:
@@ -100,12 +100,32 @@ jobs:
           DEPLOYER_PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
           LP_PRIVATE_KEY: ${{ secrets.LP_PRIVATE_KEY }}
 
+  trivy:
+    name: "Trivy Security Scan"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: "Check out the repo"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: "Run Trivy filesystem scan"
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          scanners: "vuln,secret"
+          severity: "CRITICAL,HIGH"
+          exit-code: "1"
+          skip-dirs: "node_modules,artifacts,cache,coverage,.venv,typechain-types"
+          trivyignores: ".trivyignore.yaml"
+
   publish-abis:
     name: "Publish Contract ABIs"
     runs-on: ubuntu-latest
 
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [ci, slither]
+    needs: [ci, slither, trivy]
     permissions:
       contents: write
 
