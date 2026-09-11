@@ -10,6 +10,7 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { EventsLib } from "../libraries/EventsLib.sol";
 import { OrionTransparentVault } from "../vaults/OrionTransparentVault.sol";
+import { ReservedOwnableNamespaces } from "../utils/ReservedOwnableNamespaces.sol";
 
 /**
  * @title TransparentVaultFactory
@@ -18,7 +19,7 @@ import { OrionTransparentVault } from "../vaults/OrionTransparentVault.sol";
  * @dev This contract deploys BeaconProxy instances that point to a shared transparent vault implementation.
  * @custom:security-contact security@orionfinance.ai
  */
-contract TransparentVaultFactory is Initializable, UUPSUpgradeable {
+contract TransparentVaultFactory is Initializable, UUPSUpgradeable, ReservedOwnableNamespaces {
     /// @notice Orion Config contract address
     IOrionConfig public config;
 
