@@ -22,6 +22,7 @@ import "./interfaces/IExecutionAdapter.sol";
 import "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import { ReservedOwnableNamespaces } from "./utils/ReservedOwnableNamespaces.sol";
 /**
  * @title Liquidity Orchestrator
  * @notice Contract that orchestrates liquidity operations
@@ -37,7 +38,8 @@ contract LiquidityOrchestrator is
     ReentrancyGuardTransient,
     PausableUpgradeable,
     UUPSUpgradeable,
-    ILiquidityOrchestrator
+    ILiquidityOrchestrator,
+    ReservedOwnableNamespaces
 {
     using Math for uint256;
     using SafeERC20 for IERC20;
