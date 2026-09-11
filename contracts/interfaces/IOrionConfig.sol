@@ -141,7 +141,7 @@ interface IOrionConfig {
     function completeAssetsRemoval(address[] calldata failedTokens) external;
 
     /// @notice Adds a manager to the whitelist
-    /// @dev Can only be called by the contract owner
+    /// @dev Can be called by the contract owner or guardian
     /// @param manager The address of the manager to whitelist
     function addWhitelistedManager(address manager) external;
 

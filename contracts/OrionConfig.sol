@@ -110,6 +110,11 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         _;
     }
 
+    modifier onlyAdminOrGuardian() {
+        if (msg.sender != owner() && msg.sender != guardian) revert ErrorsLib.NotAuthorized();
+        _;
+    }
+
     /// @notice Constructor that disables initializers for the implementation contract
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -226,8 +231,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     }
 
     /// @inheritdoc IOrionConfig
-    function setMinDepositAmount(uint256 amount) external {
-        if (msg.sender != guardian && msg.sender != owner()) revert ErrorsLib.NotAuthorized();
+    function setMinDepositAmount(uint256 amount) external onlyAdminOrGuardian {
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         if (amount == 0) revert ErrorsLib.InvalidArguments();
 
@@ -237,8 +241,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     }
 
     /// @inheritdoc IOrionConfig
-    function setMinRedeemAmount(uint256 amount) external {
-        if (msg.sender != guardian && msg.sender != owner()) revert ErrorsLib.NotAuthorized();
+    function setMinRedeemAmount(uint256 amount) external onlyAdminOrGuardian {
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         if (amount == 0) revert ErrorsLib.InvalidArguments();
 
@@ -403,7 +406,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     }
 
     /// @inheritdoc IOrionConfig
-    function addWhitelistedManager(address manager) external onlyOwner {
+    function addWhitelistedManager(address manager) external onlyAdminOrGuardian {
         bool inserted = whitelistedManager.add(manager);
         if (!inserted) revert ErrorsLib.AlreadyRegistered();
         emit EventsLib.ManagerAdded(manager);
