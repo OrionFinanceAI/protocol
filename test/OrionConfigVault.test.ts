@@ -435,22 +435,20 @@ describe("OrionConfig & OrionVault", function () {
         );
       });
 
-      it("Should revert when called by non-owner", async function () {
+      it("Should revert when called by non-owner and non-guardian", async function () {
         const newManager = other.address;
 
         await expect(orionConfig.connect(user).addWhitelistedManager(newManager)).to.be.revertedWithCustomError(
           orionConfig,
-          "OwnableUnauthorizedAccount",
+          "NotAuthorized",
         );
       });
 
-      it("Should revert when called by guardian", async function () {
+      it("Should allow guardian to add a whitelisted manager", async function () {
         const newManager = other.address;
 
-        await expect(orionConfig.connect(guardian).addWhitelistedManager(newManager)).to.be.revertedWithCustomError(
-          orionConfig,
-          "OwnableUnauthorizedAccount",
-        );
+        await expect(orionConfig.connect(guardian).addWhitelistedManager(newManager)).to.not.be.rejected;
+        expect(await orionConfig.isWhitelistedManager(newManager)).to.equal(true);
       });
     });
 
