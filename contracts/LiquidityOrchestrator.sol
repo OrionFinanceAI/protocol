@@ -66,8 +66,8 @@ contract LiquidityOrchestrator is
     /// @notice The verification key for the Orion Internal State Orchestrator.
     bytes32 public vKey;
 
-    /// @notice Price Adapter Registry contract
-    IPriceAdapterRegistry public priceAdapterRegistry;
+    /// @custom:oz-renamed-from priceAdapterRegistry
+    IPriceAdapterRegistry private __deprecatedPriceAdapterRegistry;
 
     /// @notice Execution adapters mapping for assets
     mapping(address => IExecutionAdapter) public executionAdapterOf;
@@ -230,7 +230,6 @@ contract LiquidityOrchestrator is
 
         config = IOrionConfig(config_);
         underlyingAsset = address(config.underlyingAsset());
-        priceAdapterRegistry = IPriceAdapterRegistry(config.priceAdapterRegistry());
         automationRegistry = automationRegistry_;
         verifier = ISP1Verifier(verifier_);
         vKey = vKey_;
@@ -544,8 +543,9 @@ contract LiquidityOrchestrator is
 
         address[] memory assets = config.getAllWhitelistedAssets();
         uint256[] memory prices = new uint256[](assets.length);
+        IPriceAdapterRegistry registry = IPriceAdapterRegistry(config.priceAdapterRegistry());
         for (uint16 i = 0; i < assets.length; ++i) {
-            uint256 price = priceAdapterRegistry.getPrice(assets[i]);
+            uint256 price = registry.getPrice(assets[i]);
             _currentEpoch.pricesEpoch[assets[i]] = price;
             prices[i] = price;
         }
