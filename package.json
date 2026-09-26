@@ -71,7 +71,6 @@
   },
   "dependencies": {
     "@chainlink/contracts": "^1.4.0",
-    "@morpho-org/morpho-blue": "^1.0.0",
     "@openzeppelin/contracts": "^5.6.1",
     "@openzeppelin/contracts-upgradeable": "^5.6.1",
     "@uniswap/v3-core": "1.0.2-solc-0.8-simulate",

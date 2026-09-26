@@ -106,8 +106,6 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         uint256 total;
     }
 
-    PendingShareClaims private _pendingShareClaims;
-
     /// @notice Holder access control contract (address(0) = permissionless)
     address public holderAccessControl;
     /// @notice Transfer access control contract (address(0) = permissionless)
@@ -827,6 +825,8 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
             emit RedeemUnderlyingEscrowed(user, underlyingAmount, userShares);
         }
     }
+
+    PendingShareClaims private _pendingShareClaims;
 
     /// @dev Storage gap to allow for future upgrades
     uint256[44] private __gap;
