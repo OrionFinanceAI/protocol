@@ -8,7 +8,7 @@ dotenv.config({ quiet: true });
 const config = defineConfig({
   plugins: [hardhatToolboxMochaEthers, hardhatTypechain],
   coverage: {
-    skipFiles: ["contracts/test/**", "contracts/sp1-contracts/**", "contracts/morpho/MorphoBlueSupplyVault.sol"],
+    skipFiles: ["contracts/test/**", "contracts/sp1-contracts/**"],
   },
   defaultNetwork: "hardhat",
   solidity: {
@@ -18,9 +18,6 @@ const config = defineConfig({
       "@openzeppelin/contracts/interfaces/IERC4626.sol",
       "@openzeppelin/contracts/governance/TimelockController.sol",
       "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol",
-      "@morpho-org/morpho-blue/src/interfaces/IMorpho.sol",
-      "@morpho-org/morpho-blue/src/libraries/MarketParamsLib.sol",
-      "@morpho-org/morpho-blue/src/libraries/SharesMathLib.sol",
     ],
     compilers: [
       {

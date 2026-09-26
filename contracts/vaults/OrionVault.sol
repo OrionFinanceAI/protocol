@@ -101,6 +101,11 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
 
     PendingUnderlyingClaims private _pendingUnderlyingClaims;
 
+    struct PendingShareClaims {
+        mapping(address => uint256) byUser;
+        uint256 total;
+    }
+
     /// @notice Holder access control contract (address(0) = permissionless)
     address public holderAccessControl;
     /// @notice Transfer access control contract (address(0) = permissionless)
@@ -695,9 +700,8 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
             (users[i], amounts[i]) = _depositRequests.at(i);
         }
 
-        // Process requests in batch. Re-check canHoldShares so mid-epoch revoke does not mint;
-        // escrow underlying (same claim path as failed redemption) and continue the batch.
-        uint256 processedAmount = 0;
+        // Process requests in batch. Re-check canHoldShares so mid-epoch revoke does not mint to the user;
+        // settlement still mints shares (to the vault) and records a pending share claim for later pull.
         for (uint256 i = 0; i < batchSize; ++i) {
             address user = users[i];
             uint256 amount = amounts[i];
@@ -705,26 +709,22 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
             // slither-disable-next-line unused-return
             _depositRequests.remove(user);
 
-            if (holderAccessControl != address(0)) {
-                if (!IOrionHolderAccessControl(holderAccessControl).canHoldShares(user)) {
-                    _pendingUnderlyingClaims.byUser[user] += amount;
-                    _pendingUnderlyingClaims.total += amount;
-                    liquidityOrchestrator.returnDepositFunds(address(this), amount);
-                    emit DepositFulfillmentFailed(user, amount);
-                    continue;
-                }
-            }
-
             uint256 shares = _convertToSharesWithPITTotalAssets(
                 amount,
                 depositTotalAssets,
                 snapshotTotalSupply,
                 Math.Rounding.Floor
             );
-            _mint(user, shares);
-            processedAmount += amount;
 
-            emit Deposit(user, user, amount, shares);
+            if (_holderAccessControlAllows(user)) {
+                _mint(user, shares);
+                emit Deposit(user, user, amount, shares);
+            } else {
+                _mint(address(this), shares);
+                _pendingShareClaims.byUser[user] += shares;
+                _pendingShareClaims.total += shares;
+                emit DepositShareEscrowed(user, amount, shares);
+            }
         }
     }
 
@@ -780,6 +780,16 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     }
 
     /// @inheritdoc IOrionVault
+    function totalPendingShareClaims() external view returns (uint256) {
+        return _pendingShareClaims.total;
+    }
+
+    /// @inheritdoc IOrionVault
+    function pendingShareClaim(address account) external view returns (uint256) {
+        return _pendingShareClaims.byUser[account];
+    }
+
+    /// @inheritdoc IOrionVault
     function claimUnderlying() external nonReentrant {
         uint256 amount = _pendingUnderlyingClaims.byUser[msg.sender];
         if (amount == 0) revert ErrorsLib.InsufficientAmount();
@@ -791,6 +801,19 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
         emit RedemptionClaimed(msg.sender, amount);
     }
 
+    /// @inheritdoc IOrionVault
+    function claimShares() external nonReentrant {
+        uint256 shares = _pendingShareClaims.byUser[msg.sender];
+        if (shares == 0) revert ErrorsLib.InsufficientAmount();
+        if (!_holderAccessControlAllows(msg.sender)) revert ErrorsLib.ShareHoldNotAllowed();
+
+        _pendingShareClaims.byUser[msg.sender] = 0;
+        _pendingShareClaims.total -= shares;
+
+        IERC20(address(this)).safeTransfer(msg.sender, shares);
+        emit ShareClaimed(msg.sender, shares);
+    }
+
     /// @dev Push underlying to the user; on revert, escrow on this vault for later claim.
     function _payoutOrEscrowRedemption(address user, uint256 underlyingAmount, uint256 userShares) internal {
         try liquidityOrchestrator.transferRedemptionFunds(user, underlyingAmount) {
@@ -799,10 +822,12 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
             _pendingUnderlyingClaims.byUser[user] += underlyingAmount;
             _pendingUnderlyingClaims.total += underlyingAmount;
             liquidityOrchestrator.transferRedemptionFunds(address(this), underlyingAmount);
-            emit RedemptionFailed(user, underlyingAmount, userShares);
+            emit RedeemUnderlyingEscrowed(user, underlyingAmount, userShares);
         }
     }
 
+    PendingShareClaims private _pendingShareClaims;
+
     /// @dev Storage gap to allow for future upgrades
-    uint256[46] private __gap;
+    uint256[44] private __gap;
 }

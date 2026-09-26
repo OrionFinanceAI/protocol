@@ -50,7 +50,7 @@ interface IOrionVault is IERC4626 {
     /// @param user The address of the recipient whose transfer failed.
     /// @param amount The underlying amount that could not be transferred.
     /// @param shares The number of shares that could not be paid out.
-    event RedemptionFailed(address indexed user, uint256 indexed amount, uint256 indexed shares);
+    event RedeemUnderlyingEscrowed(address indexed user, uint256 indexed amount, uint256 indexed shares);
 
     /// @notice A previously failed redemption transfer has been claimed.
     /// @param user The address of the claimer.
@@ -79,10 +79,16 @@ interface IOrionVault is IERC4626 {
     /// @param newTransferAccessControl The new controller (address(0) = permissionless).
     event TransferAccessControlUpdated(address indexed newTransferAccessControl);
 
-    /// @notice Deposit fulfillment skipped because the user may not hold shares; underlying escrowed.
-    /// @param user The address whose deposit could not be fulfilled into shares.
-    /// @param amount The underlying amount escrowed for later claim.
-    event DepositFulfillmentFailed(address indexed user, uint256 indexed amount);
+    /// @notice Deposit fulfilled into shares escrowed on the vault because the user may not hold shares.
+    /// @param user The address whose shares were escrowed for later claim.
+    /// @param assets The underlying amount that was converted into shares.
+    /// @param shares The share amount minted to the vault for this user.
+    event DepositShareEscrowed(address indexed user, uint256 indexed assets, uint256 indexed shares);
+
+    /// @notice Escrowed vault shares claimed by the user after becoming eligible to hold them.
+    /// @param user The address that claimed shares.
+    /// @param shares The share amount transferred from the vault to the user.
+    event ShareClaimed(address indexed user, uint256 indexed shares);
 
     // --------- ENUMS AND STRUCTS ---------
 
@@ -169,10 +175,13 @@ interface IOrionVault is IERC4626 {
     /// @param shares The amount of share tokens to recover.
     function cancelRedeemRequest(uint256 shares) external;
 
-    /// @notice Claim underlying funds from a previously failed redemption transfer
-    ///      or a deposit fulfillment that could not mint shares.
+    /// @notice Claim underlying funds from a previously failed redemption transfer.
     /// @dev Called by the user after the transfer blocker / eligibility issue has been resolved.
     function claimUnderlying() external;
+
+    /// @notice Claim vault shares escrowed when deposit fulfillment could not deliver to the user.
+    /// @dev Re-checks holder access control. Shares are transferred from this vault to the caller.
+    function claimShares() external;
 
     // --------- MANAGER AND STRATEGIST FUNCTIONS ---------
 
@@ -253,10 +262,19 @@ interface IOrionVault is IERC4626 {
     /// @return total Sum of all pending underlying claims across all users
     function totalPendingUnderlyingClaims() external view returns (uint256 total);
 
-    /// @notice Underlying escrowed for `account` from a failed redemption payout or deposit fulfillment.
+    /// @notice Underlying escrowed for `account` from a failed redemption payout.
     /// @param account The address to query.
     /// @return amount Underlying asset units held in vault escrow for this account.
     function pendingUnderlyingClaim(address account) external view returns (uint256 amount);
+
+    /// @notice Total vault shares escrowed for users who could not receive them at deposit fulfill.
+    /// @return total Sum of all pending share claims across all users
+    function totalPendingShareClaims() external view returns (uint256 total);
+
+    /// @notice Shares escrowed for `account` from a deposit fulfill that could not deliver to the user.
+    /// @param account The address to query.
+    /// @return amount Vault share units held by this vault for later claim by this account.
+    function pendingShareClaim(address account) external view returns (uint256 amount);
 
     /// @notice Process all pending deposit requests and mint shares to depositors
     /// @param depositTotalAssets The total assets associated with the deposit requests
