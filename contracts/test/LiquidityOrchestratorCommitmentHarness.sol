@@ -17,4 +17,14 @@ contract LiquidityOrchestratorCommitmentHarness is LiquidityOrchestrator {
     function exposed_handleMinibatchLegFailure(address token) external {
         _handleMinibatchLegFailure(token);
     }
+
+    /// @notice Test-only: simulate post-upgrade zeroed fee-epoch clock slot
+    function exposed_clearLastEpochStartTimestamp() external {
+        lastEpochStartTimestamp = 0;
+    }
+
+    /// @notice Test-only: seed fee-epoch clock as if a prior epoch had started
+    function exposed_setLastEpochStartTimestamp(uint256 timestamp) external {
+        lastEpochStartTimestamp = timestamp;
+    }
 }

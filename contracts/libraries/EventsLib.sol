@@ -150,7 +150,8 @@ library EventsLib {
     /// @param epochCounter The current epoch counter.
     /// @param assets Array of asset addresses.
     /// @param prices Array of asset prices (parallel to assets array).
-    event EpochStart(uint256 indexed epochCounter, address[] assets, uint256[] prices);
+    /// @param actualEpochDuration Elapsed seconds since the previous epoch start (fee-accounting clock).
+    event EpochStart(uint256 indexed epochCounter, address[] assets, uint256[] prices, uint256 actualEpochDuration);
 
     /// @notice The epoch state commitment has been committed.
     /// @param epochCounter The current epoch counter.

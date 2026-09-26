@@ -210,7 +210,7 @@ describe("EpochStateCommitmentBinding", function () {
         targetBufferRatio: await harness.targetBufferRatio(),
         priceAdapterDecimals: Number(priceDec),
         strategistIntentDecimals: Number(intentDec),
-        epochDuration: await harness.epochDuration(),
+        actualEpochDuration: await harness.actualEpochDuration(),
         assets: [...assets],
         tokenDecimals: tokenDecimals.map((d: bigint) => Number(d)),
         riskFreeRate: await orionConfig.riskFreeRate(),
@@ -226,6 +226,52 @@ describe("EpochStateCommitmentBinding", function () {
       expect(loBalanceUnderlying).to.equal(await underlying.balanceOf(await harness.getAddress()));
     });
 
+    it("freezes actualEpochDuration as elapsed time since last epoch start", async function () {
+      await createVault("Elapsed", "ELP");
+
+      const seedBlock = await ethers.provider.getBlock("latest");
+      const lastStart = BigInt(seedBlock!.timestamp);
+      await harness.exposed_setLastEpochStartTimestamp(lastStart);
+
+      const epochDuration = await harness.epochDuration();
+      const slack = 3_600n;
+      await networkHelpers.time.increase(Number(epochDuration) + Number(slack));
+
+      const startTx = await harness.connect(automationRegistry).performUpkeep("0x", "0x", "0x");
+      await expect(startTx).to.emit(harness, "EpochStart");
+      expect(await harness.currentPhase()).to.equal(PHASE_STATE_COMMITMENT);
+
+      const receipt = await startTx.wait();
+      const block = await ethers.provider.getBlock(receipt!.blockNumber);
+      const expectedDuration = BigInt(block!.timestamp) - lastStart;
+
+      expect(await harness.actualEpochDuration()).to.equal(expectedDuration);
+      expect(expectedDuration).to.be.gte(epochDuration + slack);
+      expect(await harness.lastEpochStartTimestamp()).to.equal(BigInt(block!.timestamp));
+
+      const startLog = parseNamedLog(receipt!, "EpochStart");
+      expect(startLog).to.not.equal(undefined);
+      expect(startLog!.args.actualEpochDuration).to.equal(expectedDuration);
+    });
+
+    it("uses configured epochDuration when lastEpochStartTimestamp is unset (post-upgrade)", async function () {
+      await createVault("UnsetClock", "UC");
+      expect(await harness.lastEpochStartTimestamp()).to.equal(0n);
+
+      const epochDuration = await harness.epochDuration();
+      await networkHelpers.time.increase(Number(epochDuration) + 1);
+
+      const startTx = await harness.connect(automationRegistry).performUpkeep("0x", "0x", "0x");
+      const receipt = await startTx.wait();
+      const block = await ethers.provider.getBlock(receipt!.blockNumber);
+
+      expect(await harness.actualEpochDuration()).to.equal(epochDuration);
+      expect(await harness.lastEpochStartTimestamp()).to.equal(BigInt(block!.timestamp));
+
+      const startLog = parseNamedLog(receipt!, "EpochStart");
+      expect(startLog!.args.actualEpochDuration).to.equal(epochDuration);
+    });
+
     it("changes hash when committed decimals fields are flipped (off-chain vectors)", function () {
       const base = {
         activeNettingFeeCoefficient: 100n,
@@ -234,7 +280,7 @@ describe("EpochStateCommitmentBinding", function () {
         targetBufferRatio: 500n,
         priceAdapterDecimals: 14,
         strategistIntentDecimals: 9,
-        epochDuration: 86400n,
+        actualEpochDuration: 86400n,
         assets: ["0x0000000000000000000000000000000000000001"],
         tokenDecimals: [6],
         riskFreeRate: 500n,
@@ -250,6 +296,7 @@ describe("EpochStateCommitmentBinding", function () {
       expect(hashProtocolState({ ...base, priceAdapterDecimals: 18 })).to.not.equal(baseline);
       expect(hashProtocolState({ ...base, strategistIntentDecimals: 8 })).to.not.equal(baseline);
       expect(hashProtocolState({ ...base, tokenDecimals: [18] })).to.not.equal(baseline);
+      expect(hashProtocolState({ ...base, actualEpochDuration: 90000n })).to.not.equal(baseline);
     });
   });
 
@@ -411,7 +458,7 @@ describe("EpochStateCommitmentBinding", function () {
         targetBufferRatio: await harness.targetBufferRatio(),
         priceAdapterDecimals: Number(await orionConfig.priceAdapterDecimals()),
         strategistIntentDecimals: Number(await orionConfig.strategistIntentDecimals()),
-        epochDuration: await harness.epochDuration(),
+        actualEpochDuration: await harness.actualEpochDuration(),
         assets: [...assets],
         tokenDecimals: tokenDecimals.map((d: bigint) => Number(d)),
         riskFreeRate: await orionConfig.riskFreeRate(),

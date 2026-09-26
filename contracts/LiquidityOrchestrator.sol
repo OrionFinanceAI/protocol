@@ -76,7 +76,7 @@ contract LiquidityOrchestrator is
     /*                               UPKEEP STATE                                 */
     /* -------------------------------------------------------------------------- */
 
-    /// @notice Epoch duration
+    /// @notice Minimum Idle spacing
     uint32 public epochDuration;
 
     /// @notice Timestamp when the next upkeep is allowed
@@ -163,6 +163,12 @@ contract LiquidityOrchestrator is
 
     /// @notice Current minibatch index
     uint16 public currentMinibatchIndex;
+
+    /// @notice Timestamp of the last epoch start
+    uint256 public lastEpochStartTimestamp;
+
+    /// @notice Elapsed seconds between the previous and current epoch start
+    uint256 public actualEpochDuration;
 
     /* -------------------------------------------------------------------------- */
     /*                                MODIFIERS                                   */
@@ -516,10 +522,18 @@ contract LiquidityOrchestrator is
 
         // slither-disable-next-line incorrect-equality
         if (_currentEpoch.vaultsEpoch.length == 0) {
-            // Defer the next upkeep by epoch duration
+            lastEpochStartTimestamp = block.timestamp;
             _nextUpdateTime = block.timestamp + epochDuration;
             return;
         }
+
+        // Freeze measured duration for fee accounting / protocol state commitment.
+        if (lastEpochStartTimestamp == 0) {
+            actualEpochDuration = epochDuration;
+        } else {
+            actualEpochDuration = block.timestamp - lastEpochStartTimestamp;
+        }
+        lastEpochStartTimestamp = block.timestamp;
 
         // Freeze deterministic proof-input anchor at epoch start.
         initialEpochBufferAmount = bufferAmount;
@@ -549,7 +563,7 @@ contract LiquidityOrchestrator is
             _currentEpoch.pricesEpoch[assets[i]] = price;
             prices[i] = price;
         }
-        emit EventsLib.EpochStart(epochCounter, assets, prices);
+        emit EventsLib.EpochStart(epochCounter, assets, prices, actualEpochDuration);
     }
 
     /// @notice Build vaults list for the epoch
@@ -660,7 +674,7 @@ contract LiquidityOrchestrator is
                 targetBufferRatio,
                 config.priceAdapterDecimals(),
                 config.strategistIntentDecimals(),
-                epochDuration,
+                actualEpochDuration,
                 config.getAllWhitelistedAssets(),
                 config.getAllTokenDecimals(),
                 config.riskFreeRate(),
@@ -1045,5 +1059,5 @@ contract LiquidityOrchestrator is
     }
 
     /// @dev Storage gap to allow for future upgrades
-    uint256[46] private __gap;
+    uint256[44] private __gap;
 }
