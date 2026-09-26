@@ -250,13 +250,13 @@ describe("Investor access-control gates", function () {
     });
   });
 
-  describe("fulfillDeposit holder re-check escrow", function () {
+  describe("fulfillDeposit holder re-check share escrow", function () {
     beforeEach(async function () {
       const aclAddress = await acl.getAddress();
       vault = await createVault(aclAddress, aclAddress, ethers.ZeroAddress);
     });
 
-    it("escrows underlying for revoked user and still mints for others in the batch", async function () {
+    it("escrows shares for revoked user and still mints for others in the batch", async function () {
       const assets = parseUnderlying("100");
       await fundAndApprove(listed, assets);
       await fundAndApprove(other, assets);
@@ -267,34 +267,50 @@ describe("Investor access-control gates", function () {
       await acl.setHolderAllowed(listed.address, false);
 
       // Empty vault: same pricing as an unrevoked single-user fulfill with this PIT total.
+      // With two depositors of equal size, depositTotalAssets for pricing is 2*assets in a real epoch;
+      // here we pass assets to match historical empty-vault single-user pricing for `other`.
+      // Both users are processed against the same PIT snapshot; equal deposits ⇒ equal shares.
       const depositTotalAssets = assets;
       const shareDecimalsOffset = 18n - BigInt(UNDERLYING_DECIMALS);
-      const expectedOtherShares = (assets * 10n ** shareDecimalsOffset) / (depositTotalAssets + 1n);
+      const expectedShares = (assets * 10n ** shareDecimalsOffset) / (depositTotalAssets + 1n);
 
       const loSigner = await impersonateLo();
+      const loBalanceBefore = await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress());
       const tx = await vault.connect(loSigner).fulfillDeposit(depositTotalAssets);
-      await expect(tx).to.emit(vault, "DepositFulfillmentFailed").withArgs(listed.address, assets);
+      await expect(tx).to.emit(vault, "DepositShareEscrowed").withArgs(listed.address, assets, expectedShares);
 
-      const failedLogs = (await tx.wait())!.logs.filter((log) => {
+      const escrowLogs = (await tx.wait())!.logs.filter((log) => {
         try {
-          return vault.interface.parseLog(log)?.name === "DepositFulfillmentFailed";
+          return vault.interface.parseLog(log)?.name === "DepositShareEscrowed";
         } catch {
           return false;
         }
       });
-      expect(failedLogs.length).to.equal(1);
+      expect(escrowLogs.length).to.equal(1);
+
+      // No underlying refund to the vault / user on holder deny.
+      expect(await underlyingAsset.balanceOf(await liquidityOrchestrator.getAddress())).to.equal(loBalanceBefore);
+      expect(await underlyingAsset.balanceOf(await vault.getAddress())).to.equal(0n);
 
       expect(await vault.balanceOf(listed.address)).to.equal(0n);
-      expect(await vault.balanceOf(other.address)).to.equal(expectedOtherShares);
-      expect(await vault.totalPendingUnderlyingClaims()).to.equal(assets);
-      expect(await vault.pendingUnderlyingClaim(listed.address)).to.equal(assets);
-      expect(await vault.pendingUnderlyingClaim(other.address)).to.equal(0n);
-
-      const before = await underlyingAsset.balanceOf(listed.address);
-      await vault.connect(listed).claimUnderlying();
-      expect(await underlyingAsset.balanceOf(listed.address)).to.equal(before + assets);
+      expect(await vault.balanceOf(other.address)).to.equal(expectedShares);
+      expect(await vault.balanceOf(await vault.getAddress())).to.equal(expectedShares);
+      expect(await vault.totalPendingShareClaims()).to.equal(expectedShares);
+      expect(await vault.pendingShareClaim(listed.address)).to.equal(expectedShares);
+      expect(await vault.pendingShareClaim(other.address)).to.equal(0n);
       expect(await vault.totalPendingUnderlyingClaims()).to.equal(0n);
-      expect(await vault.pendingUnderlyingClaim(listed.address)).to.equal(0n);
+
+      await expect(vault.connect(listed).claimShares()).to.be.revertedWithCustomError(vault, "ShareHoldNotAllowed");
+
+      await acl.setHolderAllowed(listed.address, true);
+      await expect(vault.connect(listed).claimShares())
+        .to.emit(vault, "ShareClaimed")
+        .withArgs(listed.address, expectedShares);
+
+      expect(await vault.balanceOf(listed.address)).to.equal(expectedShares);
+      expect(await vault.balanceOf(await vault.getAddress())).to.equal(0n);
+      expect(await vault.totalPendingShareClaims()).to.equal(0n);
+      expect(await vault.pendingShareClaim(listed.address)).to.equal(0n);
     });
   });
 

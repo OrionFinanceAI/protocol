@@ -118,7 +118,7 @@ describe("Redemption recipient denylist", function () {
 
     const redeemTotalAssets = depositAssets - parseUnderlying("5000");
     const loSigner2 = await impersonateLo();
-    await expect(vault.connect(loSigner2).fulfillRedeem(redeemTotalAssets)).to.emit(vault, "RedemptionFailed");
+    await expect(vault.connect(loSigner2).fulfillRedeem(redeemTotalAssets)).to.emit(vault, "RedeemUnderlyingEscrowed");
     await networkHelpers.stopImpersonatingAccount(await liquidityOrchestrator.getAddress());
 
     expect(await vault.pendingRedeem(MAX_BATCH)).to.equal(0n);
