@@ -11,6 +11,7 @@ contract MockChainlinkFeed is AggregatorV3Interface {
     uint256 private _updatedAt;
     uint256 private _startedAt;
     uint80 private _roundId;
+    uint80 private _answeredInRound;
     bool private _latestRoundReverts;
     bool private _decimalsReverts;
 
@@ -20,6 +21,7 @@ contract MockChainlinkFeed is AggregatorV3Interface {
         _updatedAt = block.timestamp;
         _startedAt = block.timestamp;
         _roundId = 1;
+        _answeredInRound = 1;
     }
 
     function setAnswer(int256 answer_) external {
@@ -32,6 +34,14 @@ contract MockChainlinkFeed is AggregatorV3Interface {
 
     function setStartedAt(uint256 startedAt_) external {
         _startedAt = startedAt_;
+    }
+
+    function setRoundId(uint80 roundId_) external {
+        _roundId = roundId_;
+    }
+
+    function setAnsweredInRound(uint80 answeredInRound_) external {
+        _answeredInRound = answeredInRound_;
     }
 
     function setLatestRoundReverts(bool reverts_) external {
@@ -62,12 +72,12 @@ contract MockChainlinkFeed is AggregatorV3Interface {
         returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)
     {
         if (_latestRoundReverts) revert("latestRoundData revert");
-        return (_roundId, _answer, _startedAt, _updatedAt, _roundId);
+        return (_roundId, _answer, _startedAt, _updatedAt, _answeredInRound);
     }
 
     function getRoundData(
         uint80
     ) external view override returns (uint80, int256, uint256, uint256, uint80) {
-        return (_roundId, _answer, _startedAt, _updatedAt, _roundId);
+        return (_roundId, _answer, _startedAt, _updatedAt, _answeredInRound);
     }
 }

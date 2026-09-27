@@ -191,12 +191,12 @@ contract UniswapV3PoolPriceAdapter is IPriceAdapter {
         // slither-disable-next-line unused-return
         (uint160 sqrtSlot0, , uint16 observationIndex, , , , ) = p.slot0();
 
-        decimals = PRICE_DECIMALS + USDC_DECIMALS;
         uint8 assetDecimals = IERC20Metadata(asset).decimals();
         if (assetDecimals > MAX_ASSET_DECIMALS) {
             revert AssetDecimalsTooHigh(asset, assetDecimals);
         }
-        uint256 precisionAmount = 10 ** uint256(PRICE_DECIMALS + assetDecimals);
+        decimals = PRICE_DECIMALS + assetDecimals;
+        uint256 precisionAmount = 10 ** uint256(decimals);
 
         if (sqrtSlot0 == 0) {
             revert PoolNotInitialized(asset);
@@ -255,7 +255,7 @@ contract UniswapV3PoolPriceAdapter is IPriceAdapter {
     /// @param precisionAmount `10 ** (PRICE_DECIMALS + assetDecimals)`.
     /// @param sqrtPriceX96 Q64.96 sqrt price from TWAP.
     /// @param usdcIsToken0 Whether USDC is token0 in the pool.
-    /// @return price Raw price in USDC minor units with PRICE_DECIMALS extra precision.
+    /// @return price Raw price scaled to PRICE_DECIMALS + assetDecimals.
     function _priceFromSqrtX96(
         uint256 precisionAmount,
         uint160 sqrtPriceX96,

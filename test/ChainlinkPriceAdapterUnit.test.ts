@@ -431,6 +431,50 @@ describe("ChainlinkPriceAdapter — unit tests", function () {
       await expect(adapter.getPriceData(asset)).to.be.revertedWithCustomError(adapter, "InvalidPrice");
     });
 
+    it("should revert InvalidPrice when base roundId is zero", async function () {
+      await adapter.configureFeed(
+        asset,
+        await baseFeed.getAddress(),
+        false,
+        STALENESS,
+        1,
+        MAX_PRICE,
+        ethers.ZeroAddress,
+      );
+      await baseFeed.setRoundId(0);
+      await expect(adapter.getPriceData(asset)).to.be.revertedWithCustomError(adapter, "InvalidPrice");
+    });
+
+    it("should revert InvalidPrice when base answeredInRound is less than roundId", async function () {
+      await adapter.configureFeed(
+        asset,
+        await baseFeed.getAddress(),
+        false,
+        STALENESS,
+        1,
+        MAX_PRICE,
+        ethers.ZeroAddress,
+      );
+      await baseFeed.setRoundId(5);
+      await baseFeed.setAnsweredInRound(4);
+      await expect(adapter.getPriceData(asset)).to.be.revertedWithCustomError(adapter, "InvalidPrice");
+    });
+
+    it("should revert InvalidPrice when quote answeredInRound is less than roundId", async function () {
+      await adapter.configureFeed(
+        asset,
+        await baseFeed.getAddress(),
+        false,
+        STALENESS,
+        1,
+        MAX_PRICE,
+        await quoteFeed.getAddress(),
+      );
+      await quoteFeed.setRoundId(5);
+      await quoteFeed.setAnsweredInRound(4);
+      await expect(adapter.getPriceData(asset)).to.be.revertedWithCustomError(adapter, "InvalidPrice");
+    });
+
     it("should revert PriceOutOfBounds when price exceeds max", async function () {
       await adapter.configureFeed(
         asset,

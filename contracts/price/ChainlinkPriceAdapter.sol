@@ -184,11 +184,13 @@ contract ChainlinkPriceAdapter is IPriceAdapter {
 
         AggregatorV3Interface chainlinkFeed = AggregatorV3Interface(feedConfig.feed);
         // slither-disable-next-line unused-return
-        (, int256 answer, uint256 startedAt, uint256 updatedAt, ) = chainlinkFeed.latestRoundData();
+        (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound) = chainlinkFeed
+            .latestRoundData();
 
         if (answer < 1) revert ErrorsLib.InvalidPrice(asset, answer);
         if (updatedAt == 0) revert ErrorsLib.InvalidPrice(asset, answer);
         if (startedAt > block.timestamp) revert ErrorsLib.InvalidPrice(asset, answer);
+        if (roundId == 0 || answeredInRound < roundId) revert ErrorsLib.InvalidPrice(asset, answer);
         if (block.timestamp - updatedAt > feedConfig.maxStaleness) revert ErrorsLib.StalePrice(asset);
 
         uint256 rawPrice = uint256(answer);
@@ -205,12 +207,18 @@ contract ChainlinkPriceAdapter is IPriceAdapter {
 
         if (feedConfig.quoteFeed != address(0)) {
             // slither-disable-next-line unused-return
-            (, int256 qAnswer, uint256 qStartedAt, uint256 qUpdatedAt, ) = AggregatorV3Interface(feedConfig.quoteFeed)
-                .latestRoundData();
+            (
+                uint80 qRoundId,
+                int256 qAnswer,
+                uint256 qStartedAt,
+                uint256 qUpdatedAt,
+                uint80 qAnsweredInRound
+            ) = AggregatorV3Interface(feedConfig.quoteFeed).latestRoundData();
 
             if (qAnswer < 1) revert ErrorsLib.InvalidPrice(asset, qAnswer);
             if (qUpdatedAt == 0) revert ErrorsLib.InvalidPrice(asset, qAnswer);
             if (qStartedAt > block.timestamp) revert ErrorsLib.InvalidPrice(asset, qAnswer);
+            if (qRoundId == 0 || qAnsweredInRound < qRoundId) revert ErrorsLib.InvalidPrice(asset, qAnswer);
             if (block.timestamp - qUpdatedAt > feedConfig.maxStaleness) revert ErrorsLib.StalePrice(asset);
 
             return (Math.mulDiv(rawPrice, feedConfig.scaleFactor, uint256(qAnswer)), PRICE_DECIMALS);

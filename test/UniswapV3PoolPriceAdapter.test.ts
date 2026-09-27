@@ -161,7 +161,7 @@ describe("UniswapV3PoolPriceAdapter — unit tests", function () {
       await adapter.setPool(await asset.getAddress(), await pool.getAddress());
       const [price, decimals] = await adapter.getPriceData(await asset.getAddress());
       expect(price).to.be.gt(0n);
-      expect(decimals).to.equal(16); // PRICE_DECIMALS(10) + USDC(6)
+      expect(decimals).to.equal(28); // PRICE_DECIMALS(10) + asset(18)
     });
 
     it("should reject when slot0 sqrt becomes zero after setPool", async function () {
