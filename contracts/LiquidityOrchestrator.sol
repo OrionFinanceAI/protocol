@@ -488,7 +488,7 @@ contract LiquidityOrchestrator is
         } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
             StatesStruct memory states = _verifyPerformData(_publicValues, proofBytes, statesBytes);
             _processMinibatchBuy(states.buyLeg);
-            _applyBuyLegSettlement(states.bufferIncrease, states.epochProtocolFees);
+            _applyBuyLegSettlement(states.bufferVariation, states.epochProtocolFees);
         } else if (currentPhase == LiquidityUpkeepPhase.ProcessVaultOperations) {
             StatesStruct memory states = _verifyPerformData(_publicValues, proofBytes, statesBytes);
             _processMinibatchVaultsOperations(states.vaults);
@@ -847,17 +847,21 @@ contract LiquidityOrchestrator is
         }
     }
 
-    /// @notice Applies bufferIncrease, accrued exec dust, and epoch protocol fees at Buy→PVO.
-    /// @param bufferIncrease Nominal buffer increase from the completing buy payload
+    /// @notice Applies bufferVariation, accrued exec dust, and epoch protocol fees at Buy→PVO.
+    /// @param bufferVariation Signed buffer delta from the completing buy payload (`B_end − B₀`)
     /// @param epochProtocolFees Epoch protocol fees from the completing buy payload
-    function _applyBuyLegSettlement(uint256 bufferIncrease, uint256 epochProtocolFees) internal {
+    function _applyBuyLegSettlement(int256 bufferVariation, uint256 epochProtocolFees) internal {
         if (currentPhase != LiquidityUpkeepPhase.ProcessVaultOperations) {
             return;
         }
 
         // slither-disable-start reentrancy-no-eth
         // Safe: only reachable from nonReentrant performUpkeep after buys complete.
-        bufferAmount += bufferIncrease;
+        if (bufferVariation >= 0) {
+            bufferAmount += uint256(bufferVariation);
+        } else {
+            bufferAmount -= uint256(-bufferVariation);
+        }
         _updateBufferAmount(_epochDeltaAmount);
         _epochDeltaAmount = 0;
         pendingProtocolFees += epochProtocolFees;

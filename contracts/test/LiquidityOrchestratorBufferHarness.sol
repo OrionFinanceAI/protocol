@@ -45,7 +45,7 @@ contract LiquidityOrchestratorBufferHarness is LiquidityOrchestrator {
         this._executeBuy(asset, sharesAmount, estimatedUnderlyingAmount);
     }
 
-    function h_applyBuyLegSettlement(uint256 bufferIncrease, uint256 epochProtocolFees) external {
-        _applyBuyLegSettlement(bufferIncrease, epochProtocolFees);
+    function h_applyBuyLegSettlement(int256 bufferVariation, uint256 epochProtocolFees) external {
+        _applyBuyLegSettlement(bufferVariation, epochProtocolFees);
     }
 }
