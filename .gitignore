@@ -26,6 +26,7 @@ artifacts/
 edr-cache/
 coverage/
 coverage.json
+.solidity-auditor/
 
 scripts/*.ts
 
