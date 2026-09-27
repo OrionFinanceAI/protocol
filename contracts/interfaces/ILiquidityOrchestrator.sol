@@ -29,7 +29,7 @@ interface ILiquidityOrchestrator {
         VaultState[] vaults;
         SellLegOrders sellLeg;
         BuyLegOrders buyLeg;
-        uint256 bufferIncrease;
+        int256 bufferVariation;
         uint256 epochProtocolFees;
         uint256 nettedRebalanceVolumeUnderlying;
     }
@@ -86,9 +86,17 @@ interface ILiquidityOrchestrator {
     /// @return The pending protocol fees
     function pendingProtocolFees() external view returns (uint256);
 
-    /// @notice Returns the epoch duration
-    /// @return The epoch duration in seconds
+    /// @notice Returns the configured minimum Idle spacing before a new epoch may start
+    /// @return The epoch duration in seconds (keeper gate only; not the fee clock)
     function epochDuration() external view returns (uint32);
+
+    /// @notice Returns the timestamp of the last epoch start
+    /// @return The last epoch start timestamp
+    function lastEpochStartTimestamp() external view returns (uint256);
+
+    /// @notice Returns the measured duration frozen at the current epoch start for fee / proof inputs
+    /// @return Elapsed seconds between the previous and current epoch start
+    function actualEpochDuration() external view returns (uint256);
 
     /// @notice Updates the epoch duration
     /// @param newEpochDuration The new epoch duration in seconds

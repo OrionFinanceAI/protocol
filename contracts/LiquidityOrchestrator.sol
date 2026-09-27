@@ -76,7 +76,7 @@ contract LiquidityOrchestrator is
     /*                               UPKEEP STATE                                 */
     /* -------------------------------------------------------------------------- */
 
-    /// @notice Epoch duration
+    /// @notice Minimum Idle spacing
     uint32 public epochDuration;
 
     /// @notice Timestamp when the next upkeep is allowed
@@ -163,6 +163,12 @@ contract LiquidityOrchestrator is
 
     /// @notice Current minibatch index
     uint16 public currentMinibatchIndex;
+
+    /// @notice Timestamp of the last epoch start
+    uint256 public lastEpochStartTimestamp;
+
+    /// @notice Elapsed seconds between the previous and current epoch start
+    uint256 public actualEpochDuration;
 
     /* -------------------------------------------------------------------------- */
     /*                                MODIFIERS                                   */
@@ -482,7 +488,7 @@ contract LiquidityOrchestrator is
         } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
             StatesStruct memory states = _verifyPerformData(_publicValues, proofBytes, statesBytes);
             _processMinibatchBuy(states.buyLeg);
-            _applyBuyLegSettlement(states.bufferIncrease, states.epochProtocolFees);
+            _applyBuyLegSettlement(states.bufferVariation, states.epochProtocolFees);
         } else if (currentPhase == LiquidityUpkeepPhase.ProcessVaultOperations) {
             StatesStruct memory states = _verifyPerformData(_publicValues, proofBytes, statesBytes);
             _processMinibatchVaultsOperations(states.vaults);
@@ -516,10 +522,17 @@ contract LiquidityOrchestrator is
 
         // slither-disable-next-line incorrect-equality
         if (_currentEpoch.vaultsEpoch.length == 0) {
-            // Defer the next upkeep by epoch duration
             _nextUpdateTime = block.timestamp + epochDuration;
             return;
         }
+
+        // Freeze measured duration for fee accounting / protocol state commitment.
+        if (lastEpochStartTimestamp == 0) {
+            actualEpochDuration = epochDuration;
+        } else {
+            actualEpochDuration = block.timestamp - lastEpochStartTimestamp;
+        }
+        lastEpochStartTimestamp = block.timestamp;
 
         // Freeze deterministic proof-input anchor at epoch start.
         initialEpochBufferAmount = bufferAmount;
@@ -549,7 +562,7 @@ contract LiquidityOrchestrator is
             _currentEpoch.pricesEpoch[assets[i]] = price;
             prices[i] = price;
         }
-        emit EventsLib.EpochStart(epochCounter, assets, prices);
+        emit EventsLib.EpochStart(epochCounter, assets, prices, actualEpochDuration);
     }
 
     /// @notice Build vaults list for the epoch
@@ -660,7 +673,7 @@ contract LiquidityOrchestrator is
                 targetBufferRatio,
                 config.priceAdapterDecimals(),
                 config.strategistIntentDecimals(),
-                epochDuration,
+                actualEpochDuration,
                 config.getAllWhitelistedAssets(),
                 config.getAllTokenDecimals(),
                 config.riskFreeRate(),
@@ -833,17 +846,21 @@ contract LiquidityOrchestrator is
         }
     }
 
-    /// @notice Applies bufferIncrease, accrued exec dust, and epoch protocol fees at Buy→PVO.
-    /// @param bufferIncrease Nominal buffer increase from the completing buy payload
+    /// @notice Applies bufferVariation, accrued exec dust, and epoch protocol fees at Buy→PVO.
+    /// @param bufferVariation Signed buffer delta from the completing buy payload (`B_end − B₀`)
     /// @param epochProtocolFees Epoch protocol fees from the completing buy payload
-    function _applyBuyLegSettlement(uint256 bufferIncrease, uint256 epochProtocolFees) internal {
+    function _applyBuyLegSettlement(int256 bufferVariation, uint256 epochProtocolFees) internal {
         if (currentPhase != LiquidityUpkeepPhase.ProcessVaultOperations) {
             return;
         }
 
         // slither-disable-start reentrancy-no-eth
         // Safe: only reachable from nonReentrant performUpkeep after buys complete.
-        bufferAmount += bufferIncrease;
+        if (bufferVariation >= 0) {
+            bufferAmount += uint256(bufferVariation);
+        } else {
+            bufferAmount -= uint256(-bufferVariation);
+        }
         _updateBufferAmount(_epochDeltaAmount);
         _epochDeltaAmount = 0;
         pendingProtocolFees += epochProtocolFees;
@@ -1045,5 +1062,5 @@ contract LiquidityOrchestrator is
     }
 
     /// @dev Storage gap to allow for future upgrades
-    uint256[46] private __gap;
+    uint256[44] private __gap;
 }

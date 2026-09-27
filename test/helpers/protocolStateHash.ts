@@ -8,7 +8,7 @@ export function encodeProtocolStateTuple(fields: {
   targetBufferRatio: bigint;
   priceAdapterDecimals: number;
   strategistIntentDecimals: number;
-  epochDuration: bigint;
+  actualEpochDuration: bigint;
   assets: string[];
   tokenDecimals: number[];
   riskFreeRate: bigint;
@@ -26,7 +26,7 @@ export function encodeProtocolStateTuple(fields: {
       "uint256",
       "uint8",
       "uint8",
-      "uint32",
+      "uint256",
       "address[]",
       "uint8[]",
       "uint16",
@@ -43,7 +43,7 @@ export function encodeProtocolStateTuple(fields: {
       fields.targetBufferRatio,
       fields.priceAdapterDecimals,
       fields.strategistIntentDecimals,
-      fields.epochDuration,
+      fields.actualEpochDuration,
       fields.assets,
       fields.tokenDecimals,
       fields.riskFreeRate,

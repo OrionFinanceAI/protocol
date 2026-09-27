@@ -2,7 +2,7 @@ import { AbiCoder, keccak256 } from "ethers";
 
 /** Matches `ILiquidityOrchestrator.StatesStruct` ABI encoding used by `_verifyPerformData`. */
 export const STATES_STRUCT_TYPE =
-  "tuple(tuple(bool processRedeem,uint256 totalAssetsForRedeem,uint256 totalAssetsForDeposit,uint256 finalTotalAssets,uint256 managementFee,uint256 performanceFee,address[] tokens,uint256[] shares,bytes portfolioCiphertext)[] vaults,tuple(address[] sellingTokens,uint256[] sellingAmounts,uint256[] sellingEstimatedUnderlyingAmounts) sellLeg,tuple(address[] buyingTokens,uint256[] buyingAmounts,uint256[] buyingEstimatedUnderlyingAmounts) buyLeg,uint256 bufferIncrease,uint256 epochProtocolFees,uint256 nettedRebalanceVolumeUnderlying)";
+  "tuple(tuple(bool processRedeem,uint256 totalAssetsForRedeem,uint256 totalAssetsForDeposit,uint256 finalTotalAssets,uint256 managementFee,uint256 performanceFee,address[] tokens,uint256[] shares,bytes portfolioCiphertext)[] vaults,tuple(address[] sellingTokens,uint256[] sellingAmounts,uint256[] sellingEstimatedUnderlyingAmounts) sellLeg,tuple(address[] buyingTokens,uint256[] buyingAmounts,uint256[] buyingEstimatedUnderlyingAmounts) buyLeg,int256 bufferVariation,uint256 epochProtocolFees,uint256 nettedRebalanceVolumeUnderlying)";
 
 export const PUBLIC_VALUES_TYPE = "tuple(bytes32 inputCommitment,bytes32 outputCommitment)";
 
@@ -62,7 +62,7 @@ export function encodePerformPayload(args: {
   vaults?: VaultStatePayload[];
   sellLeg?: SellLegPayload;
   buyLeg?: BuyLegPayload;
-  bufferIncrease?: bigint;
+  bufferVariation?: bigint;
   epochProtocolFees?: bigint;
   nettedRebalanceVolumeUnderlying?: bigint;
 }): { publicValues: string; proofBytes: string; statesBytes: string } {
@@ -70,7 +70,7 @@ export function encodePerformPayload(args: {
     vaults: args.vaults ?? [],
     sellLeg: args.sellLeg ?? EMPTY_SELL,
     buyLeg: args.buyLeg ?? EMPTY_BUY,
-    bufferIncrease: args.bufferIncrease ?? 0n,
+    bufferVariation: args.bufferVariation ?? 0n,
     epochProtocolFees: args.epochProtocolFees ?? 0n,
     nettedRebalanceVolumeUnderlying: args.nettedRebalanceVolumeUnderlying ?? 0n,
   };

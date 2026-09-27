@@ -15,7 +15,7 @@ import type {
 
 /** Matches `ILiquidityOrchestrator.StatesStruct` ABI encoding used by `_verifyPerformData`. */
 const STATES_STRUCT_TYPE =
-  "tuple(tuple(bool processRedeem,uint256 totalAssetsForRedeem,uint256 totalAssetsForDeposit,uint256 finalTotalAssets,uint256 managementFee,uint256 performanceFee,address[] tokens,uint256[] shares,bytes portfolioCiphertext)[] vaults,tuple(address[] sellingTokens,uint256[] sellingAmounts,uint256[] sellingEstimatedUnderlyingAmounts) sellLeg,tuple(address[] buyingTokens,uint256[] buyingAmounts,uint256[] buyingEstimatedUnderlyingAmounts) buyLeg,uint256 bufferIncrease,uint256 epochProtocolFees,uint256 nettedRebalanceVolumeUnderlying)";
+  "tuple(tuple(bool processRedeem,uint256 totalAssetsForRedeem,uint256 totalAssetsForDeposit,uint256 finalTotalAssets,uint256 managementFee,uint256 performanceFee,address[] tokens,uint256[] shares,bytes portfolioCiphertext)[] vaults,tuple(address[] sellingTokens,uint256[] sellingAmounts,uint256[] sellingEstimatedUnderlyingAmounts) sellLeg,tuple(address[] buyingTokens,uint256[] buyingAmounts,uint256[] buyingEstimatedUnderlyingAmounts) buyLeg,int256 bufferVariation,uint256 epochProtocolFees,uint256 nettedRebalanceVolumeUnderlying)";
 
 const PUBLIC_VALUES_TYPE = "tuple(bytes32 inputCommitment,bytes32 outputCommitment)";
 
@@ -40,14 +40,14 @@ type BuyLeg = {
 function encodePerformPayload(args: {
   inputCommitment: string;
   buyLeg?: BuyLeg;
-  bufferIncrease?: bigint;
+  bufferVariation?: bigint;
   epochProtocolFees?: bigint;
 }): { publicValues: string; proofBytes: string; statesBytes: string } {
   const states = {
     vaults: [] as never[],
     sellLeg: EMPTY_LEG,
     buyLeg: args.buyLeg ?? EMPTY_BUY_LEG,
-    bufferIncrease: args.bufferIncrease ?? 0n,
+    bufferVariation: args.bufferVariation ?? 0n,
     epochProtocolFees: args.epochProtocolFees ?? 0n,
     nettedRebalanceVolumeUnderlying: 0n,
   };
@@ -179,7 +179,7 @@ describe("LiquidityOrchestrator – deferred buffer and fee accrual", function (
       expect(await harness.pendingProtocolFees()).to.equal(10n);
     });
 
-    it("at PVO: applies bufferIncrease + deferred dust + protocol fees and clears delta", async function () {
+    it("at PVO: applies bufferVariation + deferred dust + protocol fees and clears delta", async function () {
       await harness.h_setPhase(PHASE_PVO);
       await harness.h_setBufferAmount(1_000n);
       await harness.h_setEpochDeltaAmount(200);
@@ -201,6 +201,22 @@ describe("LiquidityOrchestrator – deferred buffer and fee accrual", function (
 
       expect(await harness.bufferAmount()).to.equal(850n);
       expect(await harness.h_epochDeltaAmount()).to.equal(0n);
+    });
+
+    it("at PVO: negative bufferVariation reduces bufferAmount", async function () {
+      await harness.h_setPhase(PHASE_PVO);
+      await harness.h_setBufferAmount(1_000n);
+
+      await harness.h_applyBuyLegSettlement(-200n, 0n);
+
+      expect(await harness.bufferAmount()).to.equal(800n);
+    });
+
+    it("at PVO: bufferVariation underflow reverts", async function () {
+      await harness.h_setPhase(PHASE_PVO);
+      await harness.h_setBufferAmount(100n);
+
+      await expect(harness.h_applyBuyLegSettlement(-101n, 0n)).to.be.rejected;
     });
   });
 
@@ -234,7 +250,7 @@ describe("LiquidityOrchestrator – deferred buffer and fee accrual", function (
 
       const payload = encodePerformPayload({
         inputCommitment: EPOCH_COMMITMENT,
-        bufferIncrease: 50n,
+        bufferVariation: 50n,
         epochProtocolFees: 25n,
       });
 
@@ -268,7 +284,7 @@ describe("LiquidityOrchestrator – deferred buffer and fee accrual", function (
           buyingAmounts: [0n, 0n],
           buyingEstimatedUnderlyingAmounts: [0n, 0n],
         },
-        bufferIncrease: 500n,
+        bufferVariation: 500n,
         epochProtocolFees: 40n,
       });
 
@@ -294,7 +310,7 @@ describe("LiquidityOrchestrator – deferred buffer and fee accrual", function (
 
       const payload = encodePerformPayload({
         inputCommitment: EPOCH_COMMITMENT,
-        bufferIncrease: 100n,
+        bufferVariation: 100n,
         epochProtocolFees: 7n,
       });
 

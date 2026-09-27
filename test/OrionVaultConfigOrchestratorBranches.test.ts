@@ -784,6 +784,41 @@ describe("OrionVault / OrionConfig / LO edge branches", function () {
       });
       expect(await vault.pendingDepositCount()).to.equal(0n);
     });
+
+    it("processRedeem=false skips fulfillRedeem with pending redeem", async function () {
+      const vault = await createVault("SkipR", "SKR");
+      const amount = ethers.parseUnits("25", 6);
+      await underlying.mint(user.address, amount);
+      await underlying.connect(user).approve(await vault.getAddress(), amount);
+      await vault.connect(user).requestDeposit(amount);
+
+      const loSigner = await impersonate(await harness.getAddress());
+      await vault.connect(loSigner).fulfillDeposit(amount);
+      await vault.connect(loSigner).updateVaultState([await underlying.getAddress()], [0n], amount);
+
+      const shares = await vault.balanceOf(user.address);
+      await vault.connect(user).approve(await vault.getAddress(), shares);
+      await vault.connect(user).requestRedeem(shares);
+      expect(await vault.pendingRedeemCount()).to.equal(1n);
+
+      await underlying.mint(await harness.getAddress(), amount);
+      const before = await underlying.balanceOf(user.address);
+
+      await harness.exposed_processSingleVaultOperations(await vault.getAddress(), {
+        processRedeem: false,
+        totalAssetsForRedeem: amount,
+        totalAssetsForDeposit: 0n,
+        finalTotalAssets: amount,
+        managementFee: 0n,
+        performanceFee: 0n,
+        tokens: [await underlying.getAddress()],
+        shares: [0n],
+        portfolioCiphertext: "0x",
+      });
+
+      expect(await vault.pendingRedeemCount()).to.equal(1n);
+      expect(await underlying.balanceOf(user.address)).to.equal(before);
+    });
   });
 
   describe("TransparentVault SystemNotIdle + portfolio loop", function () {

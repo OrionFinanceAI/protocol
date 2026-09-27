@@ -42,4 +42,12 @@ contract LiquidityOrchestratorVaultHarness is LiquidityOrchestrator {
     function h_executeBuy(address asset, uint256 sharesAmount, uint256 estimatedUnderlyingAmount) external {
         this._executeBuy(asset, sharesAmount, estimatedUnderlyingAmount);
     }
+
+    function h_setBufferAmount(uint256 amount) external {
+        bufferAmount = amount;
+    }
+
+    function h_applyBuyLegSettlement(int256 bufferVariation, uint256 epochProtocolFees) external {
+        _applyBuyLegSettlement(bufferVariation, epochProtocolFees);
+    }
 }
