@@ -267,5 +267,27 @@ describe("UniswapV3ExecutionAdapter - Unit Tests", function () {
       const allowance = await usdc.allowance(await adapter.getAddress(), await mockRouter.getAddress());
       expect(allowance).to.equal(0);
     });
+
+    it("Should book quoted amountIn as spend when router uses less", async function () {
+      const buyAmount = ethers.parseUnits("1", WETH_DECIMALS);
+      const quotedIn = ethers.parseUnits("2600", USDC_DECIMALS);
+      const spentIn = ethers.parseUnits("2500", USDC_DECIMALS);
+      const leftover = quotedIn - spentIn;
+
+      await mockQuoter.setNextQuoteResult(quotedIn);
+      await mockRouter.setNextSwapResult(spentIn, buyAmount);
+
+      await usdc.mint(user.address, quotedIn);
+      await usdc.connect(user).approve(await adapter.getAddress(), quotedIn);
+
+      const balanceBefore = await usdc.balanceOf(user.address);
+      const reportedSpend = await adapter.connect(user).buy.staticCall(await weth.getAddress(), buyAmount);
+      await adapter.connect(user).buy(await weth.getAddress(), buyAmount);
+      const balanceAfter = await usdc.balanceOf(user.address);
+
+      expect(reportedSpend).to.equal(quotedIn);
+      expect(balanceBefore - balanceAfter).to.equal(quotedIn);
+      expect(await usdc.balanceOf(await adapter.getAddress())).to.equal(leftover);
+    });
   });
 });
