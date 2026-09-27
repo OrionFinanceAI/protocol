@@ -522,7 +522,6 @@ contract LiquidityOrchestrator is
 
         // slither-disable-next-line incorrect-equality
         if (_currentEpoch.vaultsEpoch.length == 0) {
-            lastEpochStartTimestamp = block.timestamp;
             _nextUpdateTime = block.timestamp + epochDuration;
             return;
         }
