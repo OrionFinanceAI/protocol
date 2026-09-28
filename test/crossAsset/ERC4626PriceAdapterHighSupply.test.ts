@@ -273,6 +273,62 @@ describe("ERC4626PriceAdapter - High Supply Vaults", function () {
   });
 
   describe("cross-asset precision (merged from PriceAdapterTruncation)", function () {
+    it("should price empty cross-asset vault at 1.0 without vaultUnderlyingDecimals conversion", async function () {
+      const [deployer] = await ethers.getSigners();
+      const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
+      const protocolUnderlying = (await MockUnderlyingAssetFactory.deploy(6)) as unknown as MockUnderlyingAsset;
+      const vaultUnderlying = (await MockUnderlyingAssetFactory.deploy(18)) as unknown as MockUnderlyingAsset;
+      const deployed = await deployUpgradeableProtocol(deployer, protocolUnderlying);
+
+      const mockUnderlyingPriceAdapter = await (await ethers.getContractFactory("MockPriceAdapter")).deploy();
+      const mockExecutionAdapter = await (await ethers.getContractFactory("MockExecutionAdapter")).deploy();
+      await deployed.orionConfig.addWhitelistedAsset(
+        await vaultUnderlying.getAddress(),
+        await mockUnderlyingPriceAdapter.getAddress(),
+        await mockExecutionAdapter.getAddress(),
+      );
+
+      const priceAdapter = await (
+        await ethers.getContractFactory("ERC4626PriceAdapter")
+      ).deploy(await deployed.orionConfig.getAddress());
+
+      // Empty vault: 18-dec shares, 18-dec underlying ≠ protocol USDC-6.
+      const MockVaultFactory = await ethers.getContractFactory("TestFixedRatioERC4626");
+      const vault = (await MockVaultFactory.deploy(
+        await vaultUnderlying.getAddress(),
+        "EmptyCross",
+        "EXC",
+        18,
+        0n,
+        0n,
+      )) as unknown as TestFixedRatioERC4626;
+      await vault.waitForDeployment();
+
+      const vaultExec = await (await ethers.getContractFactory("MockExecutionAdapter")).deploy();
+      await deployed.orionConfig.addWhitelistedAsset(
+        await vault.getAddress(),
+        await priceAdapter.getAddress(),
+        await vaultExec.getAddress(),
+      );
+
+      const priceRegistry = await ethers.getContractAt(
+        "PriceAdapterRegistry",
+        await deployed.orionConfig.priceAdapterRegistry(),
+      );
+      const underlyingPriceInUSDC = await priceRegistry.getPrice(await vaultUnderlying.getAddress());
+      const priceAdapterDecimals = await deployed.orionConfig.priceAdapterDecimals();
+
+      // Empty fallback stays in protocol scale; compose with registry price (no /10^(18-6)).
+      const [price, decimals] = await priceAdapter.getPriceData(await vault.getAddress());
+      expect(decimals).to.equal(REPORTED_DECIMALS);
+      const expectedAdapterPrice =
+        (10n ** BigInt(REPORTED_DECIMALS) * underlyingPriceInUSDC) / 10n ** BigInt(priceAdapterDecimals);
+      expect(price).to.equal(expectedAdapterPrice);
+
+      const registryPrice = await priceRegistry.getPrice(await vault.getAddress());
+      expect(registryPrice).to.equal(underlyingPriceInUSDC);
+    });
+
     it("should preserve precision for cross-asset ERC4626 vaults composed with registry price", async function () {
       const [deployer] = await ethers.getSigners();
       const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");

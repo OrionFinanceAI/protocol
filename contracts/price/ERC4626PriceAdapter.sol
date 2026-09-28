@@ -65,30 +65,29 @@ contract ERC4626PriceAdapter is IPriceAdapter {
         uint256 totalSupply = vault.totalSupply();
 
         decimals = PRICE_DECIMALS + UNDERLYING_ASSET_DECIMALS;
-        uint256 vaultUnderlyingAssetAmount;
+        uint256 normalizedUnderlyingAssetAmount;
         if (totalSupply == 0) {
-            vaultUnderlyingAssetAmount = 10 ** uint256(decimals);
+            normalizedUnderlyingAssetAmount = 10 ** uint256(decimals);
         } else {
             uint8 effectiveShareDecimals = _effectiveShareDecimals(totalAssets, totalSupply, vaultAssetDecimals);
             uint256 precisionAmount = 10 ** (PRICE_DECIMALS + effectiveShareDecimals);
-            vaultUnderlyingAssetAmount = Math.mulDiv(totalAssets, precisionAmount, totalSupply);
+            uint256 vaultUnderlyingAssetAmount = Math.mulDiv(totalAssets, precisionAmount, totalSupply);
             if (effectiveShareDecimals > vaultAssetDecimals) {
                 vaultUnderlyingAssetAmount =
                     vaultUnderlyingAssetAmount /
                     (10 ** (uint256(effectiveShareDecimals) - uint256(vaultAssetDecimals)));
             }
+            uint8 vaultUnderlyingDecimals = IERC20Metadata(vaultUnderlying).decimals();
+            normalizedUnderlyingAssetAmount = UtilitiesLib.convertDecimals(
+                vaultUnderlyingAssetAmount,
+                PRICE_DECIMALS + vaultUnderlyingDecimals,
+                PRICE_DECIMALS + UNDERLYING_ASSET_DECIMALS
+            );
         }
 
         if (vaultUnderlying == address(UNDERLYING_ASSET)) {
-            return (vaultUnderlyingAssetAmount, decimals);
+            return (normalizedUnderlyingAssetAmount, decimals);
         }
-
-        uint8 vaultUnderlyingDecimals = IERC20Metadata(vaultUnderlying).decimals();
-        uint256 normalizedUnderlyingAssetAmount = UtilitiesLib.convertDecimals(
-            vaultUnderlyingAssetAmount,
-            PRICE_DECIMALS + vaultUnderlyingDecimals,
-            PRICE_DECIMALS + UNDERLYING_ASSET_DECIMALS
-        );
 
         uint256 vaultUnderlyingPrice = PRICE_REGISTRY.getPrice(vaultUnderlying);
         price = normalizedUnderlyingAssetAmount.mulDiv(vaultUnderlyingPrice, 10 ** CONFIG.priceAdapterDecimals());
