@@ -1,13 +1,13 @@
 # Agent prompt templates — Turn 3a
 
-The two prompts the orchestrator gives to the 12 agents. Agents 1–9 get the
-single-specialty prompt; agents 10–12 get the gap-hunter prompt.
+The two prompts the orchestrator gives to the 12 agents. Agents 1–9 get the single-specialty prompt; agents 10–12 get
+the gap-hunter prompt.
 
-Both are verbatim text with values substituted in. Substitute `{bundle_dir}`,
-the agent number `N`, and the bundle's real line count. Change nothing else.
+Both are verbatim text with values substituted in. Substitute `{bundle_dir}`, the agent number `N`, and the bundle's
+real line count. Change nothing else.
 
-The orchestrator reads this file in **Turn 2**, in the same parallel message
-that reads `report-formatting.md` and `judging.md`.
+The orchestrator reads this file in **Turn 2**, in the same parallel message that reads `report-formatting.md` and
+`judging.md`.
 
 ---
 
@@ -60,9 +60,14 @@ class of bug in the same function.
 Output format: see shared-rules.md inside your bundle.
 ```
 
-The "Known findings" paragraph is included **only when memory is on and `known-findings.md` was appended**. On a plain scan the prompt is byte-identical to the one it has always been — a paragraph about a section that is not there would send agents hunting for it.
+The "Known findings" paragraph is included **only when memory is on and `known-findings.md` was appended**. On a plain
+scan the prompt is byte-identical to the one it has always been — a paragraph about a section that is not there would
+send agents hunting for it.
 
-The READ-ONLY paragraph is **unconditional** — every agent, every mode, every pass. It is here because a real scan proved it necessary: an agent built Foundry proof-of-concept files inside the audited repository and deleted them afterwards. It left the tree clean and the stored SHA honest, and it was still wrong. A later editor must not make it conditional, and must not soften it into a preference.
+The READ-ONLY paragraph is **unconditional** — every agent, every mode, every pass. It is here because a real scan
+proved it necessary: an agent built Foundry proof-of-concept files inside the audited repository and deleted them
+afterwards. It left the tree clean and the stored SHA honest, and it was still wrong. A later editor must not make it
+conditional, and must not soften it into a preference.
 
 ## Gap-hunter prompt
 
@@ -115,5 +120,5 @@ Output format: see shared-rules.md inside your bundle (gap-hunter-specific
 output fields are in your specialty file).
 ```
 
-The same paragraph, under the same condition as Turn 3a-i: memory on and the file appended, or the paragraph is left out.
-
+The same paragraph, under the same condition as Turn 3a-i: memory on and the file appended, or the paragraph is left
+out.
