@@ -16,8 +16,9 @@ import { deployUpgradeableProtocol } from "../helpers/deployUpgradeable";
 
 const PRICE_DECIMALS = 10;
 const PRICE_ADAPTER_DECIMALS = 14;
-/** Effective share scale for vfUSDC-like ratio when vault reports 6 decimals. */
-const VF_USDC_EFFECTIVE_SHARE_DECIMALS = 12;
+const USDC_DECIMALS = 6;
+/** Reported getPriceData decimals: PRICE_DECIMALS + protocol underlying decimals. */
+const REPORTED_DECIMALS = PRICE_DECIMALS + USDC_DECIMALS;
 
 // vfUSDC-like mainnet snapshot ratios (Varlamore Falcon USDC) — unit fixture only
 const VF_USDC_TOTAL_ASSETS = 41_875_623_172n;
@@ -81,24 +82,26 @@ describe("ERC4626PriceAdapter - High Supply Vaults", function () {
     await registerVault(vault);
 
     const [, priceDecimals] = await priceAdapter.getPriceData(await vault.getAddress());
-    // Effective share scale is 12 for this ratio; naive 10^vaultDecimals truncates to 1.
-    expect(priceDecimals).to.equal(PRICE_DECIMALS + VF_USDC_EFFECTIVE_SHARE_DECIMALS);
+    expect(priceDecimals).to.equal(REPORTED_DECIMALS);
 
     const naivePerShare = (VF_USDC_TOTAL_ASSETS * 10n ** BigInt(VF_USDC_VAULT_DECIMALS)) / VF_USDC_TOTAL_SUPPLY;
     expect(naivePerShare).to.equal(1n);
 
+    // Effective share scale preserves ratio; after whole-share scale-down registry matches assets/supply.
     const expectedRegistryPrice = (VF_USDC_TOTAL_ASSETS * 10n ** BigInt(PRICE_ADAPTER_DECIMALS)) / VF_USDC_TOTAL_SUPPLY;
     const registryPrice = await getRegistryPrice(await vault.getAddress());
     expect(registryPrice).to.be.closeTo(expectedRegistryPrice, 1n);
   });
 
-  it("does not change pricing for standard 18-decimal appreciating vaults", async function () {
+  it("normalizes 18-decimal USDC vaults to USDC-per-whole-share at registry decimals", async function () {
     const MockVaultFactory = await ethers.getContractFactory("TestFixedRatioERC4626");
-    const totalAssets = ethers.parseUnits("1000", 18);
-    const totalSupply = ethers.parseUnits("950", 18);
+    // ~1.14 USDC per whole share (Steakhouse-style): assets in USDC-6, shares in 18 decimals.
+    const totalSupply = 10n ** 18n;
+    const assetsPerWholeShare = 1_141_790n; // USDC-6
+    const totalAssets = assetsPerWholeShare; // supply is exactly 1 whole share
     const vault = (await MockVaultFactory.deploy(
       await protocolUnderlying.getAddress(),
-      "18d Vault",
+      "18d USDC Vault",
       "v18",
       18,
       totalAssets,
@@ -108,18 +111,22 @@ describe("ERC4626PriceAdapter - High Supply Vaults", function () {
     await registerVault(vault);
 
     const [price, priceDecimals] = await priceAdapter.getPriceData(await vault.getAddress());
-    expect(priceDecimals).to.equal(PRICE_DECIMALS + 18);
+    expect(priceDecimals).to.equal(REPORTED_DECIMALS);
 
     const underlyingPerShare = price / 10n ** BigInt(PRICE_DECIMALS);
-    const expectedPerShare = (totalAssets * 10n ** 18n) / totalSupply;
-    expect(underlyingPerShare).to.equal(expectedPerShare);
+    expect(underlyingPerShare).to.equal(assetsPerWholeShare);
 
-    const expectedRegistryPrice = (totalAssets * 10n ** BigInt(PRICE_ADAPTER_DECIMALS)) / totalSupply;
+    // Registry: USDC-per-whole-share at 14 decimals ≈ 1.14179e14
+    const expectedRegistryPrice = assetsPerWholeShare * 10n ** BigInt(PRICE_ADAPTER_DECIMALS - USDC_DECIMALS);
     const registryPrice = await getRegistryPrice(await vault.getAddress());
     expect(registryPrice).to.be.closeTo(expectedRegistryPrice, 1n);
+
+    // Fork mental model: fromPrice (USDC-6) ≈ convertToAssets(1e18)
+    const fromPrice = registryPrice / 10n ** BigInt(PRICE_ADAPTER_DECIMALS - USDC_DECIMALS);
+    expect(fromPrice).to.be.closeTo(assetsPerWholeShare, 3n);
   });
 
-  it("prices honest offset-style vaults (decimals=12) at the true assets/supply ratio", async function () {
+  it("prices honest offset-style vaults (decimals=12) at USDC-per-whole-share", async function () {
     const MockVaultFactory = await ethers.getContractFactory("TestFixedRatioERC4626");
     // Same vfUSDC ratio, but share decimals already include the offset — no bump path.
     const vaultDecimals = 12;
@@ -135,9 +142,12 @@ describe("ERC4626PriceAdapter - High Supply Vaults", function () {
     await registerVault(vault);
 
     const [, priceDecimals] = await priceAdapter.getPriceData(await vault.getAddress());
-    expect(priceDecimals).to.equal(PRICE_DECIMALS + vaultDecimals);
+    expect(priceDecimals).to.equal(REPORTED_DECIMALS);
 
-    const expectedRegistryPrice = (VF_USDC_TOTAL_ASSETS * 10n ** BigInt(PRICE_ADAPTER_DECIMALS)) / VF_USDC_TOTAL_SUPPLY;
+    // Whole share = 10^vaultDecimals; registry = convertToAssets(10^d) * 10^(14-6)
+    const expectedRegistryPrice =
+      (VF_USDC_TOTAL_ASSETS * 10n ** BigInt(PRICE_ADAPTER_DECIMALS - USDC_DECIMALS + vaultDecimals)) /
+      VF_USDC_TOTAL_SUPPLY;
     const registryPrice = await getRegistryPrice(await vault.getAddress());
     expect(registryPrice).to.be.closeTo(expectedRegistryPrice, 1n);
   });
@@ -178,8 +188,29 @@ describe("ERC4626PriceAdapter - High Supply Vaults", function () {
       await registerVault(vault);
 
       const [price, decimals] = await priceAdapter.getPriceData(await vault.getAddress());
-      expect(decimals).to.equal(PRICE_DECIMALS + 6);
-      expect(price).to.equal(10n ** BigInt(PRICE_DECIMALS + 6));
+      expect(decimals).to.equal(REPORTED_DECIMALS);
+      expect(price).to.equal(10n ** BigInt(REPORTED_DECIMALS));
+
+      const registryPrice = await getRegistryPrice(await vault.getAddress());
+      expect(registryPrice).to.equal(10n ** BigInt(PRICE_ADAPTER_DECIMALS));
+    });
+
+    it("should return 1:1 for empty 18-decimal vaults", async function () {
+      const MockVaultFactory = await ethers.getContractFactory("TestFixedRatioERC4626");
+      const vault = (await MockVaultFactory.deploy(
+        await protocolUnderlying.getAddress(),
+        "Empty18",
+        "E18",
+        18,
+        0n,
+        0n,
+      )) as unknown as TestFixedRatioERC4626;
+      await vault.waitForDeployment();
+      await registerVault(vault);
+
+      const [price, decimals] = await priceAdapter.getPriceData(await vault.getAddress());
+      expect(decimals).to.equal(REPORTED_DECIMALS);
+      expect(price).to.equal(10n ** BigInt(REPORTED_DECIMALS));
 
       const registryPrice = await getRegistryPrice(await vault.getAddress());
       expect(registryPrice).to.equal(10n ** BigInt(PRICE_ADAPTER_DECIMALS));
@@ -197,7 +228,8 @@ describe("ERC4626PriceAdapter - High Supply Vaults", function () {
       )) as unknown as TestFixedRatioERC4626;
       await vault.waitForDeployment();
       await registerVault(vault);
-      const [price] = await priceAdapter.getPriceData(await vault.getAddress());
+      const [price, decimals] = await priceAdapter.getPriceData(await vault.getAddress());
+      expect(decimals).to.equal(REPORTED_DECIMALS);
       expect(price).to.be.gte(0n);
     });
 
@@ -216,7 +248,8 @@ describe("ERC4626PriceAdapter - High Supply Vaults", function () {
       )) as unknown as TestFixedRatioERC4626;
       await vault.waitForDeployment();
       await registerVault(vault);
-      const [price] = await priceAdapter.getPriceData(await vault.getAddress());
+      const [price, decimals] = await priceAdapter.getPriceData(await vault.getAddress());
+      expect(decimals).to.equal(REPORTED_DECIMALS);
       expect(price).to.be.gte(0n);
     });
 
@@ -234,7 +267,7 @@ describe("ERC4626PriceAdapter - High Supply Vaults", function () {
       await vault.waitForDeployment();
       await registerVault(vault);
       const [price, decimals] = await priceAdapter.getPriceData(await vault.getAddress());
-      expect(decimals).to.equal(PRICE_DECIMALS + 6);
+      expect(decimals).to.equal(REPORTED_DECIMALS);
       expect(price).to.equal(10n ** BigInt(PRICE_DECIMALS));
     });
   });
@@ -297,7 +330,7 @@ describe("ERC4626PriceAdapter - High Supply Vaults", function () {
       const expectedPrice = (vaultUnderlyingAssetAmount * underlyingPriceInUSDC) / 10n ** BigInt(priceAdapterDecimals);
 
       const [priceFromAdapter, priceDecimals] = await priceAdapter.getPriceData(await vault.getAddress());
-      expect(priceDecimals).to.equal(PRICE_DECIMALS + Number(vaultDecimals));
+      expect(priceDecimals).to.equal(REPORTED_DECIMALS);
       const priceDifference =
         priceFromAdapter > expectedPrice ? priceFromAdapter - expectedPrice : expectedPrice - priceFromAdapter;
       expect(priceDifference).to.be.lte(1n);

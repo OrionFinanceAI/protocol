@@ -63,28 +63,27 @@ contract ERC4626PriceAdapter is IPriceAdapter {
         uint256 totalAssets = vault.totalAssets();
         uint256 totalSupply = vault.totalSupply();
 
-        uint8 priceDecimals = PRICE_DECIMALS + vaultAssetDecimals;
+        decimals = PRICE_DECIMALS + UNDERLYING_ASSET_DECIMALS;
         uint256 vaultUnderlyingAssetAmount;
         if (totalSupply == 0) {
-            vaultUnderlyingAssetAmount = 10 ** priceDecimals;
+            vaultUnderlyingAssetAmount = 10 ** uint256(decimals);
         } else {
             uint8 effectiveShareDecimals = _effectiveShareDecimals(totalAssets, totalSupply, vaultAssetDecimals);
             uint256 precisionAmount = 10 ** (PRICE_DECIMALS + effectiveShareDecimals);
             vaultUnderlyingAssetAmount = Math.mulDiv(totalAssets, precisionAmount, totalSupply);
-            priceDecimals = PRICE_DECIMALS + effectiveShareDecimals;
+            if (effectiveShareDecimals > vaultAssetDecimals) {
+                vaultUnderlyingAssetAmount =
+                    vaultUnderlyingAssetAmount /
+                    (10 ** (uint256(effectiveShareDecimals) - uint256(vaultAssetDecimals)));
+            }
         }
 
         if (vaultUnderlying == address(UNDERLYING_ASSET)) {
-            return (vaultUnderlyingAssetAmount, priceDecimals);
+            return (vaultUnderlyingAssetAmount, decimals);
         }
 
         uint256 vaultUnderlyingPrice = PRICE_REGISTRY.getPrice(vaultUnderlying);
-        uint256 vaultPrice = vaultUnderlyingAssetAmount.mulDiv(
-            vaultUnderlyingPrice,
-            10 ** CONFIG.priceAdapterDecimals()
-        );
-
-        return (vaultPrice, priceDecimals);
+        price = vaultUnderlyingAssetAmount.mulDiv(vaultUnderlyingPrice, 10 ** CONFIG.priceAdapterDecimals());
     }
 
     /// @notice Resolves share scale for pricing when reported vault decimals understate per-share value.
