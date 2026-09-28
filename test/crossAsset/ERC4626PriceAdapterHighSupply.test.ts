@@ -317,22 +317,32 @@ describe("ERC4626PriceAdapter - High Supply Vaults", function () {
       }
 
       const vaultDecimals = await vault.decimals();
-      const totalAssets = await vault.totalAssets();
-      const supply = await vault.totalSupply();
-      const precisionAmount = 10n ** BigInt(PRICE_DECIMALS + Number(vaultDecimals));
-      const vaultUnderlyingAssetAmount = (totalAssets * precisionAmount) / supply;
+      const vaultUnderlyingDecimals = await vaultUnderlying.decimals();
+      const wholeShare = 10n ** BigInt(vaultDecimals);
+      const underlyingPerWholeShare = await vault.convertToAssets(wholeShare);
+
       const priceRegistry = await ethers.getContractAt(
         "PriceAdapterRegistry",
         await deployed.orionConfig.priceAdapterRegistry(),
       );
       const underlyingPriceInUSDC = await priceRegistry.getPrice(await vaultUnderlying.getAddress());
       const priceAdapterDecimals = await deployed.orionConfig.priceAdapterDecimals();
-      const expectedPrice = (vaultUnderlyingAssetAmount * underlyingPriceInUSDC) / 10n ** BigInt(priceAdapterDecimals);
+
+      // USDC per whole vault share at registry precision (independent of adapter math).
+      const expectedRegistryPrice =
+        (underlyingPerWholeShare * underlyingPriceInUSDC) / 10n ** BigInt(vaultUnderlyingDecimals);
+      const registryPrice = await priceRegistry.getPrice(await vault.getAddress());
+      expect(registryPrice).to.be.closeTo(expectedRegistryPrice, 2n);
 
       const [priceFromAdapter, priceDecimals] = await priceAdapter.getPriceData(await vault.getAddress());
       expect(priceDecimals).to.equal(REPORTED_DECIMALS);
+      const expectedAdapterPrice =
+        (underlyingPerWholeShare * underlyingPriceInUSDC) /
+        10n ** BigInt(Number(vaultUnderlyingDecimals) + Number(priceAdapterDecimals) - REPORTED_DECIMALS);
       const priceDifference =
-        priceFromAdapter > expectedPrice ? priceFromAdapter - expectedPrice : expectedPrice - priceFromAdapter;
+        priceFromAdapter > expectedAdapterPrice
+          ? priceFromAdapter - expectedAdapterPrice
+          : expectedAdapterPrice - priceFromAdapter;
       expect(priceDifference).to.be.lte(1n);
     });
   });

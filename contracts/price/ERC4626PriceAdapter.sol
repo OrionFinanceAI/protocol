@@ -8,6 +8,7 @@ import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
 import { IPriceAdapterRegistry } from "../interfaces/IPriceAdapterRegistry.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
+import { UtilitiesLib } from "../libraries/UtilitiesLib.sol";
 
 /**
  * @title ERC4626PriceAdapter
@@ -82,8 +83,15 @@ contract ERC4626PriceAdapter is IPriceAdapter {
             return (vaultUnderlyingAssetAmount, decimals);
         }
 
+        uint8 vaultUnderlyingDecimals = IERC20Metadata(vaultUnderlying).decimals();
+        uint256 normalizedUnderlyingAssetAmount = UtilitiesLib.convertDecimals(
+            vaultUnderlyingAssetAmount,
+            PRICE_DECIMALS + vaultUnderlyingDecimals,
+            PRICE_DECIMALS + UNDERLYING_ASSET_DECIMALS
+        );
+
         uint256 vaultUnderlyingPrice = PRICE_REGISTRY.getPrice(vaultUnderlying);
-        price = vaultUnderlyingAssetAmount.mulDiv(vaultUnderlyingPrice, 10 ** CONFIG.priceAdapterDecimals());
+        price = normalizedUnderlyingAssetAmount.mulDiv(vaultUnderlyingPrice, 10 ** CONFIG.priceAdapterDecimals());
     }
 
     /// @notice Resolves share scale for pricing when reported vault decimals understate per-share value.
