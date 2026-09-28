@@ -8,6 +8,7 @@ import { ErrorsLib } from "../libraries/ErrorsLib.sol";
 import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
 import { IPriceAdapterRegistry } from "../interfaces/IPriceAdapterRegistry.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
+import { UtilitiesLib } from "../libraries/UtilitiesLib.sol";
 
 /**
  * @title ERC4626PriceAdapter
@@ -63,28 +64,33 @@ contract ERC4626PriceAdapter is IPriceAdapter {
         uint256 totalAssets = vault.totalAssets();
         uint256 totalSupply = vault.totalSupply();
 
-        uint8 priceDecimals = PRICE_DECIMALS + vaultAssetDecimals;
-        uint256 vaultUnderlyingAssetAmount;
+        decimals = PRICE_DECIMALS + UNDERLYING_ASSET_DECIMALS;
+        uint256 normalizedUnderlyingAssetAmount;
         if (totalSupply == 0) {
-            vaultUnderlyingAssetAmount = 10 ** priceDecimals;
+            normalizedUnderlyingAssetAmount = 10 ** uint256(decimals);
         } else {
             uint8 effectiveShareDecimals = _effectiveShareDecimals(totalAssets, totalSupply, vaultAssetDecimals);
             uint256 precisionAmount = 10 ** (PRICE_DECIMALS + effectiveShareDecimals);
-            vaultUnderlyingAssetAmount = Math.mulDiv(totalAssets, precisionAmount, totalSupply);
-            priceDecimals = PRICE_DECIMALS + effectiveShareDecimals;
+            uint256 vaultUnderlyingAssetAmount = Math.mulDiv(totalAssets, precisionAmount, totalSupply);
+            if (effectiveShareDecimals > vaultAssetDecimals) {
+                vaultUnderlyingAssetAmount =
+                    vaultUnderlyingAssetAmount /
+                    (10 ** (uint256(effectiveShareDecimals) - uint256(vaultAssetDecimals)));
+            }
+            uint8 vaultUnderlyingDecimals = IERC20Metadata(vaultUnderlying).decimals();
+            normalizedUnderlyingAssetAmount = UtilitiesLib.convertDecimals(
+                vaultUnderlyingAssetAmount,
+                PRICE_DECIMALS + vaultUnderlyingDecimals,
+                PRICE_DECIMALS + UNDERLYING_ASSET_DECIMALS
+            );
         }
 
         if (vaultUnderlying == address(UNDERLYING_ASSET)) {
-            return (vaultUnderlyingAssetAmount, priceDecimals);
+            return (normalizedUnderlyingAssetAmount, decimals);
         }
 
         uint256 vaultUnderlyingPrice = PRICE_REGISTRY.getPrice(vaultUnderlying);
-        uint256 vaultPrice = vaultUnderlyingAssetAmount.mulDiv(
-            vaultUnderlyingPrice,
-            10 ** CONFIG.priceAdapterDecimals()
-        );
-
-        return (vaultPrice, priceDecimals);
+        price = normalizedUnderlyingAssetAmount.mulDiv(vaultUnderlyingPrice, 10 ** CONFIG.priceAdapterDecimals());
     }
 
     /// @notice Resolves share scale for pricing when reported vault decimals understate per-share value.
