@@ -17,13 +17,16 @@ protocol-ops/
 protocol-costs/
 reports/
 docs/
-.cursor/
+.cursor/*
+!.cursor/skills/
+!.cursor/skills/**/
 res/
 running_node/
 artifacts/
 edr-cache/
 coverage/
 coverage.json
+.solidity-auditor/
 
 scripts/*.ts
 

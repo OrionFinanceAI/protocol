@@ -63,14 +63,16 @@ contract ERC4626PriceAdapter is IPriceAdapter {
         uint256 totalAssets = vault.totalAssets();
         uint256 totalSupply = vault.totalSupply();
 
+        uint8 priceDecimals = PRICE_DECIMALS + vaultAssetDecimals;
+        uint256 vaultUnderlyingAssetAmount;
         if (totalSupply == 0) {
-            return (0, PRICE_DECIMALS + vaultAssetDecimals);
+            vaultUnderlyingAssetAmount = 10 ** priceDecimals;
+        } else {
+            uint8 effectiveShareDecimals = _effectiveShareDecimals(totalAssets, totalSupply, vaultAssetDecimals);
+            uint256 precisionAmount = 10 ** (PRICE_DECIMALS + effectiveShareDecimals);
+            vaultUnderlyingAssetAmount = Math.mulDiv(totalAssets, precisionAmount, totalSupply);
+            priceDecimals = PRICE_DECIMALS + effectiveShareDecimals;
         }
-
-        uint8 effectiveShareDecimals = _effectiveShareDecimals(totalAssets, totalSupply, vaultAssetDecimals);
-        uint256 precisionAmount = 10 ** (PRICE_DECIMALS + effectiveShareDecimals);
-        uint256 vaultUnderlyingAssetAmount = Math.mulDiv(totalAssets, precisionAmount, totalSupply);
-        uint8 priceDecimals = PRICE_DECIMALS + effectiveShareDecimals;
 
         if (vaultUnderlying == address(UNDERLYING_ASSET)) {
             return (vaultUnderlyingAssetAmount, priceDecimals);

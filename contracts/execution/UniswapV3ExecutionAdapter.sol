@@ -133,7 +133,7 @@ contract UniswapV3ExecutionAdapter is IExecutionAdapter {
     }
 
     /// @inheritdoc IExecutionAdapter
-    function buy(address asset, uint256 amount) external override returns (uint256 spentAmount) {
+    function buy(address asset, uint256 amount) external override returns (uint256) {
         uint256 amountIn = this.previewBuy(asset, amount);
 
         // Pull approved amount from caller
@@ -153,8 +153,11 @@ contract UniswapV3ExecutionAdapter is IExecutionAdapter {
             sqrtPriceLimitX96: 0
         });
 
-        spentAmount = SWAP_ROUTER.exactOutputSingle(params);
+        // Ignore router return: amountIn already pulled is authoritative for LO/composition accounting.
+        // slither-disable-next-line unused-return
+        SWAP_ROUTER.exactOutputSingle(params);
 
         IERC20(UNDERLYING_ASSET).forceApprove(address(SWAP_ROUTER), 0);
+        return amountIn;
     }
 }

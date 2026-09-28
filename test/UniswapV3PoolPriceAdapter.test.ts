@@ -164,6 +164,21 @@ describe("UniswapV3PoolPriceAdapter — unit tests", function () {
       expect(decimals).to.equal(16); // PRICE_DECIMALS(10) + USDC(6)
     });
 
+    it("should normalize an 18-decimal asset worth one USDC to ~1.0", async function () {
+      // Human price 1 USDC per 1 asset ⇒ raw token1/token0 = 1e6/1e18 when asset is token0.
+      const sqrtOneUsdcPerAsset = (1n << 96n) / 10n ** 6n;
+      const pool = await deployPool(await asset.getAddress(), await usdc.getAddress(), sqrtOneUsdcPerAsset);
+      await adapter.setPool(await asset.getAddress(), await pool.getAddress());
+
+      const [price, decimals] = await adapter.getPriceData(await asset.getAddress());
+      expect(decimals).to.equal(16); // PRICE_DECIMALS(10) + USDC(6)
+
+      // Price is USDC minor units × 10^PRICE_DECIMALS per full asset → 1 USDC ⇒ 10^16.
+      const oneUsdc = 10n ** BigInt(decimals);
+      const relErrorBps = ((price > oneUsdc ? price - oneUsdc : oneUsdc - price) * 10_000n) / oneUsdc;
+      expect(relErrorBps).to.be.lte(2n); // ≤ 0.02% TickMath rounding
+    });
+
     it("should reject when slot0 sqrt becomes zero after setPool", async function () {
       const pool = await deployPool(await usdc.getAddress(), await asset.getAddress());
       await adapter.setPool(await asset.getAddress(), await pool.getAddress());

@@ -77,7 +77,10 @@ contract PriceAdapterRegistry is Initializable, IPriceAdapterRegistry, UUPSUpgra
         (uint256 rawPrice, uint8 priceDecimals) = adapter.getPriceData(asset);
 
         uint256 normalizedPrice = UtilitiesLib.convertDecimals(rawPrice, priceDecimals, priceAdapterDecimals);
-        if (normalizedPrice == 0) revert ErrorsLib.PriceMustBeGreaterThanZero(asset);
+        if (normalizedPrice == 0) {
+            if (rawPrice == 0) revert ErrorsLib.PriceMustBeGreaterThanZero(asset);
+            normalizedPrice = 1;
+        }
 
         return normalizedPrice;
     }

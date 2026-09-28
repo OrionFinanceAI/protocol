@@ -63,6 +63,30 @@ describe("PriceAdapterRegistry", function () {
         .withArgs(await mockAsset.getAddress());
     });
 
+    it("should floor a positive truncated scale-down to 1", async function () {
+      const MockTokenFactory = await ethers.getContractFactory("MockUnderlyingAsset");
+      const mockAsset = (await MockTokenFactory.deploy(18)) as unknown as MockUnderlyingAsset;
+      await mockAsset.waitForDeployment();
+
+      const MockPriceAdapterFactory = await ethers.getContractFactory("MockPriceAdapter");
+      const priceAdapter = (await MockPriceAdapterFactory.deploy()) as unknown as MockPriceAdapter;
+      await priceAdapter.waitForDeployment();
+
+      const MockExecutionAdapterFactory = await ethers.getContractFactory("MockExecutionAdapter");
+      const mockExecutionAdapter = (await MockExecutionAdapterFactory.deploy()) as unknown as MockExecutionAdapter;
+      await mockExecutionAdapter.waitForDeployment();
+
+      await orionConfig.addWhitelistedAsset(
+        await mockAsset.getAddress(),
+        await priceAdapter.getAddress(),
+        await mockExecutionAdapter.getAddress(),
+      );
+      // raw 1 at 20 decimals → convertDecimals to 14 truncates to 0 without the floor
+      await priceAdapter.setMockPriceData(await mockAsset.getAddress(), 1n, 20);
+
+      expect(await priceAdapterRegistry.getPrice(await mockAsset.getAddress())).to.equal(1n);
+    });
+
     it("should return 1e14 for the underlying asset", async function () {
       const price = await priceAdapterRegistry.getPrice(await underlyingAsset.getAddress());
       expect(price).to.equal(10n ** 14n);

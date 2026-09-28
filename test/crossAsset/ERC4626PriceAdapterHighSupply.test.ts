@@ -164,7 +164,7 @@ describe("ERC4626PriceAdapter - High Supply Vaults", function () {
       );
     });
 
-    it("should return zero price when vault totalSupply is zero", async function () {
+    it("should return 1:1 unit price when vault totalSupply is zero", async function () {
       const MockVaultFactory = await ethers.getContractFactory("TestFixedRatioERC4626");
       const vault = (await MockVaultFactory.deploy(
         await protocolUnderlying.getAddress(),
@@ -178,8 +178,11 @@ describe("ERC4626PriceAdapter - High Supply Vaults", function () {
       await registerVault(vault);
 
       const [price, decimals] = await priceAdapter.getPriceData(await vault.getAddress());
-      expect(price).to.equal(0n);
       expect(decimals).to.equal(PRICE_DECIMALS + 6);
+      expect(price).to.equal(10n ** BigInt(PRICE_DECIMALS + 6));
+
+      const registryPrice = await getRegistryPrice(await vault.getAddress());
+      expect(registryPrice).to.equal(10n ** BigInt(PRICE_ADAPTER_DECIMALS));
     });
 
     it("should handle zero-decimal vault with truncated per-share ratio", async function () {

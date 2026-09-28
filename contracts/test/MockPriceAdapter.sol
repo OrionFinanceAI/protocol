@@ -10,6 +10,8 @@ import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/I
 contract MockPriceAdapter is IPriceAdapter {
     /// @notice Configurable mock prices for non-ERC4626 assets
     mapping(address => uint256) public mockPrices;
+    /// @notice Optional decimals for `mockPrices`; 0 means use the default 14.
+    mapping(address => uint8) public mockDecimals;
     /// @dev When set, getPriceData returns (0, 14) for the asset (broken-adapter tests).
     mapping(address => bool) public forceZeroPrice;
 
@@ -27,6 +29,17 @@ contract MockPriceAdapter is IPriceAdapter {
     /// @param price The price in 14-decimal format
     function setMockPrice(address asset, uint256 price) external {
         mockPrices[asset] = price;
+        mockDecimals[asset] = 14;
+        forceZeroPrice[asset] = false;
+    }
+
+    /// @notice Set mock price and decimals for a non-ERC4626 asset
+    /// @param asset The asset address
+    /// @param price The raw price
+    /// @param decimals The price decimals reported by getPriceData
+    function setMockPriceData(address asset, uint256 price, uint8 decimals) external {
+        mockPrices[asset] = price;
+        mockDecimals[asset] = decimals;
         forceZeroPrice[asset] = false;
     }
 
@@ -64,8 +77,9 @@ contract MockPriceAdapter is IPriceAdapter {
         } catch {
             // Not an ERC4626 vault - return configured or default price
             uint256 configuredPrice = mockPrices[asset];
+            uint8 configuredDecimals = mockDecimals[asset];
             price = configuredPrice > 0 ? configuredPrice : DEFAULT_MOCK_PRICE;
-            return (price, 14);
+            decimals = configuredDecimals == 0 ? 14 : configuredDecimals;
         }
     }
 
