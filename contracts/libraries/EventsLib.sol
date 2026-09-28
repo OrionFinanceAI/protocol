@@ -26,6 +26,10 @@ library EventsLib {
     /// @param vault The address of the added vault.
     event OrionVaultAdded(address indexed vault);
 
+    /// @notice The max Orion vaults cap has been updated.
+    /// @param maxOrionVaults The new maximum number of Orion vaults.
+    event MaxOrionVaultsUpdated(uint256 indexed maxOrionVaults);
+
     /// @notice The risk-free rate has been updated.
     /// @param riskFreeRate The new risk-free rate in basis points.
     event RiskFreeRateUpdated(uint16 indexed riskFreeRate);

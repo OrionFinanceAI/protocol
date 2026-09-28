@@ -98,6 +98,9 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
     /// @notice Address of the encrypted vault factory
     address public encryptedVaultFactory;
 
+    /// @notice Maximum number of Orion vaults that may be registered
+    uint256 public maxOrionVaults;
+
     modifier onlyFactories() {
         if (msg.sender != transparentVaultFactory && msg.sender != encryptedVaultFactory) {
             revert ErrorsLib.NotAuthorized();
@@ -293,7 +296,6 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         if (!isSystemIdle()) revert ErrorsLib.SystemNotIdle();
 
         if (!this.isWhitelisted(asset)) {
-            _requireFeasibilityDomain(this.orionVaultsLength(), whitelistedAssets.length() + 1);
             // slither-disable-next-line unused-return
             whitelistedAssets.add(asset);
         }
@@ -465,13 +467,23 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         return managers;
     }
 
+    /// @inheritdoc IOrionConfig
+    function setMaxOrionVaults(uint256 newMax) external onlyOwner {
+        if (newMax == 0) revert ErrorsLib.InvalidArguments();
+        if (newMax < this.orionVaultsLength()) revert ErrorsLib.InvalidArguments();
+        maxOrionVaults = newMax;
+        emit EventsLib.MaxOrionVaultsUpdated(newMax);
+    }
+
     // === Orion Vaults ===
 
     /// @inheritdoc IOrionConfig
     function addOrionVault(address vault, EventsLib.VaultType vaultType) external onlyFactories {
         if (vault == address(0)) revert ErrorsLib.ZeroAddress();
 
-        _requireFeasibilityDomain(this.orionVaultsLength() + 1, whitelistedAssets.length());
+        if (this.orionVaultsLength() + 1 > maxOrionVaults) {
+            revert ErrorsLib.MaxOrionVaultsExceeded(this.orionVaultsLength() + 1, maxOrionVaults);
+        }
 
         bool inserted;
         if (vaultType == EventsLib.VaultType.Encrypted) {
@@ -607,23 +619,6 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         }
     }
 
-    /**
-     * @notice Reverts if post-state (vaults, assets) would exceed the gas feasibility domain.
-     */
-    function _requireFeasibilityDomain(uint256 vaults, uint256 assets) internal pure {
-        uint256 gasA = 166067;
-        uint256 gasB = 63265;
-        uint256 gasC = 42182;
-        uint256 eip7825TxGasLimit = 16_777_216; // 2**24
-        uint256 utilizationBps = 8000; // 80%
-
-        uint256 gasHat = gasA + gasB * vaults + gasC * assets;
-        uint256 limit = (eip7825TxGasLimit * utilizationBps) / 10_000;
-        if (gasHat > limit) {
-            revert ErrorsLib.FeasibilityDomainExceeded(vaults, assets);
-        }
-    }
-
     /// @dev Storage gap to allow for future upgrades
-    uint256[47] private __gap;
+    uint256[46] private __gap;
 }

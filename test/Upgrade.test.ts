@@ -12,7 +12,7 @@ import type {
   PriceAdapterRegistry,
   LiquidityOrchestrator,
 } from "../typechain-types";
-import { deployUUPSProxy, deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
+import { deployOrionConfigForTests, deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 import { resetNetwork } from "./helpers/resetNetwork";
 
 describe("Upgrade Tests", function () {
@@ -39,11 +39,7 @@ describe("Upgrade Tests", function () {
       await underlyingAsset.waitForDeployment();
 
       // Deploy OrionConfig proxy
-      orionConfig = await deployUUPSProxy<OrionConfig>(
-        "OrionConfig",
-        [owner.address, await underlyingAsset.getAddress()],
-        owner,
-      );
+      orionConfig = await deployOrionConfigForTests(owner, await underlyingAsset.getAddress());
     });
 
     it("Should deploy OrionConfig V1 successfully", async function () {

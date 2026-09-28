@@ -1,11 +1,10 @@
 import { expect } from "chai";
 import { ethers, networkHelpers } from "./helpers/hh";
-import { deployUUPSProxy } from "./helpers/deployUpgradeable";
+import { deployUUPSProxy, deployOrionConfigForTests } from "./helpers/deployUpgradeable";
 import { resetNetwork } from "./helpers/resetNetwork";
 import type {
   LiquidityOrchestratorBufferHarness,
   MockUnderlyingAsset,
-  OrionConfig,
   OrionTransparentVault,
   PriceAdapterRegistry,
   TransparentVaultFactory,
@@ -29,11 +28,7 @@ describe("LiquidityOrchestrator callbacks and protocol fee claims", function () 
     const underlyingAsset = (await MockUnderlyingAssetFactory.deploy(6)) as unknown as MockUnderlyingAsset;
     await underlyingAsset.waitForDeployment();
 
-    const orionConfig = await deployUUPSProxy<OrionConfig>(
-      "OrionConfig",
-      [owner.address, await underlyingAsset.getAddress()],
-      owner,
-    );
+    const orionConfig = await deployOrionConfigForTests(owner, await underlyingAsset.getAddress());
 
     const priceAdapterRegistry = await deployUUPSProxy<PriceAdapterRegistry>(
       "PriceAdapterRegistry",

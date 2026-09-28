@@ -4,7 +4,7 @@
  */
 import { expect } from "chai";
 import { ethers, networkHelpers } from "./helpers/hh";
-import { deployUUPSProxy, deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
+import { deployUUPSProxy, deployOrionConfigForTests, deployUpgradeableProtocol } from "./helpers/deployUpgradeable";
 import { resetNetwork } from "./helpers/resetNetwork";
 import type { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import type {
@@ -75,11 +75,7 @@ describe("OrionVault / OrionConfig / LO edge branches", function () {
     underlying = (await MockUnderlyingAssetFactory.deploy(6)) as unknown as MockUnderlyingAsset;
     await underlying.waitForDeployment();
 
-    orionConfig = await deployUUPSProxy<OrionConfig>(
-      "OrionConfig",
-      [owner.address, await underlying.getAddress()],
-      owner,
-    );
+    orionConfig = await deployOrionConfigForTests(owner, await underlying.getAddress());
 
     priceAdapterRegistry = await deployUUPSProxy<PriceAdapterRegistry>(
       "PriceAdapterRegistry",
@@ -1067,11 +1063,7 @@ describe("OrionConfig bootstrap and guardian ACL (merged)", function () {
     const MockUnderlyingAssetFactory = await ethers.getContractFactory("MockUnderlyingAsset");
     const underlyingAsset = (await MockUnderlyingAssetFactory.deploy(6)) as unknown as MockUnderlyingAsset;
     await underlyingAsset.waitForDeployment();
-    const orionConfig = await deployUUPSProxy<OrionConfig>(
-      "OrionConfig",
-      [owner.address, await underlyingAsset.getAddress()],
-      owner,
-    );
+    const orionConfig = await deployOrionConfigForTests(owner, await underlyingAsset.getAddress());
     return { owner, guardian, stranger, orionConfig, underlyingAsset };
   }
 

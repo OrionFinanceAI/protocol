@@ -112,6 +112,14 @@ interface IOrionConfig {
     /// @return The count of active Orion vaults
     function orionVaultsLength() external view returns (uint256);
 
+    /// @notice Returns the owner-configured maximum number of Orion vaults
+    /// @return The max Orion vaults cap
+    function maxOrionVaults() external view returns (uint256);
+
+    /// @notice Sets the maximum number of Orion vaults that may be registered
+    /// @param newMax The new maximum vault count
+    function setMaxOrionVaults(uint256 newMax) external;
+
     /// @notice Returns all whitelisted assets
     /// @return An array of whitelisted asset addresses
     function getAllWhitelistedAssets() external view returns (address[] memory);
