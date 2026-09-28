@@ -4,14 +4,13 @@
  */
 import { expect } from "chai";
 import { ethers } from "./helpers/hh";
-import { deployUUPSProxy } from "./helpers/deployUpgradeable";
+import { deployUUPSProxy, deployOrionConfigForTests } from "./helpers/deployUpgradeable";
 import { resetNetwork } from "./helpers/resetNetwork";
 import type { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import type {
   LiquidityOrchestratorPriceHarness,
   MockSP1Verifier,
   MockUnderlyingAsset,
-  OrionConfig,
   PriceAdapterRegistry,
 } from "../typechain-types";
 
@@ -32,11 +31,7 @@ describe("LiquidityOrchestrator – priceAdapterRegistry live-read", function ()
     const underlying = (await MockUnderlyingAssetFactory.deploy(6)) as unknown as MockUnderlyingAsset;
     await underlying.waitForDeployment();
 
-    const orionConfig = await deployUUPSProxy<OrionConfig>(
-      "OrionConfig",
-      [owner.address, await underlying.getAddress()],
-      owner,
-    );
+    const orionConfig = await deployOrionConfigForTests(owner, await underlying.getAddress());
 
     const MockSP1VerifierFactory = await ethers.getContractFactory("MockSP1Verifier");
     const mockVerifier = (await MockSP1VerifierFactory.deploy()) as unknown as MockSP1Verifier;

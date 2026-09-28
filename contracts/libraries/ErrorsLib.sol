@@ -111,8 +111,8 @@ library ErrorsLib {
     /// @notice Strategist is already linked to a vault and cannot be re-linked.
     error StrategistVaultAlreadyLinked();
 
-    /// @notice Post-state vault/asset counts would exceed the measured gas feasibility domain.
-    /// @param vaults Total vaults (transparent + encrypted) after the proposed change.
-    /// @param assets Whitelisted asset count after the proposed change.
-    error FeasibilityDomainExceeded(uint256 vaults, uint256 assets);
+    /// @notice Adding a vault would exceed the owner-configured max Orion vaults cap.
+    /// @param vaults Total vaults after the proposed add.
+    /// @param maxVaults Current maxOrionVaults value.
+    error MaxOrionVaultsExceeded(uint256 vaults, uint256 maxVaults);
 }

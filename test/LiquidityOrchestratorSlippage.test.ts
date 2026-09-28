@@ -11,7 +11,7 @@ import type {
   OrionConfig,
   PriceAdapterRegistry,
 } from "../typechain-types";
-import { deployUUPSProxy } from "./helpers/deployUpgradeable";
+import { deployUUPSProxy, deployOrionConfigForTests } from "./helpers/deployUpgradeable";
 import { resetNetwork } from "./helpers/resetNetwork";
 
 /**
@@ -48,11 +48,7 @@ describe("LiquidityOrchestrator - Centralized Slippage Management", function () 
     await underlyingAsset.waitForDeployment();
 
     // --- Deploy OrionConfig proxy ---
-    orionConfig = await deployUUPSProxy<OrionConfig>(
-      "OrionConfig",
-      [owner.address, await underlyingAsset.getAddress()],
-      owner,
-    );
+    orionConfig = await deployOrionConfigForTests(owner, await underlyingAsset.getAddress());
 
     // --- Deploy PriceAdapterRegistry proxy ---
     const priceAdapterRegistry = await deployUUPSProxy<PriceAdapterRegistry>(

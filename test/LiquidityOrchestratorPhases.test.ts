@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import { networkHelpers } from "./helpers/hh";
 import { ethers } from "./helpers/hh";
-import { deployUUPSProxy } from "./helpers/deployUpgradeable";
+import { deployUUPSProxy, deployOrionConfigForTests } from "./helpers/deployUpgradeable";
 import { resetNetwork } from "./helpers/resetNetwork";
 import { encodePerformPayload, emptyVaultState } from "./helpers/loPerformPayload";
 import type { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
@@ -95,11 +95,7 @@ describe("LiquidityOrchestrator – config ACL and performUpkeep phases", functi
     underlying = (await MockUnderlyingAssetFactory.deploy(6)) as unknown as MockUnderlyingAsset;
     await underlying.waitForDeployment();
 
-    orionConfig = await deployUUPSProxy<OrionConfig>(
-      "OrionConfig",
-      [owner.address, await underlying.getAddress()],
-      owner,
-    );
+    orionConfig = await deployOrionConfigForTests(owner, await underlying.getAddress());
 
     const priceAdapterRegistry = await deployUUPSProxy<PriceAdapterRegistry>(
       "PriceAdapterRegistry",

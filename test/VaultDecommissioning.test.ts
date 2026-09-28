@@ -13,7 +13,7 @@ import type {
   TransparentVaultFactory,
   UpgradeableBeacon,
 } from "../typechain-types";
-import { deployUUPSProxy } from "./helpers/deployUpgradeable";
+import { deployUUPSProxy, deployOrionConfigForTests } from "./helpers/deployUpgradeable";
 import { resetNetwork } from "./helpers/resetNetwork";
 
 describe("Vault decommissioning completion", function () {
@@ -83,11 +83,7 @@ describe("Vault decommissioning completion", function () {
     underlyingAsset = (await MockUnderlyingAssetFactory.deploy(6)) as unknown as MockUnderlyingAsset;
     await underlyingAsset.waitForDeployment();
 
-    orionConfig = await deployUUPSProxy<OrionConfig>(
-      "OrionConfig",
-      [owner.address, await underlyingAsset.getAddress()],
-      owner,
-    );
+    orionConfig = await deployOrionConfigForTests(owner, await underlyingAsset.getAddress());
 
     const priceAdapterRegistry = await deployUUPSProxy<PriceAdapterRegistry>(
       "PriceAdapterRegistry",

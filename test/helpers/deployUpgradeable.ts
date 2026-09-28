@@ -41,6 +41,17 @@ export async function deployUUPSProxy<TContract>(
   return implFactory.attach(proxyAddress).connect(signer) as unknown as TContract;
 }
 
+/** Deploy OrionConfig and set a generous vault cap so factories can register vaults in tests. */
+export async function deployOrionConfigForTests(
+  owner: SignerWithAddress,
+  underlyingAssetAddress: string,
+  maxOrionVaults = 1000n,
+): Promise<OrionConfig> {
+  const orionConfig = await deployUUPSProxy<OrionConfig>("OrionConfig", [owner.address, underlyingAssetAddress], owner);
+  await orionConfig.setMaxOrionVaults(maxOrionVaults);
+  return orionConfig;
+}
+
 /**
  * Deploy complete upgradeable protocol infrastructure
  *
@@ -72,12 +83,8 @@ export async function deployUpgradeableProtocol(
     await underlying.waitForDeployment();
   }
 
-  // 1. Deploy OrionConfig proxy
-  const orionConfig = await deployUUPSProxy<OrionConfig>(
-    "OrionConfig",
-    [owner.address, await underlying.getAddress()],
-    owner,
-  );
+  // 1. Deploy OrionConfig proxy (with test vault cap)
+  const orionConfig = await deployOrionConfigForTests(owner, await underlying.getAddress());
 
   // 2. Deploy PriceAdapterRegistry proxy and set in config
   const priceAdapterRegistry = await deployUUPSProxy<PriceAdapterRegistry>(

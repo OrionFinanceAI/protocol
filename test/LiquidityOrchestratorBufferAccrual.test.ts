@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import { AbiCoder, keccak256 } from "ethers";
 import { ethers } from "./helpers/hh";
-import { deployUUPSProxy } from "./helpers/deployUpgradeable";
+import { deployUUPSProxy, deployOrionConfigForTests } from "./helpers/deployUpgradeable";
 import { resetNetwork } from "./helpers/resetNetwork";
 import type { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import type {
@@ -9,7 +9,6 @@ import type {
   LiquidityOrchestratorBufferHarness,
   MockSP1Verifier,
   MockUnderlyingAsset,
-  OrionConfig,
   PriceAdapterRegistry,
 } from "../typechain-types";
 
@@ -92,11 +91,7 @@ describe("LiquidityOrchestrator – deferred buffer and fee accrual", function (
     asset = (await MockUnderlyingAssetFactory.deploy(18)) as unknown as MockUnderlyingAsset;
     await asset.waitForDeployment();
 
-    const orionConfig = await deployUUPSProxy<OrionConfig>(
-      "OrionConfig",
-      [owner.address, await underlying.getAddress()],
-      owner,
-    );
+    const orionConfig = await deployOrionConfigForTests(owner, await underlying.getAddress());
 
     const registry = await deployUUPSProxy<PriceAdapterRegistry>(
       "PriceAdapterRegistry",
