@@ -399,6 +399,10 @@ describe("LiquidityOrchestrator - Centralized Slippage Management", function () 
     it("should reject slippage tolerance exceeding BASIS_POINTS_FACTOR", async function () {
       await expect(harness.setSlippageTolerance(10001)).to.be.rejected;
     });
+
+    it("should emit SlippageToleranceUpdated with the new value", async function () {
+      await expect(harness.setSlippageTolerance(250)).to.emit(harness, "SlippageToleranceUpdated").withArgs(250);
+    });
   });
 
   describe("Slippage Update Propagation", function () {

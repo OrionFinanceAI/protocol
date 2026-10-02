@@ -216,7 +216,9 @@ describe("Orchestrator Configuration", function () {
       "InvalidArguments",
     );
 
-    await expect(liquidityOrchestrator.setTargetBufferRatio(100)).to.not.be.rejected;
+    await expect(liquidityOrchestrator.setTargetBufferRatio(100))
+      .to.emit(liquidityOrchestrator, "TargetBufferRatioUpdated")
+      .withArgs(100);
 
     // Set minibatch size to a large value to process all vaults in one batch for tests
     await liquidityOrchestrator.connect(owner).updateMinibatchSize(8);

@@ -315,12 +315,14 @@ contract LiquidityOrchestrator is
         if (_targetBufferRatio > 500) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         targetBufferRatio = _targetBufferRatio;
+        emit EventsLib.TargetBufferRatioUpdated(_targetBufferRatio);
     }
 
     /// @inheritdoc ILiquidityOrchestrator
     function setSlippageTolerance(uint256 _slippageTolerance) external onlyAdmin {
         if (_slippageTolerance > BASIS_POINTS_FACTOR) revert ErrorsLib.InvalidArguments();
         slippageTolerance = _slippageTolerance;
+        emit EventsLib.SlippageToleranceUpdated(_slippageTolerance);
     }
 
     /// @inheritdoc ILiquidityOrchestrator

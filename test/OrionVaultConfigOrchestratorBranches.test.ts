@@ -641,7 +641,9 @@ describe("OrionVault / OrionConfig / LO edge branches", function () {
         "NotAuthorized",
       );
       await harness.connect(owner).updateMinibatchSize(2);
-      await harness.connect(owner).setTargetBufferRatio(50);
+      await expect(harness.connect(owner).setTargetBufferRatio(50))
+        .to.emit(harness, "TargetBufferRatioUpdated")
+        .withArgs(50);
     });
 
     it("covers liquidity deposit/withdraw and failed-token getter", async function () {

@@ -237,8 +237,12 @@ describe("Execution Adapter Validation - Comprehensive Tests", function () {
         const bufferRatio = 400; // 4%
         const expectedSlippage = bufferRatio / 2; // 200 = 2%
 
-        await liquidityOrchestrator.setTargetBufferRatio(bufferRatio);
-        await liquidityOrchestrator.setSlippageTolerance(expectedSlippage);
+        await expect(liquidityOrchestrator.setTargetBufferRatio(bufferRatio))
+          .to.emit(liquidityOrchestrator, "TargetBufferRatioUpdated")
+          .withArgs(bufferRatio);
+        await expect(liquidityOrchestrator.setSlippageTolerance(expectedSlippage))
+          .to.emit(liquidityOrchestrator, "SlippageToleranceUpdated")
+          .withArgs(expectedSlippage);
 
         const storedSlippage = await liquidityOrchestrator.slippageTolerance();
         expect(storedSlippage).to.equal(expectedSlippage);
