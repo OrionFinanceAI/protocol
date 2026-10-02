@@ -34,15 +34,22 @@ interface IOrionHolderAccessControl is IERC165 {
 
 /**
  * @title IOrionTransferAccessControl
- * @notice Transfer access control: who may transfer vault shares.
+ * @notice Transfer access control: whether a P2P share transfer is allowed.
  * @author Orion Finance
  */
 interface IOrionTransferAccessControl is IERC165 {
     /**
-     * @notice Check if an account may transfer vault shares
-     * @param sender The prospective share sender
-     * @param data Additional data
-     * @return True if the account may transfer shares, false otherwise
+     * @notice Whether a P2P share transfer is allowed
+     * @param from Share sender
+     * @param to Share recipient
+     * @param value Share amount
+     * @param data Additional context
+     * @return True if the transfer is allowed, false otherwise
      */
-    function canTransferShares(address sender, bytes calldata data) external view returns (bool);
+    function canTransferShares(
+        address from,
+        address to,
+        uint256 value,
+        bytes calldata data
+    ) external view returns (bool);
 }

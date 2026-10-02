@@ -3,6 +3,7 @@ pragma solidity ^0.8.34;
 
 /**
  * @title ReservedOwnableNamespaces
+ * @author Orion Finance
  * @notice Reserves OpenZeppelin Ownable / Ownable2Step ERC-7201 storage namespaces.
  */
 abstract contract ReservedOwnableNamespaces {

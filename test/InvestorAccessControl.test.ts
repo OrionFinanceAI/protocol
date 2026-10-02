@@ -5,6 +5,7 @@
 import { expect } from "chai";
 import { ethers, networkHelpers } from "./helpers/hh";
 import type { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
+import type { Contract } from "ethers";
 import type {
   MockAccessControl,
   MockUnderlyingAsset,
@@ -420,6 +421,117 @@ describe("Investor access-control gates", function () {
 
       expect(await underlyingAsset.balanceOf(listed.address)).to.equal(userBefore + assets);
       expect(await underlyingAsset.balanceOf(stranger.address)).to.equal(routerBefore - assets);
+    });
+  });
+
+  describe("transfer ACL (from, to, amount) triple", function () {
+    let recordingAcl: Contract;
+    let opaqueHelper: Contract;
+
+    beforeEach(async function () {
+      const RecordingFactory = await ethers.getContractFactory("MockRecordingTransferAccessControl");
+      recordingAcl = await RecordingFactory.deploy();
+      await recordingAcl.waitForDeployment();
+
+      const HelperFactory = await ethers.getContractFactory("OpaqueVaultTransferHelper");
+      opaqueHelper = await HelperFactory.deploy();
+      await opaqueHelper.waitForDeployment();
+
+      vault = await createVault(ethers.ZeroAddress, ethers.ZeroAddress, await recordingAcl.getAddress());
+    });
+
+    it("passes exact (from, to, amount) on transfer", async function () {
+      const assets = parseUnderlying("100");
+      await requestAndFulfill(listed, assets);
+      const shares = await vault.balanceOf(listed.address);
+      const amount = shares / 4n;
+
+      await recordingAcl.expectTransfer(listed.address, other.address, amount);
+      await expect(vault.connect(listed).transfer(other.address, amount)).to.not.be.rejected;
+      expect(await vault.balanceOf(other.address)).to.equal(amount);
+
+      // Wrong expected amount → deny
+      await recordingAcl.expectTransfer(listed.address, other.address, amount);
+      await expect(vault.connect(listed).transfer(other.address, amount + 1n)).to.be.revertedWithCustomError(
+        vault,
+        "ShareTransferNotAllowed",
+      );
+    });
+
+    it("passes exact triple through opaque wrapper calldata", async function () {
+      const assets = parseUnderlying("100");
+      await requestAndFulfill(listed, assets);
+      const shares = await vault.balanceOf(listed.address);
+      const amount = shares / 5n;
+
+      await vault.connect(listed).approve(await opaqueHelper.getAddress(), amount);
+      await recordingAcl.expectTransfer(listed.address, other.address, amount);
+
+      await expect(opaqueHelper.moveShares(await vault.getAddress(), listed.address, other.address, amount)).to.not.be
+        .rejected;
+      expect(await vault.balanceOf(other.address)).to.equal(amount);
+    });
+
+    it("enforces amount sensitivity without expecting exact match", async function () {
+      await recordingAcl.clearExpect();
+      await recordingAcl.setDefaultAllow(true);
+      await recordingAcl.setMaxAmount(1000n);
+
+      const assets = parseUnderlying("100");
+      await requestAndFulfill(listed, assets);
+      const shares = await vault.balanceOf(listed.address);
+
+      await expect(vault.connect(listed).transfer(other.address, 500n)).to.not.be.rejected;
+      await expect(vault.connect(listed).transfer(other.address, 1001n)).to.be.revertedWithCustomError(
+        vault,
+        "ShareTransferNotAllowed",
+      );
+      expect(shares).to.be.gt(1001n);
+    });
+
+    it("still enforces holder gate when transfer ACL allows", async function () {
+      const HolderFactory = await ethers.getContractFactory("MockAccessControl");
+      const holderAcl = (await HolderFactory.deploy()) as unknown as MockAccessControl;
+      await holderAcl.waitForDeployment();
+      await holderAcl.setHolderAllowed(other.address, false);
+      await holderAcl.setHolderAllowed(listed.address, true);
+
+      await recordingAcl.clearExpect();
+      await recordingAcl.setDefaultAllow(true);
+
+      vault = await createVault(ethers.ZeroAddress, await holderAcl.getAddress(), await recordingAcl.getAddress());
+
+      const assets = parseUnderlying("100");
+      await requestAndFulfill(listed, assets);
+      const amount = (await vault.balanceOf(listed.address)) / 4n;
+
+      await expect(vault.connect(listed).transfer(other.address, amount)).to.be.revertedWithCustomError(
+        vault,
+        "ShareTransferNotAllowed",
+      );
+    });
+
+    it("rejects setter when controller does not support IOrionTransferAccessControl", async function () {
+      vault = await createVault();
+      const NonAclFactory = await ethers.getContractFactory("MockERC165NonStrategist");
+      const nonAcl = await NonAclFactory.deploy();
+      await nonAcl.waitForDeployment();
+
+      await expect(
+        vault.connect(owner).setTransferAccessControl(await nonAcl.getAddress()),
+      ).to.be.revertedWithCustomError(vault, "InvalidAddress");
+
+      await expect(vault.connect(owner).setTransferAccessControl(await recordingAcl.getAddress()))
+        .to.emit(vault, "TransferAccessControlUpdated")
+        .withArgs(await recordingAcl.getAddress());
+    });
+
+    it("rejects EOA as transfer access control", async function () {
+      vault = await createVault();
+      await expect(vault.connect(owner).setTransferAccessControl(listed.address)).to.be.revertedWithCustomError(
+        vault,
+        "InvalidAddress",
+      );
     });
   });
 });

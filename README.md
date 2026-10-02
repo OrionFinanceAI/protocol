@@ -50,6 +50,8 @@ At its core, Orion is building a next-generation infrastructure that democratize
 
 For comprehensive documentation, including setup guides, API references, and developer resources, visit [docs.orionfinance.ai](https://docs.orionfinance.ai/).
 
+See [`CHANGELOG.md`](./CHANGELOG.md) for release notes.
+
 ## Licences
 
 The license for Orion is the Business Source License 1.1 (`BUSL-1.1`) given in [`LICENSE`](./LICENSE).
