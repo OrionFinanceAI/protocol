@@ -75,6 +75,7 @@ contract ChainlinkPriceAdapter is IPriceAdapter {
         address quoteFeed
     );
 
+    /// @notice Sets the Orion config used for admin authorization.
     /// @param configAddress OrionConfig contract address
     constructor(address configAddress) {
         if (configAddress == address(0)) revert ErrorsLib.ZeroAddress();

@@ -532,7 +532,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     function _update(address from, address to, uint256 value) internal virtual override {
         if (from != address(0) && to != address(0) && from != address(this) && to != address(this)) {
             if (transferAccessControl != address(0)) {
-                if (!IOrionTransferAccessControl(transferAccessControl).canTransferShares(from, msg.data)) {
+                if (!IOrionTransferAccessControl(transferAccessControl).canTransferShares(from, to, value, msg.data)) {
                     revert ErrorsLib.ShareTransferNotAllowed();
                 }
             }

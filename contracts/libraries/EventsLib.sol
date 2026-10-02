@@ -152,11 +152,11 @@ library EventsLib {
 
     /// @notice The target buffer ratio has been updated.
     /// @param targetBufferRatio The new target buffer ratio in basis points.
-    event TargetBufferRatioUpdated(uint256 targetBufferRatio);
+    event TargetBufferRatioUpdated(uint256 indexed targetBufferRatio);
 
     /// @notice The slippage tolerance has been updated.
     /// @param slippageTolerance The new slippage tolerance in basis points.
-    event SlippageToleranceUpdated(uint256 slippageTolerance);
+    event SlippageToleranceUpdated(uint256 indexed slippageTolerance);
 
     /// @notice A new epoch has started.
     /// @param epochCounter The current epoch counter.
