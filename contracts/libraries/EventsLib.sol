@@ -150,6 +150,14 @@ library EventsLib {
     /// @param vKey The new verification key.
     event VKeyUpdated(bytes32 indexed vKey);
 
+    /// @notice The target buffer ratio has been updated.
+    /// @param targetBufferRatio The new target buffer ratio in basis points.
+    event TargetBufferRatioUpdated(uint256 targetBufferRatio);
+
+    /// @notice The slippage tolerance has been updated.
+    /// @param slippageTolerance The new slippage tolerance in basis points.
+    event SlippageToleranceUpdated(uint256 slippageTolerance);
+
     /// @notice A new epoch has started.
     /// @param epochCounter The current epoch counter.
     /// @param assets Array of asset addresses.

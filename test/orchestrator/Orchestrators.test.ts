@@ -154,8 +154,12 @@ describe("Orchestrators", function () {
       "InvalidArguments",
     );
 
-    await expect(liquidityOrchestrator.setTargetBufferRatio(100)).to.not.be.rejected;
-    await liquidityOrchestrator.setSlippageTolerance(50); // 0.5% slippage
+    await expect(liquidityOrchestrator.setTargetBufferRatio(100))
+      .to.emit(liquidityOrchestrator, "TargetBufferRatioUpdated")
+      .withArgs(100);
+    await expect(liquidityOrchestrator.setSlippageTolerance(50))
+      .to.emit(liquidityOrchestrator, "SlippageToleranceUpdated")
+      .withArgs(50); // 0.5% slippage
 
     // Set minibatch size to a large value to process all vaults in one batch for tests
     await liquidityOrchestrator.connect(owner).updateMinibatchSize(8);
