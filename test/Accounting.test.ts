@@ -30,6 +30,16 @@ describe("OrionVault Accounting", function () {
   let owner: SignerWithAddress;
   let strategist: SignerWithAddress;
   let user: SignerWithAddress;
+  let other: SignerWithAddress;
+
+  /** Floor / ceil of `assets * (supply + OFFSET) / (pitAssets + 1)` (Orion PIT mint formula). */
+  function pitSharesFloorCeil(assets: bigint, pitAssets: bigint, supply: bigint): { floor: bigint; ceil: bigint } {
+    const numerator = assets * (supply + OFFSET);
+    const denominator = pitAssets + 1n;
+    const floor = numerator / denominator;
+    const ceil = floor + (numerator % denominator === 0n ? 0n : 1n);
+    return { floor, ceil };
+  }
 
   const UNDERLYING_DECIMALS = 6;
   const SHARE_DECIMALS = 18;
@@ -94,7 +104,7 @@ describe("OrionVault Accounting", function () {
   });
 
   beforeEach(async function () {
-    [owner, strategist, user] = await ethers.getSigners();
+    [owner, strategist, user, other] = await ethers.getSigners();
 
     const MockUnderlyingFactory = await ethers.getContractFactory("MockUnderlyingAsset");
     const underlying = await MockUnderlyingFactory.deploy(UNDERLYING_DECIMALS);
@@ -129,6 +139,67 @@ describe("OrionVault Accounting", function () {
 
     await underlyingAsset.mint(user.address, parseUnderlying("1000000"));
     await underlyingAsset.connect(user).approve(await vault.getAddress(), parseUnderlying("1000000"));
+    await underlyingAsset.mint(other.address, parseUnderlying("1000000"));
+    await underlyingAsset.connect(other).approve(await vault.getAddress(), parseUnderlying("1000000"));
+  });
+
+  describe("convertToSharesWithPITTotalAssets / fulfillDeposit Floor", function () {
+    it("1-wei queued deposit mints 0 shares under high NAV (Pods ceil would mint 1)", async function () {
+      const seedAssets = parseUnderlying("1000");
+      await vault.connect(user).requestDeposit(seedAssets);
+      // Empty-vault mint then inflate NAV so 1 * (supply + OFFSET) < (pitAssets + 1).
+      await setVaultStateWithFulfilledDeposit(vault, 0n, seedAssets);
+
+      const snapSupply = await vault.totalSupply();
+      const highNav = snapSupply + OFFSET; // floor(1 * (S+OFFSET) / (highNav+1)) == 0
+      const loAddress = await liquidityOrchestrator.getAddress();
+      await ethers.provider.send("hardhat_impersonateAccount", [loAddress]);
+      await ethers.provider.send("hardhat_setBalance", [loAddress, ethers.toQuantity(ethers.parseEther("1"))]);
+      const loSigner = await ethers.getSigner(loAddress);
+      await vault.connect(loSigner).updateVaultState([await underlyingAsset.getAddress()], [0n], highNav);
+
+      const dust = 1n;
+      const { floor, ceil } = pitSharesFloorCeil(dust, highNav, snapSupply);
+      expect(floor).to.equal(0n);
+      expect(ceil).to.equal(1n);
+
+      const sharesBefore = await vault.balanceOf(other.address);
+      await vault.connect(other).requestDeposit(dust);
+      await vault.connect(loSigner).fulfillDeposit(highNav);
+      await ethers.provider.send("hardhat_stopImpersonatingAccount", [loAddress]);
+
+      expect(await vault.balanceOf(other.address)).to.equal(sharesBefore);
+      expect(await vault.pendingDepositOf(other.address)).to.equal(0n);
+    });
+
+    it("fulfillDeposit mints Floor shares, never Ceil, when remainder is nonzero", async function () {
+      const seedAssets = parseUnderlying("100000");
+      await vault.connect(user).requestDeposit(seedAssets);
+      await setVaultStateWithFulfilledDeposit(vault, 0n, seedAssets);
+
+      // Skew PIT total assets so amount * (supply + OFFSET) is not divisible by (pit + 1).
+      const pitAssets = seedAssets + 1n;
+      const loAddress = await liquidityOrchestrator.getAddress();
+      await ethers.provider.send("hardhat_impersonateAccount", [loAddress]);
+      await ethers.provider.send("hardhat_setBalance", [loAddress, ethers.toQuantity(ethers.parseEther("1"))]);
+      const loSigner = await ethers.getSigner(loAddress);
+      await vault.connect(loSigner).updateVaultState([await underlyingAsset.getAddress()], [0n], pitAssets);
+
+      const snapSupply = await vault.totalSupply();
+      const amount = parseUnderlying("3");
+      const { floor, ceil } = pitSharesFloorCeil(amount, pitAssets, snapSupply);
+      expect(floor).to.be.gt(0n);
+      expect(ceil).to.equal(floor + 1n);
+
+      const sharesBefore = await vault.balanceOf(other.address);
+      await vault.connect(other).requestDeposit(amount);
+      await vault.connect(loSigner).fulfillDeposit(pitAssets);
+      await ethers.provider.send("hardhat_stopImpersonatingAccount", [loAddress]);
+
+      const deltaShares = (await vault.balanceOf(other.address)) - sharesBefore;
+      expect(deltaShares).to.equal(floor);
+      expect(deltaShares).to.be.lt(ceil);
+    });
   });
 
   describe("convertToAssetsWithPITTotalAssets", function () {
