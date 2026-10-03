@@ -263,6 +263,7 @@ contract LiquidityOrchestrator is
 
         epochDuration = newEpochDuration;
         _nextUpdateTime = Math.min(block.timestamp + epochDuration, _nextUpdateTime);
+        emit EventsLib.EpochDurationUpdated(newEpochDuration);
     }
 
     /// @inheritdoc ILiquidityOrchestrator
@@ -270,6 +271,7 @@ contract LiquidityOrchestrator is
         if (_executionMinibatchSize == 0) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         executionMinibatchSize = _executionMinibatchSize;
+        emit EventsLib.ExecutionMinibatchSizeUpdated(_executionMinibatchSize);
     }
 
     /// @inheritdoc ILiquidityOrchestrator
@@ -277,6 +279,7 @@ contract LiquidityOrchestrator is
         if (_minibatchSize == 0) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         minibatchSize = _minibatchSize;
+        emit EventsLib.MinibatchSizeUpdated(_minibatchSize);
     }
 
     /// @inheritdoc ILiquidityOrchestrator
@@ -284,6 +287,7 @@ contract LiquidityOrchestrator is
         if (_commitmentMinibatchSize == 0) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         commitmentMinibatchSize = _commitmentMinibatchSize;
+        emit EventsLib.CommitmentMinibatchSizeUpdated(_commitmentMinibatchSize);
     }
 
     /// @inheritdoc ILiquidityOrchestrator

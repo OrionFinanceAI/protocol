@@ -76,6 +76,10 @@ library EventsLib {
     /// @param guardian The new guardian address.
     event GuardianUpdated(address indexed guardian);
 
+    /// @notice The HPKE public key used for encrypted vault intents has been updated.
+    /// @param hpkePublicKey The new HPKE public key.
+    event HpkePublicKeyUpdated(bytes32 indexed hpkePublicKey);
+
     /// @notice The protocol has been paused.
     /// @param pauser The address that triggered the pause.
     event ProtocolPaused(address indexed pauser);
@@ -141,6 +145,22 @@ library EventsLib {
     /// @notice The automation registry address has been updated.
     /// @param newAutomationRegistry The address of the new automation registry.
     event AutomationRegistryUpdated(address indexed newAutomationRegistry);
+
+    /// @notice The epoch duration has been updated.
+    /// @param epochDuration The new epoch duration in seconds.
+    event EpochDurationUpdated(uint32 indexed epochDuration);
+
+    /// @notice The execution minibatch size has been updated.
+    /// @param size The new execution minibatch size.
+    event ExecutionMinibatchSizeUpdated(uint8 indexed size);
+
+    /// @notice The vault-operations minibatch size has been updated.
+    /// @param size The new minibatch size.
+    event MinibatchSizeUpdated(uint8 indexed size);
+
+    /// @notice The commitment minibatch size has been updated.
+    /// @param size The new commitment minibatch size.
+    event CommitmentMinibatchSizeUpdated(uint8 indexed size);
 
     /// @notice The SP1 verifier contract address has been updated.
     /// @param newVerifier The address of the new SP1 verifier contract.

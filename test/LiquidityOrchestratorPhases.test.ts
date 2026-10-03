@@ -177,10 +177,14 @@ describe("LiquidityOrchestrator – config ACL and performUpkeep phases", functi
       );
 
       await harness.h_setPhase(PHASE_IDLE);
-      await harness.connect(owner).updateCommitmentMinibatchSize(3);
+      await expect(harness.connect(owner).updateCommitmentMinibatchSize(3))
+        .to.emit(harness, "CommitmentMinibatchSizeUpdated")
+        .withArgs(3);
       expect(await harness.commitmentMinibatchSize()).to.equal(3n);
 
-      await harness.connect(owner).updateCommitmentMinibatchSize(4);
+      await expect(harness.connect(owner).updateCommitmentMinibatchSize(4))
+        .to.emit(harness, "CommitmentMinibatchSizeUpdated")
+        .withArgs(4);
       expect(await harness.commitmentMinibatchSize()).to.equal(4n);
     });
   });

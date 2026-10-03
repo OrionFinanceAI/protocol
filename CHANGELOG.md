@@ -4,7 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [2.8.1] - 2026-10-03
+
+### Changed
+
+- Removed `setVaultBeacon` from transparent and encrypted vault factories. Beacon is fixed at factory initialize; vault
+  upgrades use `UpgradeableBeacon.upgradeTo` so existing and new vaults share one implementation lineage. Removed unused
+  `VaultBeaconUpdated` event.
+
+### Added
+
+- Events on previously silent admin setters: `HpkePublicKeyUpdated`, `EpochDurationUpdated`,
+  `ExecutionMinibatchSizeUpdated`, `MinibatchSizeUpdated`, `CommitmentMinibatchSizeUpdated` (for off-chain monitoring of
+  privileged parameter changes).
+- Accounting tests proving queued `fulfillDeposit` mints with `Math.Rounding.Floor` (dust under high NAV → 0 shares;
+  floor ≠ ceil when remainder nonzero).
 
 ## [2.8.0] - 2026-10-02
 

@@ -297,6 +297,14 @@ describe("EncryptedVaultFactory / Config / LO edge branches", function () {
       );
     });
 
+    it("setHpkePublicKey emits HpkePublicKeyUpdated", async function () {
+      const key = ethers.id("hpke-public-key-v2");
+      await expect(orionConfig.connect(owner).setHpkePublicKey(key))
+        .to.emit(orionConfig, "HpkePublicKeyUpdated")
+        .withArgs(key);
+      expect(await orionConfig.hpkePublicKey()).to.equal(key);
+    });
+
     it("removeWhitelistedManager hits InvalidAddress when manager removed via reentrancy", async function () {
       const Malicious = await ethers.getContractFactory("MaliciousManagerRemovalVault");
       const malicious = await Malicious.deploy(await orionConfig.getAddress(), manager.address);
