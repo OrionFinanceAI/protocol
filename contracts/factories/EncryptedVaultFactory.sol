@@ -29,12 +29,6 @@ contract EncryptedVaultFactory is Initializable, UUPSUpgradeable, ReservedOwnabl
     /// @notice Address of the upgrade timelock that must authorise all implementation upgrades
     address public upgradeTimelock;
 
-    /// @dev Restricts function to protocol admin
-    modifier onlyAdmin() {
-        if (msg.sender != Ownable(address(config)).owner()) revert ErrorsLib.NotAuthorized();
-        _;
-    }
-
     /// @notice Constructor that disables initializers for the implementation contract
     /// @custom:oz-upgrades-unsafe-allow constructor
     // solhint-disable-next-line use-natspec
@@ -119,14 +113,6 @@ contract EncryptedVaultFactory is Initializable, UUPSUpgradeable, ReservedOwnabl
             transferAccessControl,
             EventsLib.VaultType.Encrypted
         );
-    }
-
-    /// @notice Updates the vault beacon address
-    /// @param newVaultBeacon The new UpgradeableBeacon address
-    function setVaultBeacon(address newVaultBeacon) external onlyAdmin {
-        if (newVaultBeacon == address(0)) revert ErrorsLib.ZeroAddress();
-        vaultBeacon = UpgradeableBeacon(newVaultBeacon);
-        emit EventsLib.VaultBeaconUpdated(newVaultBeacon);
     }
 
     /// @notice Sets the upgrade timelock address.

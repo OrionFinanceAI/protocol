@@ -192,12 +192,6 @@ describe("TransparentVault - Strategist Pipeline", function () {
       ).to.be.revertedWithCustomError(transparentVaultFactory, "NotAuthorized");
     });
 
-    it("should reject setVaultBeacon with zero address", async function () {
-      await expect(
-        transparentVaultFactory.connect(owner).setVaultBeacon(ethers.ZeroAddress),
-      ).to.be.revertedWithCustomError(transparentVaultFactory, "ZeroAddress");
-    });
-
     it("should reject factory initialize with zero addresses", async function () {
       const Impl = await ethers.getContractFactory("TransparentVaultFactory");
       const impl = await Impl.deploy();
