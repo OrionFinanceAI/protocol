@@ -44,6 +44,7 @@ contract LiquidityOrchestrator is
     using Math for uint256;
     using SafeERC20 for IERC20;
     using SafeCast for uint256;
+    using SafeCast for int256;
 
     /// @notice Basis points factor
     uint16 public constant BASIS_POINTS_FACTOR = 10_000;
@@ -338,7 +339,7 @@ contract LiquidityOrchestrator is
         IERC20(underlyingAsset).safeTransferFrom(msg.sender, address(this), amount);
 
         // Update buffer amount
-        _updateBufferAmount(int256(amount));
+        _updateBufferAmount(amount.toInt256());
 
         emit EventsLib.LiquidityDeposited(msg.sender, amount);
     }
@@ -352,7 +353,7 @@ contract LiquidityOrchestrator is
         if (amount > bufferAmount) revert ErrorsLib.InsufficientAmount();
 
         // Update buffer amount
-        _updateBufferAmount(-int256(amount));
+        _updateBufferAmount(-(amount.toInt256()));
 
         // Transfer underlying assets to the owner
         IERC20(underlyingAsset).safeTransfer(msg.sender, amount);
@@ -869,11 +870,7 @@ contract LiquidityOrchestrator is
 
         // slither-disable-start reentrancy-no-eth
         // Safe: only reachable from nonReentrant performUpkeep after buys complete.
-        if (bufferVariation >= 0) {
-            bufferAmount += uint256(bufferVariation);
-        } else {
-            bufferAmount -= uint256(-bufferVariation);
-        }
+        _updateBufferAmount(bufferVariation);
         _updateBufferAmount(_epochDeltaAmount);
         _epochDeltaAmount = 0;
         pendingProtocolFees += epochProtocolFees;
@@ -885,9 +882,10 @@ contract LiquidityOrchestrator is
     /// @param deltaAmount The amount to add/subtract from the buffer (can be negative)
     function _updateBufferAmount(int256 deltaAmount) internal {
         if (deltaAmount > 0) {
-            bufferAmount += uint256(deltaAmount);
+            bufferAmount += deltaAmount.toUint256();
         } else if (deltaAmount < 0) {
-            bufferAmount -= uint256(-deltaAmount);
+            if (deltaAmount == type(int256).min) revert SafeCast.SafeCastOverflowedIntToUint(deltaAmount);
+            bufferAmount -= (-deltaAmount).toUint256();
         }
     }
 

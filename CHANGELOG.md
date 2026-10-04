@@ -14,6 +14,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Defense-in-depth reentrancy hardening: `depositLiquidity` and `claimVaultFees` are `nonReentrant`;
   ProcessVaultOperations sets Idle only after the vault fulfill loop so `isSystemIdle()` stays false during
   deposit/redeem settlement.
+- Buffer deltas in `depositLiquidity`, `withdrawLiquidity`, and buy-leg settlement go through `SafeCast`. Amounts above
+  `2^255 - 1` revert instead of inverting the buffer sign. `type(int256).min` reverts `SafeCastOverflowedIntToUint`
+  instead of panicking on negation.
 
 ### Added
 
@@ -25,6 +28,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Regression PoCs for CEI hardening (`test/reentrancy/CeiHardeningRegression.test.ts`): nested `depositLiquidity` via
   hook token, fee-manager cross-entry during `claimVaultFees`, and Idle-gated `depositLiquidity` mid-`fulfillRedeem` on
   a legacy Idle-before-fulfill twin vs production guards.
+- Regression PoC for signed buffer casts (`test/math/UnsafeSignedCastRegression.test.ts`): a legacy twin accepts
+  `depositLiquidity(type(uint256).max)` and shrinks the buffer by 1, while production reverts
+  `SafeCastOverflowedUintToInt`. Oversized `withdrawLiquidity` transfers nothing on either path.
 
 ## [2.8.0] - 2026-10-02
 
