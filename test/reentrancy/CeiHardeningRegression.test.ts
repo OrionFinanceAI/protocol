@@ -49,9 +49,7 @@ describe("CEI hardening regression PoCs", function () {
     it("legacy twin: nested depositLiquidity succeeds while outer buffer is still stale", async function () {
       const [deployer] = await ethers.getSigners();
 
-      const token = (await (
-        await ethers.getContractFactory("CallbackERC20")
-      ).deploy(6)) as unknown as CallbackERC20;
+      const token = (await (await ethers.getContractFactory("CallbackERC20")).deploy(6)) as unknown as CallbackERC20;
       await token.waitForDeployment();
       await token.setCallbackMode(1); // FromOnly — notify payer on pull
 
@@ -88,9 +86,7 @@ describe("CEI hardening regression PoCs", function () {
     it("production: nested depositLiquidity is blocked by nonReentrant", async function () {
       const [owner, automation] = await ethers.getSigners();
 
-      const token = (await (
-        await ethers.getContractFactory("CallbackERC20")
-      ).deploy(6)) as unknown as CallbackERC20;
+      const token = (await (await ethers.getContractFactory("CallbackERC20")).deploy(6)) as unknown as CallbackERC20;
       await token.waitForDeployment();
       await token.setCallbackMode(1); // FromOnly — notify payer on pull
 
@@ -144,9 +140,7 @@ describe("CEI hardening regression PoCs", function () {
 
   describe("B — claimVaultFees nonReentrant", function () {
     it("legacy twin: fee manager reenters sensitiveOp during payout", async function () {
-      const token = (await (
-        await ethers.getContractFactory("CallbackERC20")
-      ).deploy(6)) as unknown as CallbackERC20;
+      const token = (await (await ethers.getContractFactory("CallbackERC20")).deploy(6)) as unknown as CallbackERC20;
       await token.waitForDeployment();
       // Legacy vault notifies the manager after transfer (same window as a hook token).
       await token.setCallbacksEnabled(false);
@@ -181,9 +175,7 @@ describe("CEI hardening regression PoCs", function () {
     it("production: fee manager cannot requestDeposit during claimVaultFees", async function () {
       const [owner, strategist] = await ethers.getSigners();
 
-      const token = (await (
-        await ethers.getContractFactory("CallbackERC20")
-      ).deploy(6)) as unknown as CallbackERC20;
+      const token = (await (await ethers.getContractFactory("CallbackERC20")).deploy(6)) as unknown as CallbackERC20;
       await token.waitForDeployment();
       await token.setCallbackMode(2); // ToOnly — notify fee recipient on push
 
@@ -319,9 +311,7 @@ describe("CEI hardening regression PoCs", function () {
     it("legacy twin: redeemer sees Idle and can depositLiquidity mid-fulfillRedeem", async function () {
       const [owner, manager, strategist, lp] = await ethers.getSigners();
 
-      const token = (await (
-        await ethers.getContractFactory("CallbackERC20")
-      ).deploy(6)) as unknown as CallbackERC20;
+      const token = (await (await ethers.getContractFactory("CallbackERC20")).deploy(6)) as unknown as CallbackERC20;
       await token.waitForDeployment();
       await token.setCallbackMode(2); // ToOnly — notify redeem recipient on push
 
@@ -395,9 +385,7 @@ describe("CEI hardening regression PoCs", function () {
     it("production: redeemer sees non-Idle and cannot depositLiquidity mid-fulfillRedeem", async function () {
       const [owner, manager, strategist, lp] = await ethers.getSigners();
 
-      const token = (await (
-        await ethers.getContractFactory("CallbackERC20")
-      ).deploy(6)) as unknown as CallbackERC20;
+      const token = (await (await ethers.getContractFactory("CallbackERC20")).deploy(6)) as unknown as CallbackERC20;
       await token.waitForDeployment();
       await token.setCallbackMode(2); // ToOnly — notify redeem recipient on push
 

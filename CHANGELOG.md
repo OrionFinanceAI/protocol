@@ -23,8 +23,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Accounting tests proving queued `fulfillDeposit` mints with `Math.Rounding.Floor` (dust under high NAV → 0 shares;
   floor ≠ ceil when remainder nonzero).
 - Regression PoCs for CEI hardening (`test/reentrancy/CeiHardeningRegression.test.ts`): nested `depositLiquidity` via
-  hook token, fee-manager cross-entry during `claimVaultFees`, and Idle-gated `depositLiquidity` mid-`fulfillRedeem`
-  on a legacy Idle-before-fulfill twin vs production guards.
+  hook token, fee-manager cross-entry during `claimVaultFees`, and Idle-gated `depositLiquidity` mid-`fulfillRedeem` on
+  a legacy Idle-before-fulfill twin vs production guards.
 
 ## [2.8.0] - 2026-10-02
 
