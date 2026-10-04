@@ -495,6 +495,7 @@ contract LiquidityOrchestrator is
         } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
             StatesStruct memory states = _verifyPerformData(_publicValues, proofBytes, statesBytes);
             _processMinibatchBuy(states.buyLeg);
+            // slither-disable-next-line reentrancy-no-eth
             _applyBuyLegSettlement(states.bufferVariation, states.epochProtocolFees);
         } else if (currentPhase == LiquidityUpkeepPhase.ProcessVaultOperations) {
             StatesStruct memory states = _verifyPerformData(_publicValues, proofBytes, statesBytes);
