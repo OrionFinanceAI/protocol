@@ -591,7 +591,7 @@ abstract contract OrionVault is Initializable, ERC4626Upgradeable, ReentrancyGua
     }
 
     /// @inheritdoc IOrionVault
-    function claimVaultFees(uint256 amount) external onlyManager {
+    function claimVaultFees(uint256 amount) external onlyManager nonReentrant {
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(asset());
         if (amount > pendingVaultFees) revert ErrorsLib.InsufficientAmount();
 

@@ -11,6 +11,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Removed `setVaultBeacon` from transparent and encrypted vault factories. Beacon is fixed at factory initialize; vault
   upgrades use `UpgradeableBeacon.upgradeTo` so existing and new vaults share one implementation lineage. Removed unused
   `VaultBeaconUpdated` event.
+- Defense-in-depth reentrancy hardening: `depositLiquidity` and `claimVaultFees` are `nonReentrant`;
+  ProcessVaultOperations sets Idle only after the vault fulfill loop so `isSystemIdle()` stays false during
+  deposit/redeem settlement.
 
 ### Added
 

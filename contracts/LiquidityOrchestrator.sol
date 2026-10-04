@@ -330,7 +330,7 @@ contract LiquidityOrchestrator is
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function depositLiquidity(uint256 amount) external {
+    function depositLiquidity(uint256 amount) external nonReentrant {
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
         if (currentPhase != LiquidityUpkeepPhase.Idle) revert ErrorsLib.SystemNotIdle();
 
@@ -497,14 +497,21 @@ contract LiquidityOrchestrator is
             _applyBuyLegSettlement(states.bufferVariation, states.epochProtocolFees);
         } else if (currentPhase == LiquidityUpkeepPhase.ProcessVaultOperations) {
             StatesStruct memory states = _verifyPerformData(_publicValues, proofBytes, statesBytes);
-            _processMinibatchVaultsOperations(states.vaults);
 
-            if (currentPhase == LiquidityUpkeepPhase.Idle) {
+            if (_processMinibatchVaultsOperations(states.vaults)) {
+                // slither-disable-start reentrancy-no-eth
+                // Safe: performUpkeep is nonReentrant.
+                currentPhase = LiquidityUpkeepPhase.Idle;
+                currentMinibatchIndex = 0;
+                completedInCurrentMinibatch = 0;
+                _nextUpdateTime = block.timestamp + epochDuration;
+
                 address[] memory failedTokens = _failedEpochTokens;
                 delete _failedEpochTokens;
                 config.completeAssetsRemoval(failedTokens);
                 emit EventsLib.EpochEnd(epochCounter, states.nettedRebalanceVolumeUnderlying);
                 ++epochCounter;
+                // slither-disable-end reentrancy-no-eth
             }
         }
     }
@@ -964,26 +971,25 @@ contract LiquidityOrchestrator is
 
     /// @notice Handles the vault operations
     /// @param vaultStates The vault states
+    /// @return True when this minibatch finishes the vault list (caller transitions to Idle)
     /// @dev vaultStates[] shall match _currentEpoch.vaultsEpoch[] in order
-    function _processMinibatchVaultsOperations(VaultState[] memory vaultStates) internal {
+    function _processMinibatchVaultsOperations(VaultState[] memory vaultStates) internal returns (bool) {
         address[] memory vaultsEpoch = _currentEpoch.vaultsEpoch;
 
         uint16 i0 = currentMinibatchIndex * minibatchSize;
         uint16 i1 = i0 + minibatchSize;
         ++currentMinibatchIndex;
 
-        // slither-disable-next-line incorrect-equality
-        if (i1 > vaultsEpoch.length || i1 == vaultsEpoch.length) {
+        if (i1 > vaultsEpoch.length) {
             i1 = uint16(vaultsEpoch.length);
-            currentPhase = LiquidityUpkeepPhase.Idle;
-            currentMinibatchIndex = 0;
-            completedInCurrentMinibatch = 0;
-            _nextUpdateTime = block.timestamp + epochDuration;
         }
 
         for (uint16 i = i0; i < i1; ++i) {
             _processSingleVaultOperations(vaultsEpoch[i], vaultStates[i]);
         }
+
+        // slither-disable-next-line incorrect-equality
+        return i1 == vaultsEpoch.length;
     }
 
     /// @notice Processes deposit and redeem operations for a single vault
