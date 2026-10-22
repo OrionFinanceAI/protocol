@@ -29,3 +29,8 @@ allowBuilds:
   esbuild: true
   keccak: true
   secp256k1: true
+
+minimumReleaseAgeExclude:
+  - elliptic@6.6.2
+  - diff@8.0.3
+  - serialize-javascript@7.0.3 || 7.0.5
