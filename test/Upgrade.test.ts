@@ -387,77 +387,6 @@ describe("Upgrade Tests", function () {
       }
     });
 
-    it("Should create vaults with different implementations after setVaultBeacon", async function () {
-      // Deploy first vault with V1 implementation
-      const tx1 = await vaultFactory
-        .connect(owner)
-        .createVault(
-          strategist.address,
-          "Vault V1",
-          "VV1",
-          0,
-          0,
-          0,
-          ethers.ZeroAddress,
-          ethers.ZeroAddress,
-          ethers.ZeroAddress,
-        );
-      const receipt1 = await tx1.wait();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const vault1Address = (receipt1?.logs.find((log: any) => log.fragment?.name === "OrionVaultCreated") as any)
-        ?.args?.[0];
-
-      // Deploy V2 implementation
-      const VaultV2Factory = await ethers.getContractFactory("OrionTransparentVaultV2");
-      const vaultV2Impl = await VaultV2Factory.deploy();
-      await vaultV2Impl.waitForDeployment();
-
-      // Create new beacon pointing to V2
-      const BeaconFactory = await ethers.getContractFactory("OrionUpgradeableBeacon");
-      const newBeacon = (await BeaconFactory.deploy(
-        await vaultV2Impl.getAddress(),
-        owner.address,
-      )) as unknown as UpgradeableBeacon;
-      await newBeacon.waitForDeployment();
-
-      // Update factory to use new beacon
-      await vaultFactory.connect(owner).setVaultBeacon(await newBeacon.getAddress());
-      expect(await vaultFactory.vaultBeacon()).to.equal(await newBeacon.getAddress());
-
-      // Deploy second vault with V2 implementation
-      const tx2 = await vaultFactory
-        .connect(owner)
-        .createVault(
-          strategist.address,
-          "Vault V2",
-          "VV2",
-          0,
-          0,
-          0,
-          ethers.ZeroAddress,
-          ethers.ZeroAddress,
-          ethers.ZeroAddress,
-        );
-      const receipt2 = await tx2.wait();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const vault2Address = (receipt2?.logs.find((log: any) => log.fragment?.name === "OrionVaultCreated") as any)
-        ?.args?.[0];
-
-      // Attach to vaults and verify versions
-      const VaultV1Factory = await ethers.getContractFactory("OrionTransparentVault");
-      const vault1 = VaultV1Factory.attach(vault1Address) as unknown as OrionTransparentVault;
-
-      const vault2V2 = VaultV2Factory.attach(vault2Address) as unknown as OrionTransparentVaultV2;
-
-      // Vault 1 should be V1 (no version function, should revert)
-      // We can't call version() on V1, so just verify it's deployed correctly
-      expect(await vault1.manager()).to.equal(owner.address);
-
-      // Vault 2 should be V2
-      expect(await vault2V2.version()).to.equal("v2");
-      expect(await vault2V2.manager()).to.equal(owner.address);
-    });
-
     it("Should create vaults with same new implementation after vaultBeacon.upgradeTo", async function () {
       // Deploy first vault with V1 implementation
       const tx1 = await vaultFactory
@@ -525,7 +454,7 @@ describe("Upgrade Tests", function () {
       expect(await vault2V2.vaultDescription()).to.equal("New vault, new impl");
     });
 
-    it("Should maintain factory functionality after UUPS upgrade with beacon changes", async function () {
+    it("Should maintain factory functionality after UUPS upgrade with beacon.upgradeTo", async function () {
       // Deploy first vault with original factory and V1 beacon
       const tx1 = await vaultFactory
         .connect(owner)
@@ -559,23 +488,13 @@ describe("Upgrade Tests", function () {
         await vaultFactory.getAddress(),
       ) as unknown as TransparentVaultFactory;
 
-      // Deploy V2 implementation
+      // Deploy V2 implementation and upgrade the shared beacon (upgrades all vaults)
       const VaultV2Factory = await ethers.getContractFactory("OrionTransparentVaultV2");
       const vaultV2Impl = await VaultV2Factory.deploy();
       await vaultV2Impl.waitForDeployment();
+      await vaultBeacon.connect(owner).upgradeTo(await vaultV2Impl.getAddress());
 
-      // Create new beacon pointing to V2
-      const BeaconFactory = await ethers.getContractFactory("OrionUpgradeableBeacon");
-      const newBeacon = (await BeaconFactory.deploy(
-        await vaultV2Impl.getAddress(),
-        owner.address,
-      )) as unknown as UpgradeableBeacon;
-      await newBeacon.waitForDeployment();
-
-      // Update upgraded factory to use new beacon
-      await upgradedFactory.connect(owner).setVaultBeacon(await newBeacon.getAddress());
-
-      // Deploy second vault with upgraded factory and V2 beacon
+      // Deploy second vault with upgraded factory (same beacon → V2)
       const tx2 = await upgradedFactory
         .connect(owner)
         .createVault(
@@ -599,21 +518,14 @@ describe("Upgrade Tests", function () {
       });
       const vault2Address = vault2Event ? upgradedFactory.interface.parseLog(vault2Event)?.args[0] : undefined;
 
-      // Attach to vaults
-      const VaultV1Factory = await ethers.getContractFactory("OrionTransparentVault");
-      const vault1 = VaultV1Factory.attach(vault1Address) as unknown as OrionTransparentVault;
-
+      const vault1V2 = VaultV2Factory.attach(vault1Address) as unknown as OrionTransparentVaultV2;
       const vault2V2 = VaultV2Factory.attach(vault2Address) as unknown as OrionTransparentVaultV2;
 
-      // Vault 1 should still be V1 (no version function)
-      // We can't call version() on V1, so just verify it's deployed correctly
-      expect(await vault1.manager()).to.equal(owner.address);
-
-      // Vault 2 should be V2
+      expect(await vault1V2.version()).to.equal("v2");
       expect(await vault2V2.version()).to.equal("v2");
+      expect(await vault1V2.manager()).to.equal(owner.address);
       expect(await vault2V2.manager()).to.equal(owner.address);
 
-      // Test V2 functionality
       await vault2V2.connect(owner).setVaultDescription("Created via upgraded factory");
       expect(await vault2V2.vaultDescription()).to.equal("Created via upgraded factory");
     });

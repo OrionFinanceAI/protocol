@@ -229,24 +229,6 @@ describe("EncryptedVaultFactory / Config / LO edge branches", function () {
       await harness.h_setPhase(PHASE_IDLE);
     });
 
-    it("setVaultBeacon updates and rejects zero", async function () {
-      const BeaconFactory = await ethers.getContractFactory("OrionUpgradeableBeacon");
-      const EncryptedImpl = await ethers.getContractFactory("OrionEncryptedVault");
-      const newImpl = await EncryptedImpl.deploy();
-      await newImpl.waitForDeployment();
-      const newBeacon = await BeaconFactory.deploy(await newImpl.getAddress(), owner.address);
-      await newBeacon.waitForDeployment();
-
-      await expect(
-        encryptedVaultFactory.connect(owner).setVaultBeacon(ethers.ZeroAddress),
-      ).to.be.revertedWithCustomError(encryptedVaultFactory, "ZeroAddress");
-
-      await expect(encryptedVaultFactory.connect(owner).setVaultBeacon(await newBeacon.getAddress()))
-        .to.emit(encryptedVaultFactory, "VaultBeaconUpdated")
-        .withArgs(await newBeacon.getAddress());
-      expect(await encryptedVaultFactory.vaultBeacon()).to.equal(await newBeacon.getAddress());
-    });
-
     it("setUpgradeTimelock bootstrap ACL and replacement by timelock", async function () {
       await expect(
         encryptedVaultFactory.connect(stranger).setUpgradeTimelock(stranger.address),
@@ -313,6 +295,14 @@ describe("EncryptedVaultFactory / Config / LO edge branches", function () {
         orionConfig,
         "InvalidArguments",
       );
+    });
+
+    it("setHpkePublicKey emits HpkePublicKeyUpdated", async function () {
+      const key = ethers.id("hpke-public-key-v2");
+      await expect(orionConfig.connect(owner).setHpkePublicKey(key))
+        .to.emit(orionConfig, "HpkePublicKeyUpdated")
+        .withArgs(key);
+      expect(await orionConfig.hpkePublicKey()).to.equal(key);
     });
 
     it("removeWhitelistedManager hits InvalidAddress when manager removed via reentrancy", async function () {

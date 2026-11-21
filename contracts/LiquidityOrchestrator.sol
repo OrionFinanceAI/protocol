@@ -44,6 +44,7 @@ contract LiquidityOrchestrator is
     using Math for uint256;
     using SafeERC20 for IERC20;
     using SafeCast for uint256;
+    using SafeCast for int256;
 
     /// @notice Basis points factor
     uint16 public constant BASIS_POINTS_FACTOR = 10_000;
@@ -263,6 +264,7 @@ contract LiquidityOrchestrator is
 
         epochDuration = newEpochDuration;
         _nextUpdateTime = Math.min(block.timestamp + epochDuration, _nextUpdateTime);
+        emit EventsLib.EpochDurationUpdated(newEpochDuration);
     }
 
     /// @inheritdoc ILiquidityOrchestrator
@@ -270,6 +272,7 @@ contract LiquidityOrchestrator is
         if (_executionMinibatchSize == 0) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         executionMinibatchSize = _executionMinibatchSize;
+        emit EventsLib.ExecutionMinibatchSizeUpdated(_executionMinibatchSize);
     }
 
     /// @inheritdoc ILiquidityOrchestrator
@@ -277,6 +280,7 @@ contract LiquidityOrchestrator is
         if (_minibatchSize == 0) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         minibatchSize = _minibatchSize;
+        emit EventsLib.MinibatchSizeUpdated(_minibatchSize);
     }
 
     /// @inheritdoc ILiquidityOrchestrator
@@ -284,6 +288,7 @@ contract LiquidityOrchestrator is
         if (_commitmentMinibatchSize == 0) revert ErrorsLib.InvalidArguments();
         if (!config.isSystemIdle()) revert ErrorsLib.SystemNotIdle();
         commitmentMinibatchSize = _commitmentMinibatchSize;
+        emit EventsLib.CommitmentMinibatchSizeUpdated(_commitmentMinibatchSize);
     }
 
     /// @inheritdoc ILiquidityOrchestrator
@@ -326,7 +331,7 @@ contract LiquidityOrchestrator is
     }
 
     /// @inheritdoc ILiquidityOrchestrator
-    function depositLiquidity(uint256 amount) external {
+    function depositLiquidity(uint256 amount) external nonReentrant {
         if (amount == 0) revert ErrorsLib.AmountMustBeGreaterThanZero(underlyingAsset);
         if (currentPhase != LiquidityUpkeepPhase.Idle) revert ErrorsLib.SystemNotIdle();
 
@@ -334,7 +339,7 @@ contract LiquidityOrchestrator is
         IERC20(underlyingAsset).safeTransferFrom(msg.sender, address(this), amount);
 
         // Update buffer amount
-        _updateBufferAmount(int256(amount));
+        _updateBufferAmount(amount.toInt256());
 
         emit EventsLib.LiquidityDeposited(msg.sender, amount);
     }
@@ -348,7 +353,7 @@ contract LiquidityOrchestrator is
         if (amount > bufferAmount) revert ErrorsLib.InsufficientAmount();
 
         // Update buffer amount
-        _updateBufferAmount(-int256(amount));
+        _updateBufferAmount(-(amount.toInt256()));
 
         // Transfer underlying assets to the owner
         IERC20(underlyingAsset).safeTransfer(msg.sender, amount);
@@ -490,17 +495,25 @@ contract LiquidityOrchestrator is
         } else if (currentPhase == LiquidityUpkeepPhase.BuyingLeg) {
             StatesStruct memory states = _verifyPerformData(_publicValues, proofBytes, statesBytes);
             _processMinibatchBuy(states.buyLeg);
+            // slither-disable-next-line reentrancy-no-eth
             _applyBuyLegSettlement(states.bufferVariation, states.epochProtocolFees);
         } else if (currentPhase == LiquidityUpkeepPhase.ProcessVaultOperations) {
             StatesStruct memory states = _verifyPerformData(_publicValues, proofBytes, statesBytes);
-            _processMinibatchVaultsOperations(states.vaults);
 
-            if (currentPhase == LiquidityUpkeepPhase.Idle) {
+            if (_processMinibatchVaultsOperations(states.vaults)) {
+                // slither-disable-start reentrancy-no-eth
+                // Safe: performUpkeep is nonReentrant.
+                currentPhase = LiquidityUpkeepPhase.Idle;
+                currentMinibatchIndex = 0;
+                completedInCurrentMinibatch = 0;
+                _nextUpdateTime = block.timestamp + epochDuration;
+
                 address[] memory failedTokens = _failedEpochTokens;
                 delete _failedEpochTokens;
                 config.completeAssetsRemoval(failedTokens);
                 emit EventsLib.EpochEnd(epochCounter, states.nettedRebalanceVolumeUnderlying);
                 ++epochCounter;
+                // slither-disable-end reentrancy-no-eth
             }
         }
     }
@@ -858,11 +871,7 @@ contract LiquidityOrchestrator is
 
         // slither-disable-start reentrancy-no-eth
         // Safe: only reachable from nonReentrant performUpkeep after buys complete.
-        if (bufferVariation >= 0) {
-            bufferAmount += uint256(bufferVariation);
-        } else {
-            bufferAmount -= uint256(-bufferVariation);
-        }
+        _updateBufferAmount(bufferVariation);
         _updateBufferAmount(_epochDeltaAmount);
         _epochDeltaAmount = 0;
         pendingProtocolFees += epochProtocolFees;
@@ -874,9 +883,10 @@ contract LiquidityOrchestrator is
     /// @param deltaAmount The amount to add/subtract from the buffer (can be negative)
     function _updateBufferAmount(int256 deltaAmount) internal {
         if (deltaAmount > 0) {
-            bufferAmount += uint256(deltaAmount);
+            bufferAmount += deltaAmount.toUint256();
         } else if (deltaAmount < 0) {
-            bufferAmount -= uint256(-deltaAmount);
+            if (deltaAmount == type(int256).min) revert SafeCast.SafeCastOverflowedIntToUint(deltaAmount);
+            bufferAmount -= (-deltaAmount).toUint256();
         }
     }
 
@@ -960,26 +970,25 @@ contract LiquidityOrchestrator is
 
     /// @notice Handles the vault operations
     /// @param vaultStates The vault states
+    /// @return True when this minibatch finishes the vault list (caller transitions to Idle)
     /// @dev vaultStates[] shall match _currentEpoch.vaultsEpoch[] in order
-    function _processMinibatchVaultsOperations(VaultState[] memory vaultStates) internal {
+    function _processMinibatchVaultsOperations(VaultState[] memory vaultStates) internal returns (bool) {
         address[] memory vaultsEpoch = _currentEpoch.vaultsEpoch;
 
         uint16 i0 = currentMinibatchIndex * minibatchSize;
         uint16 i1 = i0 + minibatchSize;
         ++currentMinibatchIndex;
 
-        // slither-disable-next-line incorrect-equality
-        if (i1 > vaultsEpoch.length || i1 == vaultsEpoch.length) {
+        if (i1 > vaultsEpoch.length) {
             i1 = uint16(vaultsEpoch.length);
-            currentPhase = LiquidityUpkeepPhase.Idle;
-            currentMinibatchIndex = 0;
-            completedInCurrentMinibatch = 0;
-            _nextUpdateTime = block.timestamp + epochDuration;
         }
 
         for (uint16 i = i0; i < i1; ++i) {
             _processSingleVaultOperations(vaultsEpoch[i], vaultStates[i]);
         }
+
+        // slither-disable-next-line incorrect-equality
+        return i1 == vaultsEpoch.length;
     }
 
     /// @notice Processes deposit and redeem operations for a single vault

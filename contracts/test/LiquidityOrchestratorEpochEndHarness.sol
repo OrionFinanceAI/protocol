@@ -33,8 +33,12 @@ contract LiquidityOrchestratorEpochEndHarness is LiquidityOrchestrator {
         VaultState[] memory vaults,
         uint256 nettedRebalanceVolumeUnderlying
     ) external {
-        _processMinibatchVaultsOperations(vaults);
-        _maybeEpochEndAfterPvo(nettedRebalanceVolumeUnderlying);
+        if (_processMinibatchVaultsOperations(vaults)) {
+            currentPhase = LiquidityUpkeepPhase.Idle;
+            currentMinibatchIndex = 0;
+            completedInCurrentMinibatch = 0;
+            _maybeEpochEndAfterPvo(nettedRebalanceVolumeUnderlying);
+        }
     }
 
     /**

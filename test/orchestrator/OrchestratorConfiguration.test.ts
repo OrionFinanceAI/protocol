@@ -640,12 +640,16 @@ describe("Orchestrator Configuration", function () {
   describe("configuration", function () {
     it("should allow owner to update epoch duration", async function () {
       const newEpochDuration = 2 * 24 * 60 * 60; // 2 days
-      await liquidityOrchestrator.updateEpochDuration(newEpochDuration);
+      await expect(liquidityOrchestrator.updateEpochDuration(newEpochDuration))
+        .to.emit(liquidityOrchestrator, "EpochDurationUpdated")
+        .withArgs(newEpochDuration);
       expect(await liquidityOrchestrator.epochDuration()).to.equal(newEpochDuration);
     });
 
     it("should allow owner to update minibatch sizes", async function () {
-      await expect(liquidityOrchestrator.updateMinibatchSize(2)).to.not.be.rejected;
+      await expect(liquidityOrchestrator.updateMinibatchSize(2))
+        .to.emit(liquidityOrchestrator, "MinibatchSizeUpdated")
+        .withArgs(2);
     });
 
     it("should allow owner to update protocol fees", async function () {

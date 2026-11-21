@@ -53,7 +53,7 @@ const config = defineConfig({
             type: "http",
             chainType: "l1",
             url: process.env.SEPOLIA_RPC_URL ?? process.env.RPC_URL!,
-            accounts: [process.env.DEPLOYER_PRIVATE_KEY!, process.env.LP_PRIVATE_KEY!],
+            accounts: [process.env.DEPLOYER_PRIVATE_KEY, process.env.LP_PRIVATE_KEY].filter((k): k is string => !!k),
             chainId: 11155111,
           },
         }

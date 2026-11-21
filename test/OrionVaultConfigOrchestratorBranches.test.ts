@@ -630,8 +630,12 @@ describe("OrionVault / OrionConfig / LO edge branches", function () {
       await expect(harness.connect(owner).withdrawLiquidity(1)).to.be.revertedWithCustomError(harness, "SystemNotIdle");
       await harness.h_setPhase(PHASE_IDLE);
 
-      await harness.connect(guardian).updateEpochDuration(3600);
-      await harness.connect(owner).updateExecutionMinibatchSize(2);
+      await expect(harness.connect(guardian).updateEpochDuration(3600))
+        .to.emit(harness, "EpochDurationUpdated")
+        .withArgs(3600);
+      await expect(harness.connect(owner).updateExecutionMinibatchSize(2))
+        .to.emit(harness, "ExecutionMinibatchSizeUpdated")
+        .withArgs(2);
       await expect(harness.connect(guardian).updateMinibatchSize(2)).to.be.revertedWithCustomError(
         harness,
         "NotAuthorized",
@@ -640,7 +644,7 @@ describe("OrionVault / OrionConfig / LO edge branches", function () {
         harness,
         "NotAuthorized",
       );
-      await harness.connect(owner).updateMinibatchSize(2);
+      await expect(harness.connect(owner).updateMinibatchSize(2)).to.emit(harness, "MinibatchSizeUpdated").withArgs(2);
       await expect(harness.connect(owner).setTargetBufferRatio(50))
         .to.emit(harness, "TargetBufferRatioUpdated")
         .withArgs(50);

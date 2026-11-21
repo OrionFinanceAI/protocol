@@ -287,6 +287,7 @@ contract OrionConfig is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable,
         if (_hpkePublicKey == bytes32(0)) revert ErrorsLib.InvalidArguments();
 
         hpkePublicKey = _hpkePublicKey;
+        emit EventsLib.HpkePublicKeyUpdated(_hpkePublicKey);
     }
 
     // === Whitelist Functions ===
