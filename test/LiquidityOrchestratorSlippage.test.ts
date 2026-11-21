@@ -6,7 +6,7 @@ import type {
   LiquidityOrchestratorSlippageHarness,
   MockERC4626Asset,
   MockUnderlyingAsset,
-  ERC4626ExecutionAdapter,
+  MockExecutionAdapter,
   MockPriceAdapter,
   OrionConfig,
   PriceAdapterRegistry,
@@ -26,7 +26,7 @@ describe("LiquidityOrchestrator - Centralized Slippage Management", function () 
   let underlyingAsset: MockUnderlyingAsset;
   let vault1: MockERC4626Asset;
   let vault2: MockERC4626Asset;
-  let executionAdapter: ERC4626ExecutionAdapter;
+  let executionAdapter: MockExecutionAdapter;
   let priceAdapter: MockPriceAdapter;
   let harness: LiquidityOrchestratorSlippageHarness;
 
@@ -111,10 +111,8 @@ describe("LiquidityOrchestrator - Centralized Slippage Management", function () 
     priceAdapter = (await MockPriceAdapterFactory.deploy()) as unknown as MockPriceAdapter;
     await priceAdapter.waitForDeployment();
 
-    const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
-    executionAdapter = (await ERC4626ExecutionAdapterFactory.deploy(
-      await orionConfig.getAddress(),
-    )) as unknown as ERC4626ExecutionAdapter;
+    const MockExecutionAdapterFactory = await ethers.getContractFactory("MockExecutionAdapter");
+    executionAdapter = (await MockExecutionAdapterFactory.deploy()) as unknown as MockExecutionAdapter;
     await executionAdapter.waitForDeployment();
 
     // --- Deploy beacon + vault factory for config ---

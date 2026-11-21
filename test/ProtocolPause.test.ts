@@ -44,7 +44,7 @@ import { resetNetwork } from "./helpers/resetNetwork";
 import type {
   MockUnderlyingAsset,
   MockERC4626Asset,
-  ERC4626ExecutionAdapter,
+  MockExecutionAdapter,
   OrionConfig,
   LiquidityOrchestrator,
   OrionTransparentVault,
@@ -54,7 +54,7 @@ describe("Protocol Pause Functionality", function () {
   // Contract instances
   let underlyingAsset: MockUnderlyingAsset;
   let erc4626Asset: MockERC4626Asset;
-  let adapter: ERC4626ExecutionAdapter;
+  let adapter: MockExecutionAdapter;
   let config: OrionConfig;
   let liquidityOrchestrator: LiquidityOrchestrator;
   let transparentVault: OrionTransparentVault;
@@ -106,16 +106,11 @@ describe("Protocol Pause Functionality", function () {
     const priceAdapterDeployed = await MockPriceAdapterFactory.deploy();
     await priceAdapterDeployed.waitForDeployment();
 
-    // Deploy Mock Swap Executor
-    const MockExecutionAdapterFactory = await ethers.getContractFactory("MockExecutionAdapter");
-    const MockExecutionAdapter = await MockExecutionAdapterFactory.deploy();
-    await MockExecutionAdapter.waitForDeployment();
-
-    // Deploy Execution Adapter
-    const AdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
-    const adapterDeployed = await AdapterFactory.deploy(await config.getAddress());
+    // Deploy Execution Adapter (mock: pause tests never execute trades, only whitelist the asset)
+    const AdapterFactory = await ethers.getContractFactory("MockExecutionAdapter");
+    const adapterDeployed = await AdapterFactory.deploy();
     await adapterDeployed.waitForDeployment();
-    adapter = adapterDeployed as unknown as ERC4626ExecutionAdapter;
+    adapter = adapterDeployed as unknown as MockExecutionAdapter;
 
     // NOW we can configure protocol parameters (these check isSystemIdle())
     await config.setMinDepositAmount(MIN_DEPOSIT);

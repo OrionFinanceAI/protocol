@@ -17,7 +17,6 @@ const config = defineConfig({
       "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol",
       "@openzeppelin/contracts/interfaces/IERC4626.sol",
       "@openzeppelin/contracts/governance/TimelockController.sol",
-      "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol",
     ],
     compilers: [
       {

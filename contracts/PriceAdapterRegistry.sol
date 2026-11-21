@@ -3,14 +3,14 @@ pragma solidity ^0.8.34;
 
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import "../interfaces/IPriceAdapterRegistry.sol";
-import "../interfaces/IPriceAdapter.sol";
-import { ErrorsLib } from "../libraries/ErrorsLib.sol";
-import { EventsLib } from "../libraries/EventsLib.sol";
-import { UtilitiesLib } from "../libraries/UtilitiesLib.sol";
-import { IOrionConfig } from "../interfaces/IOrionConfig.sol";
+import "./interfaces/IPriceAdapterRegistry.sol";
+import "./interfaces/IPriceAdapter.sol";
+import { ErrorsLib } from "./libraries/ErrorsLib.sol";
+import { EventsLib } from "./libraries/EventsLib.sol";
+import { UtilitiesLib } from "./libraries/UtilitiesLib.sol";
+import { IOrionConfig } from "./interfaces/IOrionConfig.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-import { ReservedOwnableNamespaces } from "../utils/ReservedOwnableNamespaces.sol";
+import { ReservedOwnableNamespaces } from "./utils/ReservedOwnableNamespaces.sol";
 
 /**
  * @title PriceAdapterRegistry
