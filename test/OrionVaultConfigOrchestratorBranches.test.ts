@@ -847,58 +847,6 @@ describe("Adapters / strategies / registry edge branches", function () {
     await resetNetwork();
   });
 
-  it("ERC4626ExecutionAdapter rejects vault/underlying without decimals metadata", async function () {
-    const [owner] = await ethers.getSigners();
-    const usdc = await (await ethers.getContractFactory("MockUnderlyingAsset")).deploy(6);
-    const config = await (await ethers.getContractFactory("MockOrionConfig")).deploy(await usdc.getAddress());
-    const lo = await (await ethers.getContractFactory("MockLiquidityOrchestrator")).deploy(await config.getAddress());
-    await config.setLiquidityOrchestrator(await lo.getAddress());
-
-    const adapter = await (
-      await ethers.getContractFactory("ERC4626ExecutionAdapter")
-    ).deploy(await config.getAddress());
-
-    const brokenVault = await (
-      await ethers.getContractFactory("MockERC4626NoDecimals")
-    ).deploy(await usdc.getAddress(), false);
-    await config.setTokenDecimals(await brokenVault.getAddress(), 18);
-    await expect(adapter.validateExecutionAdapter(await brokenVault.getAddress())).to.be.revertedWithCustomError(
-      adapter,
-      "InvalidAdapter",
-    );
-
-    const noDecUnderlying = await (await ethers.getContractFactory("MockTokenNoDecimals")).deploy();
-    const vaultBrokenUnderlying = await (
-      await ethers.getContractFactory("MockERC4626BrokenUnderlyingDecimals")
-    ).deploy(await noDecUnderlying.getAddress(), 18);
-    await config.setTokenDecimals(await vaultBrokenUnderlying.getAddress(), 18);
-    await expect(
-      adapter.validateExecutionAdapter(await vaultBrokenUnderlying.getAddress()),
-    ).to.be.revertedWithCustomError(adapter, "InvalidAdapter");
-    void owner;
-  });
-
-  it("ChainlinkPriceAdapter rejects scaleFactor==0 when base decimals dominate", async function () {
-    const usdc = await (await ethers.getContractFactory("MockUnderlyingAsset")).deploy(6);
-    const MockConfig = await ethers.getContractFactory("MockOrionConfig");
-    const config = await MockConfig.deploy(await usdc.getAddress());
-    const adapter = await (await ethers.getContractFactory("ChainlinkPriceAdapter")).deploy(await config.getAddress());
-    // 10^(0+18)/10^77 truncates to 0 without overflowing 10**exp (max safe ~77)
-    const base = await (await ethers.getContractFactory("MockChainlinkFeed")).deploy(77, 1n);
-    const quote = await (await ethers.getContractFactory("MockChainlinkFeed")).deploy(0, 1n);
-    await expect(
-      adapter.configureFeed(
-        await adapter.getAddress(),
-        await base.getAddress(),
-        false,
-        3600,
-        1,
-        ethers.MaxUint256,
-        await quote.getAddress(),
-      ),
-    ).to.be.revertedWithCustomError(adapter, "InvalidArguments");
-  });
-
   it("PriceAdapterRegistry setPriceAdapter rejects zero asset/adapter via config", async function () {
     const [owner] = await ethers.getSigners();
     const deployed = await deployUpgradeableProtocol(owner);

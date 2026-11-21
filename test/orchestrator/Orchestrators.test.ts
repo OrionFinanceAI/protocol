@@ -5,12 +5,12 @@ import { ethers, networkHelpers, provider } from "../helpers/hh";
 import type {
   MockUnderlyingAsset,
   MockERC4626Asset,
-  ERC4626ExecutionAdapter,
+  MockExecutionAdapter,
   OrionConfig,
   LiquidityOrchestrator,
   TransparentVaultFactory,
   OrionTransparentVault,
-  ERC4626PriceAdapter,
+  MockPriceAdapter,
   MockPassiveStrategist,
 } from "../typechain-types";
 import { deployUpgradeableProtocol } from "../helpers/deployUpgradeable";
@@ -37,8 +37,8 @@ describe("Orchestrators", function () {
   let mockAsset1: MockERC4626Asset;
   let mockAsset2: MockERC4626Asset;
   let mockAsset3: MockERC4626Asset;
-  let orionPriceAdapter: ERC4626PriceAdapter;
-  let orionExecutionAdapter: ERC4626ExecutionAdapter;
+  let orionPriceAdapter: MockPriceAdapter;
+  let orionExecutionAdapter: MockExecutionAdapter;
   let liquidityOrchestrator: LiquidityOrchestrator;
   let absoluteVault: OrionTransparentVault;
   let highWaterMarkVault: OrionTransparentVault;
@@ -127,9 +127,9 @@ describe("Orchestrators", function () {
 
     console.log("orionConfig address", await orionConfig.getAddress());
 
-    // Deploy MockPriceAdapter - these vaults use USDC as underlying (same-asset), ERC4626PriceAdapter rejects same-asset
+    // Deploy MockPriceAdapter - these vaults use USDC as underlying (same-asset), a real ERC4626 price adapter would reject same-asset
     const MockPriceAdapterFactory = await ethers.getContractFactory("MockPriceAdapter");
-    orionPriceAdapter = (await MockPriceAdapterFactory.deploy()) as unknown as ERC4626PriceAdapter;
+    orionPriceAdapter = (await MockPriceAdapterFactory.deploy()) as unknown as MockPriceAdapter;
     await orionPriceAdapter.waitForDeployment();
 
     await orionConfig.connect(owner).updateProtocolFees(10, 1000);
@@ -164,10 +164,8 @@ describe("Orchestrators", function () {
     // Set minibatch size to a large value to process all vaults in one batch for tests
     await liquidityOrchestrator.connect(owner).updateMinibatchSize(8);
 
-    const ERC4626ExecutionAdapterFactory = await ethers.getContractFactory("ERC4626ExecutionAdapter");
-    orionExecutionAdapter = (await ERC4626ExecutionAdapterFactory.deploy(
-      await orionConfig.getAddress(),
-    )) as unknown as ERC4626ExecutionAdapter;
+    const MockExecutionAdapterFactory = await ethers.getContractFactory("MockExecutionAdapter");
+    orionExecutionAdapter = (await MockExecutionAdapterFactory.deploy()) as unknown as MockExecutionAdapter;
     await orionExecutionAdapter.waitForDeployment();
 
     await orionConfig.addWhitelistedAsset(

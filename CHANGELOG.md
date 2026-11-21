@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.9.0] - 2026-11-21
+
+### Changed
+
+- **Breaking (repository layout):** `PriceAdapterRegistry` moved from `contracts/price/PriceAdapterRegistry.sol` to
+  `contracts/PriceAdapterRegistry.sol`. Contract name, ABI, storage layout and behavior are unchanged; only the Solidity
+  source path (and therefore the artifact path under `artifacts/contracts/`) changed. The `contracts/execution/` and
+  `contracts/price/` directories no longer exist.
+
+### Removed
+
+- **Breaking:** all execution and price adapter implementations moved to the sibling `protocol-adapters` repository
+  (`@orion-finance/adapters`): `ERC4626ExecutionAdapter`, `UniswapV3ExecutionAdapter`, `ChainlinkPriceAdapter`,
+  `ERC4626PriceAdapter`, `UniswapV3PoolPriceAdapter`, plus their mocks and adapter-specific tests. This repository keeps
+  the core contracts and the interfaces adapters implement (`IExecutionAdapter`, `IPriceAdapter`,
+  `IPriceAdapterRegistry`, `IOrionConfig`, `ErrorsLib`, ...).
+- Adapter ABIs and bytecode are no longer published from this repository's `abis-v*` releases; they are published from
+  `protocol-adapters`.
+- `@chainlink/contracts`, `@uniswap/v3-core` and `@uniswap/v3-periphery` dependencies, the `.pnpmfile.cjs` Chainlink
+  dependency-trimming hook, and the obsolete `.trivyignore.yaml` entries for the transitive OpenZeppelin 3.4.2 sources.
+- `ErrorsLib.InvalidAdapter`, `InvalidPrice`, `StalePrice` and `PriceOutOfBounds` are kept even though no core contract
+  reverts with them: they are raised by adapters and integrators decode these selectors from registry and orchestrator
+  reverts.
+
 ## [2.8.1] - 2026-10-03
 
 ### Changed
