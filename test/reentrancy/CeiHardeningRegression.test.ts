@@ -21,7 +21,7 @@ import type {
   IdleWindowRedeemer,
   LegacyIdleBeforeFulfillOrchestrator,
   LiquidityOrchestrator,
-  LiquidityOrchestratorVaultHarness,
+  LiquidityOrchestratorEpochEndHarness,
   NestedDepositAttacker,
   OrionTransparentVault,
   PriceAdapterRegistry,
@@ -406,8 +406,8 @@ describe("CEI hardening regression PoCs", function () {
       await sp1VerifierGateway.addRoute(await sp1Verifier.getAddress());
 
       const vKey = "0x007ccff4696ddd1d62fec2a106aa50309ba0fdee8fc2bcbc9c0b5ea68fe200f3";
-      const harness = await deployUUPSProxy<LiquidityOrchestratorVaultHarness>(
-        "LiquidityOrchestratorVaultHarness",
+      const harness = await deployUUPSProxy<LiquidityOrchestratorEpochEndHarness>(
+        "LiquidityOrchestratorEpochEndHarness",
         [await orionConfig.getAddress(), owner.address, await sp1VerifierGateway.getAddress(), vKey],
         owner,
       );
@@ -457,21 +457,23 @@ describe("CEI hardening regression PoCs", function () {
       await vault.connect(redeemerSigner).requestRedeem(shares);
       await networkHelpers.stopImpersonatingAccount(await redeemer.getAddress());
 
-      // Stay in PVO through fulfill (production ordering); Idle is only set after the vault loop in performUpkeep.
+      // Drive the final PVO minibatch; Idle is only set after the vault loop (fulfillRedeem) completes.
+      await harness.h_setMinibatchSize(1);
+      await harness.h_setVaultsEpoch([await vault.getAddress()]);
+      await harness.h_setCurrentMinibatchIndex(0);
       await harness.h_setPhase(PHASE_PVO);
       const state = emptyVaultState();
       state.processRedeem = true;
       state.totalAssetsForRedeem = depositAmt;
       state.finalTotalAssets = 0n;
 
-      await harness.exposed_processSingleVaultOperations(await vault.getAddress(), state);
+      await harness.h_processPvoMinibatchWithEpochEnd([state], 0n);
 
       expect(await redeemer.seenIdleDuringPayout()).to.equal(false);
       expect(await redeemer.idleGatedDepositSucceeded()).to.equal(false);
-      expect(await orionConfig.isSystemIdle()).to.equal(false);
-      expect(await harness.currentPhase()).to.equal(PHASE_PVO);
+      expect(await harness.currentPhase()).to.equal(PHASE_IDLE);
+      expect(await orionConfig.isSystemIdle()).to.equal(true);
       expect(await harness.bufferAmount()).to.equal(0n);
-      void PHASE_IDLE;
     });
   });
 });
