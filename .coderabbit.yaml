@@ -1,0 +1,97 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: "en-US"
+
+reviews:
+  # Security-sensitive code: prefer more findings over fewer.
+  profile: "assertive"
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: true
+
+  auto_review:
+    enabled: true
+    drafts: false
+    # `main` is the default branch and is always reviewed; day-to-day PRs also target `dev`.
+    base_branches:
+      - "dev"
+
+  path_filters:
+    - "!pnpm-lock.yaml"
+    - "!docs/**"
+    - "!audits/**"
+    - "!.coderabbit/solidity-auditor/**"
+
+  path_instructions:
+    - path: "contracts/{LiquidityOrchestrator,OrionConfig,PriceAdapterRegistry}.sol"
+      instructions: |
+        Core protocol contracts. Apply the solidity-auditor lenses in `.coderabbit/solidity-auditor/` and, in addition,
+        check:
+        - Epoch/state machine: every phase transition must be reachable only from the intended phase and caller;
+          check that a failed or partially processed minibatch cannot strand funds, skip accounting, or let the system
+          read as idle (`isSystemIdle`) while settlement is in progress.
+        - Accounting: buffer deltas, fee accrual, point-in-time total assets and share conversions must round in the
+          protocol's favour (deposits Floor), never wrap or invert sign (use `SafeCast`), and stay consistent between
+          the commitment/verification path and the state the vaults actually receive.
+        - Adapters are untrusted-by-interface: `buy`/`sell`/`previewBuy`/`validate*` results come from external
+          contracts registered by the owner. Check return values are validated, nothing assumes zero pre-existing
+          balances, and reentrancy through adapters or tokens cannot reorder accounting.
+        - Upgrades and admin: UUPS `_authorizeUpgrade`, timelock rotation, owner/guardian/admin roles and pause paths
+          must keep their documented restrictions. Flag any new privileged function and any storage-layout change.
+    - path: "contracts/vaults/**/*.sol"
+      instructions: |
+        Investor-facing vaults (deposit/redeem queues, fees, share accounting, HPKE-encrypted variant). Apply the
+        solidity-auditor lenses in `.coderabbit/solidity-auditor/` and, in addition, check: first-depositor and
+        donation/inflation effects, rounding direction on every conversion, request/cancel/fulfill queue invariants
+        (a user can never claim more than requested or pending), fee and high-water-mark math, access-control hooks
+        (deposit/holder/transfer controls), manager removal and decommissioning paths, and that only the
+        liquidity orchestrator can call settlement functions.
+    - path: "contracts/factories/**/*.sol"
+      instructions: |
+        Beacon-proxy factories. Check initializer protection and zero-address validation, that the beacon is fixed at
+        initialization, that new vaults are registered with the config atomically, and that vault creation cannot be
+        abused to exceed protocol limits or to brick the orchestrator.
+    - path: "contracts/{interfaces,libraries}/**/*.sol"
+      instructions: |
+        These are the public surface consumed by integrators and by the sibling `protocol-adapters` repository
+        (`IExecutionAdapter`, `IPriceAdapter`, `IPriceAdapterRegistry`, `IOrionConfig`, `ErrorsLib`, `EventsLib`).
+        Any change to a function signature, struct layout, event or custom error is a breaking change: call it out
+        explicitly and ask for a CHANGELOG entry and a version decision. Custom errors that no core contract reverts with
+        (for example `InvalidAdapter`, `InvalidPrice`, `StalePrice`, `PriceOutOfBounds`) are intentionally kept so
+        integrators can decode them; do not suggest removing them.
+    - path: "contracts/sp1-contracts/**"
+      instructions: |
+        Vendored verifier interfaces. Do not review style; only flag changes to the verification interface or to how
+        public values and verification keys are consumed.
+    - path: "contracts/test/**/*.sol"
+      instructions: |
+        Test doubles and harnesses only; do not apply production security review. Check that a mock standing in for a
+        core contract or adapter interface still matches the real interface, and that it does not weaken a behaviour the
+        production contract guarantees.
+    - path: "test/**/*.ts"
+      instructions: |
+        Core tests must not depend on concrete adapter implementations (those live in `protocol-adapters`; integration
+        belongs to protocol-hardening); use `MockExecutionAdapter`, `MockPriceAdapter` or `ControllableExecutionAdapter`.
+        When a PR changes contract behaviour, expect a test that fails against the old behaviour. Prefer specific
+        custom-error assertions over `.to.be.rejected`/`.revert`.
+    - path: "package.json"
+      instructions: |
+        Flag new runtime `dependencies` and install scripts. This package is consumed by `protocol-adapters` via a git
+        tag, so a version change must match a CHANGELOG entry.
+    - path: ".github/workflows/**"
+      instructions: |
+        Flag third-party actions not pinned to a full commit SHA, broad `permissions`, `pull_request_target`, secrets
+        exposed to untrusted code, and `persist-credentials` left enabled.
+
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      # Pashov solidity-auditor knowledge (vendored, pinned; see .coderabbit/solidity-auditor/README.md).
+      - ".coderabbit/solidity-auditor/README.md"
+      - ".coderabbit/solidity-auditor/senior-auditor-sop.md"
+      - ".coderabbit/solidity-auditor/judging.md"
+      - ".coderabbit/solidity-auditor/hacking-agents/*.md"
+      # Keep reading the usual agent/convention files if they are ever added.
+      - "**/CLAUDE.md"
+      - "**/AGENTS.md"

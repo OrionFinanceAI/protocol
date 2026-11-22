@@ -18,8 +18,6 @@ protocol-costs/
 reports/
 docs/
 .cursor/*
-!.cursor/skills/
-!.cursor/skills/**/
 res/
 running_node/
 artifacts/
