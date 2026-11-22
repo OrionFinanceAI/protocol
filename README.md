@@ -52,6 +52,9 @@ For comprehensive documentation, including setup guides, API references, and dev
 
 See [`CHANGELOG.md`](./CHANGELOG.md) for release notes.
 
+Contributors: run `pnpm install` then `pnpm setup:hooks` once to enable the local git hooks (not run automatically, so
+installing this package as a dependency stays side-effect free).
+
 ## Licences
 
 The license for Orion is the Business Source License 1.1 (`BUSL-1.1`) given in [`LICENSE`](./LICENSE).

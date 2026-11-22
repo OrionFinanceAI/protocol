@@ -26,3 +26,4 @@ README.md
 LICENSE
 LICENSE.*
 *.license
+.coderabbit/solidity-auditor

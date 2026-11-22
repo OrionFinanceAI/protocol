@@ -1,0 +1,9 @@
+#!/usr/bin/env sh
+set -e
+
+cd "$(dirname "$0")/.." || exit
+
+# Non-blocking, read-only: warn when the vendored pashov solidity-auditor review knowledge is behind upstream.
+# Syncing is deliberate (scripts/sync-solidity-auditor.sh) because those files steer the AI reviewer and must be
+# reviewed before they are committed.
+scripts/sync-solidity-auditor.sh --check || true
